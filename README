@@ -1,3 +1,13 @@
 VMTK in 3D Slicer 4
+-------------------
 
-stay tuned..
+Until extensions are available in Slicer4, copy this module to Slicer4/QTModules/ and include it for compilation.
+
+The VMTK libraries get fetched through a Superbuild External mechanism.
+
+After installation, the VMTK classes can be accessed in Slicer4 Python like this example:
+
+>> from libvtkvmtkSegmentationPython import *
+>> fastMarching = vtkvmtkFastMarchingUpwindGradientImageFilter()
+>> fastMarching.SetInput(..)
+>> ...
