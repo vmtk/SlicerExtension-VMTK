@@ -27,6 +27,10 @@ public:
   qSlicerGetTitleMacro(QTMODULE_TITLE);
   
   ///
+  /// Activate hidden mode for this module.
+  virtual bool isHidden()const;
+
+  ///
   /// Help to use the module
   virtual QString helpText()const;
 

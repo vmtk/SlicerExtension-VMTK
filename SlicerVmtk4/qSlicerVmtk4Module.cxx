@@ -91,3 +91,9 @@ vtkMRMLAbstractLogic* qSlicerVmtk4Module::createLogic()
 {
   return 0;
 }
+
+//-----------------------------------------------------------------------------
+bool qSlicerVmtk4Module::isHidden()const
+{
+  return true;
+}

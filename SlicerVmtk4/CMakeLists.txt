@@ -47,8 +47,8 @@ if(NOT DEFINED VMTK_DIR)
       -DVTK_VMTK_IN_SLICER4:BOOL=ON
       # we do not want tetgen..
       -DVMTK_BUILD_TETGEN:BOOL=OFF
-      # we do not want the vmtk scripts even if they are great :)
-      -DVMTK_SCRIPTS_ENABLED:BOOL=OFF
+      # we want the vmtk scripts :)
+      -DVMTK_SCRIPTS_ENABLED:BOOL=ON
       # we do not want cocoa, go away :)
       -DVTK_VMTK_USE_COCOA:BOOL=OFF
       # we use Slicer's VTK and ITK
