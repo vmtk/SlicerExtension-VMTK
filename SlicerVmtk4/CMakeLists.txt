@@ -1,76 +1,62 @@
-
-include( ExternalProject )
-
-# Fetch the VMTK Package
 #-----------------------------------------------------------------------------
-# Sanity checks
-if(DEFINED VMTK_DIR AND NOT EXISTS ${VMTK_DIR})
-  message(FATAL_ERROR "VMTK_DIR variable is defined but corresponds to non-existing directory")
-endif()
-
-set(proj VMTK)
-
-# re-define git protocol if necessary
-if(NOT DEFINED git_protocol)
-  set( git_protocol "git")
-endif()
-
-if(NOT DEFINED VMTK_DIR)
-  message(STATUS "Adding external project: ${proj}")
-  ExternalProject_Add(${proj}
-    GIT_REPOSITORY "${git_protocol}://github.com/haehn/vmtk.git"
-    GIT_TAG "origin/superbuild"
-    SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/${proj}
-    BINARY_DIR ${proj}-build
-    CMAKE_GENERATOR ${gen}
-    CMAKE_ARGS
-      ${ep_common_args}
-      -DBUILDNAME:STRING=${BUILDNAME}
-      -DSITE:STRING=${SITE}
-      -DMAKECOMMAND:STRING=${MAKECOMMAND}
-      -DCMAKE_BUILD_TYPE:STRING=${build_type}
-      -DBUILD_SHARED_LIBS:BOOL=ON
-      -DBUILD_EXAMPLES:BOOL=OFF
-      -DBUILD_TESTING:BOOL=OFF
-      -DBUILD_DOCUMENTATION:BOOL=OFF
-      -DCMAKE_CXX_FLAGS:STRING=${ep_common_cxx_flags}
-      -DCMAKE_C_FLAGS:STRING=${ep_common_c_flags}
-      -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/Install
-      -DVTK_VMTK_WRAP_PYTHON:BOOL=ON
-      # we don't want superbuild since it will override our CMake settings
-      -DVMTK_USE_SUPERBUILD:BOOL=OFF
-      -DVMTK_CONTRIB_SCRIPTS:BOOL=ON
-      -DVMTK_VTK_CONTRIB:BOOL=ON
-      -DVMTK_MINIMAL_INSTALL:BOOL=OFF
-      -DVMTK_ENABLE_DISTRIBUTION:BOOL=OFF
-      -DVMTK_WITH_LIBRARY_VERSION:BOOL=OFF
-      -DVTK_VMTK_IN_SLICER4:BOOL=ON
-      # we do not want tetgen..
-      -DVMTK_BUILD_TETGEN:BOOL=OFF
-      # we want the vmtk scripts :)
-      -DVMTK_SCRIPTS_ENABLED:BOOL=ON
-      # we do not want cocoa, go away :)
-      -DVTK_VMTK_USE_COCOA:BOOL=OFF
-      # we use Slicer's VTK and ITK
-      -DUSE_SYSTEM_VTK:BOOL=ON
-      -DUSE_SYSTEM_ITK:BOOL=ON
-      -DITK_DIR:PATH=${ITK_DIR}
-      -DVTK_DIR:PATH=${VTK_DIR}
-      -DGIT_EXECUTABLE:FILEPATH=${GIT_EXECUTABLE}
-    INSTALL_COMMAND ""
-    DEPENDS 
-      ${VMTK_DEPENDENCIES}
-    )
-  set(VMTK_DIR ${CMAKE_CURRENT_BINARY_DIR}/${proj}-build)
-endif()
-# End of VMTK External
+cmake_minimum_required(VERSION 2.8.2)
 #-----------------------------------------------------------------------------
 
+if(POLICY CMP0016)
+  CMAKE_POLICY(SET CMP0016 NEW)
+endif()
+if(POLICY CMP0017)
+  CMAKE_POLICY(SET CMP0017 OLD)
+endif()
 
+#-----------------------------------------------------------------------------
+# Prerequisites
+#-----------------------------------------------------------------------------
+SET(Slicer_DIR ${Slicer_BINARY_DIR})
+FIND_PACKAGE(Slicer REQUIRED)
+INCLUDE(${Slicer_USE_FILE})
+
+#-----------------------------------------------------------------------------
 # Module name (usually identique to the directory name)
-SET(qt_module_name "SlicerVmtk4")
+#-----------------------------------------------------------------------------
+SET(EXTENSION_NAME SlicerVmtk4)
+
+#-----------------------------------------------------------------------------
+# Superbuild Option - Enabled by default
+#-----------------------------------------------------------------------------
+OPTION(SlicerVmtk4_SUPERBUILD "Build SlicerVmtk4 and the projects it depends on via SuperBuild.cmake." ON)
+MARK_AS_ADVANCED(SlicerVmtk4_SUPERBUILD)
+
+#-----------------------------------------------------------------------------
+# Additional C/CXX flags
+#-----------------------------------------------------------------------------
+SET(ADDITIONAL_C_FLAGS "" CACHE STRING "Additional ${EXTENSION_NAME} C Flags")
+SET(ADDITIONAL_CXX_FLAGS "" CACHE STRING "Additional ${EXTENSION_NAME} CXX Flags")
+
+#-----------------------------------------------------------------------------
+# Superbuild script
+#-----------------------------------------------------------------------------
+IF(SlicerVmtk4_SUPERBUILD)
+  INCLUDE("${CMAKE_CURRENT_SOURCE_DIR}/SuperBuild.cmake")
+  RETURN()
+ENDIF()
+
+#-----------------------------------------------------------------------------
+# Extension description
+#-----------------------------------------------------------------------------
+SET(EXTENSION_HOMEPAGE "http://www.vmtk.org/Main/VmtkIn3DSlicer")
+SET(EXTENSION_CATEGORY "Vascular Modeling Toolkit")
+SET(EXTENSION_STATUS "Beta")
+SET(EXTENSION_DESCRIPTION "The Vascular Modeling Toolkit libraries as a 3D Slicer4 extension.")
+
+SET(EXTENSION_LICENSE_FILE ${Slicer_LICENSE_FILE})
+SET(EXTENSION_README_FILE ${Slicer_README_FILE})
 
 SET(qt_module_export_directive "Q_SLICER_QTMODULES_VMTK4_EXPORT")
+
+#-----------------------------------------------------------------------------
+# Sources
+#-----------------------------------------------------------------------------
 
 # Additional includes - Current_{source,binary} and Slicer_{Libs,Base} already included
 SET(qt_module_include_directories
@@ -90,6 +76,8 @@ SET(qt_module_MOC_SRCS
 # UI files
 SET(qt_module_UI_SRCS
 )
+
+message(STATUS VMTK_DIR: ${VMTK_DIR})
 
 # Link against VMTK
 LINK_DIRECTORIES(
@@ -111,8 +99,11 @@ SET(qt_module_target_libraries
 SET(qt_module_resources
 )
 
+#-----------------------------------------------------------------------------
+# Build
+#-----------------------------------------------------------------------------
 slicerMacroBuildQtModule(
-  NAME ${qt_module_name}
+  NAME ${EXTENSION_NAME}
   EXPORT_DIRECTIVE ${qt_module_export_directive}
   INCLUDE_DIRECTORIES ${qt_module_include_directories}
   SRCS ${qt_module_SRCS}
@@ -122,7 +113,26 @@ slicerMacroBuildQtModule(
   RESOURCES ${qt_module_resources}
   )
 
+#-----------------------------------------------------------------------------
+# Generate extension description file '<EXTENSION_NAME>.s4ext'
+#-----------------------------------------------------------------------------
+INCLUDE(SlicerFunctionGenerateExtensionDescription)
+slicerFunctionGenerateExtensionDescription(
+  EXTENSION_NAME ${EXTENSION_NAME}
+  EXTENSION_CATEGORY ${EXTENSION_CATEGORY} 
+  EXTENSION_STATUS ${EXTENSION_STATUS}
+  EXTENSION_HOMEPAGE ${EXTENSION_HOMEPAGE}
+  EXTENSION_DESCRIPTION ${EXTENSION_DESCRIPTION}
+  DESTINATION_DIR ${CMAKE_CURRENT_BINARY_DIR}
+  SLICER_WC_REVISION ${Slicer_WC_REVISION}
+  SLICER_WC_ROOT ${Slicer_WC_ROOT}
+  )
+INCLUDE(${Slicer_EXTENSION_CPACK})
 
+#-----------------------------------------------------------------------------
+# Testing
+#-----------------------------------------------------------------------------
 if(BUILD_TESTING)
   #add_subdirectory(Testing)
-endif(BUILD_TESTING)
+endif()
+
