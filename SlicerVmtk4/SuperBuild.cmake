@@ -55,7 +55,7 @@ ExternalProject_Add(${proj}
     -D${proj}_SUPERBUILD:BOOL=OFF
     #-DCTEST_CONFIGURATION_TYPE:STRING=${CTEST_CONFIGURATION_TYPE}
     # Slicer
-    -DSlicer_DIR:PATH=${Slicer_BINARY_DIR}
+    -DSlicer_DIR:PATH=${Slicer_DIR}
     # VMTK
     -DVMTK_DIR:PATH=${VMTK_DIR}
   DEPENDS 
