@@ -45,7 +45,9 @@ if(NOT DEFINED VMTK_DIR)
       -DVMTK_WITH_LIBRARY_VERSION:BOOL=OFF
       -DVTK_VMTK_IN_SLICER4:BOOL=ON
       # we do not want tetgen..
-      -DVMTK_BUILD_TETGEN:BOOL=OFF
+      -DVTK_VMTK_BUILD_TETGEN:BOOL=OFF
+      # we not want stellar..
+      -DVTK_VMTK_BUILD_STELLAR:BOOL=OFF
       # we want the vmtk scripts :)
       -DVMTK_SCRIPTS_ENABLED:BOOL=ON
       # we do not want cocoa, go away :)
