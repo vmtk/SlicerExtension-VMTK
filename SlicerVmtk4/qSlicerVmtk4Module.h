@@ -1,9 +1,6 @@
 #ifndef __qSlicerVmtk4Module_h
 #define __qSlicerVmtk4Module_h
 
-// CTK includes
-#include <ctkPimpl.h>
-
 // SlicerQt includes
 #include "qSlicerLoadableModule.h"
 
