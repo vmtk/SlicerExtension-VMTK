@@ -12,9 +12,10 @@ endif()
 #-----------------------------------------------------------------------------
 # Prerequisites
 #-----------------------------------------------------------------------------
-SET(Slicer_DIR ${Slicer_BINARY_DIR})
-FIND_PACKAGE(Slicer REQUIRED)
-INCLUDE(${Slicer_USE_FILE})
+IF(NOT Slicer_SOURCE_DIR)
+  FIND_PACKAGE(Slicer REQUIRED)
+  INCLUDE(${Slicer_USE_FILE})
+ENDIF()
 
 #-----------------------------------------------------------------------------
 # Module name (usually identique to the directory name)
@@ -116,18 +117,20 @@ slicerMacroBuildQtModule(
 #-----------------------------------------------------------------------------
 # Generate extension description file '<EXTENSION_NAME>.s4ext'
 #-----------------------------------------------------------------------------
-INCLUDE(SlicerFunctionGenerateExtensionDescription)
-slicerFunctionGenerateExtensionDescription(
-  EXTENSION_NAME ${EXTENSION_NAME}
-  EXTENSION_CATEGORY ${EXTENSION_CATEGORY} 
-  EXTENSION_STATUS ${EXTENSION_STATUS}
-  EXTENSION_HOMEPAGE ${EXTENSION_HOMEPAGE}
-  EXTENSION_DESCRIPTION ${EXTENSION_DESCRIPTION}
-  DESTINATION_DIR ${CMAKE_CURRENT_BINARY_DIR}
-  SLICER_WC_REVISION ${Slicer_WC_REVISION}
-  SLICER_WC_ROOT ${Slicer_WC_ROOT}
-  )
-INCLUDE(${Slicer_EXTENSION_CPACK})
+IF(NOT Slicer_SOURCE_DIR)
+  INCLUDE(SlicerFunctionGenerateExtensionDescription)
+  slicerFunctionGenerateExtensionDescription(
+    EXTENSION_NAME ${EXTENSION_NAME}
+    EXTENSION_CATEGORY ${EXTENSION_CATEGORY} 
+    EXTENSION_STATUS ${EXTENSION_STATUS}
+    EXTENSION_HOMEPAGE ${EXTENSION_HOMEPAGE}
+    EXTENSION_DESCRIPTION ${EXTENSION_DESCRIPTION}
+    DESTINATION_DIR ${CMAKE_CURRENT_BINARY_DIR}
+    SLICER_WC_REVISION ${Slicer_WC_REVISION}
+    SLICER_WC_ROOT ${Slicer_WC_ROOT}
+    )
+  INCLUDE(${Slicer_EXTENSION_CPACK})
+ENDIF()
 
 #-----------------------------------------------------------------------------
 # Testing
