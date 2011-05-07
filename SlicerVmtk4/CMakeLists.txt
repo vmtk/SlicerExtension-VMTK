@@ -85,20 +85,31 @@ LINK_DIRECTORIES(
   ${VMTK_DIR}/bin/
 )
 
+# TODO VMTK should expose a VMTK_LIBRARIES variable
+SET(VMTK_LIBRARIES
+  vtkvmtkCommon
+  vtkvmtkSegmentation
+  vtkvmtkDifferentialGeometry
+  vtkvmtkComputationalGeometry
+  vtkvmtkMisc
+  vtkvmtkIO
+  vtkvmtkITK
+  )
+
+SET(VMTK_PYTHON_LIBRARIES)
+FOREACH(lib ${VMTK_LIBRARIES})
+  LIST(APPEND VMTK_PYTHON_LIBRARIES ${lib}PythonD)
+ENDFOREACH()
+
 # Additional Target libraries
 SET(qt_module_target_libraries
-  vtkvmtkCommon vtkvmtkCommonPythonD
-  vtkvmtkSegmentation vtkvmtkSegmentationPythonD
-  vtkvmtkDifferentialGeometry vtkvmtkDifferentialGeometryPythonD
-  vtkvmtkComputationalGeometry vtkvmtkComputationalGeometryPythonD
-  vtkvmtkMisc vtkvmtkMiscPythonD
-  vtkvmtkIO vtkvmtkIOPythonD
-  vtkvmtkITK vtkvmtkITKPythonD    
+  ${VMTK_LIBRARIES}
+  ${VMTK_PYTHON_LIBRARIES}
   )
 
 # Resources
 SET(qt_module_resources
-)
+  )
 
 #-----------------------------------------------------------------------------
 # Build
