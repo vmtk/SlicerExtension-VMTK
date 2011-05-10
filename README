@@ -1,7 +1,16 @@
 VMTK in 3D Slicer 4
 -------------------
 
-Until extensions are available in Slicer4, copy this module to Slicer4/QTModules/ and include it for compilation.
+To install, do the following until the extensions are available through the wizard in Slicer4:
+
+git clone https://haehn@github.com/haehn/VMTK-in-3D-Slicer.git
+cd VMTK-in-3D-Slicer
+mkdir SlicerVmtk4-build
+cd SlicerVmtk4-build
+ccmake -DSlicer_DIR:PATH=/path/to/Slicer4-Superbuild/Slicer-build ../SlicerVmtk4
+make -j 4
+/path/to/Slicer4-Superbuild/Slicer-build/Slicer --add-loadable-extension-path SlicerVmtk4 "/path/to/SlicerVmtk4-build"
+
 
 The VMTK libraries get fetched through a Superbuild External mechanism.
 
