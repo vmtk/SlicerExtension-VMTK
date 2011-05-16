@@ -1,6 +1,8 @@
 VMTK in 3D Slicer 4
 -------------------
 
+1)
+
 To install, do the following until the extensions are available through the wizard in Slicer4:
 
 git clone https://haehn@github.com/haehn/VMTK-in-3D-Slicer.git
@@ -14,9 +16,13 @@ make -j 4
 
 The VMTK libraries get fetched through a Superbuild External mechanism.
 
-After installation, the VMTK classes can be accessed in Slicer4 Python like this example:
+2)
 
->> from libvtkvmtkSegmentationPython import *
->> fastMarching = vtkvmtkFastMarchingUpwindGradientImageFilter()
->> fastMarching.SetInput(..)
->> ...
+For now, the SlicerVmtk4Modules/ directory has to be copied to /path/to/Slicer4/QTScriptedModules/.
+
+Then, it has to be added to /path/to/Slicer4/QTScriptedModules/CMakeLists.txt like this:
+
+ ADD_SUBDIRECTORY(SlicerVmtk4Modules)
+
+
+Cheers!
