@@ -450,7 +450,7 @@ class LevelSetSegmentationWidget:
         newLabelMapDisplayNode = slicer.mrmlScene.CreateNodeByClass("vtkMRMLLabelMapVolumeDisplayNode")
         newLabelMapDisplayNode.SetScene(slicer.mrmlScene)
         newLabelMapDisplayNode.SetDefaultColorMap()
-        slicer.mrmlScene.AddNodeNoNotify(newLabelMapDisplayNode)        
+        slicer.mrmlScene.AddNode(newLabelMapDisplayNode)        
         
         newLabelMapNode = slicer.mrmlScene.CreateNodeByClass("vtkMRMLScalarVolumeNode")
         newLabelMapNode.CopyOrientation(currentVolumeNode)
