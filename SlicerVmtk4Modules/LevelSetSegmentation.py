@@ -79,6 +79,7 @@ class LevelSetSegmentationWidget:
     self.__inputVolumeNodeSelector.noneEnabled = False
     self.__inputVolumeNodeSelector.addEnabled = False
     self.__inputVolumeNodeSelector.removeEnabled = False
+    self.__inputVolumeNodeSelector.addAttribute( "vtkMRMLScalarVolumeNode", "LabelMap", "0" )    
     ioFormLayout.addRow("Input Volume:", self.__inputVolumeNodeSelector)
     self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
                         self.__inputVolumeNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
@@ -383,7 +384,7 @@ class LevelSetSegmentationWidget:
     else:
       self.__segmentationAdvancedPanel.hide()
 
-  def restoreDefaults(self, scope=0):
+  def restoreDefaults(self):
     '''
     scope == 0: reset all
     scope == 1: reset only threshold slider
@@ -392,7 +393,7 @@ class LevelSetSegmentationWidget:
         
         self.__updating = 1
         
-        SlicerVmtk4CommonLib.Helper.Debug("restoreDefaults(" + str(scope) + ")")
+        SlicerVmtk4CommonLib.Helper.Debug("restoreDefaults")
         
         self.__thresholdSlider.minimum = 0
         self.__thresholdSlider.maximum = 100
@@ -415,7 +416,7 @@ class LevelSetSegmentationWidget:
         # reset threshold on display node
         self.resetThresholdOnDisplayNode()
         # if a volume is selected, the threshold slider values have to match it
-        #self.onInputVolumeChanged()         
+        self.onInputVolumeChanged()         
 
 
 
@@ -440,9 +441,9 @@ class LevelSetSegmentationWidget:
         # we need a seeds node
         return 0
     
-    #if not currentStoppersNode or currentStoppersNode.GetID() == currentSeedsNode.GetID():
+    if not currentStoppersNode or currentStoppersNode.GetID() == currentSeedsNode.GetID():
         # we need a current stopper node
-        #self.__stopperFiducialsNodeSelector.addNode()
+        self.__stopperFiducialsNodeSelector.addNode()
     
     if not currentLabelMapNode or currentLabelMapNode.GetID() == currentVolumeNode.GetID():
         # we need a current labelMap node
@@ -473,8 +474,7 @@ class LevelSetSegmentationWidget:
         
     # now we need to convert the fiducials to vtkIdLists
     seeds = SlicerVmtk4CommonLib.Helper.convertFiducialHierarchyToVtkIdList(currentSeedsNode, currentVolumeNode)
-    stoppers = vtk.vtkIdList()
-    #stoppers = self.convertFiducialHierarchyToVtkIdList(currentStoppersNode, currentVolumeNode)
+    stoppers = SlicerVmtk4CommonLib.Helper.convertFiducialHierarchyToVtkIdList(currentStoppersNode, currentVolumeNode)
     
     # perform the initialization
     outputImageData = self.GetLogic().performInitialization(currentVolumeNode.GetImageData(),
@@ -528,7 +528,9 @@ class LevelSetSegmentationWidget:
     currentModelNode.SetAndObservePolyData(model)
     currentModelNode.SetModifiedSinceRead(1)
     
-    if not currentModelNode.GetDisplayNode():
+    currentModelDisplayNode = currentModelNode.GetDisplayNode()
+    
+    if not currentModelDisplayNode:
     
         # create new displayNode
         currentModelDisplayNode = slicer.mrmlScene.CreateNodeByClass("vtkMRMLModelDisplayNode")

@@ -87,9 +87,8 @@ class Helper(object):
                 # convert to IJK
                 currentCoordinatesIJK = rasToIjkMatrix.MultiplyPoint(currentCoordinatesRAS)
                 # strip the last element since we need a 3based tupel
-                currentCoordinatesIJKlist = (currentCoordinatesIJK[0],currentCoordinatesIJK[1],currentCoordinatesIJK[2])
-                print currentCoordinatesIJKlist
-                outputIds.InsertNextId(image.ComputePointId(currentCoordinatesIJKlist))
+                currentCoordinatesIJKlist = (int(currentCoordinatesIJK[0]),int(currentCoordinatesIJK[1]),int(currentCoordinatesIJK[2]))
+                outputIds.InsertNextId(int(image.ComputePointId(currentCoordinatesIJKlist)))
         
     
     

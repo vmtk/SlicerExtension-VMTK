@@ -2,7 +2,11 @@
 from __main__ import vtk
 
 # import the vmtk libraries
-from libvtkvmtkSegmentationPython import *
+try:
+    from libvtkvmtkSegmentationPython import *
+except ImportError:
+    print "FAILURE: Unable to import the SlicerVmtk4 libraries!"
+
 
 class LevelSetSegmentationLogic(object):
     '''
