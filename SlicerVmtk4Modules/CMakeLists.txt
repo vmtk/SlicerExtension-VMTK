@@ -4,6 +4,7 @@ ADD_SUBDIRECTORY(SlicerVmtk4CommonLib)
 
 SET(SlicerVmtk4Modules_PYTHON_SCRIPTS
     LevelSetSegmentation.py
+    VesselnessFiltering.py
     # here go other VMTK modules
   )
   

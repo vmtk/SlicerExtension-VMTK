@@ -28,21 +28,28 @@ class LevelSetSegmentationWidget:
       self.parent = parent
     self.layout = self.parent.layout()
 
+    # this flag is 1 if there is an update in progress
+    self.__updating = 1
+    
+    # the pointer to the logic
+    self.__logic = None 
+
     if not parent:
       self.setup()
-      self.inputVolumeNodeSelector.setMRMLScene(slicer.mrmlScene)
-      self.seedFiducialsNodeSelector.setMRMLScene(slicer.mrmlScene)
+      self.__inputVolumeNodeSelector.setMRMLScene(slicer.mrmlScene)
+      self.__seedFiducialsNodeSelector.setMRMLScene(slicer.mrmlScene)
+      self.__vesselnessVolumeNodeSelector.setMRMLScene(slicer.mrmlScene)
+      self.__outputVolumeNodeSelector.setMRMLScene(slicer.mrmlScene)
+      self.__outputModelNodeSelector.setMRMLScene(slicer.mrmlScene)
+      self.__stopperFiducialsNodeSelector.setMRMLScene(slicer.mrmlScene)
+      # after setup, be ready for events
+      self.__updating = 0      
+      
       self.parent.show()
       
     # register default slots
     self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)', self.onMRMLSceneChanged)      
     
-    # the pointer to the logic
-    self.__logic = None
-    
-    # this flag is 1 if there is an update in progress
-    
-    self.__updating = 1
 
     
   def GetLogic(self):
@@ -74,16 +81,17 @@ class LevelSetSegmentationWidget:
     # inputVolume selector
     self.__inputVolumeNodeSelector = slicer.qMRMLNodeComboBox()
     self.__inputVolumeNodeSelector.objectName = 'inputVolumeNodeSelector'
-    self.__inputVolumeNodeSelector.toolTip = "Select the input volume."
+    self.__inputVolumeNodeSelector.toolTip = "Select the input volume. This should always be the original image and not a vesselness image, if possible."
     self.__inputVolumeNodeSelector.nodeTypes = ['vtkMRMLScalarVolumeNode']
     self.__inputVolumeNodeSelector.noneEnabled = False
     self.__inputVolumeNodeSelector.addEnabled = False
     self.__inputVolumeNodeSelector.removeEnabled = False
-    self.__inputVolumeNodeSelector.addAttribute( "vtkMRMLScalarVolumeNode", "LabelMap", "0" )    
+    self.__inputVolumeNodeSelector.addAttribute("vtkMRMLScalarVolumeNode", "LabelMap", "0")    
     ioFormLayout.addRow("Input Volume:", self.__inputVolumeNodeSelector)
     self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
                         self.__inputVolumeNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
     self.__inputVolumeNodeSelector.connect('currentNodeChanged(vtkMRMLNode*)', self.onInputVolumeChanged)
+    self.__inputVolumeNodeSelector.connect('nodeActivated(vtkMRMLNode*)', self.onInputVolumeChanged)
     
     # seed selector
     self.__seedFiducialsNodeSelector = slicer.qMRMLNodeComboBox()
@@ -114,6 +122,20 @@ class LevelSetSegmentationWidget:
     
     ioAdvancedFormLayout = qt.QFormLayout(self.__ioAdvancedPanel)
 
+    # inputVolume selector
+    self.__vesselnessVolumeNodeSelector = slicer.qMRMLNodeComboBox()
+    self.__vesselnessVolumeNodeSelector.objectName = 'vesselnessVolumeNodeSelector'
+    self.__vesselnessVolumeNodeSelector.toolTip = "Select the input vesselness volume. This is optional input."
+    self.__vesselnessVolumeNodeSelector.nodeTypes = ['vtkMRMLScalarVolumeNode']
+    self.__vesselnessVolumeNodeSelector.noneEnabled = True
+    self.__vesselnessVolumeNodeSelector.addEnabled = False
+    self.__vesselnessVolumeNodeSelector.removeEnabled = False
+    self.__vesselnessVolumeNodeSelector.addAttribute("vtkMRMLScalarVolumeNode", "LabelMap", "0")
+    ioAdvancedFormLayout.addRow("Vesselness Volume:", self.__vesselnessVolumeNodeSelector)
+    self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
+                        self.__vesselnessVolumeNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
+    self.__vesselnessVolumeNodeSelector.setCurrentNode(None)
+
     # stopper selector
     self.__stopperFiducialsNodeSelector = slicer.qMRMLNodeComboBox()
     self.__stopperFiducialsNodeSelector.objectName = 'stopperFiducialsNodeSelector'
@@ -135,7 +157,7 @@ class LevelSetSegmentationWidget:
     self.__outputVolumeNodeSelector.noneEnabled = False
     self.__outputVolumeNodeSelector.addEnabled = True
     self.__outputVolumeNodeSelector.selectNodeUponCreation = True
-    self.__outputVolumeNodeSelector.addAttribute( "vtkMRMLScalarVolumeNode", "LabelMap", "1" )
+    self.__outputVolumeNodeSelector.addAttribute("vtkMRMLScalarVolumeNode", "LabelMap", "1")
     self.__outputVolumeNodeSelector.removeEnabled = True
     ioAdvancedFormLayout.addRow("Output Labelmap:", self.__outputVolumeNodeSelector)
     self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
@@ -147,6 +169,7 @@ class LevelSetSegmentationWidget:
     self.__outputModelNodeSelector.toolTip = "Select the output model."
     self.__outputModelNodeSelector.nodeTypes = ['vtkMRMLModelNode']
     self.__outputModelNodeSelector.baseName = "LevelSetSegmentationModel"
+    self.__outputModelNodeSelector.hideChildNodeTypes = ['vtkMRMLAnnotationNode'] # hide all annotation nodes
     self.__outputModelNodeSelector.noneEnabled = False
     self.__outputModelNodeSelector.addEnabled = True
     self.__outputModelNodeSelector.selectNodeUponCreation = True
@@ -244,22 +267,28 @@ class LevelSetSegmentationWidget:
     self.__iterationSpinBox.maximum = 5000
     self.__iterationSpinBox.singleStep = 10
     self.__iterationSpinBox.toolTip = "Choose the number of evolution iterations."
-    segmentationAdvancedFormLayout.addRow(SlicerVmtk4CommonLib.Helper.CreateSpace(120) + "Iterations:", self.__iterationSpinBox)
+    segmentationAdvancedFormLayout.addRow(SlicerVmtk4CommonLib.Helper.CreateSpace(100) + "Iterations:", self.__iterationSpinBox)
     
     #
-    # Reset and apply buttons
+    # Reset, preview and apply buttons
     #
     
     self.__buttonBox = qt.QDialogButtonBox()
     self.__resetButton = self.__buttonBox.addButton(self.__buttonBox.RestoreDefaults)
     self.__resetButton.toolTip = "Click to reset all input elements to default."
+    self.__previewButton = self.__buttonBox.addButton(self.__buttonBox.Discard)
+    self.__previewButton.setIcon(qt.QIcon())
+    self.__previewButton.text = "Preview.."
+    self.__previewButton.toolTip = "Click to refresh the preview."
     self.__startButton = self.__buttonBox.addButton(self.__buttonBox.Apply)
     self.__startButton.setIcon(qt.QIcon())
     self.__startButton.text = "Start!"
-    self.__startButton.toolTip = "Click to start the segmentation."
+    self.__startButton.enabled = False
+    self.__startButton.toolTip = "Click to start the filtering."
     self.layout.addWidget(self.__buttonBox)
     self.__resetButton.connect("clicked()", self.restoreDefaults)
-    self.__startButton.connect("clicked()", self.start)
+    self.__previewButton.connect("clicked()", self.onRefreshButtonClicked)
+    self.__startButton.connect("clicked()", self.onStartButtonClicked)
     
     # be ready for events
     self.__updating = 0
@@ -270,7 +299,23 @@ class LevelSetSegmentationWidget:
     # compress the layout
     self.layout.addStretch(1)    
     
-
+    
+  def onStartButtonClicked(self):
+      '''
+      '''      
+      # this is no preview
+      self.start(False)
+    
+      
+  def onRefreshButtonClicked(self):
+      '''
+      '''
+          
+      # perform the preview
+      self.start(True)
+      
+      # activate startButton
+      self.__startButton.enabled = True
           
 
   def onMRMLSceneChanged(self):
@@ -278,6 +323,37 @@ class LevelSetSegmentationWidget:
     '''
     SlicerVmtk4CommonLib.Helper.Debug("onMRMLSceneChanged")
     self.restoreDefaults()
+
+  def selectVesselnessVolume(self):
+    '''
+    '''
+    currentNode = self.__inputVolumeNodeSelector.currentNode()
+    currentVesselnessNode = self.__vesselnessVolumeNodeSelector.currentNode()
+    
+    if currentVesselnessNode:
+        return currentVesselnessNode
+    
+    # check if we have a corresponding vesselness node in the scene and set it then
+    v = None
+    vesselnessCollection = slicer.mrmlScene.GetNodesByClassByName("vtkMRMLScalarVolumeNode", "VesselnessFiltered")
+    numberOfVesselnessNodes = vesselnessCollection.GetNumberOfItems()
+    SlicerVmtk4CommonLib.Helper.Debug("Found " + str(numberOfVesselnessNodes) + " Vesselness node(s)..")
+    for i in xrange(numberOfVesselnessNodes):
+        v = vesselnessCollection.GetItemAsObject(i)
+        if (v.GetImageData().GetDimensions() == currentNode.GetImageData().GetDimensions() and
+            v.GetSpacing() == currentNode.GetSpacing() and
+            v.GetOrigin() == currentNode.GetOrigin()):
+            
+            # this is likely the corresponding vesselness node
+            SlicerVmtk4CommonLib.Helper.Debug("Configuring vesselnessVolumeNodeSelector to use: " + str(v.GetName()) + " id: " + str(v.GetID()))
+            self.__vesselnessVolumeNodeSelector.setCurrentNode(v)
+            
+            # jump out of loop
+            break
+        
+    return v
+        
+        
 
   def onInputVolumeChanged(self):
     '''
@@ -298,6 +374,14 @@ class LevelSetSegmentationWidget:
         
         if currentNode:
             
+            v = self.selectVesselnessVolume()
+            
+            # if we have a vesselnessNode, we will configure the threshold slider for it instead of the original image
+            # if not, the currentNode is the input volume         
+            if v:
+                SlicerVmtk4CommonLib.Helper.Debug("Using Vesselness volume to configure thresholdSlider..")
+                currentNode = v
+            
             currentImageData = currentNode.GetImageData()
             currentDisplayNode = currentNode.GetDisplayNode()
             
@@ -307,6 +391,10 @@ class LevelSetSegmentationWidget:
                 maximumScalarValue = round(currentScalarRange[1], 0)
                 self.__thresholdSlider.minimum = minimumScalarValue
                 self.__thresholdSlider.maximum = maximumScalarValue
+                
+                # if the image has a small scalarRange, we have to adjust the singleStep
+                if maximumScalarValue <= 10:
+                    self.__thresholdSlider.singleStep = 0.1
                 
                 if currentDisplayNode:
                     
@@ -323,8 +411,11 @@ class LevelSetSegmentationWidget:
                         self.__thresholdSlider.minimumValue = minimumScalarValue
                         self.__thresholdSlider.maximumValue = maximumScalarValue
                         
+
+                        
                     
         self.__updating = 0
+        
         
   def resetThresholdOnDisplayNode(self):
     '''
@@ -352,7 +443,15 @@ class LevelSetSegmentationWidget:
         
         self.__updating = 1
         
-        currentNode = self.__inputVolumeNodeSelector.currentNode()
+        # first, check if we have a vesselness node
+        currentNode = self.selectVesselnessVolume()
+        
+        if currentNode:
+            SlicerVmtk4CommonLib.Helper.Debug("There was a vesselness node: " + str(currentNode.GetName()))
+        else:
+            SlicerVmtk4CommonLib.Helper.Debug("There was no vesselness node..")
+            # if we don't have a vesselness node, check if we have an original input node
+            currentNode = self.__inputVolumeNodeSelector.currentNode()
         
         if currentNode:
             currentDisplayNode = currentNode.GetDisplayNode()
@@ -399,6 +498,7 @@ class LevelSetSegmentationWidget:
         self.__thresholdSlider.maximum = 100
         self.__thresholdSlider.minimumValue = 0
         self.__thresholdSlider.maximumValue = 100
+        self.__thresholdSlider.singleStep = 1
     
         self.__ioAdvancedToggle.setChecked(False)
         self.__segmentationAdvancedToggle.setChecked(False)
@@ -421,7 +521,7 @@ class LevelSetSegmentationWidget:
 
 
     
-  def start(self):
+  def start(self, preview=False):
     '''
     '''
     SlicerVmtk4CommonLib.Helper.Debug("Starting Level Set Segmentation..")
@@ -429,6 +529,7 @@ class LevelSetSegmentationWidget:
     # first we need the nodes
     currentVolumeNode = self.__inputVolumeNodeSelector.currentNode()
     currentSeedsNode = self.__seedFiducialsNodeSelector.currentNode()
+    currentVesselnessNode = self.__vesselnessVolumeNodeSelector.currentNode()
     currentStoppersNode = self.__stopperFiducialsNodeSelector.currentNode()
     currentLabelMapNode = self.__outputVolumeNodeSelector.currentNode()
     currentModelNode = self.__outputModelNodeSelector.currentNode()
@@ -443,7 +544,8 @@ class LevelSetSegmentationWidget:
     
     if not currentStoppersNode or currentStoppersNode.GetID() == currentSeedsNode.GetID():
         # we need a current stopper node
-        self.__stopperFiducialsNodeSelector.addNode()
+        #self.__stopperFiducialsNodeSelector.addNode()
+        pass
     
     if not currentLabelMapNode or currentLabelMapNode.GetID() == currentVolumeNode.GetID():
         # we need a current labelMap node
@@ -474,33 +576,71 @@ class LevelSetSegmentationWidget:
         
     # now we need to convert the fiducials to vtkIdLists
     seeds = SlicerVmtk4CommonLib.Helper.convertFiducialHierarchyToVtkIdList(currentSeedsNode, currentVolumeNode)
-    stoppers = SlicerVmtk4CommonLib.Helper.convertFiducialHierarchyToVtkIdList(currentStoppersNode, currentVolumeNode)
+    #stoppers = SlicerVmtk4CommonLib.Helper.convertFiducialHierarchyToVtkIdList(currentStoppersNode, currentVolumeNode)
+    stoppers = vtk.vtkIdList()
+    
+    # the input image for the initialization
+    inputImage = vtk.vtkImageData()
+    
+    # check if we have a vesselnessNode - this will be our input for the initialization then
+    if currentVesselnessNode:
+        # yes, there is one
+        inputImage.DeepCopy(currentVesselnessNode.GetImageData())
+    else:
+        # no, there is none - we use the original image
+        inputImage.DeepCopy(currentVolumeNode.GetImageData())
+        
+    inputImage.Update()
+    
+    # initialization
+    initImageData = vtk.vtkImageData()
+    
+    # evolution
+    evolImageData = vtk.vtkImageData()
     
     # perform the initialization
-    outputImageData = self.GetLogic().performInitialization(currentVolumeNode.GetImageData(),
-                                                            self.__thresholdSlider.minimumValue,
-                                                            self.__thresholdSlider.maximumValue,
-                                                            seeds,
-                                                            stoppers,
-                                                            0) # TODO sidebranch ignore feature
+    initImageData.DeepCopy(self.GetLogic().performInitialization(inputImage,
+                                                                 self.__thresholdSlider.minimumValue,
+                                                                 self.__thresholdSlider.maximumValue,
+                                                                 seeds,
+                                                                 stoppers,
+                                                                 0)) # TODO sidebranch ignore feature
+    initImageData.Update()
     
-    if not outputImageData.GetPointData().GetScalars():
+    if not initImageData.GetPointData().GetScalars():
         # something went wrong, the image is empty
         SlicerVmtk4CommonLib.Helper.Info("Segmentation failed - the output was empty..")
-        return -1
+        return - 1
     
-    outputImageData = self.GetLogic().performEvolution(currentVolumeNode.GetImageData(),
-                                                       outputImageData,
-                                                       self.__iterationSpinBox.value,
-                                                       self.__inflationSlider.value,
-                                                       self.__curvatureSlider.value,
-                                                       self.__attractionSlider.value,
-                                                       'geodesic')
+    # check if it is a preview call
+    if preview:
+        
+        # if this is a preview call, we want to skip the evolution
+        evolImageData.DeepCopy(initImageData)
     
-    labelMap = self.GetLogic().buildSimpleLabelMap(outputImageData, 0, 5)
+    else:
+        
+        # no preview, run the whole thing! we never use the vesselness node here, just the original one
+        evolImageData.DeepCopy(self.GetLogic().performEvolution(currentVolumeNode.GetImageData(),
+                                                                initImageData,
+                                                                self.__iterationSpinBox.value,
+                                                                self.__inflationSlider.value,
+                                                                self.__curvatureSlider.value,
+                                                                self.__attractionSlider.value,
+                                                                'geodesic'))
+        
+    evolImageData.Update()
+    
+    # create segmentation labelMap
+    labelMap = vtk.vtkImageData()
+    labelMap.DeepCopy(self.GetLogic().buildSimpleLabelMap(evolImageData, 0, 5))
+    labelMap.Update()
+
+    currentLabelMapNode.CopyOrientation(currentVolumeNode)
 
     # propagate the label map to the node
     currentLabelMapNode.SetAndObserveImageData(labelMap)
+    currentLabelMapNode.Modified()
     currentLabelMapNode.SetModifiedSinceRead(1)
     
     # deactivate the threshold in the GUI
@@ -509,7 +649,15 @@ class LevelSetSegmentationWidget:
     
     # show the segmentation results in the GUI
     selectionNode = slicer.app.mrmlApplicationLogic().GetSelectionNode()
-    selectionNode.SetReferenceActiveVolumeID(currentVolumeNode.GetID())
+    
+    if preview and currentVesselnessNode: 
+        # if preview and a vesselnessNode was configured, show it
+        selectionNode.SetReferenceActiveVolumeID(currentVesselnessNode.GetID())
+    else:
+        # if not preview, show the original volume
+        if currentVesselnessNode:
+            selectionNode.SetReferenceSecondaryVolumeID(currentVesselnessNode.GetID())
+        selectionNode.SetReferenceActiveVolumeID(currentVolumeNode.GetID())
     selectionNode.SetReferenceActiveLabelVolumeID(currentLabelMapNode.GetID())
     slicer.app.mrmlApplicationLogic().PropagateVolumeSelection()
     
@@ -521,11 +669,12 @@ class LevelSetSegmentationWidget:
     currentLabelMapNode.GetIJKToRASMatrix(ijkToRasMatrix)
     
     # call marching cubes
-    model.DeepCopy(self.GetLogic().marchingCubes(outputImageData, ijkToRasMatrix, 0.0))
+    model.DeepCopy(self.GetLogic().marchingCubes(evolImageData, ijkToRasMatrix, 0.0))
     model.Update()
     
     # propagate model to nodes
     currentModelNode.SetAndObservePolyData(model)
+    currentModelNode.Modified()
     currentModelNode.SetModifiedSinceRead(1)
     
     currentModelDisplayNode = currentModelNode.GetDisplayNode()
@@ -543,10 +692,106 @@ class LevelSetSegmentationWidget:
     currentModelDisplayNode.SetSliceIntersectionVisibility(0)
     currentModelDisplayNode.SetVisibility(1)
     currentModelDisplayNode.SetOpacity(1.0)
+    currentModelDisplayNode.Modified()
+    currentModelDisplayNode.SetModifiedSinceRead(1)
 
     # update the reference between model node and it's display node
-    currentModelNode.SetAndObserveDisplayNodeID(currentModelDisplayNode.GetID())    
+    currentModelNode.SetAndObserveDisplayNodeID(currentModelDisplayNode.GetID())   
+    currentModelNode.Modified()
+    currentModelNode.SetModifiedSinceRead(1)
+     
+    # fit slice to all sliceviewers
+    slicer.app.mrmlApplicationLogic().FitSliceToAll()         
+     
+    # jump all sliceViewers to the first fiducial point, if one was used
+    if currentSeedsNode:
+        
+        currentCoordinatesRAS = [0, 0, 0]
+
+        if isinstance(currentSeedsNode,slicer.vtkMRMLAnnotationHierarchyNode):
+            
+            childrenNodes = vtk.vtkCollection()
+            
+            currentSeedsNode.GetChildrenDisplayableNodes(childrenNodes)     
+            
+            # now we have the children, let's get the first one
+            currentFiducial = childrenNodes.GetItemAsObject(0)
+                
+            # grab the current coordinates
+            currentFiducial.GetFiducialCoordinates(currentCoordinatesRAS)    
     
+        elif isinstance(currentSeedsNode,slicer.vtkMRMLAnnotationFiducialNode):
+    
+            # grab the current coordinates
+            currentSeedsNode.GetFiducialCoordinates(currentCoordinatesRAS)        
+        
+        numberOfSliceNodes = slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLSliceNode')
+        for n in xrange(numberOfSliceNodes):
+            sliceNode = slicer.mrmlScene.GetNthNodeByClass(n, "vtkMRMLSliceNode")
+            if sliceNode:
+                sliceNode.JumpSliceByOffsetting(currentCoordinatesRAS[0], currentCoordinatesRAS[1], currentCoordinatesRAS[2])
+                 
+     
+    # center 3D view(s) on the new model
+    if currentCoordinatesRAS:
+        for d in range(slicer.app.layoutManager().threeDViewCount):
+            
+            threeDView = slicer.app.layoutManager().threeDView(d)
+            
+            # reset the focal point
+            threeDView.resetFocalPoint()
+            
+            # and fly to our seed point
+            interactor = threeDView.interactor()
+            renderer = threeDView.renderWindow().GetRenderers().GetItemAsObject(0)
+            interactor.FlyTo(renderer,currentCoordinatesRAS[0], currentCoordinatesRAS[1], currentCoordinatesRAS[2])
+            
+    SlicerVmtk4CommonLib.Helper.Debug("End of Level Set Segmentation..")
 
 
+class Slicelet(object):
+  """A slicer slicelet is a module widget that comes up in stand alone mode
+  implemented as a python class.
+  This class provides common wrapper functionality used by all slicer modlets.
+  """
+  # TODO: put this in a SliceletLib 
+  # TODO: parse command line arge
+
+
+  def __init__(self, widgetClass=None):
+    self.parent = qt.QFrame()
+    self.parent.setLayout(qt.QVBoxLayout())
+
+    # TODO: should have way to pop up python interactor
+    self.buttons = qt.QFrame()
+    self.buttons.setLayout(qt.QHBoxLayout())
+    self.parent.layout().addWidget(self.buttons)
+    self.addDataButton = qt.QPushButton("Add Data")
+    self.buttons.layout().addWidget(self.addDataButton)
+    self.addDataButton.connect("clicked()", slicer.app.ioManager().openAddDataDialog)
+    self.loadSceneButton = qt.QPushButton("Load Scene")
+    self.buttons.layout().addWidget(self.loadSceneButton)
+    self.loadSceneButton.connect("clicked()", slicer.app.ioManager().openLoadSceneDialog)
+
+    if widgetClass:
+      self.widget = widgetClass(self.parent)
+      self.widget.setup()
+    self.parent.show()
+
+class LevelSetSegmentationSlicelet(Slicelet):
+  """ Creates the interface when module is run as a stand alone gui app.
+  """
+
+  def __init__(self):
+    super(LevelSetSegmentationSlicelet, self).__init__(LevelSetSegmentationWidget)
+
+
+if __name__ == "__main__":
+  # TODO: need a way to access and parse command line arguments
+  # TODO: ideally command line args should handle --xml
+
+  import sys
+  print(sys.argv)
+
+  slicelet = LevelSetSegmentationSlicelet()
 
