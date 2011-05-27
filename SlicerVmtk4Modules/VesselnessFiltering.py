@@ -93,7 +93,7 @@ class VesselnessFilteringWidget:
     # seed selector
     self.__seedFiducialsNodeSelector = slicer.qMRMLNodeComboBox()
     self.__seedFiducialsNodeSelector.objectName = 'seedFiducialsNodeSelector'
-    self.__seedFiducialsNodeSelector.toolTip = "Select a hierarchy containing the fiducials to use as Seeds."
+    self.__seedFiducialsNodeSelector.toolTip = "Select a fiducial to use as a Seed to detect the maximal diameter."
     self.__seedFiducialsNodeSelector.nodeTypes = ['vtkMRMLAnnotationFiducialNode']
     self.__seedFiducialsNodeSelector.baseName = "DiameterSeed"
     self.__seedFiducialsNodeSelector.noneEnabled = False

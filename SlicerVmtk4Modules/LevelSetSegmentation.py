@@ -577,7 +577,7 @@ class LevelSetSegmentationWidget:
     # now we need to convert the fiducials to vtkIdLists
     seeds = SlicerVmtk4CommonLib.Helper.convertFiducialHierarchyToVtkIdList(currentSeedsNode, currentVolumeNode)
     #stoppers = SlicerVmtk4CommonLib.Helper.convertFiducialHierarchyToVtkIdList(currentStoppersNode, currentVolumeNode)
-    stoppers = vtk.vtkIdList()
+    stoppers = vtk.vtkIdList() #TODO
     
     # the input image for the initialization
     inputImage = vtk.vtkImageData()
