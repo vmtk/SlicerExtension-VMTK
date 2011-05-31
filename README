@@ -18,11 +18,11 @@ The VMTK libraries get fetched through a Superbuild External mechanism.
 
 2)
 
-For now, the SlicerVmtk4Modules/ directory has to be copied to /path/to/Slicer4/QTScriptedModules/.
+For now, the SlicerVmtk4/Modules/ sub-directory has to be copied to /path/to/Slicer4/QTScriptedModules/.
 
 Then, it has to be added to /path/to/Slicer4/QTScriptedModules/CMakeLists.txt like this:
 
- ADD_SUBDIRECTORY(SlicerVmtk4Modules)
+ ADD_SUBDIRECTORY(Modules)
 
 
 Cheers!
