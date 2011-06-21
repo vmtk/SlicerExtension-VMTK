@@ -29,7 +29,7 @@ class LevelSetSegmentationLogic(object):
         image = cast.GetOutput()
 
         scalarRange = image.GetScalarRange()
-
+        
         imageDimensions = image.GetDimensions()
         maxImageDimensions = max(imageDimensions)
 
@@ -48,7 +48,7 @@ class LevelSetSegmentationLogic(object):
         shiftScale = vtk.vtkImageShiftScale()
         shiftScale.SetInput(thresholdedImage)
         shiftScale.SetShift(-scalarRange[0])
-        shiftScale.SetScale(1 / (scalarRange[1] - scalarRange[0]))
+        shiftScale.SetScale(1.0 / (scalarRange[1] - scalarRange[0]))
         shiftScale.Update()
 
         speedImage = shiftScale.GetOutput()
