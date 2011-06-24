@@ -1,4 +1,3 @@
-
 // Qt includes
 #include <QtPlugin>
 
