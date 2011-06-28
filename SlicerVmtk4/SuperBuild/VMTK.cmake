@@ -57,6 +57,8 @@ if(NOT DEFINED VMTK_DIR)
       -DVMTK_SCRIPTS_ENABLED:BOOL=ON
       # we do not want cocoa, go away :)
       -DVTK_VMTK_USE_COCOA:BOOL=OFF
+      # deactivate build of stellar
+      -DVTK_VMTK_BUILD_STELLAR:BOOL=OFF
       # we use Slicer's VTK and ITK
       -DUSE_SYSTEM_VTK:BOOL=ON
       -DUSE_SYSTEM_ITK:BOOL=ON

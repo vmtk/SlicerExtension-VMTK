@@ -1,14 +1,6 @@
 # vtk includes
 from __main__ import vtk
 
-# import the vmtk libraries
-try:
-    from libvtkvmtkComputationalGeometryPython import *
-    from libvtkvmtkMiscPython import *
-except ImportError:
-    print "FAILURE: Unable to import the SlicerVmtk4 libraries!"
-
-
 class CenterlineComputationLogic( object ):
     '''
     classdocs
@@ -19,6 +11,12 @@ class CenterlineComputationLogic( object ):
         '''
         Constructor
         '''
+        # import the vmtk libraries
+        try:
+            from libvtkvmtkComputationalGeometryPython import *
+            from libvtkvmtkMiscPython import *
+        except ImportError:
+            print "FAILURE: Unable to import the SlicerVmtk4 libraries!"
 
 
     def prepareModel( self, polyData ):
