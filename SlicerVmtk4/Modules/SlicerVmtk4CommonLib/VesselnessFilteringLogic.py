@@ -11,6 +11,10 @@ class VesselnessFilteringLogic(object):
         '''
         Constructor
         '''
+
+    def importVmtk(self):
+        '''
+        '''
         # import the vmtk libraries
         try:
             from libvtkvmtkSegmentationPython import *
@@ -21,6 +25,7 @@ class VesselnessFilteringLogic(object):
     def performFrangiVesselness(self, image, minimumDiameter, maximumDiameter, discretizationSteps, alpha, beta, gamma):
         '''
         '''
+        self.importVmtk()
 
         cast = vtk.vtkImageCast()
         cast.SetInput(image)

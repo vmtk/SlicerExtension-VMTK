@@ -11,6 +11,11 @@ class LevelSetSegmentationLogic(object):
         '''
         Constructor
         '''
+
+        
+    def importVmtk(self):
+        '''
+        '''
         # import the vmtk libraries
         try:
             from libvtkvmtkSegmentationPython import *
@@ -20,6 +25,8 @@ class LevelSetSegmentationLogic(object):
     def performInitialization(self, image, lowerThreshold, upperThreshold, sourceSeedIds, targetSeedIds, ignoreSideBranches=0):
         '''
         '''
+        self.importVmtk()
+        
         cast = vtk.vtkImageCast()
         cast.SetInput(image)
         cast.SetOutputScalarTypeToFloat()
@@ -109,6 +116,7 @@ class LevelSetSegmentationLogic(object):
         '''
         
         '''
+        self.importVmtk()
 
         featureDerivativeSigma = 0.0
         maximumRMSError = 1E-20
@@ -141,6 +149,9 @@ class LevelSetSegmentationLogic(object):
         
                 
     def buildGradientBasedFeatureImage(self,imageData):
+        '''
+        '''
+        self.importVmtk()
 
         derivativeSigma = 0.0
         sigmoidRemapping = 1

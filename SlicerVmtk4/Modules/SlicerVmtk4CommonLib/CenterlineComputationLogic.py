@@ -11,17 +11,21 @@ class CenterlineComputationLogic( object ):
         '''
         Constructor
         '''
+
+    def importVmtk(self):
+        '''
+        '''
         # import the vmtk libraries
         try:
             from libvtkvmtkComputationalGeometryPython import *
             from libvtkvmtkMiscPython import *
         except ImportError:
-            print "FAILURE: Unable to import the SlicerVmtk4 libraries!"
-
+            print "FAILURE: Unable to import the SlicerVmtk4 libraries!"        
 
     def prepareModel( self, polyData ):
         '''
         '''
+        self.importVmtk()
 
         capDisplacement = 0.0
 
@@ -71,7 +75,8 @@ class CenterlineComputationLogic( object ):
 
     def decimateSurface( self, polyData ):
         '''
-        '''
+        '''      
+        
         decimationFilter = vtk.vtkDecimatePro()
         decimationFilter.SetInput( polyData )
         decimationFilter.SetTargetReduction( 0.99 )
@@ -133,6 +138,7 @@ class CenterlineComputationLogic( object ):
         '''
         Returns the network of the given surface.
         '''
+        self.importVmtk()        
 
         radiusArrayName = 'Radius'
         topologyArrayName = 'Topology'
@@ -159,6 +165,7 @@ class CenterlineComputationLogic( object ):
         
         Returns a tupel of the form [clippedPolyData, endpointsPoints]
         '''
+        self.importVmtk()
 
         cleaner = vtk.vtkCleanPolyData()
         cleaner.SetInput( networkPolyData )
@@ -238,6 +245,7 @@ class CenterlineComputationLogic( object ):
         Returns a tupel of two vtkPolyData objects. 
         The first are the centerlines, the second is the corresponding Voronoi diagram.
         '''
+        self.importVmtk()        
 
         flipNormals = 0
         radiusArrayName = 'Radius'
