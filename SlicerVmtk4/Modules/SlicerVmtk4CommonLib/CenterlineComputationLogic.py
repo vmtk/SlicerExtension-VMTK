@@ -10,9 +10,9 @@ class CenterlineComputationLogic( object ):
     def __init__( self ):
         '''
         Constructor
-        '''
+        '''    
 
-    def importVmtk(self):
+    def prepareModel( self, polyData ):
         '''
         '''
         # import the vmtk libraries
@@ -20,12 +20,7 @@ class CenterlineComputationLogic( object ):
             from libvtkvmtkComputationalGeometryPython import *
             from libvtkvmtkMiscPython import *
         except ImportError:
-            print "FAILURE: Unable to import the SlicerVmtk4 libraries!"        
-
-    def prepareModel( self, polyData ):
-        '''
-        '''
-        self.importVmtk()
+            print "FAILURE: Unable to import the SlicerVmtk4 libraries!"    
 
         capDisplacement = 0.0
 
@@ -138,7 +133,12 @@ class CenterlineComputationLogic( object ):
         '''
         Returns the network of the given surface.
         '''
-        self.importVmtk()        
+        # import the vmtk libraries
+        try:
+            from libvtkvmtkComputationalGeometryPython import *
+            from libvtkvmtkMiscPython import *
+        except ImportError:
+            print "FAILURE: Unable to import the SlicerVmtk4 libraries!"            
 
         radiusArrayName = 'Radius'
         topologyArrayName = 'Topology'
@@ -165,7 +165,12 @@ class CenterlineComputationLogic( object ):
         
         Returns a tupel of the form [clippedPolyData, endpointsPoints]
         '''
-        self.importVmtk()
+        # import the vmtk libraries
+        try:
+            from libvtkvmtkComputationalGeometryPython import *
+            from libvtkvmtkMiscPython import *
+        except ImportError:
+            print "FAILURE: Unable to import the SlicerVmtk4 libraries!"    
 
         cleaner = vtk.vtkCleanPolyData()
         cleaner.SetInput( networkPolyData )
@@ -245,7 +250,12 @@ class CenterlineComputationLogic( object ):
         Returns a tupel of two vtkPolyData objects. 
         The first are the centerlines, the second is the corresponding Voronoi diagram.
         '''
-        self.importVmtk()        
+        # import the vmtk libraries
+        try:
+            from libvtkvmtkComputationalGeometryPython import *
+            from libvtkvmtkMiscPython import *
+        except ImportError:
+            print "FAILURE: Unable to import the SlicerVmtk4 libraries!"          
 
         flipNormals = 0
         radiusArrayName = 'Radius'

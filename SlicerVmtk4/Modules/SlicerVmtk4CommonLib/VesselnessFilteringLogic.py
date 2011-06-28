@@ -12,7 +12,7 @@ class VesselnessFilteringLogic(object):
         Constructor
         '''
 
-    def importVmtk(self):
+    def performFrangiVesselness(self, image, minimumDiameter, maximumDiameter, discretizationSteps, alpha, beta, gamma):
         '''
         '''
         # import the vmtk libraries
@@ -20,12 +20,6 @@ class VesselnessFilteringLogic(object):
             from libvtkvmtkSegmentationPython import *
         except ImportError:
             print "FAILURE: Unable to import the SlicerVmtk4 libraries!"
-        
-        
-    def performFrangiVesselness(self, image, minimumDiameter, maximumDiameter, discretizationSteps, alpha, beta, gamma):
-        '''
-        '''
-        self.importVmtk()
 
         cast = vtk.vtkImageCast()
         cast.SetInput(image)

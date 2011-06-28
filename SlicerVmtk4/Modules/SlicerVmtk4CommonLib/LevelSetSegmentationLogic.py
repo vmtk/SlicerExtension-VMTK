@@ -12,8 +12,8 @@ class LevelSetSegmentationLogic(object):
         Constructor
         '''
 
-        
-    def importVmtk(self):
+                
+    def performInitialization(self, image, lowerThreshold, upperThreshold, sourceSeedIds, targetSeedIds, ignoreSideBranches=0):
         '''
         '''
         # import the vmtk libraries
@@ -21,11 +21,6 @@ class LevelSetSegmentationLogic(object):
             from libvtkvmtkSegmentationPython import *
         except ImportError:
             print "FAILURE: Unable to import the SlicerVmtk4 libraries!"
-                
-    def performInitialization(self, image, lowerThreshold, upperThreshold, sourceSeedIds, targetSeedIds, ignoreSideBranches=0):
-        '''
-        '''
-        self.importVmtk()
         
         cast = vtk.vtkImageCast()
         cast.SetInput(image)
@@ -116,7 +111,11 @@ class LevelSetSegmentationLogic(object):
         '''
         
         '''
-        self.importVmtk()
+        # import the vmtk libraries
+        try:
+            from libvtkvmtkSegmentationPython import *
+        except ImportError:
+            print "FAILURE: Unable to import the SlicerVmtk4 libraries!"
 
         featureDerivativeSigma = 0.0
         maximumRMSError = 1E-20
@@ -151,7 +150,11 @@ class LevelSetSegmentationLogic(object):
     def buildGradientBasedFeatureImage(self,imageData):
         '''
         '''
-        self.importVmtk()
+        # import the vmtk libraries
+        try:
+            from libvtkvmtkSegmentationPython import *
+        except ImportError:
+            print "FAILURE: Unable to import the SlicerVmtk4 libraries!"
 
         derivativeSigma = 0.0
         sigmoidRemapping = 1
