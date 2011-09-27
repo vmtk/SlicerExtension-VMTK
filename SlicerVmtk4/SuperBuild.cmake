@@ -13,8 +13,8 @@ endif()
 # Enable and setup External project global properties
 #-----------------------------------------------------------------------------
 INCLUDE(ExternalProject)
-
 set(ep_base        "${CMAKE_BINARY_DIR}")
+
 SET(ep_common_args
   -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
   #-DBUILD_TESTING:BOOL=OFF
@@ -56,6 +56,7 @@ ExternalProject_Add(${proj}
     -DADDITIONAL_CXX_FLAGS:STRING=${ADDITIONAL_CXX_FLAGS}
     -DGIT_EXECUTABLE:FILEPATH=${GIT_EXECUTABLE}
     -D${proj}_SUPERBUILD:BOOL=OFF
+    -DEXTENSION_SUPERBUILD_BINARY_DIR:PATH=${${proj}_BINARY_DIR}
     #-DCTEST_CONFIGURATION_TYPE:STRING=${CTEST_CONFIGURATION_TYPE}
     # Slicer
     -DSlicer_DIR:PATH=${Slicer_DIR}
@@ -64,5 +65,4 @@ ExternalProject_Add(${proj}
   DEPENDS 
     ${SlicerVmtk4_DEPENDENCIES}
   )
-  set(SLICERVMTK4_DIR ${CMAKE_CURRENT_BINARY_DIR}/${proj}-build)
   
