@@ -1,8 +1,16 @@
-PROJECT(SlicerVmtk4)
+#
+# SlicerVmtk4: The Vascular Modeling Toolkit in 3D Slicer 4
+#
+# http://slicer.vmtk.org
+#
+
 #-----------------------------------------------------------------------------
 cmake_minimum_required(VERSION 2.8.2)
 #-----------------------------------------------------------------------------
 
+#-----------------------------------------------------------------------------
+# See http://cmake.org/cmake/help/cmake-2-8-docs.html#section_Policies for details
+#-----------------------------------------------------------------------------
 if(POLICY CMP0016)
   CMAKE_POLICY(SET CMP0016 NEW)
 endif()
@@ -11,93 +19,86 @@ if(POLICY CMP0017)
 endif()
 
 #-----------------------------------------------------------------------------
-# Prerequisites
-#-----------------------------------------------------------------------------
-IF(NOT Slicer_SOURCE_DIR)
-  FIND_PACKAGE(Slicer REQUIRED)
-  INCLUDE(${Slicer_USE_FILE})
-ENDIF()
-
-#-----------------------------------------------------------------------------
 # Module name (usually identique to the directory name)
 #-----------------------------------------------------------------------------
-SET(EXTENSION_NAME SlicerVmtk4)
+set(EXTENSION_NAME SlicerVmtk4)
+set(EXTENSION_BUILD_SUBDIRECTORY ${EXTENSION_NAME}-build)
 
 #-----------------------------------------------------------------------------
-# Superbuild Option - Enabled by default
+# Prerequisites
 #-----------------------------------------------------------------------------
-OPTION(SlicerVmtk4_SUPERBUILD "Build SlicerVmtk4 and the projects it depends on via SuperBuild.cmake." ON)
-MARK_AS_ADVANCED(SlicerVmtk4_SUPERBUILD)
+if(NOT Slicer_SOURCE_DIR)
+  find_package(Slicer REQUIRED)
+
+  # Additional C/CXX flags - Should be defined before including Slicer_USE_FILE
+  set(ADDITIONAL_C_FLAGS "" CACHE STRING "Additional ${EXTENSION_NAME} C Flags")
+  set(ADDITIONAL_CXX_FLAGS "" CACHE STRING "Additional ${EXTENSION_NAME} CXX Flags")
+
+  include(${Slicer_USE_FILE})
+
+  include(SlicerEnableExtensionTesting)
+
+  find_package(Git REQUIRED)
+endif()
 
 #-----------------------------------------------------------------------------
-# Additional C/CXX flags
+# Superbuild
 #-----------------------------------------------------------------------------
-SET(ADDITIONAL_C_FLAGS "" CACHE STRING "Additional ${EXTENSION_NAME} C Flags")
-SET(ADDITIONAL_CXX_FLAGS "" CACHE STRING "Additional ${EXTENSION_NAME} CXX Flags")
+option(${EXTENSION_NAME}_SUPERBUILD "Build ${EXTENSION_NAME} and the projects it depends on via SuperBuild.cmake." ON)
+mark_as_advanced(${EXTENSION_NAME}_SUPERBUILD)
+if(${EXTENSION_NAME}_SUPERBUILD)
+  include("${CMAKE_CURRENT_SOURCE_DIR}/SuperBuild.cmake")
+  return()
+endif()
 
 #-----------------------------------------------------------------------------
-# CPack for SlicerVmtk4
+# Include Python Modules
 #-----------------------------------------------------------------------------
-set(CPACK_INSTALL_CMAKE_PROJECTS "${CPACK_INSTALL_CMAKE_PROJECTS};${CMAKE_BINARY_DIR};SlicerVmtk4;ALL;/")
-
-#-----------------------------------------------------------------------------
-# CPack for VMTK, has to be before superbuild call
-#-----------------------------------------------------------------------------
-set(CPACK_INSTALL_CMAKE_PROJECTS "${CPACK_INSTALL_CMAKE_PROJECTS};${VMTK_DIR};VMTK;RuntimeLibraries;/")
-
-INCLUDE(SlicerEnableExtensionTesting)
-
-#-----------------------------------------------------------------------------
-# Superbuild script
-#-----------------------------------------------------------------------------
-IF(SlicerVmtk4_SUPERBUILD)
-  INCLUDE("${CMAKE_CURRENT_SOURCE_DIR}/SuperBuild.cmake")
-  RETURN()
-ENDIF()
+add_subdirectory(Modules)
 
 #-----------------------------------------------------------------------------
 # Extension description
 #-----------------------------------------------------------------------------
-SET(EXTENSION_HOMEPAGE "http://slicer.vmtk.org/")
-SET(EXTENSION_CATEGORY "Vascular Modeling Toolkit")
-SET(EXTENSION_STATUS "Beta")
-SET(EXTENSION_DESCRIPTION "The Vascular Modeling Toolkit as a 3D Slicer4 extension.")
+set(EXTENSION_HOMEPAGE "http://slicer.vmtk.org/")
+set(EXTENSION_CATEGORY "Vascular Modeling Toolkit")
+set(EXTENSION_STATUS "Beta")
+set(EXTENSION_DESCRIPTION "The Vascular Modeling Toolkit as a 3D Slicer4 extension.")
+set(EXTENSION_DEPENDS "NA")
 
-SET(EXTENSION_LICENSE_FILE ${Slicer_LICENSE_FILE})
-SET(EXTENSION_README_FILE ${Slicer_README_FILE})
-
-SET(qt_module_export_directive "Q_SLICER_QTMODULES_VMTK4_EXPORT")
+set(EXTENSION_LICENSE_FILE ${Slicer_LICENSE_FILE})
+set(EXTENSION_README_FILE ${Slicer_README_FILE})
 
 #-----------------------------------------------------------------------------
 # Sources
 #-----------------------------------------------------------------------------
+set(qt_module_export_directive "Q_SLICER_QTMODULES_VMTK4_EXPORT")
 
 # Additional includes - Current_{source,binary} and Slicer_{Libs,Base} already included
-SET(qt_module_include_directories
+set(qt_module_include_directories
   )
 
 # Source files
-SET(qt_module_SRCS
+set(qt_module_SRCS
   qSlicerVmtk4Module.cxx
   qSlicerVmtk4Module.h
   )
 
 # Headers that should run through moc
-SET(qt_module_MOC_SRCS
+set(qt_module_MOC_SRCS
   qSlicerVmtk4Module.h
   )
 
 # UI files
-SET(qt_module_UI_SRCS
+set(qt_module_UI_SRCS
 )
 
-# Link against VMTK
-LINK_DIRECTORIES(
+# Link against VMTK lib
+link_directories(
   ${CMAKE_BINARY_DIR}/${Slicer_QTLOADABLEMODULES_LIB_DIR}
 )
 
-# TODO VMTK should expose a VMTK_LIBRARIES variable
-SET(VMTK_LIBRARIES
+# configure VMTK targets
+set(VMTK_LIBRARIES
   vtkvmtkCommon
   vtkvmtkSegmentation
   vtkvmtkDifferentialGeometry
@@ -107,35 +108,24 @@ SET(VMTK_LIBRARIES
   vtkvmtkITK
   )
 
-SET(VMTK_PYTHON_LIBRARIES)
-FOREACH(lib ${VMTK_LIBRARIES})
-  LIST(APPEND VMTK_PYTHON_LIBRARIES ${lib}PythonD)
-ENDFOREACH()
+set(VMTK_PYTHON_LIBRARIES)
+foreach(lib ${VMTK_LIBRARIES})
+  list(APPEND VMTK_PYTHON_LIBRARIES ${lib}PythonD)
+endforeach()
 
 # Additional Target libraries
-SET(qt_module_target_libraries
+set(qt_module_target_libraries
   ${VMTK_LIBRARIES}
   ${VMTK_PYTHON_LIBRARIES}
   )
 
 # Resources
-SET(qt_module_resources
+set(qt_module_resources
   )
-
-#-----------------------------------------------------------------------------
-# Include Python Modules
-#-----------------------------------------------------------------------------
-ADD_SUBDIRECTORY(Modules)
-
 
 #-----------------------------------------------------------------------------
 # Build
 #-----------------------------------------------------------------------------
-
-# patch until JC fixes the macro :)
-set(Slicer_INSTALL_QTLOADABLEMODULES_BIN_DIR ${Slicer_QTLOADABLEMODULES_BIN_DIR})
-set(Slicer_INSTALL_QTLOADABLEMODULES_LIB_DIR ${Slicer_QTLOADABLEMODULES_LIB_DIR})
-
 slicerMacroBuildQtModule(
   NAME ${EXTENSION_NAME}
   EXPORT_DIRECTIVE ${qt_module_export_directive}
@@ -147,31 +137,36 @@ slicerMacroBuildQtModule(
   RESOURCES ${qt_module_resources}
   )
 
-set(EXTENSION_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/SlicerVmtk4-build)
-message(XX ${EXTENSION_BINARY_DIR})
-
-#-----------------------------------------------------------------------------
-# Generate extension description file '<EXTENSION_NAME>.s4ext'
-#-----------------------------------------------------------------------------
-IF(NOT Slicer_SOURCE_DIR)
-  INCLUDE(SlicerFunctionGenerateExtensionDescription)
-  slicerFunctionGenerateExtensionDescription(
-    EXTENSION_NAME ${EXTENSION_NAME}
-    EXTENSION_CATEGORY ${EXTENSION_CATEGORY} 
-    EXTENSION_STATUS ${EXTENSION_STATUS}
-    EXTENSION_HOMEPAGE ${EXTENSION_HOMEPAGE}
-    EXTENSION_DESCRIPTION ${EXTENSION_DESCRIPTION}
-    DESTINATION_DIR ${CMAKE_CURRENT_BINARY_DIR}
-    SLICER_WC_REVISION ${Slicer_WC_REVISION}
-    SLICER_WC_ROOT ${Slicer_WC_ROOT}
-    )
-  INCLUDE(${Slicer_EXTENSION_CPACK})
-ENDIF()
-
 #-----------------------------------------------------------------------------
 # Testing
 #-----------------------------------------------------------------------------
 if(BUILD_TESTING)
   #add_subdirectory(Testing)
 endif()
+
+#-----------------------------------------------------------------------------
+# Generate extension description file '<EXTENSION_NAME>.s4ext'
+#-----------------------------------------------------------------------------
+include(SlicerFunctionGenerateExtensionDescription)
+slicerFunctionGenerateExtensionDescription(
+  EXTENSION_NAME ${EXTENSION_NAME}
+  EXTENSION_BUILD_SUBDIRECTORY ${EXTENSION_BUILD_SUBDIRECTORY}
+  EXTENSION_CATEGORY ${EXTENSION_CATEGORY}
+  EXTENSION_STATUS ${EXTENSION_STATUS}
+  EXTENSION_HOMEPAGE ${EXTENSION_HOMEPAGE}
+  EXTENSION_DESCRIPTION ${EXTENSION_DESCRIPTION}
+  EXTENSION_DEPENDS ${EXTENSION_DEPENDS}
+  DESTINATION_DIR ${CMAKE_CURRENT_BINARY_DIR}
+  SLICER_WC_REVISION ${Slicer_WC_REVISION}
+  SLICER_WC_ROOT ${Slicer_WC_ROOT}
+  )
+
+#-----------------------------------------------------------------------------
+# Packaging
+#-----------------------------------------------------------------------------
+# Current project
+set(CPACK_INSTALL_CMAKE_PROJECTS "${CPACK_INSTALL_CMAKE_PROJECTS};${CMAKE_BINARY_DIR};${EXTENSION_NAME};ALL;/")
+# External projects
+#set(CPACK_INSTALL_CMAKE_PROJECTS "${CPACK_INSTALL_CMAKE_PROJECTS};${<EP>_DIR};<EP>;RuntimeLibraries;/")
+INCLUDE(${Slicer_EXTENSION_CPACK})
 
