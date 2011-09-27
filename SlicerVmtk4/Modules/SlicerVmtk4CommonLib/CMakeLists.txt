@@ -15,7 +15,7 @@ ctkMacroCompilePythonScript(
   SCRIPTS "${SlicerVmtk4CommonLib_PYTHON_SCRIPTS}"
   RESOURCES "${SlicerVmtk4CommonLib_PYTHON_RESOURCES}"
   DESTINATION_DIR ${CMAKE_BINARY_DIR}/${Slicer_QTSCRIPTEDMODULES_LIB_DIR}/SlicerVmtk4CommonLib
-  INSTALL_DIR ${Slicer_QTSCRIPTEDMODULES_LIB_DIR}
+  INSTALL_DIR ${Slicer_INSTALL_ROOT}
   )
 
 #-----------------------------------------------------------------------------
