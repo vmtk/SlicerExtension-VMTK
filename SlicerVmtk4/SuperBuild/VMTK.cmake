@@ -1,4 +1,3 @@
-
 # Fetch the VMTK Package
 #-----------------------------------------------------------------------------
 
@@ -17,7 +16,7 @@ endif()
 if(NOT DEFINED VMTK_DIR)
   message(STATUS "Adding external project: ${proj}")
   ExternalProject_Add(${proj}
-    GIT_REPOSITORY "${git_protocol}://github.com/haehn/vmtk.git"
+    GIT_REPOSITORY "${git_protocol}://github.com/lantiga/vmtk.git"
     GIT_TAG "origin/master"
     SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/${proj}
     BINARY_DIR ${proj}-build
