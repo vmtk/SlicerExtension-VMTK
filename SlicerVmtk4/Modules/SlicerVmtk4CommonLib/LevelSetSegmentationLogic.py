@@ -271,7 +271,3 @@ class LevelSetSegmentationLogic(object):
         result.Update()
         
         return result
-
-
-
-

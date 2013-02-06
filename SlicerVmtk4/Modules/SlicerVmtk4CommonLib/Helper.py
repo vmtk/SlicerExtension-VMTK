@@ -208,7 +208,3 @@ class Helper(object):
         newVolume.SetRASToIJKMatrix(outputRASToIJK)
 
         newVolume.Modified()
-        newVolume.SetModifiedSinceRead(1)
-               
-            
-        

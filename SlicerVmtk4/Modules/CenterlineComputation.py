@@ -14,8 +14,8 @@ import math
 class CenterlineComputation:
   def __init__( self, parent ):
     parent.title = "Centerline Computation"
-    parent.category = "Vascular Modeling Toolkit"
-    parent.contributor = "Daniel Haehn <haehn@bwh.harvard.edu>"
+    parent.categories = ["Vascular Modeling Toolkit",]
+    parent.contributors = ["Daniel Haehn (Boston Children's Hospital)", "Luca Antiga (Orobix)", "Steve Pieper (Isomics)"]
     parent.helpText = """dsfdsf"""
     parent.acknowledgementText = """sdfsdfdsf"""
     self.parent = parent
@@ -434,19 +434,16 @@ class CenterlineComputationWidget:
 
     currentModelDisplayNode.SetOpacity( 0.4 )
     currentModelDisplayNode.Modified()
-    currentModelDisplayNode.SetModifiedSinceRead( 1 )
 
     # update the reference between model node and it's display node
     currentModelNode.SetAndObserveDisplayNodeID( currentModelDisplayNode.GetID() )
     currentModelNode.Modified()
-    currentModelNode.SetModifiedSinceRead( 1 )
 
     #
     # finally:
     # propagate output model to nodes
     currentOutputModelNode.SetAndObservePolyData( network )
     currentOutputModelNode.Modified()
-    currentOutputModelNode.SetModifiedSinceRead( 1 )
 
     currentOutputModelDisplayNode = currentOutputModelNode.GetDisplayNode()
 
@@ -464,19 +461,16 @@ class CenterlineComputationWidget:
     currentOutputModelDisplayNode.SetVisibility( 1 )
     currentOutputModelDisplayNode.SetOpacity( 1.0 )
     currentOutputModelDisplayNode.Modified()
-    currentOutputModelDisplayNode.SetModifiedSinceRead( 1 )
 
     # update the reference between model node and it's display node
     currentOutputModelNode.SetAndObserveDisplayNodeID( currentOutputModelDisplayNode.GetID() )
     currentOutputModelNode.Modified()
-    currentOutputModelNode.SetModifiedSinceRead( 1 )
 
     # only update the voronoi node if we are not in preview mode
 
     if not preview:
         currentVoronoiModelNode.SetAndObservePolyData( voronoi )
         currentVoronoiModelNode.Modified()
-        currentVoronoiModelNode.SetModifiedSinceRead( 1 )
 
         currentVoronoiModelDisplayNode = currentVoronoiModelNode.GetDisplayNode()
 
@@ -496,12 +490,10 @@ class CenterlineComputationWidget:
         currentVoronoiModelDisplayNode.SetVisibility( 1 )
         currentVoronoiModelDisplayNode.SetOpacity( 0.5 )
         currentVoronoiModelDisplayNode.Modified()
-        currentVoronoiModelDisplayNode.SetModifiedSinceRead( 1 )
 
         # update the reference between model node and it's display node
         currentVoronoiModelNode.SetAndObserveDisplayNodeID( currentVoronoiModelDisplayNode.GetID() )
         currentVoronoiModelNode.Modified()
-        currentVoronoiModelNode.SetModifiedSinceRead( 1 )
 
 
 

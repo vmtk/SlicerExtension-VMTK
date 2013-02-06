@@ -11,8 +11,8 @@ import SlicerVmtk4CommonLib
 class LevelSetSegmentation:
   def __init__(self, parent):
     parent.title = "Level Set Segmentation"
-    parent.category = "Vascular Modeling Toolkit"
-    parent.contributor = "Daniel Haehn <haehn@bwh.harvard.edu>"
+    parent.categories = ["Vascular Modeling Toolkit",]
+    parent.contributors = ["Daniel Haehn (Boston Children's Hospital)", "Luca Antiga (Orobix)", "Steve Pieper (Isomics)"]
     parent.helpText = """dsfdsf"""
     parent.acknowledgementText = """sdfsdfdsf"""
     self.parent = parent
@@ -641,7 +641,6 @@ class LevelSetSegmentationWidget:
     # propagate the label map to the node
     currentLabelMapNode.SetAndObserveImageData(labelMap)
     currentLabelMapNode.Modified()
-    currentLabelMapNode.SetModifiedSinceRead(1)
     
     # deactivate the threshold in the GUI
     self.resetThresholdOnDisplayNode()
@@ -675,7 +674,6 @@ class LevelSetSegmentationWidget:
     # propagate model to nodes
     currentModelNode.SetAndObservePolyData(model)
     currentModelNode.Modified()
-    currentModelNode.SetModifiedSinceRead(1)
     
     currentModelDisplayNode = currentModelNode.GetDisplayNode()
     
@@ -693,12 +691,10 @@ class LevelSetSegmentationWidget:
     currentModelDisplayNode.SetVisibility(1)
     currentModelDisplayNode.SetOpacity(1.0)
     currentModelDisplayNode.Modified()
-    currentModelDisplayNode.SetModifiedSinceRead(1)
 
     # update the reference between model node and it's display node
     currentModelNode.SetAndObserveDisplayNodeID(currentModelDisplayNode.GetID())   
     currentModelNode.Modified()
-    currentModelNode.SetModifiedSinceRead(1)
      
     # fit slice to all sliceviewers
     slicer.app.mrmlApplicationLogic().FitSliceToAll()         
