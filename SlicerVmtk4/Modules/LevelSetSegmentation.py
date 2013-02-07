@@ -647,7 +647,7 @@ class LevelSetSegmentationWidget:
     #self.onInputVolumeChanged()
     
     # show the segmentation results in the GUI
-    selectionNode = slicer.app.mrmlApplicationLogic().GetSelectionNode()
+    selectionNode = slicer.app.applicationLogic().GetSelectionNode()
     
     if preview and currentVesselnessNode: 
         # if preview and a vesselnessNode was configured, show it
@@ -658,7 +658,7 @@ class LevelSetSegmentationWidget:
             selectionNode.SetReferenceSecondaryVolumeID(currentVesselnessNode.GetID())
         selectionNode.SetReferenceActiveVolumeID(currentVolumeNode.GetID())
     selectionNode.SetReferenceActiveLabelVolumeID(currentLabelMapNode.GetID())
-    slicer.app.mrmlApplicationLogic().PropagateVolumeSelection()
+    slicer.app.applicationLogic().PropagateVolumeSelection()
     
     # generate 3D model
     model = vtk.vtkPolyData()
@@ -684,7 +684,7 @@ class LevelSetSegmentationWidget:
         slicer.mrmlScene.AddNode(currentModelDisplayNode)
         
     # always configure the displayNode to show the model
-    currentModelDisplayNode.SetPolyData(currentModelNode.GetPolyData())
+    currentModelDisplayNode.SetInputPolyData(currentModelNode.GetPolyData())
     currentModelDisplayNode.SetColor(1.0, 0.55, 0.4) # red
     currentModelDisplayNode.SetBackfaceCulling(0)
     currentModelDisplayNode.SetSliceIntersectionVisibility(0)
@@ -697,7 +697,7 @@ class LevelSetSegmentationWidget:
     currentModelNode.Modified()
      
     # fit slice to all sliceviewers
-    slicer.app.mrmlApplicationLogic().FitSliceToAll()         
+    slicer.app.applicationLogic().FitSliceToAll()         
      
     # jump all sliceViewers to the first fiducial point, if one was used
     if currentSeedsNode:
@@ -732,7 +732,7 @@ class LevelSetSegmentationWidget:
     if currentCoordinatesRAS:
         for d in range(slicer.app.layoutManager().threeDViewCount):
             
-            threeDView = slicer.app.layoutManager().threeDView(d)
+            threeDView = slicer.app.layoutManager().threeDWidget(d).threeDView()
             
             # reset the focal point
             threeDView.resetFocalPoint()

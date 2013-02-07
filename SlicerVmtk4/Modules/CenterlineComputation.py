@@ -454,7 +454,7 @@ class CenterlineComputationWidget:
         slicer.mrmlScene.AddNode( currentOutputModelDisplayNode )
 
     # always configure the displayNode to show the model
-    currentOutputModelDisplayNode.SetPolyData( currentOutputModelNode.GetPolyData() )
+    currentOutputModelDisplayNode.SetInputPolyData( currentOutputModelNode.GetPolyData() )
     currentOutputModelDisplayNode.SetColor( 0.0, 0.0, 0.4 ) # red
     currentOutputModelDisplayNode.SetBackfaceCulling( 0 )
     currentOutputModelDisplayNode.SetSliceIntersectionVisibility( 0 )
@@ -481,7 +481,7 @@ class CenterlineComputationWidget:
             slicer.mrmlScene.AddNode( currentVoronoiModelDisplayNode )
 
         # always configure the displayNode to show the model
-        currentVoronoiModelDisplayNode.SetPolyData( currentVoronoiModelNode.GetPolyData() )
+        currentVoronoiModelDisplayNode.SetInputPolyData( currentVoronoiModelNode.GetPolyData() )
         currentVoronoiModelDisplayNode.SetScalarVisibility( 1 )
         currentVoronoiModelDisplayNode.SetBackfaceCulling( 0 )
         currentVoronoiModelDisplayNode.SetActiveScalarName( "Radius" )

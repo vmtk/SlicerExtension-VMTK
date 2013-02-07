@@ -511,10 +511,10 @@ class VesselnessFilteringWidget:
         bgVolumeID = currentOutputVolumeNode.GetID()
         fgVolumeID = currentVolumeNode.GetID()        
     
-    selectionNode = slicer.app.mrmlApplicationLogic().GetSelectionNode()
+    selectionNode = slicer.app.applicationLogic().GetSelectionNode()
     selectionNode.SetReferenceActiveVolumeID(bgVolumeID)
     selectionNode.SetReferenceSecondaryVolumeID(fgVolumeID)
-    slicer.app.mrmlApplicationLogic().PropagateVolumeSelection()    
+    slicer.app.applicationLogic().PropagateVolumeSelection()    
 
     # renew auto window/level for the output
     currentOutputVolumeNode.GetDisplayNode().AutoWindowLevelOff()
@@ -533,7 +533,7 @@ class VesselnessFilteringWidget:
               compositeNode.SetForegroundOpacity(0.0)    
     
     # fit slice to all sliceviewers
-    slicer.app.mrmlApplicationLogic().FitSliceToAll()    
+    slicer.app.applicationLogic().FitSliceToAll()    
     
     # jump all sliceViewers to the fiducial point, if one was used
     if currentSeedsNode:
