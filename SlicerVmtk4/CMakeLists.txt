@@ -97,6 +97,17 @@ set(qt_module_MOC_SRCS
 set(qt_module_UI_SRCS
 )
 
+#-----------------------------------------------------------------------------
+# Avoid error when building on mac (Xcode 4.6, cmake 2.8.10)
+# ld: framework not found QtSvg
+# clang: error: linker command failed with exit code 1 (use -v to see invocation)
+# TODO: this should be fixed either in CMake or in the Slicer extension build system
+if(APPLE)
+  set(CMAKE_SHARED_LINKER_FLAGS "-F /Library/Frameworks")
+  set(CMAKE_EXE_LINKER_FLAGS "-F /Library/Frameworks")
+endif()
+#-----------------------------------------------------------------------------
+
 # Link against VMTK lib
 link_directories(
   ${CMAKE_BINARY_DIR}/${Slicer_QTLOADABLEMODULES_LIB_DIR}
