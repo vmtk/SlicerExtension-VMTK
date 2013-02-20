@@ -5,7 +5,7 @@
 #
 
 #-----------------------------------------------------------------------------
-cmake_minimum_required(VERSION 2.8.2)
+cmake_minimum_required(VERSION 2.8.7)
 #-----------------------------------------------------------------------------
 
 #-----------------------------------------------------------------------------
@@ -22,7 +22,21 @@ endif()
 # Module name (usually identique to the directory name)
 #-----------------------------------------------------------------------------
 set(EXTENSION_NAME SlicerVmtk4)
+
+#-----------------------------------------------------------------------------
+# Extension description
+#-----------------------------------------------------------------------------
+set(EXTENSION_HOMEPAGE "http://slicer.vmtk.org/")
+set(EXTENSION_CATEGORY "Vascular Modeling Toolkit")
+set(EXTENSION_CONTRIBUTORS "Daniel Haehn (Boston Childrens Hospital), Luca Antiga (Orobix), Steve Pieper (Isomics)")
+set(EXTENSION_DESCRIPTION "The Vascular Modeling Toolkit as a 3D Slicer4 extension.")
+set(EXTENSION_STATUS "Beta")
+set(EXTENSION_ICONURL "http://www.nitrc.org/project/screenshot.php?group_id=196&screenshot_id=269")
+set(EXTENSION_SCREENSHOTURLS "http://www.nitrc.org/project/screenshot.php?group_id=196&screenshot_id=126 http://www.nitrc.org/project/screenshot.php?group_id=196&screenshot_id=227 http://www.nitrc.org/project/screenshot.php?group_id=196&screenshot_id=228 http://www.nitrc.org/project/screenshot.php?group_id=196&screenshot_id=229")
+set(EXTENSION_DEPENDS "NA")
 set(EXTENSION_BUILD_SUBDIRECTORY ${EXTENSION_NAME}-build)
+set(EXTENSION_LICENSE_FILE ${Slicer_LICENSE_FILE})
+set(EXTENSION_README_FILE ${Slicer_README_FILE})
 
 #-----------------------------------------------------------------------------
 # Prerequisites
@@ -57,18 +71,6 @@ endif()
 add_subdirectory(Modules)
 
 #-----------------------------------------------------------------------------
-# Extension description
-#-----------------------------------------------------------------------------
-set(EXTENSION_HOMEPAGE "http://slicer.vmtk.org/")
-set(EXTENSION_CATEGORY "Vascular Modeling Toolkit")
-set(EXTENSION_STATUS "Beta")
-set(EXTENSION_DESCRIPTION "The Vascular Modeling Toolkit as a 3D Slicer4 extension.")
-set(EXTENSION_DEPENDS "NA")
-
-set(EXTENSION_LICENSE_FILE ${Slicer_LICENSE_FILE})
-set(EXTENSION_README_FILE ${Slicer_README_FILE})
-
-#-----------------------------------------------------------------------------
 # Sources
 #-----------------------------------------------------------------------------
 set(qt_module_export_directive "Q_SLICER_QTMODULES_VMTK4_EXPORT")
@@ -91,6 +93,17 @@ set(qt_module_MOC_SRCS
 # UI files
 set(qt_module_UI_SRCS
 )
+
+#-----------------------------------------------------------------------------
+# Avoid error when building on mac (Xcode 4.6, cmake 2.8.10)
+# ld: framework not found QtSvg
+# clang: error: linker command failed with exit code 1 (use -v to see invocation)
+# TODO: this should be fixed either in CMake or in the Slicer extension build system
+if(APPLE)
+  set(CMAKE_SHARED_LINKER_FLAGS "-F /Library/Frameworks")
+  set(CMAKE_EXE_LINKER_FLAGS "-F /Library/Frameworks")
+endif()
+#-----------------------------------------------------------------------------
 
 # Link against VMTK lib
 link_directories(
@@ -143,23 +156,6 @@ slicerMacroBuildQtModule(
 if(BUILD_TESTING)
   #add_subdirectory(Testing)
 endif()
-
-#-----------------------------------------------------------------------------
-# Generate extension description file '<EXTENSION_NAME>.s4ext'
-#-----------------------------------------------------------------------------
-include(SlicerFunctionGenerateExtensionDescription)
-slicerFunctionGenerateExtensionDescription(
-  EXTENSION_NAME ${EXTENSION_NAME}
-  EXTENSION_BUILD_SUBDIRECTORY ${EXTENSION_BUILD_SUBDIRECTORY}
-  EXTENSION_CATEGORY ${EXTENSION_CATEGORY}
-  EXTENSION_STATUS ${EXTENSION_STATUS}
-  EXTENSION_HOMEPAGE ${EXTENSION_HOMEPAGE}
-  EXTENSION_DESCRIPTION ${EXTENSION_DESCRIPTION}
-  EXTENSION_DEPENDS ${EXTENSION_DEPENDS}
-  DESTINATION_DIR ${CMAKE_CURRENT_BINARY_DIR}
-  SLICER_WC_REVISION ${Slicer_WC_REVISION}
-  SLICER_WC_ROOT ${Slicer_WC_ROOT}
-  )
 
 #-----------------------------------------------------------------------------
 # Packaging

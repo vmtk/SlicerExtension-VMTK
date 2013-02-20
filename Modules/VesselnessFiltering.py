@@ -12,8 +12,8 @@ import SlicerVmtk4CommonLib
 class VesselnessFiltering:
   def __init__(self, parent):
     parent.title = "Vesselness Filtering"
-    parent.category = "Vascular Modeling Toolkit"
-    parent.contributor = "Daniel Haehn <haehn@bwh.harvard.edu>"
+    parent.categories = ["Vascular Modeling Toolkit",]
+    parent.contributors = ["Daniel Haehn (Boston Children's Hospital)", "Luca Antiga (Orobix)", "Steve Pieper (Isomics)"]
     parent.helpText = """dsfdsf"""
     parent.acknowledgementText = """sdfsdfdsf"""
     self.parent = parent
@@ -500,7 +500,6 @@ class VesselnessFilteringWidget:
     
     # we set the outImage which has spacing 1,1,1. The ijkToRas matrix of the node will take care of that
     currentOutputVolumeNode.SetAndObserveImageData(outImage)
-    currentOutputVolumeNode.SetModifiedSinceRead(1)
 
     # for preview: show the inputVolume as background and the outputVolume as foreground in the slice viewers
     #    note: that's the only way we can have the preview as an overlay of the originalvolume
@@ -512,10 +511,10 @@ class VesselnessFilteringWidget:
         bgVolumeID = currentOutputVolumeNode.GetID()
         fgVolumeID = currentVolumeNode.GetID()        
     
-    selectionNode = slicer.app.mrmlApplicationLogic().GetSelectionNode()
+    selectionNode = slicer.app.applicationLogic().GetSelectionNode()
     selectionNode.SetReferenceActiveVolumeID(bgVolumeID)
     selectionNode.SetReferenceSecondaryVolumeID(fgVolumeID)
-    slicer.app.mrmlApplicationLogic().PropagateVolumeSelection()    
+    slicer.app.applicationLogic().PropagateVolumeSelection()    
 
     # renew auto window/level for the output
     currentOutputVolumeNode.GetDisplayNode().AutoWindowLevelOff()
@@ -534,7 +533,7 @@ class VesselnessFilteringWidget:
               compositeNode.SetForegroundOpacity(0.0)    
     
     # fit slice to all sliceviewers
-    slicer.app.mrmlApplicationLogic().FitSliceToAll()    
+    slicer.app.applicationLogic().FitSliceToAll()    
     
     # jump all sliceViewers to the fiducial point, if one was used
     if currentSeedsNode:

@@ -17,7 +17,7 @@ if(NOT DEFINED VMTK_DIR)
   message(STATUS "Adding external project: ${proj}")
   ExternalProject_Add(${proj}
     GIT_REPOSITORY "${git_protocol}://github.com/lantiga/vmtk.git"
-    GIT_TAG "origin/master"
+    GIT_TAG "origin/itk4"
     SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/${proj}
     BINARY_DIR ${proj}-build
     CMAKE_GENERATOR ${gen}

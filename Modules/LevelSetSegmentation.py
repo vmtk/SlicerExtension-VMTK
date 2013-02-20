@@ -11,8 +11,8 @@ import SlicerVmtk4CommonLib
 class LevelSetSegmentation:
   def __init__(self, parent):
     parent.title = "Level Set Segmentation"
-    parent.category = "Vascular Modeling Toolkit"
-    parent.contributor = "Daniel Haehn <haehn@bwh.harvard.edu>"
+    parent.categories = ["Vascular Modeling Toolkit",]
+    parent.contributors = ["Daniel Haehn (Boston Children's Hospital)", "Luca Antiga (Orobix)", "Steve Pieper (Isomics)"]
     parent.helpText = """dsfdsf"""
     parent.acknowledgementText = """sdfsdfdsf"""
     self.parent = parent
@@ -641,14 +641,13 @@ class LevelSetSegmentationWidget:
     # propagate the label map to the node
     currentLabelMapNode.SetAndObserveImageData(labelMap)
     currentLabelMapNode.Modified()
-    currentLabelMapNode.SetModifiedSinceRead(1)
     
     # deactivate the threshold in the GUI
     self.resetThresholdOnDisplayNode()
     #self.onInputVolumeChanged()
     
     # show the segmentation results in the GUI
-    selectionNode = slicer.app.mrmlApplicationLogic().GetSelectionNode()
+    selectionNode = slicer.app.applicationLogic().GetSelectionNode()
     
     if preview and currentVesselnessNode: 
         # if preview and a vesselnessNode was configured, show it
@@ -659,7 +658,7 @@ class LevelSetSegmentationWidget:
             selectionNode.SetReferenceSecondaryVolumeID(currentVesselnessNode.GetID())
         selectionNode.SetReferenceActiveVolumeID(currentVolumeNode.GetID())
     selectionNode.SetReferenceActiveLabelVolumeID(currentLabelMapNode.GetID())
-    slicer.app.mrmlApplicationLogic().PropagateVolumeSelection()
+    slicer.app.applicationLogic().PropagateVolumeSelection()
     
     # generate 3D model
     model = vtk.vtkPolyData()
@@ -675,7 +674,6 @@ class LevelSetSegmentationWidget:
     # propagate model to nodes
     currentModelNode.SetAndObservePolyData(model)
     currentModelNode.Modified()
-    currentModelNode.SetModifiedSinceRead(1)
     
     currentModelDisplayNode = currentModelNode.GetDisplayNode()
     
@@ -686,22 +684,20 @@ class LevelSetSegmentationWidget:
         slicer.mrmlScene.AddNode(currentModelDisplayNode)
         
     # always configure the displayNode to show the model
-    currentModelDisplayNode.SetPolyData(currentModelNode.GetPolyData())
+    currentModelDisplayNode.SetInputPolyData(currentModelNode.GetPolyData())
     currentModelDisplayNode.SetColor(1.0, 0.55, 0.4) # red
     currentModelDisplayNode.SetBackfaceCulling(0)
     currentModelDisplayNode.SetSliceIntersectionVisibility(0)
     currentModelDisplayNode.SetVisibility(1)
     currentModelDisplayNode.SetOpacity(1.0)
     currentModelDisplayNode.Modified()
-    currentModelDisplayNode.SetModifiedSinceRead(1)
 
     # update the reference between model node and it's display node
     currentModelNode.SetAndObserveDisplayNodeID(currentModelDisplayNode.GetID())   
     currentModelNode.Modified()
-    currentModelNode.SetModifiedSinceRead(1)
      
     # fit slice to all sliceviewers
-    slicer.app.mrmlApplicationLogic().FitSliceToAll()         
+    slicer.app.applicationLogic().FitSliceToAll()         
      
     # jump all sliceViewers to the first fiducial point, if one was used
     if currentSeedsNode:
@@ -736,7 +732,7 @@ class LevelSetSegmentationWidget:
     if currentCoordinatesRAS:
         for d in range(slicer.app.layoutManager().threeDViewCount):
             
-            threeDView = slicer.app.layoutManager().threeDView(d)
+            threeDView = slicer.app.layoutManager().threeDWidget(d).threeDView()
             
             # reset the focal point
             threeDView.resetFocalPoint()
