@@ -10,7 +10,7 @@ class CenterlineComputationLogic( object ):
     def __init__( self ):
         '''
         Constructor
-        '''    
+        '''
 
     def prepareModel( self, polyData ):
         '''
@@ -20,7 +20,7 @@ class CenterlineComputationLogic( object ):
             from libvtkvmtkComputationalGeometryPython import *
             from libvtkvmtkMiscPython import *
         except ImportError:
-            print "FAILURE: Unable to import the SlicerVmtk4 libraries!"    
+            print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
         capDisplacement = 0.0
 
@@ -70,8 +70,8 @@ class CenterlineComputationLogic( object ):
 
     def decimateSurface( self, polyData ):
         '''
-        '''      
-        
+        '''
+
         decimationFilter = vtk.vtkDecimatePro()
         decimationFilter.SetInput( polyData )
         decimationFilter.SetTargetReduction( 0.99 )
@@ -106,7 +106,7 @@ class CenterlineComputationLogic( object ):
         pointLocator.BuildLocator()
 
         # find the closest point next to the seed on the surface
-        #id = pointLocator.FindClosestPoint(int(seed[0]),int(seed[1]),int(seed[2]))
+        # id = pointLocator.FindClosestPoint(int(seed[0]),int(seed[1]),int(seed[2]))
         id = pointLocator.FindClosestPoint( seed )
 
         # the seed is now guaranteed on the surface
@@ -138,7 +138,7 @@ class CenterlineComputationLogic( object ):
             from libvtkvmtkComputationalGeometryPython import *
             from libvtkvmtkMiscPython import *
         except ImportError:
-            print "FAILURE: Unable to import the SlicerVmtk4 libraries!"            
+            print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
         radiusArrayName = 'Radius'
         topologyArrayName = 'Topology'
@@ -170,7 +170,7 @@ class CenterlineComputationLogic( object ):
             from libvtkvmtkComputationalGeometryPython import *
             from libvtkvmtkMiscPython import *
         except ImportError:
-            print "FAILURE: Unable to import the SlicerVmtk4 libraries!"    
+            print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
         cleaner = vtk.vtkCleanPolyData()
         cleaner.SetInput( networkPolyData )
@@ -255,7 +255,7 @@ class CenterlineComputationLogic( object ):
             from libvtkvmtkComputationalGeometryPython import *
             from libvtkvmtkMiscPython import *
         except ImportError:
-            print "FAILURE: Unable to import the SlicerVmtk4 libraries!"          
+            print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
         flipNormals = 0
         radiusArrayName = 'Radius'

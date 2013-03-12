@@ -1,8 +1,8 @@
 // Qt includes
 #include <QtPlugin>
 
-// Vmtk4 includes
-#include "qSlicerVmtk4Module.h"
+// Vmtk includes
+#include "qSlicerVmtkModule.h"
 
 extern  "C" void initlibvtkvmtkCommonPython();
 extern  "C" void initlibvtkvmtkSegmentationPython();
@@ -13,59 +13,59 @@ extern  "C" void initlibvtkvmtkMiscPython();
 extern  "C" void initlibvtkvmtkITKPython();
 
 //-----------------------------------------------------------------------------
-Q_EXPORT_PLUGIN2(qSlicerVmtk4Module, qSlicerVmtk4Module);
+Q_EXPORT_PLUGIN2(qSlicerVmtkModule, qSlicerVmtkModule);
 
 //-----------------------------------------------------------------------------
-/// \ingroup Slicer_QtModules_Vmtk4
-class qSlicerVmtk4ModulePrivate
+/// \ingroup Slicer_QtModules_Vmtk
+class qSlicerVmtkModulePrivate
 {
 public:
-  qSlicerVmtk4ModulePrivate();
+  qSlicerVmtkModulePrivate();
 };
 
 //-----------------------------------------------------------------------------
-// qSlicerVmtk4ModulePrivate methods
+// qSlicerVmtkModulePrivate methods
 
 //-----------------------------------------------------------------------------
-qSlicerVmtk4ModulePrivate::qSlicerVmtk4ModulePrivate()
+qSlicerVmtkModulePrivate::qSlicerVmtkModulePrivate()
 {
 }
 
 //-----------------------------------------------------------------------------
-// qSlicerVmtk4Module methods
+// qSlicerVmtkModule methods
 
 //-----------------------------------------------------------------------------
-qSlicerVmtk4Module::qSlicerVmtk4Module(QObject* _parent)
+qSlicerVmtkModule::qSlicerVmtkModule(QObject* _parent)
   : Superclass(_parent)
-  , d_ptr(new qSlicerVmtk4ModulePrivate)
+  , d_ptr(new qSlicerVmtkModulePrivate)
 {
 }
 
 //-----------------------------------------------------------------------------
-qSlicerVmtk4Module::~qSlicerVmtk4Module()
+qSlicerVmtkModule::~qSlicerVmtkModule()
 {
 }
 
 //-----------------------------------------------------------------------------
-QString qSlicerVmtk4Module::helpText()const
+QString qSlicerVmtkModule::helpText()const
 {
   return QString();
 }
 
 //-----------------------------------------------------------------------------
-QString qSlicerVmtk4Module::acknowledgementText()const
+QString qSlicerVmtkModule::acknowledgementText()const
 {
   return "This work was supported by nothing but hot air :D";
 }
 
 //-----------------------------------------------------------------------------
-QIcon qSlicerVmtk4Module::icon()const
+QIcon qSlicerVmtkModule::icon()const
 {
   return QIcon("");
 }
 
 //-----------------------------------------------------------------------------
-void qSlicerVmtk4Module::setup()
+void qSlicerVmtkModule::setup()
 {
   this->Superclass::setup();
 
@@ -80,19 +80,19 @@ void qSlicerVmtk4Module::setup()
 }
 
 //-----------------------------------------------------------------------------
-qSlicerAbstractModuleRepresentation * qSlicerVmtk4Module::createWidgetRepresentation()
+qSlicerAbstractModuleRepresentation * qSlicerVmtkModule::createWidgetRepresentation()
 {
   return 0;
 }
 
 //-----------------------------------------------------------------------------
-vtkMRMLAbstractLogic* qSlicerVmtk4Module::createLogic()
+vtkMRMLAbstractLogic* qSlicerVmtkModule::createLogic()
 {
   return 0;
 }
 
 //-----------------------------------------------------------------------------
-bool qSlicerVmtk4Module::isHidden()const
+bool qSlicerVmtkModule::isHidden()const
 {
   return true;
 }

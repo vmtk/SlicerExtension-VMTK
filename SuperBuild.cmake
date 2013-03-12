@@ -29,16 +29,16 @@ set(ep_common_cxx_flags "${CMAKE_CXX_FLAGS_INIT} ${ADDITIONAL_CXX_FLAGS}")
 # Project dependencies
 #-----------------------------------------------------------------------------
 
-set(SlicerVmtk4_DEPENDENCIES VMTK)
+set(SlicerVmtk_DEPENDENCIES VMTK)
 
-SlicerMacroCheckExternalProjectDependency(SlicerVmtk4)
+SlicerMacroCheckExternalProjectDependency(SlicerVmtk)
 
 set(ep_cmake_args)
 foreach(dep ${EXTENSION_DEPENDS})
   list(APPEND ep_cmake_args -D${dep}_DIR:PATH=${${dep}_DIR})
 endforeach()
 
-set(proj SlicerVmtk4)
+set(proj SlicerVmtk)
 ExternalProject_Add(${proj}
   DOWNLOAD_COMMAND ""
   INSTALL_COMMAND ""

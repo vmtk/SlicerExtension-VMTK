@@ -1,15 +1,15 @@
-#ifndef __qSlicerVmtk4Module_h
-#define __qSlicerVmtk4Module_h
+#ifndef __qSlicerVmtkModule_h
+#define __qSlicerVmtkModule_h
 
 // SlicerQt includes
 #include "qSlicerLoadableModule.h"
 
-#include "qSlicerVmtk4ModuleExport.h"
+#include "qSlicerVmtkModuleExport.h"
 
-class qSlicerVmtk4ModulePrivate;
+class qSlicerVmtkModulePrivate;
 
-/// \ingroup Slicer_QtModules_Vmtk4
-class Q_SLICER_QTMODULES_VMTK4_EXPORT qSlicerVmtk4Module :
+/// \ingroup Slicer_QtModules_Vmtk
+class Q_SLICER_QTMODULES_VMTK_EXPORT qSlicerVmtkModule :
   public qSlicerLoadableModule
 {
   Q_OBJECT
@@ -18,8 +18,8 @@ class Q_SLICER_QTMODULES_VMTK4_EXPORT qSlicerVmtk4Module :
 public:
 
   typedef qSlicerLoadableModule Superclass;
-  explicit qSlicerVmtk4Module(QObject *parent=0);
-  virtual ~qSlicerVmtk4Module();
+  explicit qSlicerVmtkModule(QObject *parent=0);
+  virtual ~qSlicerVmtkModule();
 
   qSlicerGetTitleMacro(QTMODULE_TITLE);
   
@@ -47,11 +47,11 @@ protected:
   virtual vtkMRMLAbstractLogic* createLogic();
 
 protected:
-  QScopedPointer<qSlicerVmtk4ModulePrivate> d_ptr;
+  QScopedPointer<qSlicerVmtkModulePrivate> d_ptr;
 
 private:
-  Q_DECLARE_PRIVATE(qSlicerVmtk4Module);
-  Q_DISABLE_COPY(qSlicerVmtk4Module);
+  Q_DECLARE_PRIVATE(qSlicerVmtkModule);
+  Q_DISABLE_COPY(qSlicerVmtkModule);
 
 };
 

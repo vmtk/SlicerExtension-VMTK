@@ -2,7 +2,7 @@
 from __main__ import vtk, qt, ctk, slicer
 
 # vmtk includes
-import SlicerVmtk4CommonLib
+import SlicerVmtkCommonLib
 
 # python includes
 import math
@@ -14,7 +14,7 @@ import math
 class CenterlineComputation:
   def __init__( self, parent ):
     parent.title = "Centerline Computation"
-    parent.categories = ["Vascular Modeling Toolkit",]
+    parent.categories = ["Vascular Modeling Toolkit", ]
     parent.contributors = ["Daniel Haehn (Boston Children's Hospital)", "Luca Antiga (Orobix)", "Steve Pieper (Isomics)"]
     parent.helpText = """dsfdsf"""
     parent.acknowledgementText = """sdfsdfdsf"""
@@ -57,16 +57,16 @@ class CenterlineComputationWidget:
     '''
     if not self.__logic:
 
-        self.__logic = SlicerVmtk4CommonLib.CenterlineComputationLogic()
+        self.__logic = SlicerVmtkCommonLib.CenterlineComputationLogic()
 
     return self.__logic
 
 
   def setup( self ):
 
-    # check if the SlicerVmtk4 module is installed properly
-    #self.__vmtkInstalled = SlicerVmtk4CommonLib.Helper.CheckIfVmtkIsInstalled()
-    #Helper.Debug("VMTK found: " + self.__vmtkInstalled)
+    # check if the SlicerVmtk module is installed properly
+    # self.__vmtkInstalled = SlicerVmtkCommonLib.Helper.CheckIfVmtkIsInstalled()
+    # Helper.Debug("VMTK found: " + self.__vmtkInstalled)
 
     #
     # the I/O panel
@@ -83,7 +83,7 @@ class CenterlineComputationWidget:
     self.__inputModelNodeSelector.objectName = 'inputModelNodeSelector'
     self.__inputModelNodeSelector.toolTip = "Select the input model."
     self.__inputModelNodeSelector.nodeTypes = ['vtkMRMLModelNode']
-    self.__inputModelNodeSelector.hideChildNodeTypes = ['vtkMRMLAnnotationNode'] # hide all annotation nodes
+    self.__inputModelNodeSelector.hideChildNodeTypes = ['vtkMRMLAnnotationNode']  # hide all annotation nodes
     self.__inputModelNodeSelector.noneEnabled = False
     self.__inputModelNodeSelector.addEnabled = False
     self.__inputModelNodeSelector.removeEnabled = False
@@ -129,7 +129,7 @@ class CenterlineComputationWidget:
     self.__outputModelNodeSelector.toolTip = "Select the output model for the Centerlines."
     self.__outputModelNodeSelector.nodeTypes = ['vtkMRMLModelNode']
     self.__outputModelNodeSelector.baseName = "CenterlineComputationModel"
-    self.__outputModelNodeSelector.hideChildNodeTypes = ['vtkMRMLAnnotationNode'] # hide all annotation nodes
+    self.__outputModelNodeSelector.hideChildNodeTypes = ['vtkMRMLAnnotationNode']  # hide all annotation nodes
     self.__outputModelNodeSelector.noneEnabled = False
     self.__outputModelNodeSelector.addEnabled = True
     self.__outputModelNodeSelector.selectNodeUponCreation = True
@@ -144,7 +144,7 @@ class CenterlineComputationWidget:
     self.__voronoiModelNodeSelector.toolTip = "Select the output model for the Voronoi Diagram."
     self.__voronoiModelNodeSelector.nodeTypes = ['vtkMRMLModelNode']
     self.__voronoiModelNodeSelector.baseName = "VoronoiModel"
-    self.__voronoiModelNodeSelector.hideChildNodeTypes = ['vtkMRMLAnnotationNode'] # hide all annotation nodes
+    self.__voronoiModelNodeSelector.hideChildNodeTypes = ['vtkMRMLAnnotationNode']  # hide all annotation nodes
     self.__voronoiModelNodeSelector.noneEnabled = False
     self.__voronoiModelNodeSelector.addEnabled = True
     self.__voronoiModelNodeSelector.selectNodeUponCreation = True
@@ -192,7 +192,7 @@ class CenterlineComputationWidget:
   def onMRMLSceneChanged( self ):
     '''
     '''
-    SlicerVmtk4CommonLib.Helper.Debug( "onMRMLSceneChanged" )
+    SlicerVmtkCommonLib.Helper.Debug( "onMRMLSceneChanged" )
     self.restoreDefaults()
 
   def onInputModelChanged( self ):
@@ -202,7 +202,7 @@ class CenterlineComputationWidget:
 
         self.__updating = 1
 
-        SlicerVmtk4CommonLib.Helper.Debug( "onInputModelChanged" )
+        SlicerVmtkCommonLib.Helper.Debug( "onInputModelChanged" )
 
         # do nothing right now
 
@@ -257,7 +257,7 @@ class CenterlineComputationWidget:
 
         self.__updating = 1
 
-        SlicerVmtk4CommonLib.Helper.Debug( "restoreDefaults" )
+        SlicerVmtkCommonLib.Helper.Debug( "restoreDefaults" )
 
 
         self.__startButton.enabled = False
@@ -271,7 +271,7 @@ class CenterlineComputationWidget:
   def start( self, preview=False ):
     '''
     '''
-    SlicerVmtk4CommonLib.Helper.Debug( "Starting Centerline Computation.." )
+    SlicerVmtkCommonLib.Helper.Debug( "Starting Centerline Computation.." )
 
     # first we need the nodes
     currentModelNode = self.__inputModelNodeSelector.currentNode()
@@ -455,7 +455,7 @@ class CenterlineComputationWidget:
 
     # always configure the displayNode to show the model
     currentOutputModelDisplayNode.SetInputPolyData( currentOutputModelNode.GetPolyData() )
-    currentOutputModelDisplayNode.SetColor( 0.0, 0.0, 0.4 ) # red
+    currentOutputModelDisplayNode.SetColor( 0.0, 0.0, 0.4 )  # red
     currentOutputModelDisplayNode.SetBackfaceCulling( 0 )
     currentOutputModelDisplayNode.SetSliceIntersectionVisibility( 0 )
     currentOutputModelDisplayNode.SetVisibility( 1 )
@@ -497,7 +497,7 @@ class CenterlineComputationWidget:
 
 
 
-    SlicerVmtk4CommonLib.Helper.Debug( "End of Centerline Computation.." )
+    SlicerVmtkCommonLib.Helper.Debug( "End of Centerline Computation.." )
 
 
 class Slicelet( object ):
@@ -505,7 +505,7 @@ class Slicelet( object ):
   implemented as a python class.
   This class provides common wrapper functionality used by all slicer modlets.
   """
-  # TODO: put this in a SliceletLib 
+  # TODO: put this in a SliceletLib
   # TODO: parse command line arge
 
 

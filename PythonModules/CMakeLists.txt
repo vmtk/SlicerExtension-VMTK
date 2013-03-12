@@ -1,8 +1,8 @@
 
-# Common python classes for SlicerVmtk4 
-ADD_SUBDIRECTORY(SlicerVmtk4CommonLib)
+# Common python classes for SlicerVmtk 
+ADD_SUBDIRECTORY(SlicerVmtkCommonLib)
 
-SET(SlicerVmtk4Modules_PYTHON_SCRIPTS
+SET(SlicerVmtkModules_PYTHON_SCRIPTS
     LevelSetSegmentation.py
     VesselnessFiltering.py
     CenterlineComputation.py
@@ -13,9 +13,9 @@ SET(KIT_PYTHON_RESOURCES
   )
   
 ctkMacroCompilePythonScript(
-  TARGET_NAME SlicerVmtk4Modules
-  SCRIPTS "${SlicerVmtk4Modules_PYTHON_SCRIPTS}"
-  RESOURCES "${SlicerVmtk4Modules_PYTHON_RESOURCES}"
+  TARGET_NAME SlicerVmtkModules
+  SCRIPTS "${SlicerVmtkModules_PYTHON_SCRIPTS}"
+  RESOURCES "${SlicerVmtkModules_PYTHON_RESOURCES}"
   DESTINATION_DIR ${CMAKE_BINARY_DIR}/${Slicer_QTSCRIPTEDMODULES_LIB_DIR}
   INSTALL_DIR ${Slicer_INSTALL_ROOT}
   )
