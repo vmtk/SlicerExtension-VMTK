@@ -1,28 +1,15 @@
-VMTK in 3D Slicer 4
+The VMTK Extension for 3D Slicer 4.2+
 -------------------
 
-1)
+To install manually against a Slicer4 build:
 
-To install, do the following until the extensions are available through the wizard in Slicer4:
+== Compilation ==
+1) git clone https://github.com/haehn/VMTKSlicerExtension.git
+2) mkdir VMTKSlicerExtension-build/
+3) cd VMTKSlicerExtension-build
+4) ccmake -DSlicer_DIR:PATH=/PATH/TO/Slicer4-Superbuild/Slicer-build ../VMTKSlicerExtension
+5) make -j 5
 
-git clone https://haehn@github.com/haehn/VMTK-in-3D-Slicer.git
-cd VMTK-in-3D-Slicer
-mkdir SlicerVmtk4-build
-cd SlicerVmtk4-build
-ccmake -DSlicer_DIR:PATH=/path/to/Slicer4-Superbuild/Slicer-build ../SlicerVmtk4
-make -j 4
-/path/to/Slicer4-Superbuild/Slicer-build/Slicer --add-loadable-extension-path SlicerVmtk4 "/path/to/SlicerVmtk4-build"
+== Start Slicer and detect the VMTK extension ==
+/PATH/TO/Slicer --additional-module-paths /PATH/TO/VMTKSlicerExtension-build/SlicerVmtk-build/lib/Slicer-4.2/qt-loadable-modules /PATH/TO/VMTKSlicerExtension-build/SlicerVmtk-build/lib/Slicer-4.2/qt-scripted-modules
 
-
-The VMTK libraries get fetched through a Superbuild External mechanism.
-
-2)
-
-For now, the SlicerVmtk4/Modules/ sub-directory has to be copied to /path/to/Slicer4/QTScriptedModules/.
-
-Then, it has to be added to /path/to/Slicer4/QTScriptedModules/CMakeLists.txt like this:
-
- ADD_SUBDIRECTORY(Modules)
-
-
-Cheers!
