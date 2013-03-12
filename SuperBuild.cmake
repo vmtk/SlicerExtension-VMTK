@@ -12,15 +12,9 @@ endif()
 #-----------------------------------------------------------------------------
 # Enable and setup External project global properties
 #-----------------------------------------------------------------------------
-INCLUDE(ExternalProject)
+include(ExternalProject)
 set(ep_base        "${CMAKE_BINARY_DIR}")
 
-SET(ep_common_args
-  -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
-  #-DBUILD_TESTING:BOOL=OFF
-  )
-  
-  
 # Compute -G arg for configuring external projects with the same CMake generator:
 if(CMAKE_EXTRA_GENERATOR)
   set(gen "${CMAKE_EXTRA_GENERATOR} - ${CMAKE_GENERATOR}")
@@ -28,17 +22,21 @@ else()
   set(gen "${CMAKE_GENERATOR}")
 endif()
 
-#-----------------------------------------------------------------------------
-# SlicerVmtk4 dependencies
-#-----------------------------------------------------------------------------
-set(VMTK_DEPENDENCIES)
-include(SuperBuild/VMTK.cmake)
+set(ep_common_c_flags "${CMAKE_C_FLAGS_INIT} ${ADDITIONAL_C_FLAGS}")
+set(ep_common_cxx_flags "${CMAKE_CXX_FLAGS_INIT} ${ADDITIONAL_CXX_FLAGS}")
 
 #-----------------------------------------------------------------------------
-# Configure and build VMTK
-#------------------------------------------------------------------------------
+# Project dependencies
+#-----------------------------------------------------------------------------
 
 set(SlicerVmtk4_DEPENDENCIES VMTK)
+
+SlicerMacroCheckExternalProjectDependency(SlicerVmtk4)
+
+set(ep_cmake_args)
+foreach(dep ${EXTENSION_DEPENDS})
+  list(APPEND ep_cmake_args -D${dep}_DIR:PATH=${${dep}_DIR})
+endforeach()
 
 set(proj SlicerVmtk4)
 ExternalProject_Add(${proj}
@@ -48,21 +46,23 @@ ExternalProject_Add(${proj}
   BINARY_DIR ${proj}-build
   CMAKE_GENERATOR ${gen}
   CMAKE_ARGS
+    -DCMAKE_CXX_COMPILER:FILEPATH=${CMAKE_CXX_COMPILER}
+    -DCMAKE_CXX_FLAGS:STRING=${ep_common_cxx_flags}
+    -DCMAKE_C_COMPILER:FILEPATH=${CMAKE_C_COMPILER}
+    -DCMAKE_C_FLAGS:STRING=${ep_common_c_flags}
     -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
     -DCMAKE_RUNTIME_OUTPUT_DIRECTORY:PATH=${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
     -DCMAKE_LIBRARY_OUTPUT_DIRECTORY:PATH=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
     -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY:PATH=${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}
-    -DADDITIONAL_C_FLAGS:STRING=${ADDITIONAL_C_FLAGS}
-    -DADDITIONAL_CXX_FLAGS:STRING=${ADDITIONAL_CXX_FLAGS}
+    -DMIDAS_PACKAGE_EMAIL:STRING=${MIDAS_PACKAGE_EMAIL}
+    -DMIDAS_PACKAGE_API_KEY:STRING=${MIDAS_PACKAGE_API_KEY}
     -DGIT_EXECUTABLE:FILEPATH=${GIT_EXECUTABLE}
-    -D${proj}_SUPERBUILD:BOOL=OFF
-    -DEXTENSION_SUPERBUILD_BINARY_DIR:PATH=${${proj}_BINARY_DIR}
-    #-DCTEST_CONFIGURATION_TYPE:STRING=${CTEST_CONFIGURATION_TYPE}
+    -D${EXTENSION_NAME}_SUPERBUILD:BOOL=OFF
+    -DEXTENSION_SUPERBUILD_BINARY_DIR:PATH=${${EXTENSION_NAME}_BINARY_DIR}
     # Slicer
     -DSlicer_DIR:PATH=${Slicer_DIR}
-    # VMTK
-    -DVMTK_DIR:PATH=${VMTK_DIR}
+    ${ep_cmake_args}
   DEPENDS 
-    ${SlicerVmtk4_DEPENDENCIES}
+    ${${proj}_DEPENDENCIES}
   )
   

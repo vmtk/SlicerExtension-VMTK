@@ -1,20 +1,40 @@
 # Fetch the VMTK Package
 #-----------------------------------------------------------------------------
 
+# Make sure this file is included only once
+get_filename_component(CMAKE_CURRENT_LIST_FILENAME ${CMAKE_CURRENT_LIST_FILE} NAME_WE)
+if(${CMAKE_CURRENT_LIST_FILENAME}_FILE_INCLUDED)
+  return()
+endif()
+set(${CMAKE_CURRENT_LIST_FILENAME}_FILE_INCLUDED 1)
+
 # Sanity checks
 if(DEFINED VMTK_DIR AND NOT EXISTS ${VMTK_DIR})
   message(FATAL_ERROR "VMTK_DIR variable is defined but corresponds to non-existing directory")
 endif()
 
+# Set dependency list
+set(VMTK_DEPENDENCIES "")
+
+SlicerMacroCheckExternalProjectDependency(VMTK)
 set(proj VMTK)
 
-# re-define git protocol if necessary
-if(NOT DEFINED git_protocol)
-  set( git_protocol "git")
-endif()
+if(NOT DEFINED ${proj}_DIR)
+  #message(STATUS "Adding external project: ${proj}")
+  
+  # Set CMake OSX variable to pass down the external project
+  set(CMAKE_OSX_EXTERNAL_PROJECT_ARGS)
+  if(APPLE)
+    list(APPEND CMAKE_OSX_EXTERNAL_PROJECT_ARGS
+      -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}
+      -DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT}
+      -DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET})
+  endif()  
 
-if(NOT DEFINED VMTK_DIR)
-  message(STATUS "Adding external project: ${proj}")
+  if(NOT DEFINED git_protocol)
+    set(git_protocol "git")
+  endif()  
+  
   ExternalProject_Add(${proj}
     GIT_REPOSITORY "${git_protocol}://github.com/lantiga/vmtk.git"
     GIT_TAG "origin/itk4"
@@ -56,8 +76,6 @@ if(NOT DEFINED VMTK_DIR)
       -DVMTK_SCRIPTS_ENABLED:BOOL=ON
       # we do not want cocoa, go away :)
       -DVTK_VMTK_USE_COCOA:BOOL=OFF
-      # deactivate build of stellar
-      -DVTK_VMTK_BUILD_STELLAR:BOOL=OFF
       # we use Slicer's VTK and ITK
       -DUSE_SYSTEM_VTK:BOOL=ON
       -DUSE_SYSTEM_ITK:BOOL=ON
@@ -67,7 +85,12 @@ if(NOT DEFINED VMTK_DIR)
     DEPENDS 
       ${VMTK_DEPENDENCIES}
     )
-  set(VMTK_DIR ${CMAKE_CURRENT_BINARY_DIR}/${proj}-build)
+  set(${proj}_DIR ${CMAKE_BINARY_DIR}/${proj}-build)
+
+else()
+  # The project is provided using <proj>_DIR, nevertheless since other project may depend on <proj>,
+  # let's add an 'empty' one
+  SlicerMacroEmptyExternalProject(${proj} "${${proj}_DEPENDENCIES}")
 endif()
 # End of VMTK External
 #-----------------------------------------------------------------------------

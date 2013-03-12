@@ -4,7 +4,7 @@
 // SlicerQt includes
 #include "qSlicerLoadableModule.h"
 
-#include "qSlicerSlicerVmtk4ModuleExport.h"
+#include "qSlicerVmtk4ModuleExport.h"
 
 class qSlicerVmtk4ModulePrivate;
 
