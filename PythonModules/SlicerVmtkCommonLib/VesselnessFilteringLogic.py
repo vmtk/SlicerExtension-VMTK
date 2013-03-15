@@ -17,7 +17,8 @@ class VesselnessFilteringLogic( object ):
         '''
         # import the vmtk libraries
         try:
-            from libvtkvmtkSegmentationPython import *
+            #from libvtkvmtkSegmentationPython import *
+            import libvtkvmtkSegmentationPython as s
         except ImportError:
             print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
@@ -27,7 +28,7 @@ class VesselnessFilteringLogic( object ):
         cast.Update()
         image = cast.GetOutput()
 
-        v = vtkvmtkVesselnessMeasureImageFilter()
+        v = s.vtkvmtkVesselnessMeasureImageFilter()
         v.SetInput( image )
         v.SetSigmaMin( minimumDiameter )
         v.SetSigmaMax( maximumDiameter )

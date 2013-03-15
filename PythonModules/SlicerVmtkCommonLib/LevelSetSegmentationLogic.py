@@ -18,7 +18,8 @@ class LevelSetSegmentationLogic( object ):
         '''
         # import the vmtk libraries
         try:
-            from libvtkvmtkSegmentationPython import *
+            #from libvtkvmtkSegmentationPython import *
+            import libvtkvmtkSegmentationPython as s
         except ImportError:
             print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
@@ -55,7 +56,7 @@ class LevelSetSegmentationLogic( object ):
 
         if ignoreSideBranches:
             # ignore sidebranches, use colliding fronts
-            fastMarching = vtkvmtkCollidingFrontsImageFilter()
+            fastMarching = s.vtkvmtkCollidingFrontsImageFilter()
             fastMarching.SetInput( speedImage )
             fastMarching.SetSeeds1( sourceSeedIds )
             fastMarching.SetSeeds2( targetSeedIds )
@@ -70,7 +71,7 @@ class LevelSetSegmentationLogic( object ):
             subtract.Update()
 
         else:
-            fastMarching = vtkvmtkFastMarchingUpwindGradientImageFilter()
+            fastMarching = s.vtkvmtkFastMarchingUpwindGradientImageFilter()
             fastMarching.SetInput( speedImage )
             fastMarching.SetSeeds( sourceSeedIds )
             fastMarching.GenerateGradientImageOn()
@@ -113,7 +114,8 @@ class LevelSetSegmentationLogic( object ):
         '''
         # import the vmtk libraries
         try:
-            from libvtkvmtkSegmentationPython import *
+            #from libvtkvmtkSegmentationPython import *
+            import libvtkvmtkSegmentationPython as s
         except ImportError:
             print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
@@ -122,9 +124,9 @@ class LevelSetSegmentationLogic( object ):
         isoSurfaceValue = 0.0
 
         if method == 'curves':
-            levelSets = vtkvmtkCurvesLevelSetImageFilter()
+            levelSets = s.vtkvmtkCurvesLevelSetImageFilter()
         else:
-            levelSets = vtkvmtkGeodesicActiveContourLevelSetImageFilter()
+            levelSets = s.vtkvmtkGeodesicActiveContourLevelSetImageFilter()
 
         levelSets.SetFeatureImage( self.buildGradientBasedFeatureImage( originalImage ) )
         levelSets.SetDerivativeSigma( featureDerivativeSigma )
@@ -152,7 +154,8 @@ class LevelSetSegmentationLogic( object ):
         '''
         # import the vmtk libraries
         try:
-            from libvtkvmtkSegmentationPython import *
+            #from libvtkvmtkSegmentationPython import *
+            import libvtkvmtkSegmentationPython as s
         except ImportError:
             print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
@@ -165,13 +168,13 @@ class LevelSetSegmentationLogic( object ):
         cast.Update()
 
         if ( derivativeSigma > 0.0 ):
-            gradientMagnitude = vtkvmtkGradientMagnitudeRecursiveGaussianImageFilter()
+            gradientMagnitude = s.vtkvmtkGradientMagnitudeRecursiveGaussianImageFilter()
             gradientMagnitude.SetInput( cast.GetOutput() )
             gradientMagnitude.SetSigma( derivativeSigma )
             gradientMagnitude.SetNormalizeAcrossScale( 0 )
             gradientMagnitude.Update()
         else:
-            gradientMagnitude = vtkvmtkGradientMagnitudeImageFilter()
+            gradientMagnitude = s.vtkvmtkGradientMagnitudeImageFilter()
             gradientMagnitude.SetInput( cast.GetOutput() )
             gradientMagnitude.Update()
 
@@ -183,7 +186,7 @@ class LevelSetSegmentationLogic( object ):
             alpha = -( inputMaximum - inputMinimum ) / 6.0
             beta = ( inputMaximum + inputMinimum ) / 2.0
 
-            sigmoid = vtkvmtkSigmoidImageFilter()
+            sigmoid = s.vtkvmtkSigmoidImageFilter()
             sigmoid.SetInput( gradientMagnitude.GetOutput() )
             sigmoid.SetAlpha( alpha )
             sigmoid.SetBeta( beta )
@@ -192,7 +195,7 @@ class LevelSetSegmentationLogic( object ):
             sigmoid.Update()
             featureImage = sigmoid.GetOutput()
         else:
-            boundedReciprocal = vtkvmtkBoundedReciprocalImageFilter()
+            boundedReciprocal = s.vtkvmtkBoundedReciprocalImageFilter()
             boundedReciprocal.SetInput( gradientMagnitude.GetOutput() )
             boundedReciprocal.Update()
             featureImage = boundedReciprocal.GetOutput()

@@ -17,8 +17,10 @@ class CenterlineComputationLogic( object ):
         '''
         # import the vmtk libraries
         try:
-            from libvtkvmtkComputationalGeometryPython import *
-            from libvtkvmtkMiscPython import *
+            #from libvtkvmtkComputationalGeometryPython import *
+            #from libvtkvmtkMiscPython import *
+            import libvtkvmtkComputationalGeometryPython as cg
+            import libvtkvmtkMiscPython as m
         except ImportError:
             print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
@@ -55,7 +57,7 @@ class CenterlineComputationLogic( object ):
         normals.SplittingOff()
         normals.Update()
 
-        surfaceCapper = vtkvmtkCapPolyData()
+        surfaceCapper = m.vtkvmtkCapPolyData()
         surfaceCapper.SetInput( normals.GetOutput() )
         surfaceCapper.SetDisplacement( capDisplacement )
         surfaceCapper.SetInPlaneDisplacement( capDisplacement )
@@ -135,8 +137,8 @@ class CenterlineComputationLogic( object ):
         '''
         # import the vmtk libraries
         try:
-            from libvtkvmtkComputationalGeometryPython import *
-            from libvtkvmtkMiscPython import *
+            import libvtkvmtkComputationalGeometryPython as cg
+            import libvtkvmtkMiscPython as m
         except ImportError:
             print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
@@ -144,7 +146,7 @@ class CenterlineComputationLogic( object ):
         topologyArrayName = 'Topology'
         marksArrayName = 'Marks'
 
-        networkExtraction = vtkvmtkPolyDataNetworkExtraction()
+        networkExtraction = m.vtkvmtkPolyDataNetworkExtraction()
         networkExtraction.SetInput( polyData )
         networkExtraction.SetAdvancementRatio( 1.05 )
         networkExtraction.SetRadiusArrayName( radiusArrayName )
@@ -167,8 +169,8 @@ class CenterlineComputationLogic( object ):
         '''
         # import the vmtk libraries
         try:
-            from libvtkvmtkComputationalGeometryPython import *
-            from libvtkvmtkMiscPython import *
+            import libvtkvmtkComputationalGeometryPython as cg
+            import libvtkvmtkMiscPython as m
         except ImportError:
             print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
@@ -221,7 +223,7 @@ class CenterlineComputationLogic( object ):
                     endpointsPoints.InsertNextPoint( point )
                     endpointsRadius.InsertNextValue( radiusFactor * radius )
 
-        polyBall = vtkvmtkPolyBall()
+        polyBall = cg.vtkvmtkPolyBall()
         polyBall.SetInput( endpoints )
         polyBall.SetPolyBallRadiusArrayName( 'Radius' )
 
@@ -252,8 +254,8 @@ class CenterlineComputationLogic( object ):
         '''
         # import the vmtk libraries
         try:
-            from libvtkvmtkComputationalGeometryPython import *
-            from libvtkvmtkMiscPython import *
+            import libvtkvmtkComputationalGeometryPython as cg
+            import libvtkvmtkMiscPython as m
         except ImportError:
             print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
@@ -262,7 +264,7 @@ class CenterlineComputationLogic( object ):
         costFunction = '1/R'
 
 
-        centerlineFilter = vtkvmtkPolyDataCenterlines()
+        centerlineFilter = cg.vtkvmtkPolyDataCenterlines()
         centerlineFilter.SetInput( polyData )
         centerlineFilter.SetSourceSeedIds( inletSeedIds )
         centerlineFilter.SetTargetSeedIds( outletSeedIds )
