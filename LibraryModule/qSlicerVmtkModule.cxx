@@ -96,3 +96,10 @@ bool qSlicerVmtkModule::isHidden()const
 {
   return true;
 }
+
+//-----------------------------------------------------------------------------
+QStringList qSlicerVmtkModule::categories()const
+{
+  return QStringList() << "Vascular Modeling Toolkit";
+}
+
