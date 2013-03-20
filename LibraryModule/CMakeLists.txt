@@ -51,8 +51,8 @@ set(MODULE_RESOURCES
 # clang: error: linker command failed with exit code 1 (use -v to see invocation)
 # TODO: this should be fixed either in CMake or in the Slicer extension build system
 if(APPLE)
-  set(CMAKE_SHARED_LINKER_FLAGS "-F /Library/Frameworks")
-  set(CMAKE_EXE_LINKER_FLAGS "-F /Library/Frameworks")
+  set(CMAKE_SHARED_LINKER_FLAGS "-F/Library/Frameworks")
+  set(CMAKE_EXE_LINKER_FLAGS "-F/Library/Frameworks")
 endif()
 #-----------------------------------------------------------------------------
   
