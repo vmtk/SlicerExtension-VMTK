@@ -4,14 +4,6 @@
 // Vmtk includes
 #include "qSlicerVmtkModule.h"
 
-extern  "C" void initlibvtkvmtkCommonPython();
-extern  "C" void initlibvtkvmtkSegmentationPython();
-extern  "C" void initlibvtkvmtkDifferentialGeometryPython();
-extern  "C" void initlibvtkvmtkComputationalGeometryPython();
-extern  "C" void initlibvtkvmtkIOPython();
-extern  "C" void initlibvtkvmtkMiscPython();
-extern  "C" void initlibvtkvmtkITKPython();
-
 //-----------------------------------------------------------------------------
 Q_EXPORT_PLUGIN2(qSlicerVmtkModule, qSlicerVmtkModule);
 
@@ -68,15 +60,6 @@ QIcon qSlicerVmtkModule::icon()const
 void qSlicerVmtkModule::setup()
 {
   this->Superclass::setup();
-
-  initlibvtkvmtkCommonPython();
-  initlibvtkvmtkSegmentationPython();
-  initlibvtkvmtkDifferentialGeometryPython();
-  initlibvtkvmtkComputationalGeometryPython();
-  initlibvtkvmtkIOPython();
-  initlibvtkvmtkMiscPython();
-  initlibvtkvmtkITKPython();
-
 }
 
 //-----------------------------------------------------------------------------
