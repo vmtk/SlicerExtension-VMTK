@@ -10,20 +10,20 @@ class Helper(object):
     classdocs
     '''
 
-    @staticmethod    
+    @staticmethod
     def Info(message):
         '''
-        
+
         '''
 
         print "[VMTK " + time.strftime("%m/%d/%Y %H:%M:%S") + "]: " + str(message)
         sys.stdout.flush()
 
-        
-    @staticmethod    
+
+    @staticmethod
     def Debug(message):
         '''
-        
+
         '''
 
         showDebugOutput = 1
@@ -39,9 +39,9 @@ class Helper(object):
         spacer = ""
         for s in range(n):
           spacer += " "
-          
+
         return spacer
-    
+
     @staticmethod
     def CheckIfVmtkIsInstalled():
         '''
@@ -52,73 +52,70 @@ class Helper(object):
             fastMarching = None
         except Exception:
             vmtkInstalled = False
-            
+
         return vmtkInstalled
-    
+
     @staticmethod
     def convertFiducialHierarchyToVtkIdList(hierarchyNode,volumeNode):
         '''
         '''
         outputIds = vtk.vtkIdList()
-        
+
         if not hierarchyNode or not volumeNode:
             return outputIds
-        
-        if isinstance(hierarchyNode,slicer.vtkMRMLAnnotationHierarchyNode) and isinstance(volumeNode,slicer.vtkMRMLScalarVolumeNode):
-            
-            childrenNodes = vtk.vtkCollection()
-            
+
+        if isinstance(hierarchyNode,slicer.vtkMRMLMarkupsFiducialNode) and isinstance(volumeNode,slicer.vtkMRMLScalarVolumeNode):
+
             image = volumeNode.GetImageData()
-            hierarchyNode.GetChildrenDisplayableNodes(childrenNodes)     
-            
+
+
             # now we have the children which are fiducialNodes - let's loop!
-            for n in range(childrenNodes.GetNumberOfItems()):
-                
-                currentFiducial = childrenNodes.GetItemAsObject(n)
+            for n in range(hierarchyNode.GetNumberOfFiducials()):
+
                 currentCoordinatesRAS = [0,0,0]
-                
+
                 # grab the current coordinates
-                currentFiducial.GetFiducialCoordinates(currentCoordinatesRAS)
-                
+                hierarchyNode.GetNthFiducialPosition(n,currentCoordinatesRAS)
+
                 # convert the RAS to IJK
                 currentCoordinatesIJK = Helper.ConvertRAStoIJK(volumeNode,currentCoordinatesRAS)
-                
+
                 # strip the last element since we need a 3based tupel
                 currentCoordinatesIJKlist = (int(currentCoordinatesIJK[0]),int(currentCoordinatesIJK[1]),int(currentCoordinatesIJK[2]))
                 outputIds.InsertNextId(int(image.ComputePointId(currentCoordinatesIJKlist)))
-        
-    
-    
+
+
+
         # IdList was created, return it even if it might be empty
-        return outputIds    
-                    
+        return outputIds
+
     @staticmethod
     def ConvertRAStoIJK(volumeNode,rasCoordinates):
         '''
         '''
         rasToIjkMatrix = vtk.vtkMatrix4x4()
-        volumeNode.GetRASToIJKMatrix(rasToIjkMatrix)           
+        volumeNode.GetRASToIJKMatrix(rasToIjkMatrix)
 
         # the RAS coordinates need to be 4
         if len(rasCoordinates) < 4:
             rasCoordinates.append(1)
-            
+
         ijkCoordinates = rasToIjkMatrix.MultiplyPoint(rasCoordinates)
-        
+
         return ijkCoordinates
-    
-    
+
+
     @staticmethod
     def extractROI(originalVolumeID,newVolumeID,rasCoordinates,diameter):
         '''
         '''
-        
+
         originalVolume = slicer.mrmlScene.GetNodeByID(originalVolumeID)
         newVolume = slicer.mrmlScene.GetNodeByID(newVolumeID)
-        
+
         # code below converted from cropVolume module by A. Fedorov
         # optimized after that :)
-        
+
         inputRASToIJK = vtk.vtkMatrix4x4()
         inputIJKToRAS = vtk.vtkMatrix4x4()
         outputIJKToRAS = vtk.vtkMatrix4x4()
@@ -133,9 +130,9 @@ class Helper(object):
         outputRASToIJK.Identity()
 
         volumeXform.Identity()
-        
+
         T.Identity()
-  
+
         # if the originalVolume is under a transform
         volumeTransformNode = originalVolume.GetParentTransformNode()
         if volumeTransformNode:
@@ -155,11 +152,11 @@ class Helper(object):
         inputSpacingX = originalVolume.GetSpacing()[0]
         inputSpacingY = originalVolume.GetSpacing()[1]
         inputSpacingZ = originalVolume.GetSpacing()[2]
-  
+
         outputExtentX = int(2.0*rX/inputSpacingX)
         outputExtentY = int(2.0*rY/inputSpacingY)
         outputExtentZ = int(2.0*rZ/inputSpacingZ)
-   
+
         # configure spacing
         outputIJKToRAS.SetElement(0,0,inputSpacingX)
         outputIJKToRAS.SetElement(1,1,inputSpacingY)
@@ -172,14 +169,14 @@ class Helper(object):
 
         outputRASToIJK.DeepCopy(outputIJKToRAS)
         outputRASToIJK.Invert()
-        
+
         T.DeepCopy(outputIJKToRAS)
         T.Multiply4x4(volumeXform,T,T)
         T.Multiply4x4(inputRASToIJK,T,T)
 
         resliceT = vtk.vtkTransform()
         resliceT.SetMatrix(T)
-        
+
         reslicer = vtk.vtkImageReslice()
         reslicer.SetInterpolationModeToLinear()
         reslicer.SetInput(originalVolume.GetImageData())
@@ -190,7 +187,7 @@ class Helper(object):
         #reslicer.SetOutputSpacing(image.GetSpacing())
         reslicer.SetResliceTransform(resliceT)
         reslicer.UpdateWholeExtent()
-        
+
         changer = vtk.vtkImageChangeInformation()
         changer.SetInput(reslicer.GetOutput())
         changer.SetOutputOrigin(0,0,0)
@@ -198,10 +195,10 @@ class Helper(object):
         #changer.SetOutputOrigin(image.GetOrigin())
         # changer.SetOutputSpacing(image.GetSpacing())
         changer.Update()
-        
+
         outImageData = vtk.vtkImageData()
         outImageData.DeepCopy(changer.GetOutput())
-        outImageData.Update()        
+        outImageData.Update()
 
         newVolume.SetAndObserveImageData(outImageData)
         newVolume.SetIJKToRASMatrix(outputIJKToRAS)

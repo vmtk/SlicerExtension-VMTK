@@ -97,7 +97,7 @@ class LevelSetSegmentationWidget:
     self.__seedFiducialsNodeSelector = slicer.qMRMLNodeComboBox()
     self.__seedFiducialsNodeSelector.objectName = 'seedFiducialsNodeSelector'
     self.__seedFiducialsNodeSelector.toolTip = "Select a hierarchy containing the fiducials to use as Seeds."
-    self.__seedFiducialsNodeSelector.nodeTypes = ['vtkMRMLAnnotationHierarchyNode']
+    self.__seedFiducialsNodeSelector.nodeTypes = ['vtkMRMLMarkupsFiducialNode']
     self.__seedFiducialsNodeSelector.baseName = "Seeds"
     self.__seedFiducialsNodeSelector.noneEnabled = False
     self.__seedFiducialsNodeSelector.addEnabled = False
@@ -140,7 +140,7 @@ class LevelSetSegmentationWidget:
     self.__stopperFiducialsNodeSelector = slicer.qMRMLNodeComboBox()
     self.__stopperFiducialsNodeSelector.objectName = 'stopperFiducialsNodeSelector'
     self.__stopperFiducialsNodeSelector.toolTip = "Select a hierarchy containing the fiducials to use as Stoppers. Whenever one stopper is reached, the segmentation stops."
-    self.__stopperFiducialsNodeSelector.nodeTypes = ['vtkMRMLAnnotationHierarchyNode']
+    self.__stopperFiducialsNodeSelector.nodeTypes = ['vtkMRMLMarkupsFiducialNode']
     self.__stopperFiducialsNodeSelector.baseName = "Stoppers"
     self.__stopperFiducialsNodeSelector.noneEnabled = False
     self.__stopperFiducialsNodeSelector.addEnabled = True
@@ -169,7 +169,7 @@ class LevelSetSegmentationWidget:
     self.__outputModelNodeSelector.toolTip = "Select the output model."
     self.__outputModelNodeSelector.nodeTypes = ['vtkMRMLModelNode']
     self.__outputModelNodeSelector.baseName = "LevelSetSegmentationModel"
-    self.__outputModelNodeSelector.hideChildNodeTypes = ['vtkMRMLAnnotationNode']  # hide all annotation nodes
+    self.__outputModelNodeSelector.hideChildNodeTypes = ['vtkMRMLMarkupsFiducialNode']# hide all annotation nodes
     self.__outputModelNodeSelector.noneEnabled = False
     self.__outputModelNodeSelector.addEnabled = True
     self.__outputModelNodeSelector.selectNodeUponCreation = True
@@ -704,22 +704,10 @@ class LevelSetSegmentationWidget:
 
         currentCoordinatesRAS = [0, 0, 0]
 
-        if isinstance( currentSeedsNode, slicer.vtkMRMLAnnotationHierarchyNode ):
+        if isinstance( currentSeedsNode, slicer.vtkMRMLMarkupsFiducialNode ):
 
-            childrenNodes = vtk.vtkCollection()
-
-            currentSeedsNode.GetChildrenDisplayableNodes( childrenNodes )
-
-            # now we have the children, let's get the first one
-            currentFiducial = childrenNodes.GetItemAsObject( 0 )
-
-            # grab the current coordinates
-            currentFiducial.GetFiducialCoordinates( currentCoordinatesRAS )
-
-        elif isinstance( currentSeedsNode, slicer.vtkMRMLAnnotationFiducialNode ):
-
-            # grab the current coordinates
-            currentSeedsNode.GetFiducialCoordinates( currentCoordinatesRAS )
+            # let's get the first children
+            currentSeedsNode.GetNthFiducialPosition(0,currentCoordinatesRAS)
 
         numberOfSliceNodes = slicer.mrmlScene.GetNumberOfNodesByClass( 'vtkMRMLSliceNode' )
         for n in xrange( numberOfSliceNodes ):

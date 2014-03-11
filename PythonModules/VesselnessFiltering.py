@@ -94,7 +94,7 @@ class VesselnessFilteringWidget:
     self.__seedFiducialsNodeSelector = slicer.qMRMLNodeComboBox()
     self.__seedFiducialsNodeSelector.objectName = 'seedFiducialsNodeSelector'
     self.__seedFiducialsNodeSelector.toolTip = "Select a fiducial to use as a Seed to detect the maximal diameter."
-    self.__seedFiducialsNodeSelector.nodeTypes = ['vtkMRMLAnnotationFiducialNode']
+    self.__seedFiducialsNodeSelector.nodeTypes = ['vtkMRMLMarkupsFiducialNode']
     self.__seedFiducialsNodeSelector.baseName = "DiameterSeed"
     self.__seedFiducialsNodeSelector.noneEnabled = False
     self.__seedFiducialsNodeSelector.addEnabled = False
@@ -330,7 +330,8 @@ class VesselnessFilteringWidget:
     currentCoordinatesRAS = [0, 0, 0]
 
     # grab the current coordinates
-    currentSeedsNode.GetFiducialCoordinates( currentCoordinatesRAS )
+    n = currentSeedsNode.GetNumberOfFiducials()
+    currentSeedsNode.GetNthFiducialPosition(n-1,currentCoordinatesRAS)
 
     seed = SlicerVmtkCommonLib.Helper.ConvertRAStoIJK( currentVolumeNode, currentCoordinatesRAS )
 
@@ -433,8 +434,8 @@ class VesselnessFilteringWidget:
         currentCoordinatesRAS = [0, 0, 0]
 
         # grab the current coordinates
-        currentSeedsNode.GetFiducialCoordinates( currentCoordinatesRAS )
-
+        n = currentSeedsNode.GetNumberOfFiducials()
+        currentSeedsNode.GetNthFiducialPosition(n-1,currentCoordinatesRAS)
 
     inputImage = currentVolumeNode.GetImageData()
 
