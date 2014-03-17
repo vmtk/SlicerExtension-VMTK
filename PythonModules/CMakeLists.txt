@@ -1,21 +1,29 @@
 
-# Common python classes for SlicerVmtk 
-ADD_SUBDIRECTORY(SlicerVmtkCommonLib)
+#-----------------------------------------------------------------------------
+set(MODULE_NAME ${EXTENSION_NAME})
 
-SET(SlicerVmtkModules_PYTHON_SCRIPTS
-    LevelSetSegmentation.py
-    VesselnessFiltering.py
-    CenterlineComputation.py
-    # here go other VMTK modules
+#-----------------------------------------------------------------------------
+set(MODULE_PYTHON_SCRIPTS
+  LevelSetSegmentation.py
+  VesselnessFiltering.py
+  CenterlineComputation.py
+  # here go other VMTK modules
+
+  SlicerVmtkCommonLib/__init__.py
+  SlicerVmtkCommonLib/Helper.py
+  SlicerVmtkCommonLib/LevelSetSegmentationLogic.py
+  SlicerVmtkCommonLib/VesselnessFilteringLogic.py
+  SlicerVmtkCommonLib/CenterlineComputationLogic.py
+  # here go other vmtk logic classes
   )
   
-SET(KIT_PYTHON_RESOURCES
+set(MODULE_PYTHON_RESOURCES
   )
   
-ctkMacroCompilePythonScript(
-  TARGET_NAME SlicerVmtkModules
-  SCRIPTS "${SlicerVmtkModules_PYTHON_SCRIPTS}"
-  RESOURCES "${SlicerVmtkModules_PYTHON_RESOURCES}"
-  DESTINATION_DIR ${CMAKE_BINARY_DIR}/${Slicer_QTSCRIPTEDMODULES_LIB_DIR}
-  INSTALL_DIR ${Slicer_INSTALL_ROOT}
+#-----------------------------------------------------------------------------
+slicerMacroBuildScriptedModule(
+  NAME ${MODULE_NAME}
+  SCRIPTS ${MODULE_PYTHON_SCRIPTS}
+  RESOURCES ${MODULE_PYTHON_RESOURCES}
+  WITH_GENERIC_TESTS
   )
