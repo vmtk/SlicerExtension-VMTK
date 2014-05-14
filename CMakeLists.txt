@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 2.8.9)
 
+find_package(Slicer COMPONENTS ConfigurePrerequisites)
+
 #-----------------------------------------------------------------------------
-set(EXTENSION_NAME SlicerExtension-VMTK)
+project(SlicerExtension-VMTK)
 
 #-----------------------------------------------------------------------------
 set(EXTENSION_HOMEPAGE "http://slicer.vmtk.org/")
