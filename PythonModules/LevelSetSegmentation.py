@@ -86,7 +86,6 @@ class LevelSetSegmentationWidget:
     self.__inputVolumeNodeSelector.noneEnabled = False
     self.__inputVolumeNodeSelector.addEnabled = False
     self.__inputVolumeNodeSelector.removeEnabled = False
-    self.__inputVolumeNodeSelector.addAttribute( "vtkMRMLScalarVolumeNode", "LabelMap", "0" )
     ioFormLayout.addRow( "Input Volume:", self.__inputVolumeNodeSelector )
     self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)',
                         self.__inputVolumeNodeSelector, 'setMRMLScene(vtkMRMLScene*)' )
@@ -130,7 +129,6 @@ class LevelSetSegmentationWidget:
     self.__vesselnessVolumeNodeSelector.noneEnabled = True
     self.__vesselnessVolumeNodeSelector.addEnabled = False
     self.__vesselnessVolumeNodeSelector.removeEnabled = False
-    self.__vesselnessVolumeNodeSelector.addAttribute( "vtkMRMLScalarVolumeNode", "LabelMap", "0" )
     ioAdvancedFormLayout.addRow( "Vesselness Volume:", self.__vesselnessVolumeNodeSelector )
     self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)',
                         self.__vesselnessVolumeNodeSelector, 'setMRMLScene(vtkMRMLScene*)' )
@@ -152,12 +150,11 @@ class LevelSetSegmentationWidget:
     # outputVolume selector
     self.__outputVolumeNodeSelector = slicer.qMRMLNodeComboBox()
     self.__outputVolumeNodeSelector.toolTip = "Select the output labelmap."
-    self.__outputVolumeNodeSelector.nodeTypes = ['vtkMRMLScalarVolumeNode']
+    self.__outputVolumeNodeSelector.nodeTypes = ['vtkMRMLLabelMapVolumeNode']
     self.__outputVolumeNodeSelector.baseName = "LevelSetSegmentation"
     self.__outputVolumeNodeSelector.noneEnabled = False
     self.__outputVolumeNodeSelector.addEnabled = True
     self.__outputVolumeNodeSelector.selectNodeUponCreation = True
-    self.__outputVolumeNodeSelector.addAttribute( "vtkMRMLScalarVolumeNode", "LabelMap", "1" )
     self.__outputVolumeNodeSelector.removeEnabled = True
     ioAdvancedFormLayout.addRow( "Output Labelmap:", self.__outputVolumeNodeSelector )
     self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)',
@@ -554,11 +551,10 @@ class LevelSetSegmentationWidget:
         newLabelMapDisplayNode.SetDefaultColorMap()
         slicer.mrmlScene.AddNode( newLabelMapDisplayNode )
 
-        newLabelMapNode = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLScalarVolumeNode" )
+        newLabelMapNode = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLLabelMapVolumeNode" )
         newLabelMapNode.CopyOrientation( currentVolumeNode )
         newLabelMapNode.SetScene( slicer.mrmlScene )
         newLabelMapNode.SetName( slicer.mrmlScene.GetUniqueNameByString( self.__outputVolumeNodeSelector.baseName ) )
-        newLabelMapNode.LabelMapOn()
         newLabelMapNode.SetAndObserveDisplayNodeID( newLabelMapDisplayNode.GetID() )
         slicer.mrmlScene.AddNode( newLabelMapNode )
         currentLabelMapNode = newLabelMapNode
