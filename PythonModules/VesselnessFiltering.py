@@ -84,7 +84,6 @@ class VesselnessFilteringWidget:
     self.__inputVolumeNodeSelector.noneEnabled = False
     self.__inputVolumeNodeSelector.addEnabled = False
     self.__inputVolumeNodeSelector.removeEnabled = False
-    self.__inputVolumeNodeSelector.addAttribute( "vtkMRMLScalarVolumeNode", "LabelMap", "0" )
     ioFormLayout.addRow( "Input Volume:", self.__inputVolumeNodeSelector )
     self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)',
                         self.__inputVolumeNodeSelector, 'setMRMLScene(vtkMRMLScene*)' )
