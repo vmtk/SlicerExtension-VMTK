@@ -23,8 +23,8 @@ if(NOT DEFINED ${proj}_DIR AND NOT ${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
 
   ExternalProject_Add(${proj}
     ${${proj}_EP_ARGS}
-    GIT_REPOSITORY "${git_protocol}://github.com/VMTK/vmtk.git"
-    GIT_TAG "e3924f9d3d8ddd419ed6683f3e7a3fdacb6069db"
+    GIT_REPOSITORY "${git_protocol}://github.com/lassoan/vmtk.git"
+    GIT_TAG "master"
     SOURCE_DIR ${CMAKE_BINARY_DIR}/${proj}
     BINARY_DIR ${proj}-build
     CMAKE_CACHE_ARGS
@@ -65,6 +65,7 @@ if(NOT DEFINED ${proj}_DIR AND NOT ${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
       -DUSE_SYSTEM_ITK:BOOL=ON
       -DITK_DIR:PATH=${ITK_DIR}
       -DVTK_DIR:PATH=${VTK_DIR}
+      -DPYTHON_LIBRARY:PATH=${PYTHON_LIBRARY}
     INSTALL_COMMAND ""
     DEPENDS
       ${${proj}_DEPENDS}
