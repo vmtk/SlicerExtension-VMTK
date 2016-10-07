@@ -1,5 +1,6 @@
 # vtk includes
 from __main__ import vtk
+import logging
 
 class LevelSetSegmentationLogic( object ):
     '''
@@ -20,7 +21,7 @@ class LevelSetSegmentationLogic( object ):
         try:
             import vtkvmtkSegmentationPython as vtkvmtkSegmentation
         except ImportError:
-            print "FAILURE: Unable to import the SlicerVmtk libraries!"
+            logging.error("Unable to import the SlicerVmtk libraries")
 
         cast = vtk.vtkImageCast()
         cast.SetInputData( image )
@@ -113,7 +114,7 @@ class LevelSetSegmentationLogic( object ):
         try:
             import vtkvmtkSegmentationPython as vtkvmtkSegmentation
         except ImportError:
-            print "FAILURE: Unable to import the SlicerVmtk libraries!"
+            logging.error("Unable to import the SlicerVmtk libraries")
 
         featureDerivativeSigma = 0.0
         maximumRMSError = 1E-20
@@ -151,7 +152,7 @@ class LevelSetSegmentationLogic( object ):
         try:
             import vtkvmtkSegmentationPython as vtkvmtkSegmentation
         except ImportError:
-            print "FAILURE: Unable to import the SlicerVmtk libraries!"
+            logging.error("Unable to import the SlicerVmtk libraries")
 
         derivativeSigma = 0.0
         sigmoidRemapping = 1

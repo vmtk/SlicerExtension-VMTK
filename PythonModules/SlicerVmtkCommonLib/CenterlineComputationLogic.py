@@ -1,5 +1,6 @@
 # vtk includes
 from __main__ import vtk
+import logging
 
 class CenterlineComputationLogic( object ):
     '''
@@ -20,7 +21,7 @@ class CenterlineComputationLogic( object ):
             import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
             import vtkvmtkMiscPython as vtkvmtkMisc
         except ImportError:
-            print "FAILURE: Unable to import the SlicerVmtk libraries!"
+            logging.error("Unable to import the SlicerVmtk libraries")
 
         capDisplacement = 0.0
 
@@ -135,7 +136,7 @@ class CenterlineComputationLogic( object ):
             import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
             import vtkvmtkMiscPython as vtkvmtkMisc
         except ImportError:
-            print "FAILURE: Unable to import the SlicerVmtk libraries!"
+            logging.error("Unable to import the SlicerVmtk libraries")
 
         radiusArrayName = 'Radius'
         topologyArrayName = 'Topology'
@@ -166,7 +167,7 @@ class CenterlineComputationLogic( object ):
             import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
             import vtkvmtkMiscPython as vtkvmtkMisc
         except ImportError:
-            print "FAILURE: Unable to import the SlicerVmtk libraries!"
+            logging.error("Unable to import the SlicerVmtk libraries")
 
         cleaner = vtk.vtkCleanPolyData()
         cleaner.SetInputData( networkPolyData )
@@ -251,7 +252,7 @@ class CenterlineComputationLogic( object ):
             import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
             import vtkvmtkMiscPython as vtkvmtkMisc
         except ImportError:
-            print "FAILURE: Unable to import the SlicerVmtk libraries!"
+            logging.error("Unable to import the SlicerVmtk libraries")
 
         flipNormals = 0
         radiusArrayName = 'Radius'
