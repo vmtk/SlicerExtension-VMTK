@@ -17,10 +17,8 @@ class CenterlineComputationLogic( object ):
         '''
         # import the vmtk libraries
         try:
-            #from libvtkvmtkComputationalGeometryPython import *
-            #from libvtkvmtkMiscPython import *
-            import libvtkvmtkComputationalGeometryPython as cg
-            import libvtkvmtkMiscPython as m
+            import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
+            import vtkvmtkMiscPython as vtkvmtkMisc
         except ImportError:
             print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
@@ -57,7 +55,7 @@ class CenterlineComputationLogic( object ):
         normals.SplittingOff()
         normals.Update()
 
-        surfaceCapper = m.vtkvmtkCapPolyData()
+        surfaceCapper = vtkvmtkComputationalGeometry.vtkvmtkCapPolyData()
         surfaceCapper.SetInputData( normals.GetOutput() )
         surfaceCapper.SetDisplacement( capDisplacement )
         surfaceCapper.SetInPlaneDisplacement( capDisplacement )
@@ -65,7 +63,6 @@ class CenterlineComputationLogic( object ):
 
         outPolyData = vtk.vtkPolyData()
         outPolyData.DeepCopy( surfaceCapper.GetOutput() )
-        outPolyData.Update()
 
         return outPolyData
 
@@ -91,7 +88,6 @@ class CenterlineComputationLogic( object ):
 
         outPolyData = vtk.vtkPolyData()
         outPolyData.DeepCopy( triangleFilter.GetOutput() )
-        outPolyData.Update()
 
         return outPolyData
 
@@ -125,7 +121,6 @@ class CenterlineComputationLogic( object ):
 
         outPolyData = vtk.vtkPolyData()
         outPolyData.DeepCopy( clip.GetOutput() )
-        outPolyData.Update()
 
         return outPolyData
 
@@ -137,8 +132,8 @@ class CenterlineComputationLogic( object ):
         '''
         # import the vmtk libraries
         try:
-            import libvtkvmtkComputationalGeometryPython as cg
-            import libvtkvmtkMiscPython as m
+            import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
+            import vtkvmtkMiscPython as vtkvmtkMisc
         except ImportError:
             print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
@@ -146,7 +141,7 @@ class CenterlineComputationLogic( object ):
         topologyArrayName = 'Topology'
         marksArrayName = 'Marks'
 
-        networkExtraction = m.vtkvmtkPolyDataNetworkExtraction()
+        networkExtraction = vtkvmtkMisc.vtkvmtkPolyDataNetworkExtraction()
         networkExtraction.SetInputData( polyData )
         networkExtraction.SetAdvancementRatio( 1.05 )
         networkExtraction.SetRadiusArrayName( radiusArrayName )
@@ -156,7 +151,6 @@ class CenterlineComputationLogic( object ):
 
         outPolyData = vtk.vtkPolyData()
         outPolyData.DeepCopy( networkExtraction.GetOutput() )
-        outPolyData.Update()
 
         return outPolyData
 
@@ -164,13 +158,13 @@ class CenterlineComputationLogic( object ):
     def clipSurfaceAtEndPoints( self, networkPolyData, surfacePolyData ):
         '''
         Clips the surfacePolyData on the endpoints identified using the networkPolyData.
-        
+
         Returns a tupel of the form [clippedPolyData, endpointsPoints]
         '''
         # import the vmtk libraries
         try:
-            import libvtkvmtkComputationalGeometryPython as cg
-            import libvtkvmtkMiscPython as m
+            import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
+            import vtkvmtkMiscPython as vtkvmtkMisc
         except ImportError:
             print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
@@ -223,8 +217,9 @@ class CenterlineComputationLogic( object ):
                     endpointsPoints.InsertNextPoint( point )
                     endpointsRadius.InsertNextValue( radiusFactor * radius )
 
-        polyBall = cg.vtkvmtkPolyBall()
-        polyBall.SetInputData( endpoints )
+        polyBall = vtkvmtkComputationalGeometry.vtkvmtkPolyBall()
+        #polyBall.SetInputData( endpoints )
+        polyBall.SetInput( endpoints )
         polyBall.SetPolyBallRadiusArrayName( 'Radius' )
 
         clipper = vtk.vtkClipPolyData()
@@ -242,20 +237,19 @@ class CenterlineComputationLogic( object ):
 
         outPolyData = vtk.vtkPolyData()
         outPolyData.DeepCopy( clippedSurface )
-        outPolyData.Update()
 
         return [outPolyData, endpointsPoints]
 
 
     def computeCenterlines( self, polyData, inletSeedIds, outletSeedIds ):
         '''
-        Returns a tupel of two vtkPolyData objects. 
+        Returns a tupel of two vtkPolyData objects.
         The first are the centerlines, the second is the corresponding Voronoi diagram.
         '''
         # import the vmtk libraries
         try:
-            import libvtkvmtkComputationalGeometryPython as cg
-            import libvtkvmtkMiscPython as m
+            import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
+            import vtkvmtkMiscPython as vtkvmtkMisc
         except ImportError:
             print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
@@ -264,7 +258,7 @@ class CenterlineComputationLogic( object ):
         costFunction = '1/R'
 
 
-        centerlineFilter = cg.vtkvmtkPolyDataCenterlines()
+        centerlineFilter = vtkvmtkComputationalGeometry.vtkvmtkPolyDataCenterlines()
         centerlineFilter.SetInputData( polyData )
         centerlineFilter.SetSourceSeedIds( inletSeedIds )
         centerlineFilter.SetTargetSeedIds( outletSeedIds )
@@ -279,11 +273,9 @@ class CenterlineComputationLogic( object ):
 
         outPolyData = vtk.vtkPolyData()
         outPolyData.DeepCopy( centerlineFilter.GetOutput() )
-        outPolyData.Update()
 
         outPolyData2 = vtk.vtkPolyData()
         outPolyData2.DeepCopy( centerlineFilter.GetVoronoiDiagram() )
-        outPolyData2.Update()
 
         return [outPolyData, outPolyData2]
 

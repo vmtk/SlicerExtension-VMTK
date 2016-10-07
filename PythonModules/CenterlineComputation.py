@@ -1,5 +1,9 @@
 # slicer imports
-from __main__ import vtk, qt, ctk, slicer
+import os
+import unittest
+import vtk, qt, ctk, slicer
+from slicer.ScriptedLoadableModule import *
+import logging
 
 # vmtk includes
 import SlicerVmtkCommonLib
@@ -11,25 +15,28 @@ import math
 # Centerline Computation using VMTK based Tools
 #
 
-class CenterlineComputation:
+class CenterlineComputation(ScriptedLoadableModule):
+  """Uses ScriptedLoadableModule base class, available at:
+  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+  """
   def __init__( self, parent ):
-    parent.title = "Centerline Computation"
-    parent.categories = ["Vascular Modeling Toolkit", ]
-    parent.contributors = ["Daniel Haehn (Boston Children's Hospital)", "Luca Antiga (Orobix)", "Steve Pieper (Isomics)"]
-    parent.helpText = """dsfdsf"""
-    parent.acknowledgementText = """sdfsdfdsf"""
-    self.parent = parent
+    ScriptedLoadableModule.__init__(self, parent)
+    self.parent.title = "Centerline Computation"
+    self.parent.categories = ["Vascular Modeling Toolkit"]
+    self.parent.dependencies = []
+    self.parent.contributors = ["Daniel Haehn (Boston Children's Hospital)", "Luca Antiga (Orobix)", "Steve Pieper (Isomics)"]
+    self.parent.helpText = """
+"""
+    self.parent.acknowledgementText = """
+""" # replace with organization, grant and thanks.
 
+class CenterlineComputationWidget(ScriptedLoadableModuleWidget):
+  """Uses ScriptedLoadableModuleWidget base class, available at:
+  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+  """
 
-class CenterlineComputationWidget:
   def __init__( self, parent=None ):
-    if not parent:
-      self.parent = slicer.qMRMLWidget()
-      self.parent.setLayout( qt.QVBoxLayout() )
-      self.parent.setMRMLScene( slicer.mrmlScene )
-    else:
-      self.parent = parent
-    self.layout = self.parent.layout()
+    ScriptedLoadableModuleWidget.__init__(self, parent)
 
     # this flag is 1 if there is an update in progress
     self.__updating = 1
@@ -38,19 +45,11 @@ class CenterlineComputationWidget:
     self.__logic = None
 
     if not parent:
-      self.setup()
-      self.__inputModelNodeSelector.setMRMLScene( slicer.mrmlScene )
-      self.__seedFiducialsNodeSelector.setMRMLScene( slicer.mrmlScene )
-      self.__outputModelNodeSelector.setMRMLScene( slicer.mrmlScene )
-      self.__voronoiModelNodeSelector.setMRMLScene( slicer.mrmlScene )
       # after setup, be ready for events
-      self.__updating = 0
-
       self.parent.show()
-
-    # register default slots
-    self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)', self.onMRMLSceneChanged )
-
+    else:
+      # register default slots
+      self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)', self.onMRMLSceneChanged )
 
   def GetLogic( self ):
     '''
@@ -63,6 +62,7 @@ class CenterlineComputationWidget:
 
 
   def setup( self ):
+    ScriptedLoadableModuleWidget.setup(self)
 
     # check if the SlicerVmtk module is installed properly
     # self.__vmtkInstalled = SlicerVmtkCommonLib.Helper.CheckIfVmtkIsInstalled()
@@ -96,7 +96,7 @@ class CenterlineComputationWidget:
     self.__seedFiducialsNodeSelector = slicer.qMRMLNodeComboBox()
     self.__seedFiducialsNodeSelector.objectName = 'seedFiducialsNodeSelector'
     self.__seedFiducialsNodeSelector.toolTip = "Select a fiducial to use as the origin of the Centerline."
-    self.__seedFiducialsNodeSelector.nodeTypes = ['vtkMRMLAnnotationFiducialNode']
+    self.__seedFiducialsNodeSelector.nodeTypes = ['vtkMRMLMarkupsFiducialNode']
     self.__seedFiducialsNodeSelector.baseName = "OriginSeed"
     self.__seedFiducialsNodeSelector.noneEnabled = False
     self.__seedFiducialsNodeSelector.addEnabled = False
@@ -176,6 +176,11 @@ class CenterlineComputationWidget:
     self.__resetButton.connect( "clicked()", self.restoreDefaults )
     self.__previewButton.connect( "clicked()", self.onRefreshButtonClicked )
     self.__startButton.connect( "clicked()", self.onStartButtonClicked )
+
+    self.__inputModelNodeSelector.setMRMLScene( slicer.mrmlScene )
+    self.__seedFiducialsNodeSelector.setMRMLScene( slicer.mrmlScene )
+    self.__outputModelNodeSelector.setMRMLScene( slicer.mrmlScene )
+    self.__voronoiModelNodeSelector.setMRMLScene( slicer.mrmlScene )
 
     # be ready for events
     self.__updating = 0
@@ -316,23 +321,19 @@ class CenterlineComputationWidget:
     currentCoordinatesRAS = [0, 0, 0]
 
     # grab the current coordinates
-    currentSeedsNode.GetFiducialCoordinates( currentCoordinatesRAS )
+    currentSeedsNode.GetNthFiducialPosition(0,currentCoordinatesRAS)
 
     # prepare the model
     preparedModel.DeepCopy( self.GetLogic().prepareModel( currentModelNode.GetPolyData() ) )
-    preparedModel.Update()
 
     # decimate the model (only for network extraction)
     model.DeepCopy( self.GetLogic().decimateSurface( preparedModel ) )
-    model.Update()
 
     # open the model at the seed (only for network extraction)
     model.DeepCopy( self.GetLogic().openSurfaceAtPoint( model, currentCoordinatesRAS ) )
-    model.Update()
 
     # extract Network
     network.DeepCopy( self.GetLogic().extractNetwork( model ) )
-    network.Update()
 
     #
     #
@@ -401,17 +402,16 @@ class CenterlineComputationWidget:
         sourceId = pointLocator.FindClosestPoint( sourcePoint )
         sourceIdList.InsertNextId( sourceId )
 
-        f = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLAnnotationFiducialNode" )
-        f.SetFiducialCoordinates( sourcePoint )
-        f.Initialize( slicer.mrmlScene )
-        f.SelectedOn()
+        f = slicer.mrmlScene.GetNodeByID(slicer.modules.markups.logic().AddNewFiducialNode("Centerline endpoints"))
+        fdn = f.GetDisplayNode()
+        fdn.SetTextScale(0)
+        f.AddFiducialFromArray(sourcePoint)
 
         # locate the endpoints on the surface
         for p in targetPoints:
 
-                f = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLAnnotationFiducialNode" )
-                f.SetFiducialCoordinates( p )
-                f.Initialize( slicer.mrmlScene )
+                fid = f.AddFiducialFromArray(p)
+                f.SetNthFiducialSelected(fid,False)
 
                 id = pointLocator.FindClosestPoint( p )
                 targetIdList.InsertNextId( id )
@@ -454,7 +454,6 @@ class CenterlineComputationWidget:
         slicer.mrmlScene.AddNode( currentOutputModelDisplayNode )
 
     # always configure the displayNode to show the model
-    currentOutputModelDisplayNode.SetInputPolyData( currentOutputModelNode.GetPolyData() )
     currentOutputModelDisplayNode.SetColor( 0.0, 0.0, 0.4 )  # red
     currentOutputModelDisplayNode.SetBackfaceCulling( 0 )
     currentOutputModelDisplayNode.SetSliceIntersectionVisibility( 0 )
@@ -481,7 +480,6 @@ class CenterlineComputationWidget:
             slicer.mrmlScene.AddNode( currentVoronoiModelDisplayNode )
 
         # always configure the displayNode to show the model
-        currentVoronoiModelDisplayNode.SetInputPolyData( currentVoronoiModelNode.GetPolyData() )
         currentVoronoiModelDisplayNode.SetScalarVisibility( 1 )
         currentVoronoiModelDisplayNode.SetBackfaceCulling( 0 )
         currentVoronoiModelDisplayNode.SetActiveScalarName( "Radius" )

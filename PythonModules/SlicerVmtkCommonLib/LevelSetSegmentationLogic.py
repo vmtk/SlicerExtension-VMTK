@@ -18,8 +18,7 @@ class LevelSetSegmentationLogic( object ):
         '''
         # import the vmtk libraries
         try:
-            #from libvtkvmtkSegmentationPython import *
-            import libvtkvmtkSegmentationPython as s
+            import vtkvmtkSegmentationPython as vtkvmtkSegmentation
         except ImportError:
             print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
@@ -56,7 +55,7 @@ class LevelSetSegmentationLogic( object ):
 
         if ignoreSideBranches:
             # ignore sidebranches, use colliding fronts
-            fastMarching = s.vtkvmtkCollidingFrontsImageFilter()
+            fastMarching = vtkvmtkSegmentation.vtkvmtkCollidingFrontsImageFilter()
             fastMarching.SetInputData( speedImage )
             fastMarching.SetSeeds1( sourceSeedIds )
             fastMarching.SetSeeds2( targetSeedIds )
@@ -71,7 +70,7 @@ class LevelSetSegmentationLogic( object ):
             subtract.Update()
 
         else:
-            fastMarching = s.vtkvmtkFastMarchingUpwindGradientImageFilter()
+            fastMarching = vtkvmtkSegmentation.vtkvmtkFastMarchingUpwindGradientImageFilter()
             fastMarching.SetInputData( speedImage )
             fastMarching.SetSeeds( sourceSeedIds )
             fastMarching.GenerateGradientImageOn()
@@ -108,12 +107,11 @@ class LevelSetSegmentationLogic( object ):
 
     def performEvolution( self, originalImage, segmentationImage, numberOfIterations, inflation, curvature, attraction, method='geodesic' ):
         '''
-        
+
         '''
         # import the vmtk libraries
         try:
-            #from libvtkvmtkSegmentationPython import *
-            import libvtkvmtkSegmentationPython as s
+            import vtkvmtkSegmentationPython as vtkvmtkSegmentation
         except ImportError:
             print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
@@ -122,9 +120,9 @@ class LevelSetSegmentationLogic( object ):
         isoSurfaceValue = 0.0
 
         if method == 'curves':
-            levelSets = s.vtkvmtkCurvesLevelSetImageFilter()
+            levelSets = vtkvmtkSegmentation.vtkvmtkCurvesLevelSetImageFilter()
         else:
-            levelSets = s.vtkvmtkGeodesicActiveContourLevelSetImageFilter()
+            levelSets = vtkvmtkSegmentation.vtkvmtkGeodesicActiveContourLevelSetImageFilter()
 
         levelSets.SetFeatureImage( self.buildGradientBasedFeatureImage( originalImage ) )
         levelSets.SetDerivativeSigma( featureDerivativeSigma )
@@ -151,8 +149,7 @@ class LevelSetSegmentationLogic( object ):
         '''
         # import the vmtk libraries
         try:
-            #from libvtkvmtkSegmentationPython import *
-            import libvtkvmtkSegmentationPython as s
+            import vtkvmtkSegmentationPython as vtkvmtkSegmentation
         except ImportError:
             print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
@@ -165,13 +162,13 @@ class LevelSetSegmentationLogic( object ):
         cast.Update()
 
         if ( derivativeSigma > 0.0 ):
-            gradientMagnitude = s.vtkvmtkGradientMagnitudeRecursiveGaussianImageFilter()
+            gradientMagnitude = vtkvmtkSegmentation.vtkvmtkGradientMagnitudeRecursiveGaussianImageFilter()
             gradientMagnitude.SetInputData( cast.GetOutput() )
             gradientMagnitude.SetSigma( derivativeSigma )
             gradientMagnitude.SetNormalizeAcrossScale( 0 )
             gradientMagnitude.Update()
         else:
-            gradientMagnitude = s.vtkvmtkGradientMagnitudeImageFilter()
+            gradientMagnitude = vtkvmtkSegmentation.vtkvmtkGradientMagnitudeImageFilter()
             gradientMagnitude.SetInputData( cast.GetOutput() )
             gradientMagnitude.Update()
 
@@ -183,7 +180,7 @@ class LevelSetSegmentationLogic( object ):
             alpha = -( inputMaximum - inputMinimum ) / 6.0
             beta = ( inputMaximum + inputMinimum ) / 2.0
 
-            sigmoid = s.vtkvmtkSigmoidImageFilter()
+            sigmoid = vtkvmtkSegmentation.vtkvmtkSigmoidImageFilter()
             sigmoid.SetInputData( gradientMagnitude.GetOutput() )
             sigmoid.SetAlpha( alpha )
             sigmoid.SetBeta( beta )
@@ -192,7 +189,7 @@ class LevelSetSegmentationLogic( object ):
             sigmoid.Update()
             featureImage = sigmoid.GetOutput()
         else:
-            boundedReciprocal = s.vtkvmtkBoundedReciprocalImageFilter()
+            boundedReciprocal = vtkvmtkSegmentation.vtkvmtkBoundedReciprocalImageFilter()
             boundedReciprocal.SetInputData( gradientMagnitude.GetOutput() )
             boundedReciprocal.Update()
             featureImage = boundedReciprocal.GetOutput()
@@ -215,7 +212,6 @@ class LevelSetSegmentationLogic( object ):
 
         outVolumeData = vtk.vtkImageData()
         outVolumeData.DeepCopy( threshold.GetOutput() )
-        outVolumeData.Update()
 
         return outVolumeData
 
@@ -231,7 +227,7 @@ class LevelSetSegmentationLogic( object ):
         marchingCubes.ComputeScalarsOn()
         marchingCubes.ComputeGradientsOn()
         marchingCubes.ComputeNormalsOn()
-        marchingCubes.GetOutput().ReleaseDataFlagOn()
+        marchingCubes.ReleaseDataFlagOn()
         marchingCubes.Update()
 
 
@@ -239,7 +235,7 @@ class LevelSetSegmentationLogic( object ):
             reverser = vtk.vtkReverseSense()
             reverser.SetInputData( marchingCubes.GetOutput() )
             reverser.ReverseNormalsOn()
-            reverser.GetOutput().ReleaseDataFlagOn()
+            reverser.ReleaseDataFlagOn()
             reverser.Update()
             correctedOutput = reverser.GetOutput()
         else:
@@ -248,7 +244,7 @@ class LevelSetSegmentationLogic( object ):
         transformer = vtk.vtkTransformPolyDataFilter()
         transformer.SetInputData( correctedOutput )
         transformer.SetTransform( transformIJKtoRAS )
-        transformer.GetOutput().ReleaseDataFlagOn()
+        transformer.ReleaseDataFlagOn()
         transformer.Update()
 
         normals = vtk.vtkPolyDataNormals()
@@ -256,17 +252,16 @@ class LevelSetSegmentationLogic( object ):
         normals.SetInputData( transformer.GetOutput() )
         normals.SetFeatureAngle( 60 )
         normals.SetSplitting( 1 )
-        normals.GetOutput().ReleaseDataFlagOn()
+        normals.ReleaseDataFlagOn()
         normals.Update()
 
         stripper = vtk.vtkStripper()
         stripper.SetInputData( normals.GetOutput() )
-        stripper.GetOutput().ReleaseDataFlagOff()
+        stripper.ReleaseDataFlagOff()
         stripper.Update()
-        stripper.GetOutput().Update()
+        stripper.GetOutput()
 
         result = vtk.vtkPolyData()
         result.DeepCopy( stripper.GetOutput() )
-        result.Update()
 
         return result
