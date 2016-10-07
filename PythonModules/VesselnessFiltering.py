@@ -473,7 +473,6 @@ class VesselnessFilteringWidget:
 
         # get the new cutted imageData
         image.DeepCopy( currentOutputVolumeNode.GetImageData() )
-        image.Update()
 
     else:
 

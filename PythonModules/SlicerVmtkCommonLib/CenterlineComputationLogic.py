@@ -27,30 +27,30 @@ class CenterlineComputationLogic( object ):
         capDisplacement = 0.0
 
         surfaceCleaner = vtk.vtkCleanPolyData()
-        surfaceCleaner.SetInput( polyData )
+        surfaceCleaner.SetInputData( polyData )
         surfaceCleaner.Update()
 
         surfaceTriangulator = vtk.vtkTriangleFilter()
-        surfaceTriangulator.SetInput( surfaceCleaner.GetOutput() )
+        surfaceTriangulator.SetInputData( surfaceCleaner.GetOutput() )
         surfaceTriangulator.PassLinesOff()
         surfaceTriangulator.PassVertsOff()
         surfaceTriangulator.Update()
 
         # new steps for preparation to avoid problems because of slim models (f.e. at stenosis)
         subdiv = vtk.vtkLinearSubdivisionFilter()
-        subdiv.SetInput( surfaceTriangulator.GetOutput() )
+        subdiv.SetInputData( surfaceTriangulator.GetOutput() )
         subdiv.SetNumberOfSubdivisions( 1 )
         subdiv.Update()
 
         smooth = vtk.vtkWindowedSincPolyDataFilter()
-        smooth.SetInput( subdiv.GetOutput() )
+        smooth.SetInputData( subdiv.GetOutput() )
         smooth.SetNumberOfIterations( 20 )
         smooth.SetPassBand( 0.1 )
         smooth.SetBoundarySmoothing( 1 )
         smooth.Update()
 
         normals = vtk.vtkPolyDataNormals()
-        normals.SetInput( smooth.GetOutput() )
+        normals.SetInputData( smooth.GetOutput() )
         normals.SetAutoOrientNormals( 1 )
         normals.SetFlipNormals( 0 )
         normals.SetConsistency( 1 )
@@ -58,7 +58,7 @@ class CenterlineComputationLogic( object ):
         normals.Update()
 
         surfaceCapper = m.vtkvmtkCapPolyData()
-        surfaceCapper.SetInput( normals.GetOutput() )
+        surfaceCapper.SetInputData( normals.GetOutput() )
         surfaceCapper.SetDisplacement( capDisplacement )
         surfaceCapper.SetInPlaneDisplacement( capDisplacement )
         surfaceCapper.Update()
@@ -75,18 +75,18 @@ class CenterlineComputationLogic( object ):
         '''
 
         decimationFilter = vtk.vtkDecimatePro()
-        decimationFilter.SetInput( polyData )
+        decimationFilter.SetInputData( polyData )
         decimationFilter.SetTargetReduction( 0.99 )
         decimationFilter.SetBoundaryVertexDeletion( 0 )
         decimationFilter.PreserveTopologyOn()
         decimationFilter.Update()
 
         cleaner = vtk.vtkCleanPolyData()
-        cleaner.SetInput( decimationFilter.GetOutput() )
+        cleaner.SetInputData( decimationFilter.GetOutput() )
         cleaner.Update()
 
         triangleFilter = vtk.vtkTriangleFilter()
-        triangleFilter.SetInput( cleaner.GetOutput() )
+        triangleFilter.SetInputData( cleaner.GetOutput() )
         triangleFilter.Update()
 
         outPolyData = vtk.vtkPolyData()
@@ -119,7 +119,7 @@ class CenterlineComputationLogic( object ):
         sphere.SetRadius( someradius )
 
         clip = vtk.vtkClipPolyData()
-        clip.SetInput( polyData )
+        clip.SetInputData( polyData )
         clip.SetClipFunction( sphere )
         clip.Update()
 
@@ -147,7 +147,7 @@ class CenterlineComputationLogic( object ):
         marksArrayName = 'Marks'
 
         networkExtraction = m.vtkvmtkPolyDataNetworkExtraction()
-        networkExtraction.SetInput( polyData )
+        networkExtraction.SetInputData( polyData )
         networkExtraction.SetAdvancementRatio( 1.05 )
         networkExtraction.SetRadiusArrayName( radiusArrayName )
         networkExtraction.SetTopologyArrayName( topologyArrayName )
@@ -175,7 +175,7 @@ class CenterlineComputationLogic( object ):
             print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
         cleaner = vtk.vtkCleanPolyData()
-        cleaner.SetInput( networkPolyData )
+        cleaner.SetInputData( networkPolyData )
         cleaner.Update()
         network = cleaner.GetOutput()
         network.BuildCells()
@@ -224,16 +224,16 @@ class CenterlineComputationLogic( object ):
                     endpointsRadius.InsertNextValue( radiusFactor * radius )
 
         polyBall = cg.vtkvmtkPolyBall()
-        polyBall.SetInput( endpoints )
+        polyBall.SetInputData( endpoints )
         polyBall.SetPolyBallRadiusArrayName( 'Radius' )
 
         clipper = vtk.vtkClipPolyData()
-        clipper.SetInput( surfacePolyData )
+        clipper.SetInputData( surfacePolyData )
         clipper.SetClipFunction( polyBall )
         clipper.Update()
 
         connectivityFilter = vtk.vtkPolyDataConnectivityFilter()
-        connectivityFilter.SetInput( clipper.GetOutput() )
+        connectivityFilter.SetInputData( clipper.GetOutput() )
         connectivityFilter.ColorRegionsOff()
         connectivityFilter.SetExtractionModeToLargestRegion()
         connectivityFilter.Update()
@@ -265,7 +265,7 @@ class CenterlineComputationLogic( object ):
 
 
         centerlineFilter = cg.vtkvmtkPolyDataCenterlines()
-        centerlineFilter.SetInput( polyData )
+        centerlineFilter.SetInputData( polyData )
         centerlineFilter.SetSourceSeedIds( inletSeedIds )
         centerlineFilter.SetTargetSeedIds( outletSeedIds )
         centerlineFilter.SetRadiusArrayName( radiusArrayName )

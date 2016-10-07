@@ -601,8 +601,7 @@ class LevelSetSegmentationWidget:
                                                                  seeds,
                                                                  stoppers,
                                                                  0 ) )  # TODO sidebranch ignore feature
-    initImageData.Update()
-
+ 
     if not initImageData.GetPointData().GetScalars():
         # something went wrong, the image is empty
         SlicerVmtkCommonLib.Helper.Info( "Segmentation failed - the output was empty.." )
@@ -625,7 +624,6 @@ class LevelSetSegmentationWidget:
                                                                 self.__attractionSlider.value,
                                                                 'geodesic' ) )
 
-    evolImageData.Update()
 
     # create segmentation labelMap
     labelMap = vtk.vtkImageData()

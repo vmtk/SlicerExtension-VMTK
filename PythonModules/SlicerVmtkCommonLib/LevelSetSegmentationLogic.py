@@ -24,7 +24,7 @@ class LevelSetSegmentationLogic( object ):
             print "FAILURE: Unable to import the SlicerVmtk libraries!"
 
         cast = vtk.vtkImageCast()
-        cast.SetInput( image )
+        cast.SetInputData( image )
         cast.SetOutputScalarTypeToFloat()
         cast.Update()
         image = cast.GetOutput()
@@ -35,7 +35,7 @@ class LevelSetSegmentationLogic( object ):
         maxImageDimensions = max( imageDimensions )
 
         threshold = vtk.vtkImageThreshold()
-        threshold.SetInput( image )
+        threshold.SetInputData( image )
         threshold.ThresholdBetween( lowerThreshold, upperThreshold )
         threshold.ReplaceInOff()
         threshold.ReplaceOutOn()
@@ -47,7 +47,7 @@ class LevelSetSegmentationLogic( object ):
         scalarRange = thresholdedImage.GetScalarRange()
 
         shiftScale = vtk.vtkImageShiftScale()
-        shiftScale.SetInput( thresholdedImage )
+        shiftScale.SetInputData( thresholdedImage )
         shiftScale.SetShift( -scalarRange[0] )
         shiftScale.SetScale( 1.0 / ( scalarRange[1] - scalarRange[0] ) )
         shiftScale.Update()
@@ -57,7 +57,7 @@ class LevelSetSegmentationLogic( object ):
         if ignoreSideBranches:
             # ignore sidebranches, use colliding fronts
             fastMarching = s.vtkvmtkCollidingFrontsImageFilter()
-            fastMarching.SetInput( speedImage )
+            fastMarching.SetInputData( speedImage )
             fastMarching.SetSeeds1( sourceSeedIds )
             fastMarching.SetSeeds2( targetSeedIds )
             fastMarching.ApplyConnectivityOn()
@@ -65,14 +65,14 @@ class LevelSetSegmentationLogic( object ):
             fastMarching.Update()
 
             subtract = vtk.vtkImageMathematics()
-            subtract.SetInput( fastMarching.GetOutput() )
+            subtract.SetInputData( fastMarching.GetOutput() )
             subtract.SetOperationToAddConstant()
             subtract.SetConstantC( -10 * fastMarching.GetNegativeEpsilon() )
             subtract.Update()
 
         else:
             fastMarching = s.vtkvmtkFastMarchingUpwindGradientImageFilter()
-            fastMarching.SetInput( speedImage )
+            fastMarching.SetInputData( speedImage )
             fastMarching.SetSeeds( sourceSeedIds )
             fastMarching.GenerateGradientImageOn()
             fastMarching.SetTargetOffset( 0.0 )
@@ -85,14 +85,14 @@ class LevelSetSegmentationLogic( object ):
 
             if targetSeedIds.GetNumberOfIds() > 0:
                 subtract = vtk.vtkImageMathematics()
-                subtract.SetInput( fastMarching.GetOutput() )
+                subtract.SetInputData( fastMarching.GetOutput() )
                 subtract.SetOperationToAddConstant()
                 subtract.SetConstantC( -fastMarching.GetTargetValue() )
                 subtract.Update()
 
             else:
                 subtract = vtk.vtkImageThreshold()
-                subtract.SetInput( fastMarching.GetOutput() )
+                subtract.SetInputData( fastMarching.GetOutput() )
                 subtract.ThresholdByLower( 2000 )  # TODO find robuste value
                 subtract.ReplaceInOff()
                 subtract.ReplaceOutOn()
@@ -101,8 +101,6 @@ class LevelSetSegmentationLogic( object ):
 
         outImageData = vtk.vtkImageData()
         outImageData.DeepCopy( subtract.GetOutput() )
-        outImageData.Update()
-
 
         return outImageData
 
@@ -134,7 +132,7 @@ class LevelSetSegmentationLogic( object ):
         levelSets.SetPropagationScaling( inflation * ( -1 ) )
         levelSets.SetCurvatureScaling( curvature )
         levelSets.SetAdvectionScaling( attraction * ( -1 ) )
-        levelSets.SetInput( segmentationImage )
+        levelSets.SetInputData( segmentationImage )
         levelSets.SetNumberOfIterations( numberOfIterations )
         levelSets.SetIsoSurfaceValue( isoSurfaceValue )
         levelSets.SetMaximumRMSError( maximumRMSError )
@@ -144,7 +142,6 @@ class LevelSetSegmentationLogic( object ):
 
         outImageData = vtk.vtkImageData()
         outImageData.DeepCopy( levelSets.GetOutput() )
-        outImageData.Update()
 
         return outImageData
 
@@ -163,19 +160,19 @@ class LevelSetSegmentationLogic( object ):
         sigmoidRemapping = 1
 
         cast = vtk.vtkImageCast()
-        cast.SetInput( imageData )
+        cast.SetInputData( imageData )
         cast.SetOutputScalarTypeToFloat()
         cast.Update()
 
         if ( derivativeSigma > 0.0 ):
             gradientMagnitude = s.vtkvmtkGradientMagnitudeRecursiveGaussianImageFilter()
-            gradientMagnitude.SetInput( cast.GetOutput() )
+            gradientMagnitude.SetInputData( cast.GetOutput() )
             gradientMagnitude.SetSigma( derivativeSigma )
             gradientMagnitude.SetNormalizeAcrossScale( 0 )
             gradientMagnitude.Update()
         else:
             gradientMagnitude = s.vtkvmtkGradientMagnitudeImageFilter()
-            gradientMagnitude.SetInput( cast.GetOutput() )
+            gradientMagnitude.SetInputData( cast.GetOutput() )
             gradientMagnitude.Update()
 
         featureImage = None
@@ -187,7 +184,7 @@ class LevelSetSegmentationLogic( object ):
             beta = ( inputMaximum + inputMinimum ) / 2.0
 
             sigmoid = s.vtkvmtkSigmoidImageFilter()
-            sigmoid.SetInput( gradientMagnitude.GetOutput() )
+            sigmoid.SetInputData( gradientMagnitude.GetOutput() )
             sigmoid.SetAlpha( alpha )
             sigmoid.SetBeta( beta )
             sigmoid.SetOutputMinimum( 0.0 )
@@ -196,20 +193,19 @@ class LevelSetSegmentationLogic( object ):
             featureImage = sigmoid.GetOutput()
         else:
             boundedReciprocal = s.vtkvmtkBoundedReciprocalImageFilter()
-            boundedReciprocal.SetInput( gradientMagnitude.GetOutput() )
+            boundedReciprocal.SetInputData( gradientMagnitude.GetOutput() )
             boundedReciprocal.Update()
             featureImage = boundedReciprocal.GetOutput()
 
         outImageData = vtk.vtkImageData()
         outImageData.DeepCopy( featureImage )
-        outImageData.Update()
 
         return outImageData
 
     def buildSimpleLabelMap( self, image, inValue, outValue ):
 
         threshold = vtk.vtkImageThreshold()
-        threshold.SetInput( image )
+        threshold.SetInputData( image )
         threshold.ThresholdByLower( 0 )
         threshold.ReplaceInOn()
         threshold.ReplaceOutOn()
@@ -230,7 +226,7 @@ class LevelSetSegmentationLogic( object ):
         transformIJKtoRAS.SetMatrix( ijkToRasMatrix )
 
         marchingCubes = vtk.vtkMarchingCubes()
-        marchingCubes.SetInput( image )
+        marchingCubes.SetInputData( image )
         marchingCubes.SetValue( 0, threshold )
         marchingCubes.ComputeScalarsOn()
         marchingCubes.ComputeGradientsOn()
@@ -241,7 +237,7 @@ class LevelSetSegmentationLogic( object ):
 
         if transformIJKtoRAS.GetMatrix().Determinant() < 0:
             reverser = vtk.vtkReverseSense()
-            reverser.SetInput( marchingCubes.GetOutput() )
+            reverser.SetInputData( marchingCubes.GetOutput() )
             reverser.ReverseNormalsOn()
             reverser.GetOutput().ReleaseDataFlagOn()
             reverser.Update()
@@ -250,21 +246,21 @@ class LevelSetSegmentationLogic( object ):
             correctedOutput = marchingCubes.GetOutput()
 
         transformer = vtk.vtkTransformPolyDataFilter()
-        transformer.SetInput( correctedOutput )
+        transformer.SetInputData( correctedOutput )
         transformer.SetTransform( transformIJKtoRAS )
         transformer.GetOutput().ReleaseDataFlagOn()
         transformer.Update()
 
         normals = vtk.vtkPolyDataNormals()
         normals.ComputePointNormalsOn()
-        normals.SetInput( transformer.GetOutput() )
+        normals.SetInputData( transformer.GetOutput() )
         normals.SetFeatureAngle( 60 )
         normals.SetSplitting( 1 )
         normals.GetOutput().ReleaseDataFlagOn()
         normals.Update()
 
         stripper = vtk.vtkStripper()
-        stripper.SetInput( normals.GetOutput() )
+        stripper.SetInputData( normals.GetOutput() )
         stripper.GetOutput().ReleaseDataFlagOff()
         stripper.Update()
         stripper.GetOutput().Update()
