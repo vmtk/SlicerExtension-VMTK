@@ -179,7 +179,7 @@ class Helper(object):
 
         reslicer = vtk.vtkImageReslice()
         reslicer.SetInterpolationModeToLinear()
-        reslicer.SetInput(originalVolume.GetImageData())
+        reslicer.SetInputData(originalVolume.GetImageData())
         reslicer.SetOutputExtent(0,int(outputExtentX),0,int(outputExtentY),0,int(outputExtentZ))
         reslicer.SetOutputOrigin(0,0,0)
         reslicer.SetOutputSpacing(1,1,1)
@@ -189,7 +189,7 @@ class Helper(object):
         reslicer.UpdateWholeExtent()
 
         changer = vtk.vtkImageChangeInformation()
-        changer.SetInput(reslicer.GetOutput())
+        changer.SetInputData(reslicer.GetOutput())
         changer.SetOutputOrigin(0,0,0)
         changer.SetOutputSpacing(1,1,1)
         #changer.SetOutputOrigin(image.GetOrigin())
@@ -198,7 +198,6 @@ class Helper(object):
 
         outImageData = vtk.vtkImageData()
         outImageData.DeepCopy(changer.GetOutput())
-        outImageData.Update()
 
         newVolume.SetAndObserveImageData(outImageData)
         newVolume.SetIJKToRASMatrix(outputIJKToRAS)

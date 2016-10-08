@@ -1,5 +1,9 @@
 # slicer imports
-from __main__ import vtk, qt, ctk, slicer
+import os
+import unittest
+import vtk, qt, ctk, slicer
+from slicer.ScriptedLoadableModule import *
+import logging
 
 # vmtk includes
 import SlicerVmtkCommonLib
@@ -8,25 +12,28 @@ import SlicerVmtkCommonLib
 # Level Set Segmentation using VMTK based Tools
 #
 
-class LevelSetSegmentation:
+class LevelSetSegmentation(ScriptedLoadableModule):
+  """Uses ScriptedLoadableModule base class, available at:
+  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+  """
   def __init__( self, parent ):
-    parent.title = "Level Set Segmentation"
-    parent.categories = ["Vascular Modeling Toolkit", ]
-    parent.contributors = ["Daniel Haehn (Boston Children's Hospital)", "Luca Antiga (Orobix)", "Steve Pieper (Isomics)"]
-    parent.helpText = """dsfdsf"""
-    parent.acknowledgementText = """sdfsdfdsf"""
-    self.parent = parent
+    ScriptedLoadableModule.__init__(self, parent)
+    self.parent.title = "Level Set Segmentation"
+    self.parent.categories = ["Vascular Modeling Toolkit"]
+    self.parent.dependencies = []
+    self.parent.contributors = ["Daniel Haehn (Boston Children's Hospital)", "Luca Antiga (Orobix)", "Steve Pieper (Isomics)"]
+    self.parent.helpText = """
+"""
+    self.parent.acknowledgementText = """
+""" # replace with organization, grant and thanks.
 
+class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
+  """Uses ScriptedLoadableModuleWidget base class, available at:
+  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+  """
 
-class LevelSetSegmentationWidget:
   def __init__( self, parent=None ):
-    if not parent:
-      self.parent = slicer.qMRMLWidget()
-      self.parent.setLayout( qt.QVBoxLayout() )
-      self.parent.setMRMLScene( slicer.mrmlScene )
-    else:
-      self.parent = parent
-    self.layout = self.parent.layout()
+    ScriptedLoadableModuleWidget.__init__(self, parent)
 
     # this flag is 1 if there is an update in progress
     self.__updating = 1
@@ -35,22 +42,11 @@ class LevelSetSegmentationWidget:
     self.__logic = None
 
     if not parent:
-      self.setup()
-      self.__inputVolumeNodeSelector.setMRMLScene( slicer.mrmlScene )
-      self.__seedFiducialsNodeSelector.setMRMLScene( slicer.mrmlScene )
-      self.__vesselnessVolumeNodeSelector.setMRMLScene( slicer.mrmlScene )
-      self.__outputVolumeNodeSelector.setMRMLScene( slicer.mrmlScene )
-      self.__outputModelNodeSelector.setMRMLScene( slicer.mrmlScene )
-      self.__stopperFiducialsNodeSelector.setMRMLScene( slicer.mrmlScene )
       # after setup, be ready for events
-      self.__updating = 0
-
       self.parent.show()
-
-    # register default slots
-    self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)', self.onMRMLSceneChanged )
-
-
+    else:
+      # register default slots
+      self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)', self.onMRMLSceneChanged )
 
   def GetLogic( self ):
     '''
@@ -62,7 +58,8 @@ class LevelSetSegmentationWidget:
     return self.__logic
 
 
-  def setup( self ):
+  def setup(self):
+    ScriptedLoadableModuleWidget.setup(self)
 
     # check if the SlicerVmtk module is installed properly
     # self.__vmtkInstalled = SlicerVmtkCommonLib.Helper.CheckIfVmtkIsInstalled()
@@ -286,6 +283,13 @@ class LevelSetSegmentationWidget:
     self.__resetButton.connect( "clicked()", self.restoreDefaults )
     self.__previewButton.connect( "clicked()", self.onRefreshButtonClicked )
     self.__startButton.connect( "clicked()", self.onStartButtonClicked )
+
+    self.__inputVolumeNodeSelector.setMRMLScene( slicer.mrmlScene )
+    self.__seedFiducialsNodeSelector.setMRMLScene( slicer.mrmlScene )
+    self.__vesselnessVolumeNodeSelector.setMRMLScene( slicer.mrmlScene )
+    self.__outputVolumeNodeSelector.setMRMLScene( slicer.mrmlScene )
+    self.__outputModelNodeSelector.setMRMLScene( slicer.mrmlScene )
+    self.__stopperFiducialsNodeSelector.setMRMLScene( slicer.mrmlScene )
 
     # be ready for events
     self.__updating = 0
@@ -586,8 +590,6 @@ class LevelSetSegmentationWidget:
         # no, there is none - we use the original image
         inputImage.DeepCopy( currentVolumeNode.GetImageData() )
 
-    inputImage.Update()
-
     # initialization
     initImageData = vtk.vtkImageData()
 
@@ -601,7 +603,6 @@ class LevelSetSegmentationWidget:
                                                                  seeds,
                                                                  stoppers,
                                                                  0 ) )  # TODO sidebranch ignore feature
-    initImageData.Update()
 
     if not initImageData.GetPointData().GetScalars():
         # something went wrong, the image is empty
@@ -625,12 +626,10 @@ class LevelSetSegmentationWidget:
                                                                 self.__attractionSlider.value,
                                                                 'geodesic' ) )
 
-    evolImageData.Update()
 
     # create segmentation labelMap
     labelMap = vtk.vtkImageData()
     labelMap.DeepCopy( self.GetLogic().buildSimpleLabelMap( evolImageData, 0, 5 ) )
-    labelMap.Update()
 
     currentLabelMapNode.CopyOrientation( currentVolumeNode )
 
@@ -665,7 +664,6 @@ class LevelSetSegmentationWidget:
 
     # call marching cubes
     model.DeepCopy( self.GetLogic().marchingCubes( evolImageData, ijkToRasMatrix, 0.0 ) )
-    model.Update()
 
     # propagate model to nodes
     currentModelNode.SetAndObservePolyData( model )
@@ -680,7 +678,6 @@ class LevelSetSegmentationWidget:
         slicer.mrmlScene.AddNode( currentModelDisplayNode )
 
     # always configure the displayNode to show the model
-    currentModelDisplayNode.SetInputPolyData( currentModelNode.GetPolyData() )
     currentModelDisplayNode.SetColor( 1.0, 0.55, 0.4 )  # red
     currentModelDisplayNode.SetBackfaceCulling( 0 )
     currentModelDisplayNode.SetSliceIntersectionVisibility( 0 )

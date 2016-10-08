@@ -1,5 +1,6 @@
 # vtk includes
 from __main__ import vtk
+import logging
 
 class VesselnessFilteringLogic( object ):
     '''
@@ -17,19 +18,18 @@ class VesselnessFilteringLogic( object ):
         '''
         # import the vmtk libraries
         try:
-            #from libvtkvmtkSegmentationPython import *
-            import libvtkvmtkSegmentationPython as s
+            import vtkvmtkSegmentationPython as vtkvmtkSegmentation
         except ImportError:
-            print "FAILURE: Unable to import the SlicerVmtk libraries!"
+            logging.error("Unable to import the SlicerVmtk libraries")
 
         cast = vtk.vtkImageCast()
-        cast.SetInput( image )
+        cast.SetInputData( image )
         cast.SetOutputScalarTypeToFloat()
         cast.Update()
         image = cast.GetOutput()
 
-        v = s.vtkvmtkVesselnessMeasureImageFilter()
-        v.SetInput( image )
+        v = vtkvmtkSegmentation.vtkvmtkVesselnessMeasureImageFilter()
+        v.SetInputData( image )
         v.SetSigmaMin( minimumDiameter )
         v.SetSigmaMax( maximumDiameter )
         v.SetNumberOfSigmaSteps( discretizationSteps )
@@ -40,7 +40,6 @@ class VesselnessFilteringLogic( object ):
 
         outImageData = vtk.vtkImageData()
         outImageData.DeepCopy( v.GetOutput() )
-        outImageData.Update()
         outImageData.GetPointData().GetScalars().Modified()
 
         return outImageData
@@ -114,16 +113,15 @@ class VesselnessFilteringLogic( object ):
         '''
 
         gaussian = vtk.vtkImageGaussianSmooth()
-        gaussian.SetInput( image )
+        gaussian.SetInputData( image )
         gaussian.Update()
 
         laplacian = vtk.vtkImageLaplacian()
-        laplacian.SetInput( gaussian.GetOutput() )
+        laplacian.SetInputData( gaussian.GetOutput() )
         laplacian.Update()
 
         outImageData = vtk.vtkImageData()
         outImageData.DeepCopy( laplacian.GetOutput() )
-        outImageData.Update()
 
         return outImageData
 

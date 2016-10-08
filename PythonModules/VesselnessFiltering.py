@@ -1,5 +1,11 @@
 # slicer imports
-from __main__ import vtk, qt, ctk, slicer
+import os
+import unittest
+import vtk, qt, ctk, slicer
+from slicer.ScriptedLoadableModule import *
+import logging
+
+#from __main__ import vtk, qt, ctk, slicer
 
 # vmtk includes
 import SlicerVmtkCommonLib
@@ -9,25 +15,34 @@ import SlicerVmtkCommonLib
 # Vesselness Filtering using VMTK based Tools
 #
 
-class VesselnessFiltering:
-  def __init__( self, parent ):
-    parent.title = "Vesselness Filtering"
-    parent.categories = ["Vascular Modeling Toolkit", ]
-    parent.contributors = ["Daniel Haehn (Boston Children's Hospital)", "Luca Antiga (Orobix)", "Steve Pieper (Isomics)"]
-    parent.helpText = """dsfdsf"""
-    parent.acknowledgementText = """sdfsdfdsf"""
-    self.parent = parent
+class VesselnessFiltering(ScriptedLoadableModule):
+  """Uses ScriptedLoadableModule base class, available at:
+  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+  """
+
+  def __init__(self, parent):
+    ScriptedLoadableModule.__init__(self, parent)
+    self.parent.title = "Vesselness Filtering"
+    self.parent.categories = ["Vascular Modeling Toolkit"]
+    self.parent.dependencies = []
+    self.parent.contributors = ["Daniel Haehn (Boston Children's Hospital)", "Luca Antiga (Orobix)", "Steve Pieper (Isomics)"]
+    self.parent.helpText = """
+"""
+    self.parent.acknowledgementText = """
+""" # replace with organization, grant and thanks.
+
+#
+# VesselnessFilteringWidget
+#
 
 
-class VesselnessFilteringWidget:
+class VesselnessFilteringWidget(ScriptedLoadableModuleWidget):
+  """Uses ScriptedLoadableModuleWidget base class, available at:
+  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+  """
+
   def __init__( self, parent=None ):
-    if not parent:
-      self.parent = slicer.qMRMLWidget()
-      self.parent.setLayout( qt.QVBoxLayout() )
-      self.parent.setMRMLScene( slicer.mrmlScene )
-    else:
-      self.parent = parent
-    self.layout = self.parent.layout()
+    ScriptedLoadableModuleWidget.__init__(self, parent)
 
     # this flag is 1 if there is an update in progress
     self.__updating = 1
@@ -36,19 +51,11 @@ class VesselnessFilteringWidget:
     self.__logic = None
 
     if not parent:
-      self.setup()
-      self.__inputVolumeNodeSelector.setMRMLScene( slicer.mrmlScene )
-      self.__seedFiducialsNodeSelector.setMRMLScene( slicer.mrmlScene )
-      self.__outputVolumeNodeSelector.setMRMLScene( slicer.mrmlScene )
-      self.__previewVolumeNodeSelector.setMRMLScene( slicer.mrmlScene )
       # after setup, be ready for events
-      self.__updating = 0
-
       self.parent.show()
-
-    # register default slots
-    self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)', self.onMRMLSceneChanged )
-
+    else:
+      # register default slots
+      self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)', self.onMRMLSceneChanged )
 
   def GetLogic( self ):
     '''
@@ -59,8 +66,8 @@ class VesselnessFilteringWidget:
 
     return self.__logic
 
-
-  def setup( self ):
+  def setup(self):
+    ScriptedLoadableModuleWidget.setup(self)
 
     # check if the SlicerVmtk module is installed properly
     # self.__vmtkInstalled = SlicerVmtkCommonLib.Helper.CheckIfVmtkIsInstalled()
@@ -235,6 +242,11 @@ class VesselnessFilteringWidget:
     self.__resetButton.connect( "clicked()", self.restoreDefaults )
     self.__previewButton.connect( "clicked()", self.onRefreshButtonClicked )
     self.__startButton.connect( "clicked()", self.onStartButtonClicked )
+
+    self.__inputVolumeNodeSelector.setMRMLScene( slicer.mrmlScene )
+    self.__seedFiducialsNodeSelector.setMRMLScene( slicer.mrmlScene )
+    self.__outputVolumeNodeSelector.setMRMLScene( slicer.mrmlScene )
+    self.__previewVolumeNodeSelector.setMRMLScene( slicer.mrmlScene )
 
     # be ready for events
     self.__updating = 0
@@ -473,13 +485,11 @@ class VesselnessFilteringWidget:
 
         # get the new cutted imageData
         image.DeepCopy( currentOutputVolumeNode.GetImageData() )
-        image.Update()
 
     else:
 
         # there was no ROI extraction, so just clone the inputImage
         image.DeepCopy( inputImage )
-        image.Update()
 
     # attach the spacing and origin to get accurate vesselness computation
     image.SetSpacing( currentVolumeNode.GetSpacing() )
@@ -488,7 +498,6 @@ class VesselnessFilteringWidget:
     # we now compute the vesselness in RAS space, image has spacing and origin attached, the diameters are converted to mm
     # we use RAS space to support anisotropic datasets
     outImage.DeepCopy( self.GetLogic().performFrangiVesselness( image, minimumDiameter, maximumDiameter, 5, alpha, beta, contrastMeasure ) )
-    outImage.Update()
 
     # let's remove spacing and origin attached to outImage
     outImage.SetSpacing( 1, 1, 1 )
@@ -584,10 +593,10 @@ class VesselnessFilteringSlicelet( Slicelet ):
 
 
 if __name__ == "__main__":
-  # TODO: need a way to access and parse command line arguments
-  # TODO: ideally command line args should handle --xml
+ # TODO: need a way to access and parse command line arguments
+ # TODO: ideally command line args should handle --xml
 
-  import sys
-  print( sys.argv )
+ import sys
+ print( sys.argv )
 
-  slicelet = VesselnessFilteringSlicelet()
+ slicelet = VesselnessFilteringSlicelet()
