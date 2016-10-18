@@ -1,3 +1,8 @@
+# for debugging in MSVS using ptvsd
+#import ptvsd
+#ptvsd.enable_attach(secret = 'slicer', address = ('0.0.0.0', 8080))
+#ptvsd.wait_for_attach()
+
 # slicer imports
 import os
 import unittest
@@ -96,7 +101,7 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     self.__seedFiducialsNodeSelector.nodeTypes = ['vtkMRMLMarkupsFiducialNode']
     self.__seedFiducialsNodeSelector.baseName = "Seeds"
     self.__seedFiducialsNodeSelector.noneEnabled = False
-    self.__seedFiducialsNodeSelector.addEnabled = False
+    self.__seedFiducialsNodeSelector.addEnabled = True # Simone change
     self.__seedFiducialsNodeSelector.removeEnabled = False
     ioFormLayout.addRow( "Seeds:", self.__seedFiducialsNodeSelector )
     self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)',
@@ -576,8 +581,8 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
 
     # now we need to convert the fiducials to vtkIdLists
     seeds = SlicerVmtkCommonLib.Helper.convertFiducialHierarchyToVtkIdList( currentSeedsNode, currentVolumeNode )
-    # stoppers = SlicerVmtkCommonLib.Helper.convertFiducialHierarchyToVtkIdList(currentStoppersNode, currentVolumeNode)
-    stoppers = vtk.vtkIdList()  # TODO
+    stoppers = SlicerVmtkCommonLib.Helper.convertFiducialHierarchyToVtkIdList(currentStoppersNode, currentVolumeNode)
+    # stoppers = vtk.vtkIdList()  # TODO
 
     # the input image for the initialization
     inputImage = vtk.vtkImageData()
@@ -602,7 +607,7 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
                                                                  self.__thresholdSlider.maximumValue,
                                                                  seeds,
                                                                  stoppers,
-                                                                 0 ) )  # TODO sidebranch ignore feature
+                                                                 'collidingfronts' ) ) 
 
     if not initImageData.GetPointData().GetScalars():
         # something went wrong, the image is empty
