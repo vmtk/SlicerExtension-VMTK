@@ -2,6 +2,7 @@
 from __main__ import vtk
 import logging
 
+
 class LevelSetSegmentationLogic( object ):
     '''
     classdocs
@@ -14,7 +15,7 @@ class LevelSetSegmentationLogic( object ):
         '''
 
 
-    def performInitialization( self, image, lowerThreshold, upperThreshold, sourceSeedIds, targetSeedIds, ignoreSideBranches=0 ):
+    def performInitialization( self, image, lowerThreshold, upperThreshold, sourceSeedIds, targetSeedIds, method="collidingfronts" ):
         '''
         '''
         # import the vmtk libraries
@@ -54,23 +55,31 @@ class LevelSetSegmentationLogic( object ):
 
         speedImage = shiftScale.GetOutput()
 
-        if ignoreSideBranches:
+        if method == "collidingfronts":
             # ignore sidebranches, use colliding fronts
-            fastMarching = vtkvmtkSegmentation.vtkvmtkCollidingFrontsImageFilter()
-            fastMarching.SetInputData( speedImage )
-            fastMarching.SetSeeds1( sourceSeedIds )
-            fastMarching.SetSeeds2( targetSeedIds )
-            fastMarching.ApplyConnectivityOn()
-            fastMarching.StopOnTargetsOn()
-            fastMarching.Update()
+            logging.debug("Using Colliding fronts")
+            logging.debug("number of vtk ids: " + str(sourceSeedIds.GetNumberOfIds()))
+            logging.debug("SourceSeedIds:")
+            logging.debug(sourceSeedIds)
+            collidingFronts = vtkvmtkSegmentation.vtkvmtkCollidingFrontsImageFilter()
+            collidingFronts.SetInputData( speedImage )
+            sourceSeedId1 = vtk.vtkIdList()
+            sourceSeedId1.InsertNextId( sourceSeedIds.GetId(0) )
+            sourceSeedId2 = vtk.vtkIdList()
+            sourceSeedId2.InsertNextId( sourceSeedIds.GetId(1) )
+            collidingFronts.SetSeeds1( sourceSeedId1 )
+            collidingFronts.SetSeeds2( sourceSeedId2 )
+            collidingFronts.ApplyConnectivityOn()
+            collidingFronts.StopOnTargetsOn()
+            collidingFronts.Update()
 
             subtract = vtk.vtkImageMathematics()
-            subtract.SetInputData( fastMarching.GetOutput() )
+            subtract.SetInputData( collidingFronts.GetOutput() )
             subtract.SetOperationToAddConstant()
-            subtract.SetConstantC( -10 * fastMarching.GetNegativeEpsilon() )
+            subtract.SetConstantC( -10 * collidingFronts.GetNegativeEpsilon() )
             subtract.Update()
 
-        else:
+        elif method == "fastmarching":
             fastMarching = vtkvmtkSegmentation.vtkvmtkFastMarchingUpwindGradientImageFilter()
             fastMarching.SetInputData( speedImage )
             fastMarching.SetSeeds( sourceSeedIds )
@@ -98,6 +107,15 @@ class LevelSetSegmentationLogic( object ):
                 subtract.ReplaceOutOn()
                 subtract.SetOutValue( -1 )
                 subtract.Update()
+        
+        elif method == "threshold":
+            raise NotImplementedError()
+        elif method == "isosurface":
+            raise NotImplementedError()
+        elif method == "seeds":
+            raise NotImplementedError()
+        else:
+            raise NameError()
 
         outImageData = vtk.vtkImageData()
         outImageData.DeepCopy( subtract.GetOutput() )
@@ -120,9 +138,15 @@ class LevelSetSegmentationLogic( object ):
         maximumRMSError = 1E-20
         isoSurfaceValue = 0.0
 
+        logging.debug("NumberOfIterations: " + str(numberOfIterations))
+        logging.debug("inflation: " + str(inflation))
+        logging.debug("curvature: " + str(curvature))
+        logging.debug("attraction: " + str(attraction))
+
         if method == 'curves':
             levelSets = vtkvmtkSegmentation.vtkvmtkCurvesLevelSetImageFilter()
         else:
+            logging.debug("using vtkvmtkGeodesicActiveContourLevelSetImageFilter")
             levelSets = vtkvmtkSegmentation.vtkvmtkGeodesicActiveContourLevelSetImageFilter()
 
         levelSets.SetFeatureImage( self.buildGradientBasedFeatureImage( originalImage ) )
