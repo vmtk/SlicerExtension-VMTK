@@ -90,13 +90,15 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     self.__inputVolumeNodeSelector.connect( 'nodeActivated(vtkMRMLNode*)', self.onInputVolumeChanged )
 
     # seed selector
-    self.__seedFiducialsNodeSelector = slicer.qMRMLNodeComboBox()
+    
+    self.__seedFiducialsNodeSelector = slicer.qSlicerSimpleMarkupsWidget()
     self.__seedFiducialsNodeSelector.objectName = 'seedFiducialsNodeSelector'
     self.__seedFiducialsNodeSelector.toolTip = "Select a hierarchy containing the fiducials to use as Seeds."
-    self.__seedFiducialsNodeSelector.nodeTypes = ['vtkMRMLMarkupsFiducialNode']
-    self.__seedFiducialsNodeSelector.baseName = "Seeds"
-    self.__seedFiducialsNodeSelector.noneEnabled = False
-    self.__seedFiducialsNodeSelector.removeEnabled = False
+    self.__seedFiducialsNodeSelector.jumpToSliceEnabled = True
+    if hasattr(self.__seedFiducialsNodeSelector, 'markupsSelectorComboBox'):
+      self.__seedFiducialsNodeSelector.markupsSelectorComboBox().baseName = "Seeds"
+      self.__seedFiducialsNodeSelector.markupsSelectorComboBox().noneEnabled = False
+      self.__seedFiducialsNodeSelector.markupsSelectorComboBox().removeEnabled = False
     ioFormLayout.addRow( "Seeds:", self.__seedFiducialsNodeSelector )
     self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)',
                         self.__seedFiducialsNodeSelector, 'setMRMLScene(vtkMRMLScene*)' )
@@ -406,7 +408,7 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
 
                         # don't use a threshold, use the scalar range
                         SlicerVmtkCommonLib.Helper.Debug( "Reset thresholdSlider's values." )
-                        self.__thresholdSlider.minimumValue = minimumScalarValue
+                        self.__thresholdSlider.minimumValue = minimumScalarValue+(maximumScalarValue-minimumScalarValue)*0.10
                         self.__thresholdSlider.maximumValue = maximumScalarValue
 
 
