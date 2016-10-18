@@ -1,8 +1,3 @@
-# for debugging in MSVS using ptvsd
-#import ptvsd
-#ptvsd.enable_attach(secret = 'slicer', address = ('0.0.0.0', 8080))
-#ptvsd.wait_for_attach()
-
 # slicer imports
 import os
 import unittest
@@ -101,7 +96,6 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     self.__seedFiducialsNodeSelector.nodeTypes = ['vtkMRMLMarkupsFiducialNode']
     self.__seedFiducialsNodeSelector.baseName = "Seeds"
     self.__seedFiducialsNodeSelector.noneEnabled = False
-    self.__seedFiducialsNodeSelector.addEnabled = True # Simone change
     self.__seedFiducialsNodeSelector.removeEnabled = False
     ioFormLayout.addRow( "Seeds:", self.__seedFiducialsNodeSelector )
     self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)',
@@ -340,10 +334,8 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
         return currentVesselnessNode
 
     # check if we have a corresponding vesselness node in the scene and set it then
-    v = None
     vesselnessCollection = slicer.mrmlScene.GetNodesByClassByName( "vtkMRMLScalarVolumeNode", "VesselnessFiltered" )
-    # workaround to remove memory leak
-    vesselnessCollection.SetReferenceCount(1)
+    vesselnessCollection.UnRegister(None)
     numberOfVesselnessNodes = vesselnessCollection.GetNumberOfItems()
     SlicerVmtkCommonLib.Helper.Debug( "Found " + str( numberOfVesselnessNodes ) + " Vesselness node(s).." )
     for i in xrange( numberOfVesselnessNodes ):
@@ -355,11 +347,9 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
             # this is likely the corresponding vesselness node
             SlicerVmtkCommonLib.Helper.Debug( "Configuring vesselnessVolumeNodeSelector to use: " + str( v.GetName() ) + " id: " + str( v.GetID() ) )
             self.__vesselnessVolumeNodeSelector.setCurrentNode( v )
+            return v
 
-            # jump out of loop
-            break
-
-    return v
+    return None
 
 
 
@@ -556,31 +546,21 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
         pass
 
     if not currentLabelMapNode or currentLabelMapNode.GetID() == currentVolumeNode.GetID():
-        # we need a current labelMap node
-        # newLabelMapDisplayNode = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLLabelMapVolumeDisplayNode" )
-        newLabelMapDisplayNode = slicer.vtkMRMLLabelMapVolumeDisplayNode()
-        newLabelMapDisplayNode.SetScene( slicer.mrmlScene )
-        newLabelMapDisplayNode.SetDefaultColorMap()
-        slicer.mrmlScene.AddNode( newLabelMapDisplayNode )
-
-        # newLabelMapNode = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLLabelMapVolumeNode" )
-        newLabelMapNode = slicer.vtkMRMLLabelMapVolumeNode()
+        newLabelMapNode = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLLabelMapVolumeNode" )
+        newLabelMapNode.UnRegister(None)
         newLabelMapNode.CopyOrientation( currentVolumeNode )
-        newLabelMapNode.SetScene( slicer.mrmlScene )
         newLabelMapNode.SetName( slicer.mrmlScene.GetUniqueNameByString( self.__outputVolumeNodeSelector.baseName ) )
-        newLabelMapNode.SetAndObserveDisplayNodeID( newLabelMapDisplayNode.GetID() )
-        slicer.mrmlScene.AddNode( newLabelMapNode )
-        currentLabelMapNode = newLabelMapNode
+        currentLabelMapNode = slicer.mrmlScene.AddNode( newLabelMapNode )
+        currentLabelMapNode.CreateDefaultDisplayNodes()
         self.__outputVolumeNodeSelector.setCurrentNode( currentLabelMapNode )
 
     if not currentModelNode:
         # we need a current model node, the display node is created later
-        # newModelNode = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLModelNode" )
-        newModelNode = slicer.vtkMRMLModelNode()
-        newModelNode.SetScene( slicer.mrmlScene )
+        newModelNode = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLModelNode" )
+        newModelNode.UnRegister(None)
         newModelNode.SetName( slicer.mrmlScene.GetUniqueNameByString( self.__outputModelNodeSelector.baseName ) )
-        slicer.mrmlScene.AddNode( newModelNode )
-        currentModelNode = newModelNode
+        currentModelNode = slicer.mrmlScene.AddNode( newModelNode )
+        currentModelNode.CreateDefaultDisplayNodes()
 
         self.__outputModelNodeSelector.setCurrentNode( currentModelNode )
 
@@ -682,11 +662,7 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     currentModelDisplayNode = currentModelNode.GetDisplayNode()
 
     if not currentModelDisplayNode:
-
-        # create new displayNode
-        # currentModelDisplayNode = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLModelDisplayNode" )
-        currentModelDisplayNode = slicer.vtkMRMLModelDisplayNode()
-        slicer.mrmlScene.AddNode( currentModelDisplayNode )
+      currentModelNode.CreateDefaultDisplayNodes()
 
     # always configure the displayNode to show the model
     currentModelDisplayNode.SetColor( 1.0, 0.55, 0.4 )  # red
