@@ -18,6 +18,8 @@ set(MODULE_PYTHON_SCRIPTS
   )
   
 set(MODULE_PYTHON_RESOURCES
+  Resources/Vesselness.png
+  Resources/VesselnessVrPresets.mrml 
   )
   
 #-----------------------------------------------------------------------------

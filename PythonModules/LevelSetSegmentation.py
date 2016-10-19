@@ -27,6 +27,29 @@ class LevelSetSegmentation(ScriptedLoadableModule):
     self.parent.acknowledgementText = """
 """ # replace with organization, grant and thanks.
 
+    # Perform initializations that can only be performed when Slicer has started up
+    qt.QTimer.singleShot(0, self.registerCustomVrPresets)
+
+  def registerCustomVrPresets(self):
+    moduleDir = os.path.dirname(self.parent.path)
+    usPresetsScenePath = os.path.join(moduleDir, 'Resources', 'VesselnessVrPresets.mrml')
+
+    # Read scene
+    usPresetsScene = slicer.vtkMRMLScene()
+    vrPropNode = slicer.vtkMRMLVolumePropertyNode()
+    usPresetsScene.RegisterNodeClass(vrPropNode)
+    usPresetsScene.SetURL(usPresetsScenePath)
+    usPresetsScene.Connect()
+
+    # Add presets to volume rendering logic
+    vrLogic = slicer.modules.volumerendering.logic()
+    presetsScene = vrLogic.GetPresetsScene()
+    vrNodes = usPresetsScene.GetNodesByClass("vtkMRMLVolumePropertyNode")
+    vrNodes.UnRegister(None)
+    for itemNum in range(vrNodes.GetNumberOfItems()):
+      node = vrNodes.GetItemAsObject(itemNum)
+      vrLogic.AddPreset(node)
+
 class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
   """Uses ScriptedLoadableModuleWidget base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
@@ -90,10 +113,11 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     self.__inputVolumeNodeSelector.connect( 'nodeActivated(vtkMRMLNode*)', self.onInputVolumeChanged )
 
     # seed selector
-    
+
     self.__seedFiducialsNodeSelector = slicer.qSlicerSimpleMarkupsWidget()
     self.__seedFiducialsNodeSelector.objectName = 'seedFiducialsNodeSelector'
     self.__seedFiducialsNodeSelector.toolTip = "Select a hierarchy containing the fiducials to use as Seeds."
+    self.__seedFiducialsNodeSelector.defaultNodeColor = qt.QColor(0,0,255) # blue
     self.__seedFiducialsNodeSelector.jumpToSliceEnabled = True
     if hasattr(self.__seedFiducialsNodeSelector, 'markupsSelectorComboBox'):
       self.__seedFiducialsNodeSelector.markupsSelectorComboBox().baseName = "Seeds"
@@ -594,7 +618,7 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
                                                                  self.__thresholdSlider.maximumValue,
                                                                  seeds,
                                                                  stoppers,
-                                                                 'collidingfronts' ) ) 
+                                                                 'collidingfronts' ) )
 
     if not initImageData.GetPointData().GetScalars():
         # something went wrong, the image is empty
@@ -627,7 +651,6 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
 
     # propagate the label map to the node
     currentLabelMapNode.SetAndObserveImageData( labelMap )
-    currentLabelMapNode.Modified()
 
     # deactivate the threshold in the GUI
     self.resetThresholdOnDisplayNode()
@@ -659,12 +682,9 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
 
     # propagate model to nodes
     currentModelNode.SetAndObservePolyData( model )
-    currentModelNode.Modified()
 
+    currentModelNode.CreateDefaultDisplayNodes()
     currentModelDisplayNode = currentModelNode.GetDisplayNode()
-
-    if not currentModelDisplayNode:
-      currentModelNode.CreateDefaultDisplayNodes()
 
     # always configure the displayNode to show the model
     currentModelDisplayNode.SetColor( 1.0, 0.55, 0.4 )  # red
@@ -672,11 +692,6 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     currentModelDisplayNode.SetSliceIntersectionVisibility( 0 )
     currentModelDisplayNode.SetVisibility( 1 )
     currentModelDisplayNode.SetOpacity( 1.0 )
-    currentModelDisplayNode.Modified()
-
-    # update the reference between model node and it's display node
-    currentModelNode.SetAndObserveDisplayNodeID( currentModelDisplayNode.GetID() )
-    currentModelNode.Modified()
 
     # fit slice to all sliceviewers
     slicer.app.applicationLogic().FitSliceToAll()
