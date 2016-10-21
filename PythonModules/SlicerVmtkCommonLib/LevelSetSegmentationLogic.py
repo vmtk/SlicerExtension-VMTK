@@ -57,7 +57,7 @@ class LevelSetSegmentationLogic( object ):
 
         if method == "collidingfronts":
             # ignore sidebranches, use colliding fronts
-            logging.debug("Using Colliding fronts")
+            logging.debug("Using Colliding fronts algorithm")
             logging.debug("number of vtk ids: " + str(sourceSeedIds.GetNumberOfIds()))
             logging.debug("SourceSeedIds:")
             logging.debug(sourceSeedIds)
@@ -115,7 +115,7 @@ class LevelSetSegmentationLogic( object ):
         elif method == "seeds":
             raise NotImplementedError()
         else:
-            raise NameError()
+            raise NameError('Unsupported InitializationType')
 
         outImageData = vtk.vtkImageData()
         outImageData.DeepCopy( subtract.GetOutput() )
@@ -124,7 +124,7 @@ class LevelSetSegmentationLogic( object ):
 
 
 
-    def performEvolution( self, originalImage, segmentationImage, numberOfIterations, inflation, curvature, attraction, method='geodesic' ):
+    def performEvolution( self, originalImage, segmentationImage, numberOfIterations, inflation, curvature, attraction, levelSetsType='geodesic' ):
         '''
 
         '''
@@ -143,18 +143,30 @@ class LevelSetSegmentationLogic( object ):
         logging.debug("curvature: " + str(curvature))
         logging.debug("attraction: " + str(attraction))
 
-        if method == 'curves':
-            levelSets = vtkvmtkSegmentation.vtkvmtkCurvesLevelSetImageFilter()
-        else:
+        if levelSetsType == 'geodesic':
             logging.debug("using vtkvmtkGeodesicActiveContourLevelSetImageFilter")
             levelSets = vtkvmtkSegmentation.vtkvmtkGeodesicActiveContourLevelSetImageFilter()
+            levelSets.SetFeatureImage( self.buildGradientBasedFeatureImage( originalImage ) )
+            levelSets.SetDerivativeSigma( featureDerivativeSigma )
+            levelSets.SetAutoGenerateSpeedAdvection( 1 )
+            levelSets.SetPropagationScaling( inflation * ( -1 ) )
+            levelSets.SetCurvatureScaling( curvature )
+            levelSets.SetAdvectionScaling( attraction * ( -1 ) )
+        elif levelSetsType == 'curves':
+            levelSets = vtkvmtkSegmentation.vtkvmtkCurvesLevelSetImageFilter()
+            levelSets.SetFeatureImage( self.buildGradientBasedFeatureImage( originalImage ) )
+            levelSets.SetDerivativeSigma( featureDerivativeSigma )
+            levelSets.SetAutoGenerateSpeedAdvection( 1 )
+            levelSets.SetPropagationScaling( inflation * ( -1 ) )
+            levelSets.SetCurvatureScaling( curvature )
+            levelSets.SetAdvectionScaling( attraction * ( -1 ) )
+        elif levelSetsType == 'threshold':
+            raise NotImplementedError()
+        elif levelSetsType == 'laplacian':
+            raise NotImplementedError()
+        else:
+            raise NameError('Unsupported LevelSetsType')
 
-        levelSets.SetFeatureImage( self.buildGradientBasedFeatureImage( originalImage ) )
-        levelSets.SetDerivativeSigma( featureDerivativeSigma )
-        levelSets.SetAutoGenerateSpeedAdvection( 1 )
-        levelSets.SetPropagationScaling( inflation * ( -1 ) )
-        levelSets.SetCurvatureScaling( curvature )
-        levelSets.SetAdvectionScaling( attraction * ( -1 ) )
         levelSets.SetInputData( segmentationImage )
         levelSets.SetNumberOfIterations( numberOfIterations )
         levelSets.SetIsoSurfaceValue( isoSurfaceValue )

@@ -119,6 +119,7 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     self.__seedFiducialsNodeSelector.toolTip = "Select a hierarchy containing the fiducials to use as Seeds."
     self.__seedFiducialsNodeSelector.defaultNodeColor = qt.QColor(0,0,255) # blue
     self.__seedFiducialsNodeSelector.jumpToSliceEnabled = True
+    self.__seedFiducialsNodeSelector.setNodeBaseName("seeds")
     if hasattr(self.__seedFiducialsNodeSelector, 'markupsSelectorComboBox'):
       self.__seedFiducialsNodeSelector.markupsSelectorComboBox().baseName = "Seeds"
       self.__seedFiducialsNodeSelector.markupsSelectorComboBox().noneEnabled = False
