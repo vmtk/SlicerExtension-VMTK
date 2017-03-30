@@ -295,20 +295,20 @@ class CenterlineComputationWidget(ScriptedLoadableModuleWidget):
     if not currentOutputModelNode or currentOutputModelNode.GetID() == currentModelNode.GetID():
         # we need a current model node, the display node is created later
         newModelNode = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLModelNode" )
-        newModelNode.SetScene( slicer.mrmlScene )
+        newModelNode.UnRegister(None)
         newModelNode.SetName( slicer.mrmlScene.GetUniqueNameByString( self.__outputModelNodeSelector.baseName ) )
-        slicer.mrmlScene.AddNode( newModelNode )
-        currentOutputModelNode = newModelNode
+        currentOutputModelNode = slicer.mrmlScene.AddNode( newModelNode )
+        currentOutputModelNode.CreateDefaultDisplayNodes()
 
         self.__outputModelNodeSelector.setCurrentNode( currentOutputModelNode )
 
     if not currentVoronoiModelNode or currentVoronoiModelNode.GetID() == currentModelNode.GetID() or currentVoronoiModelNode.GetID() == currentOutputModelNode.GetID():
         # we need a current model node, the display node is created later
         newModelNode = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLModelNode" )
-        newModelNode.SetScene( slicer.mrmlScene )
+        newModelNode.UnRegister(None)
         newModelNode.SetName( slicer.mrmlScene.GetUniqueNameByString( self.__voronoiModelNodeSelector.baseName ) )
-        slicer.mrmlScene.AddNode( newModelNode )
-        currentVoronoiModelNode = newModelNode
+        currentVoronoiModelNode = slicer.mrmlScene.AddNode( newModelNode )
+        currentVoronoiModelNode.CreateDefaultDisplayNodes()
 
         self.__voronoiModelNodeSelector.setCurrentNode( currentVoronoiModelNode )
 
@@ -421,63 +421,29 @@ class CenterlineComputationWidget(ScriptedLoadableModuleWidget):
         network.DeepCopy( tupel[0] )
         voronoi.DeepCopy( tupel[1] )
 
-    #
-    #
-    # update the display of the original model in terms of opacity
-    currentModelDisplayNode = currentModelNode.GetDisplayNode()
-
-    if not currentModelDisplayNode:
-
-        # create new displayNode
-        currentModelDisplayNode = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLModelDisplayNode" )
-        slicer.mrmlScene.AddNode( currentModelDisplayNode )
-
-    currentModelDisplayNode.SetOpacity( 0.4 )
-    currentModelDisplayNode.Modified()
-
-    # update the reference between model node and it's display node
-    currentModelNode.SetAndObserveDisplayNodeID( currentModelDisplayNode.GetID() )
-    currentModelNode.Modified()
-
-    #
-    # finally:
-    # propagate output model to nodes
     currentOutputModelNode.SetAndObservePolyData( network )
-    currentOutputModelNode.Modified()
 
+        
+    # Make model node semi-transparent to make centerline inside visible
+    currentModelNode.CreateDefaultDisplayNodes()
+    currentModelDisplayNode = currentModelNode.GetDisplayNode()
+    currentModelDisplayNode.SetOpacity( 0.4 )
+
+    # Configure the displayNode to show the centerline and Voronoi model
+    currentOutputModelNode.CreateDefaultDisplayNodes()
     currentOutputModelDisplayNode = currentOutputModelNode.GetDisplayNode()
-
-    if not currentOutputModelDisplayNode:
-
-        # create new displayNode
-        currentOutputModelDisplayNode = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLModelDisplayNode" )
-        slicer.mrmlScene.AddNode( currentOutputModelDisplayNode )
-
-    # always configure the displayNode to show the model
     currentOutputModelDisplayNode.SetColor( 0.0, 0.0, 0.4 )  # red
     currentOutputModelDisplayNode.SetBackfaceCulling( 0 )
     currentOutputModelDisplayNode.SetSliceIntersectionVisibility( 0 )
     currentOutputModelDisplayNode.SetVisibility( 1 )
     currentOutputModelDisplayNode.SetOpacity( 1.0 )
-    currentOutputModelDisplayNode.Modified()
-
-    # update the reference between model node and it's display node
-    currentOutputModelNode.SetAndObserveDisplayNodeID( currentOutputModelDisplayNode.GetID() )
-    currentOutputModelNode.Modified()
 
     # only update the voronoi node if we are not in preview mode
 
     if not preview:
         currentVoronoiModelNode.SetAndObservePolyData( voronoi )
-        currentVoronoiModelNode.Modified()
-
+        currentVoronoiModelNode.CreateDefaultDisplayNodes()
         currentVoronoiModelDisplayNode = currentVoronoiModelNode.GetDisplayNode()
-
-        if not currentVoronoiModelDisplayNode:
-
-            # create new displayNode
-            currentVoronoiModelDisplayNode = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLModelDisplayNode" )
-            slicer.mrmlScene.AddNode( currentVoronoiModelDisplayNode )
 
         # always configure the displayNode to show the model
         currentVoronoiModelDisplayNode.SetScalarVisibility( 1 )
@@ -487,13 +453,6 @@ class CenterlineComputationWidget(ScriptedLoadableModuleWidget):
         currentVoronoiModelDisplayNode.SetSliceIntersectionVisibility( 0 )
         currentVoronoiModelDisplayNode.SetVisibility( 1 )
         currentVoronoiModelDisplayNode.SetOpacity( 0.5 )
-        currentVoronoiModelDisplayNode.Modified()
-
-        # update the reference between model node and it's display node
-        currentVoronoiModelNode.SetAndObserveDisplayNodeID( currentVoronoiModelDisplayNode.GetID() )
-        currentVoronoiModelNode.Modified()
-
-
 
     SlicerVmtkCommonLib.Helper.Debug( "End of Centerline Computation.." )
 

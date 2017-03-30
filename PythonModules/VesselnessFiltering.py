@@ -419,18 +419,11 @@ class VesselnessFilteringWidget(ScriptedLoadableModuleWidget):
         return 0
 
     if not currentOutputVolumeNode or currentOutputVolumeNode.GetID() == currentVolumeNode.GetID():
-        # we need an output volume node
-        newVolumeDisplayNode = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLScalarVolumeDisplayNode" )
-        newVolumeDisplayNode.SetDefaultColorMap()
-        newVolumeDisplayNode.SetScene( slicer.mrmlScene )
-        slicer.mrmlScene.AddNode( newVolumeDisplayNode )
-
         newVolumeNode = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLScalarVolumeNode" )
-        newVolumeNode.SetScene( slicer.mrmlScene )
+        newVolumeNode.UnRegister(None)        
         newVolumeNode.SetName( slicer.mrmlScene.GetUniqueNameByString( currentOutputVolumeNodeSelector.baseName ) )
-        newVolumeNode.SetAndObserveDisplayNodeID( newVolumeDisplayNode.GetID() )
-        slicer.mrmlScene.AddNode( newVolumeNode )
-        currentOutputVolumeNode = newVolumeNode
+        currentOutputVolumeNode = slicer.mrmlScene.AddNode( newVolumeNode )
+        currentOutputVolumeNode.CreateDefaultDisplayNodes()
         currentOutputVolumeNodeSelector.setCurrentNode( currentOutputVolumeNode )
 
     if preview and not currentSeedsNode:

@@ -1,0 +1,14 @@
+<MRML version="Slicer4.4.0">
+
+  <VolumeProperty id="vtkMRMLVolumeProperty3" name="Vesselness" references="IconVolume:vtkMRMLVectorVolumeNode1;"
+    interpolation="1" shade="1"
+    diffuse="0.6" ambient="0.21" specular="0.5" specularPower="40"
+    scalarOpacity="8 -1 0 0.2 0 0.8 1 2 1"
+    gradientOpacity="4 0 1 160.25 1"
+    colorTransfer="12 0.0 0.0 0.0 0.0 0.1 0.0 0.0 1.0 0.5 1.0 0.0 0.0" />
+
+  <VectorVolume id="vtkMRMLVectorVolumeNode1" references="storage:vtkMRMLVolumeArchetypeStorageNode1;" />
+  
+  <VolumeArchetypeStorage id="vtkMRMLVolumeArchetypeStorageNode1" fileName="Vesselness.png"  fileListMember0="Vesselness.png" />
+ 
+</MRML>

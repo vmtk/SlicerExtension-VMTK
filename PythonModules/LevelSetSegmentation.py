@@ -27,6 +27,29 @@ class LevelSetSegmentation(ScriptedLoadableModule):
     self.parent.acknowledgementText = """
 """ # replace with organization, grant and thanks.
 
+    # Perform initializations that can only be performed when Slicer has started up
+    qt.QTimer.singleShot(0, self.registerCustomVrPresets)
+
+  def registerCustomVrPresets(self):
+    moduleDir = os.path.dirname(self.parent.path)
+    usPresetsScenePath = os.path.join(moduleDir, 'Resources', 'VesselnessVrPresets.mrml')
+
+    # Read scene
+    usPresetsScene = slicer.vtkMRMLScene()
+    vrPropNode = slicer.vtkMRMLVolumePropertyNode()
+    usPresetsScene.RegisterNodeClass(vrPropNode)
+    usPresetsScene.SetURL(usPresetsScenePath)
+    usPresetsScene.Connect()
+
+    # Add presets to volume rendering logic
+    vrLogic = slicer.modules.volumerendering.logic()
+    presetsScene = vrLogic.GetPresetsScene()
+    vrNodes = usPresetsScene.GetNodesByClass("vtkMRMLVolumePropertyNode")
+    vrNodes.UnRegister(None)
+    for itemNum in range(vrNodes.GetNumberOfItems()):
+      node = vrNodes.GetItemAsObject(itemNum)
+      vrLogic.AddPreset(node)
+
 class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
   """Uses ScriptedLoadableModuleWidget base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
@@ -90,14 +113,17 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     self.__inputVolumeNodeSelector.connect( 'nodeActivated(vtkMRMLNode*)', self.onInputVolumeChanged )
 
     # seed selector
-    self.__seedFiducialsNodeSelector = slicer.qMRMLNodeComboBox()
+
+    self.__seedFiducialsNodeSelector = slicer.qSlicerSimpleMarkupsWidget()
     self.__seedFiducialsNodeSelector.objectName = 'seedFiducialsNodeSelector'
     self.__seedFiducialsNodeSelector.toolTip = "Select a hierarchy containing the fiducials to use as Seeds."
-    self.__seedFiducialsNodeSelector.nodeTypes = ['vtkMRMLMarkupsFiducialNode']
-    self.__seedFiducialsNodeSelector.baseName = "Seeds"
-    self.__seedFiducialsNodeSelector.noneEnabled = False
-    self.__seedFiducialsNodeSelector.addEnabled = False
-    self.__seedFiducialsNodeSelector.removeEnabled = False
+    self.__seedFiducialsNodeSelector.defaultNodeColor = qt.QColor(0,0,255) # blue
+    self.__seedFiducialsNodeSelector.jumpToSliceEnabled = True
+    self.__seedFiducialsNodeSelector.setNodeBaseName("seeds")
+    if hasattr(self.__seedFiducialsNodeSelector, 'markupsSelectorComboBox'):
+      self.__seedFiducialsNodeSelector.markupsSelectorComboBox().baseName = "Seeds"
+      self.__seedFiducialsNodeSelector.markupsSelectorComboBox().noneEnabled = False
+      self.__seedFiducialsNodeSelector.markupsSelectorComboBox().removeEnabled = False
     ioFormLayout.addRow( "Seeds:", self.__seedFiducialsNodeSelector )
     self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)',
                         self.__seedFiducialsNodeSelector, 'setMRMLScene(vtkMRMLScene*)' )
@@ -335,8 +361,8 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
         return currentVesselnessNode
 
     # check if we have a corresponding vesselness node in the scene and set it then
-    v = None
     vesselnessCollection = slicer.mrmlScene.GetNodesByClassByName( "vtkMRMLScalarVolumeNode", "VesselnessFiltered" )
+    vesselnessCollection.UnRegister(None)
     numberOfVesselnessNodes = vesselnessCollection.GetNumberOfItems()
     SlicerVmtkCommonLib.Helper.Debug( "Found " + str( numberOfVesselnessNodes ) + " Vesselness node(s).." )
     for i in xrange( numberOfVesselnessNodes ):
@@ -348,11 +374,9 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
             # this is likely the corresponding vesselness node
             SlicerVmtkCommonLib.Helper.Debug( "Configuring vesselnessVolumeNodeSelector to use: " + str( v.GetName() ) + " id: " + str( v.GetID() ) )
             self.__vesselnessVolumeNodeSelector.setCurrentNode( v )
+            return v
 
-            # jump out of loop
-            break
-
-    return v
+    return None
 
 
 
@@ -409,7 +433,7 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
 
                         # don't use a threshold, use the scalar range
                         SlicerVmtkCommonLib.Helper.Debug( "Reset thresholdSlider's values." )
-                        self.__thresholdSlider.minimumValue = minimumScalarValue
+                        self.__thresholdSlider.minimumValue = minimumScalarValue+(maximumScalarValue-minimumScalarValue)*0.10
                         self.__thresholdSlider.maximumValue = maximumScalarValue
 
 
@@ -549,35 +573,28 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
         pass
 
     if not currentLabelMapNode or currentLabelMapNode.GetID() == currentVolumeNode.GetID():
-        # we need a current labelMap node
-        newLabelMapDisplayNode = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLLabelMapVolumeDisplayNode" )
-        newLabelMapDisplayNode.SetScene( slicer.mrmlScene )
-        newLabelMapDisplayNode.SetDefaultColorMap()
-        slicer.mrmlScene.AddNode( newLabelMapDisplayNode )
-
         newLabelMapNode = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLLabelMapVolumeNode" )
+        newLabelMapNode.UnRegister(None)
         newLabelMapNode.CopyOrientation( currentVolumeNode )
-        newLabelMapNode.SetScene( slicer.mrmlScene )
         newLabelMapNode.SetName( slicer.mrmlScene.GetUniqueNameByString( self.__outputVolumeNodeSelector.baseName ) )
-        newLabelMapNode.SetAndObserveDisplayNodeID( newLabelMapDisplayNode.GetID() )
-        slicer.mrmlScene.AddNode( newLabelMapNode )
-        currentLabelMapNode = newLabelMapNode
+        currentLabelMapNode = slicer.mrmlScene.AddNode( newLabelMapNode )
+        currentLabelMapNode.CreateDefaultDisplayNodes()
         self.__outputVolumeNodeSelector.setCurrentNode( currentLabelMapNode )
 
     if not currentModelNode:
         # we need a current model node, the display node is created later
         newModelNode = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLModelNode" )
-        newModelNode.SetScene( slicer.mrmlScene )
+        newModelNode.UnRegister(None)
         newModelNode.SetName( slicer.mrmlScene.GetUniqueNameByString( self.__outputModelNodeSelector.baseName ) )
-        slicer.mrmlScene.AddNode( newModelNode )
-        currentModelNode = newModelNode
+        currentModelNode = slicer.mrmlScene.AddNode( newModelNode )
+        currentModelNode.CreateDefaultDisplayNodes()
 
         self.__outputModelNodeSelector.setCurrentNode( currentModelNode )
 
     # now we need to convert the fiducials to vtkIdLists
     seeds = SlicerVmtkCommonLib.Helper.convertFiducialHierarchyToVtkIdList( currentSeedsNode, currentVolumeNode )
-    # stoppers = SlicerVmtkCommonLib.Helper.convertFiducialHierarchyToVtkIdList(currentStoppersNode, currentVolumeNode)
-    stoppers = vtk.vtkIdList()  # TODO
+    stoppers = SlicerVmtkCommonLib.Helper.convertFiducialHierarchyToVtkIdList(currentStoppersNode, currentVolumeNode)
+    # stoppers = vtk.vtkIdList()  # TODO
 
     # the input image for the initialization
     inputImage = vtk.vtkImageData()
@@ -602,7 +619,7 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
                                                                  self.__thresholdSlider.maximumValue,
                                                                  seeds,
                                                                  stoppers,
-                                                                 0 ) )  # TODO sidebranch ignore feature
+                                                                 'collidingfronts' ) )
 
     if not initImageData.GetPointData().GetScalars():
         # something went wrong, the image is empty
@@ -635,7 +652,6 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
 
     # propagate the label map to the node
     currentLabelMapNode.SetAndObserveImageData( labelMap )
-    currentLabelMapNode.Modified()
 
     # deactivate the threshold in the GUI
     self.resetThresholdOnDisplayNode()
@@ -667,15 +683,9 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
 
     # propagate model to nodes
     currentModelNode.SetAndObservePolyData( model )
-    currentModelNode.Modified()
 
+    currentModelNode.CreateDefaultDisplayNodes()
     currentModelDisplayNode = currentModelNode.GetDisplayNode()
-
-    if not currentModelDisplayNode:
-
-        # create new displayNode
-        currentModelDisplayNode = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLModelDisplayNode" )
-        slicer.mrmlScene.AddNode( currentModelDisplayNode )
 
     # always configure the displayNode to show the model
     currentModelDisplayNode.SetColor( 1.0, 0.55, 0.4 )  # red
@@ -683,11 +693,6 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     currentModelDisplayNode.SetSliceIntersectionVisibility( 0 )
     currentModelDisplayNode.SetVisibility( 1 )
     currentModelDisplayNode.SetOpacity( 1.0 )
-    currentModelDisplayNode.Modified()
-
-    # update the reference between model node and it's display node
-    currentModelNode.SetAndObserveDisplayNodeID( currentModelDisplayNode.GetID() )
-    currentModelNode.Modified()
 
     # fit slice to all sliceviewers
     slicer.app.applicationLogic().FitSliceToAll()
