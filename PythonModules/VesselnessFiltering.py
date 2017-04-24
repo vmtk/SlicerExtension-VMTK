@@ -25,7 +25,7 @@ class VesselnessFiltering(ScriptedLoadableModule):
     self.parent.title = "Vesselness Filtering"
     self.parent.categories = ["Vascular Modeling Toolkit"]
     self.parent.dependencies = []
-    self.parent.contributors = ["Daniel Haehn (Boston Children's Hospital)", "Luca Antiga (Orobix)", "Steve Pieper (Isomics)"]
+    self.parent.contributors = ["Daniel Haehn (Boston Children's Hospital)", "Luca Antiga (Orobix)", "Steve Pieper (Isomics)", "Andras Lasso (PerkLab)"]
     self.parent.helpText = """
 """
     self.parent.acknowledgementText = """
@@ -44,11 +44,8 @@ class VesselnessFilteringWidget(ScriptedLoadableModuleWidget):
   def __init__( self, parent=None ):
     ScriptedLoadableModuleWidget.__init__(self, parent)
 
-    # this flag is 1 if there is an update in progress
-    self.__updating = 1
-
     # the pointer to the logic
-    self.__logic = None
+    self.__logic = SlicerVmtkCommonLib.VesselnessFilteringLogic()
 
     if not parent:
       # after setup, be ready for events
@@ -57,21 +54,8 @@ class VesselnessFilteringWidget(ScriptedLoadableModuleWidget):
       # register default slots
       self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)', self.onMRMLSceneChanged )
 
-  def GetLogic( self ):
-    '''
-    '''
-    if not self.__logic:
-
-        self.__logic = SlicerVmtkCommonLib.VesselnessFilteringLogic()
-
-    return self.__logic
-
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
-
-    # check if the SlicerVmtk module is installed properly
-    # self.__vmtkInstalled = SlicerVmtkCommonLib.Helper.CheckIfVmtkIsInstalled()
-    # Helper.Debug("VMTK found: " + self.__vmtkInstalled)
 
     #
     # the I/O panel
@@ -80,7 +64,6 @@ class VesselnessFilteringWidget(ScriptedLoadableModuleWidget):
     ioCollapsibleButton = ctk.ctkCollapsibleButton()
     ioCollapsibleButton.text = "Input/Output"
     self.layout.addWidget( ioCollapsibleButton )
-
     ioFormLayout = qt.QFormLayout( ioCollapsibleButton )
 
     # inputVolume selector
@@ -92,60 +75,48 @@ class VesselnessFilteringWidget(ScriptedLoadableModuleWidget):
     self.__inputVolumeNodeSelector.addEnabled = False
     self.__inputVolumeNodeSelector.removeEnabled = False
     ioFormLayout.addRow( "Input Volume:", self.__inputVolumeNodeSelector )
+    self.__inputVolumeNodeSelector.connect( 'currentNodeChanged(vtkMRMLNode*)', self.onInputVolumeChanged )
     self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)',
                         self.__inputVolumeNodeSelector, 'setMRMLScene(vtkMRMLScene*)' )
-    self.__inputVolumeNodeSelector.connect( 'currentNodeChanged(vtkMRMLNode*)', self.onInputVolumeChanged )
 
     # seed selector
-    self.__seedFiducialsNodeSelector = slicer.qMRMLNodeComboBox()
+    self.__seedFiducialsNodeSelector = slicer.qSlicerSimpleMarkupsWidget()
     self.__seedFiducialsNodeSelector.objectName = 'seedFiducialsNodeSelector'
-    self.__seedFiducialsNodeSelector.toolTip = "Select a fiducial to use as a Seed to detect the maximal diameter."
-    self.__seedFiducialsNodeSelector.nodeTypes = ['vtkMRMLMarkupsFiducialNode']
-    self.__seedFiducialsNodeSelector.baseName = "DiameterSeed"
-    self.__seedFiducialsNodeSelector.noneEnabled = False
-    self.__seedFiducialsNodeSelector.addEnabled = False
-    self.__seedFiducialsNodeSelector.removeEnabled = False
-    ioFormLayout.addRow( "Seed in largest Vessel:", self.__seedFiducialsNodeSelector )
+    self.__seedFiducialsNodeSelector = slicer.qSlicerSimpleMarkupsWidget()
+    self.__seedFiducialsNodeSelector.objectName = 'seedFiducialsNodeSelector'
+    self.__seedFiducialsNodeSelector.toolTip = "Select a point in the largest vessel. Preview will be shown around this point. This is point is also used for determining maximum vessel diameter if automatic filtering parameters computation is enabled."
+    self.__seedFiducialsNodeSelector.setNodeBaseName("DiameterSeed")
+    self.__seedFiducialsNodeSelector.tableWidget().hide()
+    self.__seedFiducialsNodeSelector.defaultNodeColor = qt.QColor(255,0,0) # red
+    self.__seedFiducialsNodeSelector.markupsSelectorComboBox().noneEnabled = False
+    self.__seedFiducialsNodeSelector.markupsPlaceWidget().placeMultipleMarkups = slicer.qSlicerMarkupsPlaceWidget.ForcePlaceSingleMarkup
+    ioFormLayout.addRow( "Seed point:", self.__seedFiducialsNodeSelector )
     self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)',
                         self.__seedFiducialsNodeSelector, 'setMRMLScene(vtkMRMLScene*)' )
-    self.__seedFiducialsNodeSelector.connect( 'currentNodeChanged(vtkMRMLNode*)', self.onSeedChanged )
-
-    self.__ioAdvancedToggle = qt.QCheckBox( "Show Advanced Properties" )
-    self.__ioAdvancedToggle.setChecked( False )
-    ioFormLayout.addRow( self.__ioAdvancedToggle )
-
-    #
-    # I/O advanced panel
-    #
-
-    self.__ioAdvancedPanel = qt.QFrame( ioCollapsibleButton )
-    self.__ioAdvancedPanel.hide()
-    self.__ioAdvancedPanel.setFrameStyle( 6 )
-    ioFormLayout.addRow( self.__ioAdvancedPanel )
-    self.__ioAdvancedToggle.connect( "clicked()", self.onIOAdvancedToggle )
-
-    ioAdvancedFormLayout = qt.QFormLayout( self.__ioAdvancedPanel )
-
-    # lock button
-    self.__detectPushButton = qt.QPushButton()
-    self.__detectPushButton.text = "Detect parameters automatically"
-    self.__detectPushButton.checkable = True
-    self.__detectPushButton.checked = True
-    # self.__unLockPushButton.connect("clicked()", self.calculateParameters())
-    ioAdvancedFormLayout.addRow( self.__detectPushButton )
 
     # outputVolume selector
     self.__outputVolumeNodeSelector = slicer.qMRMLNodeComboBox()
     self.__outputVolumeNodeSelector.toolTip = "Select the output labelmap."
     self.__outputVolumeNodeSelector.nodeTypes = ['vtkMRMLScalarVolumeNode']
     self.__outputVolumeNodeSelector.baseName = "VesselnessFiltered"
-    self.__outputVolumeNodeSelector.noneEnabled = False
+    self.__outputVolumeNodeSelector.noneEnabled = True
+    self.__outputVolumeNodeSelector.noneDisplay = "Create new volume"
     self.__outputVolumeNodeSelector.addEnabled = True
     self.__outputVolumeNodeSelector.selectNodeUponCreation = True
     self.__outputVolumeNodeSelector.removeEnabled = True
-    ioAdvancedFormLayout.addRow( "Output Volume:", self.__outputVolumeNodeSelector )
+    ioFormLayout.addRow( "Output Volume:", self.__outputVolumeNodeSelector )
     self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)',
                         self.__outputVolumeNodeSelector, 'setMRMLScene(vtkMRMLScene*)' )
+                        
+    #
+    # Advanced area
+    #
+
+    self.advancedCollapsibleButton = ctk.ctkCollapsibleButton()
+    self.advancedCollapsibleButton.text = "Advanced"
+    self.advancedCollapsibleButton.collapsed = True
+    self.layout.addWidget(self.advancedCollapsibleButton)
+    advancedFormLayout = qt.QFormLayout(self.advancedCollapsibleButton)
 
     # previewVolume selector
     self.__previewVolumeNodeSelector = slicer.qMRMLNodeComboBox()
@@ -156,71 +127,65 @@ class VesselnessFilteringWidget(ScriptedLoadableModuleWidget):
     self.__previewVolumeNodeSelector.addEnabled = True
     self.__previewVolumeNodeSelector.selectNodeUponCreation = True
     self.__previewVolumeNodeSelector.removeEnabled = True
-    ioAdvancedFormLayout.addRow( "Preview Volume:", self.__previewVolumeNodeSelector )
+    advancedFormLayout.addRow( "Preview Volume:", self.__previewVolumeNodeSelector )
     self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)',
                         self.__previewVolumeNodeSelector, 'setMRMLScene(vtkMRMLScene*)' )
 
+    # lock button
+    self.__detectPushButton = qt.QPushButton()
+    self.__detectPushButton.text = "Compute vessel diameters and contrast from seed point"
+    self.__detectPushButton.checkable = True
+    self.__detectPushButton.checked = True
+    #self.__detectPushButton.connect("clicked()", self.calculateParameters())
+    advancedFormLayout.addRow( self.__detectPushButton )                        
+                        
     self.__minimumDiameterSpinBox = qt.QSpinBox()
     self.__minimumDiameterSpinBox.minimum = 0
     self.__minimumDiameterSpinBox.maximum = 1000
     self.__minimumDiameterSpinBox.singleStep = 1
-    self.__minimumDiameterSpinBox.toolTip = "Specify the minimum Diameter manually."
-    ioAdvancedFormLayout.addRow( "Minimum Diameter [vx]:", self.__minimumDiameterSpinBox )
+    self.__minimumDiameterSpinBox.suffix = " voxels"
+    self.__minimumDiameterSpinBox.enabled = False
+    self.__minimumDiameterSpinBox.toolTip = "Tubular structures that have minimum this diameter will be enhanced."
+    advancedFormLayout.addRow( "Minimum vessel diameter:", self.__minimumDiameterSpinBox )
+    self.__detectPushButton.connect("toggled(bool)", self.__minimumDiameterSpinBox.setDisabled)
 
     self.__maximumDiameterSpinBox = qt.QSpinBox()
     self.__maximumDiameterSpinBox.minimum = 0
     self.__maximumDiameterSpinBox.maximum = 1000
     self.__maximumDiameterSpinBox.singleStep = 1
-    self.__maximumDiameterSpinBox.toolTip = "Specify the maximum Diameter manually."
-    ioAdvancedFormLayout.addRow( "Maximum Diameter [vx]:", self.__maximumDiameterSpinBox )
-
-    # add empty row
-    ioAdvancedFormLayout.addRow( "", qt.QWidget() )
-
-    # alpha slider
-    alphaLabel = qt.QLabel()
-    alphaLabel.text = "more Tubes <-> more Plates" + SlicerVmtkCommonLib.Helper.CreateSpace( 16 )
-    alphaLabel.setAlignment( 4 )
-    alphaLabel.toolTip = "A lower value detects tubes rather than plate-like structures."
-    ioAdvancedFormLayout.addRow( alphaLabel )
-
-    self.__alphaSlider = ctk.ctkSliderWidget()
-    self.__alphaSlider.decimals = 1
-    self.__alphaSlider.minimum = 0.1
-    self.__alphaSlider.maximum = 500
-    self.__alphaSlider.singleStep = 0.1
-    self.__alphaSlider.toolTip = alphaLabel.toolTip
-    ioAdvancedFormLayout.addRow( self.__alphaSlider )
-
-    # beta slider
-    betaLabel = qt.QLabel()
-    betaLabel.text = "more Blobs <-> more Tubes" + SlicerVmtkCommonLib.Helper.CreateSpace( 16 )
-    betaLabel.setAlignment( 4 )
-    betaLabel.toolTip = "A higher value detects tubes rather than blobs."
-    ioAdvancedFormLayout.addRow( betaLabel )
-
-    self.__betaSlider = ctk.ctkSliderWidget()
-    self.__betaSlider.decimals = 1
-    self.__betaSlider.minimum = 0.1
-    self.__betaSlider.maximum = 500
-    self.__betaSlider.singleStep = 0.1
-    self.__betaSlider.toolTip = betaLabel.toolTip
-    ioAdvancedFormLayout.addRow( self.__betaSlider )
-
-    # contrast slider
-    contrastLabel = qt.QLabel()
-    contrastLabel.text = "low Input Contrast <-> high Input Contrast" + SlicerVmtkCommonLib.Helper.CreateSpace( 14 )
-    contrastLabel.setAlignment( 4 )
-    contrastLabel.toolTip = "If the intensity contrast in the input image between vessel and background is high, choose a high value else choose a low value."
-    ioAdvancedFormLayout.addRow( contrastLabel )
+    self.__maximumDiameterSpinBox.suffix = " voxels"
+    self.__maximumDiameterSpinBox.enabled = False
+    self.__maximumDiameterSpinBox.toolTip = "Tubular structures that have maximum this diameter will be enhanced."
+    advancedFormLayout.addRow( "Maximum vessel diameter:", self.__maximumDiameterSpinBox )
+    self.__detectPushButton.connect("toggled(bool)", self.__maximumDiameterSpinBox.setDisabled)
 
     self.__contrastSlider = ctk.ctkSliderWidget()
     self.__contrastSlider.decimals = 0
     self.__contrastSlider.minimum = 0
     self.__contrastSlider.maximum = 500
     self.__contrastSlider.singleStep = 10
-    self.__contrastSlider.toolTip = contrastLabel.toolTip
-    ioAdvancedFormLayout.addRow( self.__contrastSlider )
+    self.__contrastSlider.enabled = False
+    self.__contrastSlider.toolTip = "If the intensity contrast in the input image between vessel and background is high, choose a high value else choose a low value."
+    advancedFormLayout.addRow( "Vessel contrast:", self.__contrastSlider )
+    self.__detectPushButton.connect("toggled(bool)", self.__contrastSlider.setDisabled)
+
+    self.__suppressPlatesSlider = ctk.ctkSliderWidget()
+    self.__suppressPlatesSlider.decimals = 0
+    self.__suppressPlatesSlider.minimum = 0
+    self.__suppressPlatesSlider.maximum = 100
+    self.__suppressPlatesSlider.singleStep = 1
+    self.__suppressPlatesSlider.suffix = " %"
+    self.__suppressPlatesSlider.toolTip = "A higher value filters out more plate-like structures."
+    advancedFormLayout.addRow( "Suppress plates:", self.__suppressPlatesSlider )
+
+    self.__suppressBlobsSlider = ctk.ctkSliderWidget()
+    self.__suppressBlobsSlider.decimals = 0
+    self.__suppressBlobsSlider.minimum = 0
+    self.__suppressBlobsSlider.maximum = 100
+    self.__suppressBlobsSlider.singleStep = 1
+    self.__suppressBlobsSlider.suffix = " %"
+    self.__suppressBlobsSlider.toolTip = "A higher value filters out more blob-like structures."
+    advancedFormLayout.addRow( "Suppress blobs:", self.__suppressBlobsSlider )
 
     #
     # Reset, preview and apply buttons
@@ -231,16 +196,16 @@ class VesselnessFilteringWidget(ScriptedLoadableModuleWidget):
     self.__resetButton.toolTip = "Click to reset all input elements to default."
     self.__previewButton = self.__buttonBox.addButton( self.__buttonBox.Discard )
     self.__previewButton.setIcon( qt.QIcon() )
-    self.__previewButton.text = "Preview.."
+    self.__previewButton.text = "Preview"
     self.__previewButton.toolTip = "Click to refresh the preview."
     self.__startButton = self.__buttonBox.addButton( self.__buttonBox.Apply )
     self.__startButton.setIcon( qt.QIcon() )
-    self.__startButton.text = "Start!"
+    self.__startButton.text = "Start"
     self.__startButton.enabled = False
     self.__startButton.toolTip = "Click to start the filtering."
     self.layout.addWidget( self.__buttonBox )
     self.__resetButton.connect( "clicked()", self.restoreDefaults )
-    self.__previewButton.connect( "clicked()", self.onRefreshButtonClicked )
+    self.__previewButton.connect( "clicked()", self.onPreviewButtonClicked )
     self.__startButton.connect( "clicked()", self.onStartButtonClicked )
 
     self.__inputVolumeNodeSelector.setMRMLScene( slicer.mrmlScene )
@@ -248,65 +213,34 @@ class VesselnessFilteringWidget(ScriptedLoadableModuleWidget):
     self.__outputVolumeNodeSelector.setMRMLScene( slicer.mrmlScene )
     self.__previewVolumeNodeSelector.setMRMLScene( slicer.mrmlScene )
 
-    # be ready for events
-    self.__updating = 0
-
     # set default values
     self.restoreDefaults()
 
     # compress the layout
     self.layout.addStretch( 1 )
 
-
-
-
   def onMRMLSceneChanged( self ):
-    '''
-    '''
-    SlicerVmtkCommonLib.Helper.Debug( "onMRMLSceneChanged" )
+    logging.debug( "onMRMLSceneChanged" )
     self.restoreDefaults()
 
   def onInputVolumeChanged( self ):
-    '''
-    '''
-    if not self.__updating:
-
-        self.__updating = 1
-
-        SlicerVmtkCommonLib.Helper.Debug( "onInputVolumeChanged" )
-
-        # do nothing right now
-
-        self.__updating = 0
-
-  def onSeedChanged( self ):
-    '''
-    '''
-    if not self.__updating:
-
-        self.__updating = 1
-
-        # nothing yet
-
-        self.__updating = 0
+    logging.debug( "onInputVolumeChanged" )
+    # TODO: update threshold slider range - maybe not needed?
 
   def onStartButtonClicked( self ):
+    if self.__detectPushButton.checked:
+      self.calculateParameters()
+
+    # this is no preview
+    qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
+    self.start( False )
+    qt.QApplication.restoreOverrideCursor()
+
+  def onPreviewButtonClicked( self ):
       '''
       '''
       if self.__detectPushButton.checked:
-          self.restoreDefaults()
-          self.calculateParameters()
-
-      self.__startButton.enabled = True
-
-      # this is no preview
-      self.start( False )
-
-  def onRefreshButtonClicked( self ):
-      '''
-      '''
-      if self.__detectPushButton.checked:
-          self.restoreDefaults()
+          #self.restoreDefaults()
           self.calculateParameters()
 
       # calculate the preview
@@ -320,7 +254,7 @@ class VesselnessFilteringWidget(ScriptedLoadableModuleWidget):
     '''
     '''
 
-    SlicerVmtkCommonLib.Helper.Debug( "calculateParameters" )
+    logging.debug( "calculateParameters" )
 
     # first we need the nodes
     currentVolumeNode = self.__inputVolumeNodeSelector.currentNode()
@@ -328,12 +262,12 @@ class VesselnessFilteringWidget(ScriptedLoadableModuleWidget):
 
     if not currentVolumeNode:
         # we need a input volume node
-        SlicerVmtkCommonLib.Helper.Debug( "calculateParameters: Have no valid volume node" )
+        logging.debug( "calculateParameters: Have no valid volume node" )
         return False
 
     if not currentSeedsNode:
         # we need a seeds node
-        SlicerVmtkCommonLib.Helper.Debug( "calculateParameters: Have no valid fiducial node" )
+        logging.debug( "calculateParameters: Have no valid fiducial node" )
         return False
 
     image = currentVolumeNode.GetImageData()
@@ -347,60 +281,37 @@ class VesselnessFilteringWidget(ScriptedLoadableModuleWidget):
     seed = SlicerVmtkCommonLib.Helper.ConvertRAStoIJK( currentVolumeNode, currentCoordinatesRAS )
 
     # we detect the diameter in IJK space (image has spacing 1,1,1) with IJK coordinates
-    detectedDiameter = self.GetLogic().getDiameter( image, int( seed[0] ), int( seed[1] ), int( seed[2] ) )
-    SlicerVmtkCommonLib.Helper.Debug( "Diameter detected: " + str( detectedDiameter ) )
+    detectedDiameter = self.__logic.getDiameter( image, int( seed[0] ), int( seed[1] ), int( seed[2] ) )
+    logging.debug( "Diameter detected: " + str( detectedDiameter ) )
 
-    contrastMeasure = self.GetLogic().calculateContrastMeasure( image, int( seed[0] ), int( seed[1] ), int( seed[2] ), detectedDiameter )
-    SlicerVmtkCommonLib.Helper.Debug( "Contrast measure: " + str( contrastMeasure ) )
+    contrastMeasure = self.__logic.calculateContrastMeasure( image, int( seed[0] ), int( seed[1] ), int( seed[2] ), detectedDiameter )
+    logging.debug( "Contrast measure: " + str( contrastMeasure ) )
 
     self.__maximumDiameterSpinBox.value = detectedDiameter
     self.__contrastSlider.value = contrastMeasure
 
     return True
 
-
-
-
-  def onIOAdvancedToggle( self ):
-    '''
-    Show the I/O Advanced panel
-    '''
-    # re-calculate parameter
-    self.calculateParameters()
-
-    if self.__ioAdvancedToggle.checked:
-      self.__ioAdvancedPanel.show()
-    else:
-      self.__ioAdvancedPanel.hide()
-
   def restoreDefaults( self ):
-    '''
-    '''
-    if not self.__updating:
+    logging.debug("restoreDefaults")
 
-        self.__updating = 1
+    self.__detectPushButton.checked = True
+    self.__minimumDiameterSpinBox.value = 1
+    self.__maximumDiameterSpinBox.value = 7
+    self.__suppressPlatesSlider.value = 10
+    self.__suppressBlobsSlider.value = 10
+    self.__contrastSlider.value = 100
 
-        SlicerVmtkCommonLib.Helper.Debug( "restoreDefaults" )
+    self.__startButton.enabled = False
 
-        self.__detectPushButton.checked = True
-        self.__minimumDiameterSpinBox.value = 1
-        self.__maximumDiameterSpinBox.value = 7
-        self.__alphaSlider.value = 0.3
-        self.__betaSlider.value = 500
-        self.__contrastSlider.value = 100
-
-        self.__startButton.enabled = False
-
-        self.__updating = 0
-
-        # if a volume is selected, the threshold slider values have to match it
-        self.onInputVolumeChanged()
+    # if a volume is selected, the threshold slider values have to match it
+    self.onInputVolumeChanged()
 
 
   def start( self, preview=False ):
     '''
     '''
-    SlicerVmtkCommonLib.Helper.Debug( "Starting Vesselness Filtering.." )
+    logging.debug( "Starting Vesselness Filtering.." )
 
     # first we need the nodes
     currentVolumeNode = self.__inputVolumeNodeSelector.currentNode()
@@ -416,8 +327,9 @@ class VesselnessFilteringWidget(ScriptedLoadableModuleWidget):
 
     if not currentVolumeNode:
         # we need a input volume node
-        return 0
+        return False
 
+    fitToAllSliceViews = False
     if not currentOutputVolumeNode or currentOutputVolumeNode.GetID() == currentVolumeNode.GetID():
         newVolumeNode = slicer.mrmlScene.CreateNodeByClass( "vtkMRMLScalarVolumeNode" )
         newVolumeNode.UnRegister(None)        
@@ -425,11 +337,12 @@ class VesselnessFilteringWidget(ScriptedLoadableModuleWidget):
         currentOutputVolumeNode = slicer.mrmlScene.AddNode( newVolumeNode )
         currentOutputVolumeNode.CreateDefaultDisplayNodes()
         currentOutputVolumeNodeSelector.setCurrentNode( currentOutputVolumeNode )
+        fitToAllSliceViews = True
 
     if preview and not currentSeedsNode:
         # we need a seedsNode for preview
-        SlicerVmtkCommonLib.Helper.Info( "A seed point is required to use the preview mode." )
-        return 0
+        logging.error( "Seed point is required to use the preview mode")
+        return False
 
 
     # we get the fiducial coordinates
@@ -451,12 +364,15 @@ class VesselnessFilteringWidget(ScriptedLoadableModuleWidget):
     minimumDiameter = self.__minimumDiameterSpinBox.value * min( currentVolumeNode.GetSpacing() )
     maximumDiameter = self.__maximumDiameterSpinBox.value * min( currentVolumeNode.GetSpacing() )
 
-    SlicerVmtkCommonLib.Helper.Debug( minimumDiameter )
-    SlicerVmtkCommonLib.Helper.Debug( maximumDiameter )
+    logging.debug( minimumDiameter )
+    logging.debug( maximumDiameter )
 
-    alpha = self.__alphaSlider.value
-    beta = self.__betaSlider.value
+    alpha = 0.000 + 3.0 * pow((self.__suppressPlatesSlider.value)/100.0,2)
+    beta  = 0.001 + 1.0 * pow((100.0-self.__suppressBlobsSlider.value)/100.0,2)
 
+    logging.info("alpha = {0}".format(alpha))
+    logging.info("beta = {0}".format(beta))
+    
     contrastMeasure = self.__contrastSlider.value
 
     #
@@ -490,7 +406,7 @@ class VesselnessFilteringWidget(ScriptedLoadableModuleWidget):
 
     # we now compute the vesselness in RAS space, image has spacing and origin attached, the diameters are converted to mm
     # we use RAS space to support anisotropic datasets
-    outImage.DeepCopy( self.GetLogic().performFrangiVesselness( image, minimumDiameter, maximumDiameter, 5, alpha, beta, contrastMeasure ) )
+    outImage.DeepCopy( self.__logic.performFrangiVesselness( image, minimumDiameter, maximumDiameter, 5, alpha, beta, contrastMeasure ) )
 
     # let's remove spacing and origin attached to outImage
     outImage.SetSpacing( 1, 1, 1 )
@@ -516,7 +432,7 @@ class VesselnessFilteringWidget(ScriptedLoadableModuleWidget):
     selectionNode = slicer.app.applicationLogic().GetSelectionNode()
     selectionNode.SetReferenceActiveVolumeID( bgVolumeID )
     selectionNode.SetReferenceSecondaryVolumeID( fgVolumeID )
-    slicer.app.applicationLogic().PropagateVolumeSelection()
+    slicer.app.applicationLogic().PropagateVolumeSelection(False)
 
     # renew auto window/level for the output
     currentOutputVolumeNode.GetDisplayNode().AutoWindowLevelOff()
@@ -535,18 +451,23 @@ class VesselnessFilteringWidget(ScriptedLoadableModuleWidget):
               compositeNode.SetForegroundOpacity( 0.0 )
 
     # fit slice to all sliceviewers
-    slicer.app.applicationLogic().FitSliceToAll()
+    if fitToAllSliceViews:
+      slicer.app.applicationLogic().FitSliceToAll()
 
-    # jump all sliceViewers to the fiducial point, if one was used
-    if currentSeedsNode:
-        numberOfSliceNodes = slicer.mrmlScene.GetNumberOfNodesByClass( 'vtkMRMLSliceNode' )
-        for n in xrange( numberOfSliceNodes ):
-            sliceNode = slicer.mrmlScene.GetNthNodeByClass( n, "vtkMRMLSliceNode" )
-            if sliceNode:
-                sliceNode.JumpSliceByOffsetting( currentCoordinatesRAS[0], currentCoordinatesRAS[1], currentCoordinatesRAS[2] )
+    if preview:
+      # jump all sliceViewers to the fiducial point, if one was used
+      if currentSeedsNode:
+          numberOfSliceNodes = slicer.mrmlScene.GetNumberOfNodesByClass( 'vtkMRMLSliceNode' )
+          for n in xrange( numberOfSliceNodes ):
+              sliceNode = slicer.mrmlScene.GetNthNodeByClass( n, "vtkMRMLSliceNode" )
+              if sliceNode:
+                  sliceNode.JumpSliceByOffsetting( currentCoordinatesRAS[0], currentCoordinatesRAS[1], currentCoordinatesRAS[2] )
 
-    SlicerVmtkCommonLib.Helper.Debug( "End of Vesselness Filtering.." )
+    currentVolumeNode.SetAndObserveNodeReferenceID("Vesselness", currentOutputVolumeNode.GetID())
+                  
+    logging.debug( "End of Vesselness Filtering.." )
 
+    return True
 
 class Slicelet( object ):
   """A slicer slicelet is a module widget that comes up in stand alone mode
