@@ -58,11 +58,8 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
   def __init__( self, parent=None ):
     ScriptedLoadableModuleWidget.__init__(self, parent)
 
-    # this flag is 1 if there is an update in progress
-    self.__updating = 1
-
     # the pointer to the logic
-    self.__logic = None
+    self.__logic = SlicerVmtkCommonLib.LevelSetSegmentationLogic()
 
     if not parent:
       # after setup, be ready for events
@@ -70,16 +67,6 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     else:
       # register default slots
       self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)', self.onMRMLSceneChanged )
-
-  def GetLogic( self ):
-    '''
-    '''
-    if not self.__logic:
-
-        self.__logic = SlicerVmtkCommonLib.LevelSetSegmentationLogic()
-
-    return self.__logic
-
 
   def setup(self):
     ScriptedLoadableModuleWidget.setup(self)
@@ -92,11 +79,10 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     # the I/O panel
     #
 
-    ioCollapsibleButton = ctk.ctkCollapsibleButton()
-    ioCollapsibleButton.text = "Input/Output"
-    self.layout.addWidget( ioCollapsibleButton )
-
-    ioFormLayout = qt.QFormLayout( ioCollapsibleButton )
+    inputsCollapsibleButton = ctk.ctkCollapsibleButton()
+    inputsCollapsibleButton.text = "Inputs"
+    self.layout.addWidget( inputsCollapsibleButton )
+    inputsFormLayout = qt.QFormLayout( inputsCollapsibleButton )
 
     # inputVolume selector
     self.__inputVolumeNodeSelector = slicer.qMRMLNodeComboBox()
@@ -106,69 +92,62 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     self.__inputVolumeNodeSelector.noneEnabled = False
     self.__inputVolumeNodeSelector.addEnabled = False
     self.__inputVolumeNodeSelector.removeEnabled = False
-    ioFormLayout.addRow( "Input Volume:", self.__inputVolumeNodeSelector )
+    inputsFormLayout.addRow( "Input Volume:", self.__inputVolumeNodeSelector )
     self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)',
                         self.__inputVolumeNodeSelector, 'setMRMLScene(vtkMRMLScene*)' )
     self.__inputVolumeNodeSelector.connect( 'currentNodeChanged(vtkMRMLNode*)', self.onInputVolumeChanged )
     self.__inputVolumeNodeSelector.connect( 'nodeActivated(vtkMRMLNode*)', self.onInputVolumeChanged )
 
-    # seed selector
-
-    self.__seedFiducialsNodeSelector = slicer.qSlicerSimpleMarkupsWidget()
-    self.__seedFiducialsNodeSelector.objectName = 'seedFiducialsNodeSelector'
-    self.__seedFiducialsNodeSelector.toolTip = "Select a hierarchy containing the fiducials to use as Seeds."
-    self.__seedFiducialsNodeSelector.defaultNodeColor = qt.QColor(0,0,255) # blue
-    self.__seedFiducialsNodeSelector.jumpToSliceEnabled = True
-    self.__seedFiducialsNodeSelector.setNodeBaseName("seeds")
-    if hasattr(self.__seedFiducialsNodeSelector, 'markupsSelectorComboBox'):
-      self.__seedFiducialsNodeSelector.markupsSelectorComboBox().baseName = "Seeds"
-      self.__seedFiducialsNodeSelector.markupsSelectorComboBox().noneEnabled = False
-      self.__seedFiducialsNodeSelector.markupsSelectorComboBox().removeEnabled = False
-    ioFormLayout.addRow( "Seeds:", self.__seedFiducialsNodeSelector )
-    self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)',
-                        self.__seedFiducialsNodeSelector, 'setMRMLScene(vtkMRMLScene*)' )
-
-    self.__ioAdvancedToggle = qt.QCheckBox( "Show Advanced I/O Properties" )
-    self.__ioAdvancedToggle.setChecked( False )
-    ioFormLayout.addRow( self.__ioAdvancedToggle )
-
-    #
-    # I/O advanced panel
-    #
-
-    self.__ioAdvancedPanel = qt.QFrame( ioCollapsibleButton )
-    self.__ioAdvancedPanel.hide()
-    self.__ioAdvancedPanel.setFrameStyle( 6 )
-    ioFormLayout.addRow( self.__ioAdvancedPanel )
-    self.__ioAdvancedToggle.connect( "clicked()", self.onIOAdvancedToggle )
-
-    ioAdvancedFormLayout = qt.QFormLayout( self.__ioAdvancedPanel )
-
-    # inputVolume selector
+    # vesselnessVolume selector
     self.__vesselnessVolumeNodeSelector = slicer.qMRMLNodeComboBox()
     self.__vesselnessVolumeNodeSelector.objectName = 'vesselnessVolumeNodeSelector'
-    self.__vesselnessVolumeNodeSelector.toolTip = "Select the input vesselness volume. This is optional input."
+    self.__vesselnessVolumeNodeSelector.toolTip = "Select the input vesselness volume."
     self.__vesselnessVolumeNodeSelector.nodeTypes = ['vtkMRMLScalarVolumeNode']
     self.__vesselnessVolumeNodeSelector.noneEnabled = True
     self.__vesselnessVolumeNodeSelector.addEnabled = False
     self.__vesselnessVolumeNodeSelector.removeEnabled = False
-    ioAdvancedFormLayout.addRow( "Vesselness Volume:", self.__vesselnessVolumeNodeSelector )
+    inputsFormLayout.addRow( "Vesselness Volume:", self.__vesselnessVolumeNodeSelector )
     self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)',
                         self.__vesselnessVolumeNodeSelector, 'setMRMLScene(vtkMRMLScene*)' )
     self.__vesselnessVolumeNodeSelector.setCurrentNode( None )
+    
+    # seed selector
+    self.__seedFiducialsNodeSelector = slicer.qSlicerSimpleMarkupsWidget()
+    self.__seedFiducialsNodeSelector.objectName = 'seedFiducialsNodeSelector'
+    self.__seedFiducialsNodeSelector.toolTip = "Select start and end point of the vessel branch."
+    self.__seedFiducialsNodeSelector.defaultNodeColor = qt.QColor(0,0,255) # blue
+    self.__seedFiducialsNodeSelector.jumpToSliceEnabled = True
+    self.__seedFiducialsNodeSelector.markupsPlaceWidget().placeMultipleMarkups = slicer.qSlicerMarkupsPlaceWidget.ForcePlaceMultipleMarkups
+    self.__seedFiducialsNodeSelector.setNodeBaseName("seeds")
+    self.__seedFiducialsNodeSelector.markupsSelectorComboBox().baseName = "Seeds"
+    self.__seedFiducialsNodeSelector.markupsSelectorComboBox().noneEnabled = False
+    self.__seedFiducialsNodeSelector.markupsSelectorComboBox().removeEnabled = False
+    inputsFormLayout.addRow( "Seeds:", self.__seedFiducialsNodeSelector )
+    self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)',
+                        self.__seedFiducialsNodeSelector, 'setMRMLScene(vtkMRMLScene*)' )
 
     # stopper selector
-    self.__stopperFiducialsNodeSelector = slicer.qMRMLNodeComboBox()
+    self.__stopperFiducialsNodeSelector = slicer.qSlicerSimpleMarkupsWidget()
     self.__stopperFiducialsNodeSelector.objectName = 'stopperFiducialsNodeSelector'
-    self.__stopperFiducialsNodeSelector.toolTip = "Select a hierarchy containing the fiducials to use as Stoppers. Whenever one stopper is reached, the segmentation stops."
-    self.__stopperFiducialsNodeSelector.nodeTypes = ['vtkMRMLMarkupsFiducialNode']
-    self.__stopperFiducialsNodeSelector.baseName = "Stoppers"
-    self.__stopperFiducialsNodeSelector.noneEnabled = False
-    self.__stopperFiducialsNodeSelector.addEnabled = True
-    self.__stopperFiducialsNodeSelector.removeEnabled = False
-    ioAdvancedFormLayout.addRow( "Stoppers:", self.__stopperFiducialsNodeSelector )
+    self.__stopperFiducialsNodeSelector.toolTip = "(Optional) Select a hierarchy containing the fiducials to use as Stoppers. Whenever one stopper is reached, the segmentation stops."
+    self.__stopperFiducialsNodeSelector.defaultNodeColor = qt.QColor(0,0,255) # blue
+    self.__stopperFiducialsNodeSelector.setNodeBaseName("seeds")
+    self.__stopperFiducialsNodeSelector.tableWidget().hide()
+    self.__stopperFiducialsNodeSelector.markupsSelectorComboBox().baseName = "Stoppers"
+    self.__stopperFiducialsNodeSelector.markupsSelectorComboBox().noneEnabled = True
+    self.__stopperFiducialsNodeSelector.markupsSelectorComboBox().removeEnabled = True
+    inputsFormLayout.addRow( "Stoppers:", self.__stopperFiducialsNodeSelector )
     self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)',
                         self.__stopperFiducialsNodeSelector, 'setMRMLScene(vtkMRMLScene*)' )
+
+    #
+    # Outputs
+    #
+
+    outputsCollapsibleButton = ctk.ctkCollapsibleButton()
+    outputsCollapsibleButton.text = "Outputs"
+    self.layout.addWidget( outputsCollapsibleButton )
+    outputsFormLayout = qt.QFormLayout( outputsCollapsibleButton )
 
     # outputVolume selector
     self.__outputVolumeNodeSelector = slicer.qMRMLNodeComboBox()
@@ -179,7 +158,7 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     self.__outputVolumeNodeSelector.addEnabled = True
     self.__outputVolumeNodeSelector.selectNodeUponCreation = True
     self.__outputVolumeNodeSelector.removeEnabled = True
-    ioAdvancedFormLayout.addRow( "Output Labelmap:", self.__outputVolumeNodeSelector )
+    outputsFormLayout.addRow( "Output Labelmap:", self.__outputVolumeNodeSelector )
     self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)',
                         self.__outputVolumeNodeSelector, 'setMRMLScene(vtkMRMLScene*)' )
 
@@ -188,13 +167,13 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     self.__outputModelNodeSelector.objectName = 'outputModelNodeSelector'
     self.__outputModelNodeSelector.toolTip = "Select the output model."
     self.__outputModelNodeSelector.nodeTypes = ['vtkMRMLModelNode']
+    self.__outputModelNodeSelector.hideChildNodeTypes = ['vtkMRMLAnnotationNode']  # hide all annotation nodes
     self.__outputModelNodeSelector.baseName = "LevelSetSegmentationModel"
-    self.__outputModelNodeSelector.hideChildNodeTypes = ['vtkMRMLMarkupsFiducialNode']# hide all annotation nodes
     self.__outputModelNodeSelector.noneEnabled = False
     self.__outputModelNodeSelector.addEnabled = True
     self.__outputModelNodeSelector.selectNodeUponCreation = True
     self.__outputModelNodeSelector.removeEnabled = True
-    ioAdvancedFormLayout.addRow( "Output Model:", self.__outputModelNodeSelector )
+    outputsFormLayout.addRow( "Output Model:", self.__outputModelNodeSelector )
     self.parent.connect( 'mrmlSceneChanged(vtkMRMLScene*)',
                         self.__outputModelNodeSelector, 'setMRMLScene(vtkMRMLScene*)' )
 
@@ -298,16 +277,16 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     self.__resetButton.toolTip = "Click to reset all input elements to default."
     self.__previewButton = self.__buttonBox.addButton( self.__buttonBox.Discard )
     self.__previewButton.setIcon( qt.QIcon() )
-    self.__previewButton.text = "Preview.."
+    self.__previewButton.text = "Preview"
     self.__previewButton.toolTip = "Click to refresh the preview."
     self.__startButton = self.__buttonBox.addButton( self.__buttonBox.Apply )
     self.__startButton.setIcon( qt.QIcon() )
-    self.__startButton.text = "Start!"
+    self.__startButton.text = "Start"
     self.__startButton.enabled = False
     self.__startButton.toolTip = "Click to start the filtering."
     self.layout.addWidget( self.__buttonBox )
     self.__resetButton.connect( "clicked()", self.restoreDefaults )
-    self.__previewButton.connect( "clicked()", self.onRefreshButtonClicked )
+    self.__previewButton.connect( "clicked()", self.onPreviewButtonClicked )
     self.__startButton.connect( "clicked()", self.onStartButtonClicked )
 
     self.__inputVolumeNodeSelector.setMRMLScene( slicer.mrmlScene )
@@ -317,9 +296,6 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     self.__outputModelNodeSelector.setMRMLScene( slicer.mrmlScene )
     self.__stopperFiducialsNodeSelector.setMRMLScene( slicer.mrmlScene )
 
-    # be ready for events
-    self.__updating = 0
-
     # set default values
     self.restoreDefaults()
 
@@ -328,13 +304,12 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
 
 
   def onStartButtonClicked( self ):
-      '''
-      '''
-      # this is no preview
-      self.start( False )
+    qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
+    # this is no preview
+    self.start( False )
+    qt.QApplication.restoreOverrideCursor()
 
-
-  def onRefreshButtonClicked( self ):
+  def onPreviewButtonClicked( self ):
       '''
       '''
 
@@ -346,158 +321,83 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
 
 
   def onMRMLSceneChanged( self ):
-    '''
-    '''
-    SlicerVmtkCommonLib.Helper.Debug( "onMRMLSceneChanged" )
+    logging.debug( "onMRMLSceneChanged" )
     self.restoreDefaults()
 
-  def selectVesselnessVolume( self ):
-    '''
-    '''
-    currentNode = self.__inputVolumeNodeSelector.currentNode()
-    currentVesselnessNode = self.__vesselnessVolumeNodeSelector.currentNode()
-
-    if currentVesselnessNode:
-        return currentVesselnessNode
-
-    # check if we have a corresponding vesselness node in the scene and set it then
-    vesselnessCollection = slicer.mrmlScene.GetNodesByClassByName( "vtkMRMLScalarVolumeNode", "VesselnessFiltered" )
-    vesselnessCollection.UnRegister(None)
-    numberOfVesselnessNodes = vesselnessCollection.GetNumberOfItems()
-    SlicerVmtkCommonLib.Helper.Debug( "Found " + str( numberOfVesselnessNodes ) + " Vesselness node(s).." )
-    for i in xrange( numberOfVesselnessNodes ):
-        v = vesselnessCollection.GetItemAsObject( i )
-        if ( v.GetImageData().GetDimensions() == currentNode.GetImageData().GetDimensions() and
-            v.GetSpacing() == currentNode.GetSpacing() and
-            v.GetOrigin() == currentNode.GetOrigin() ):
-
-            # this is likely the corresponding vesselness node
-            SlicerVmtkCommonLib.Helper.Debug( "Configuring vesselnessVolumeNodeSelector to use: " + str( v.GetName() ) + " id: " + str( v.GetID() ) )
-            self.__vesselnessVolumeNodeSelector.setCurrentNode( v )
-            return v
-
-    return None
-
-
-
   def onInputVolumeChanged( self ):
-    '''
-    '''
-    if not self.__updating:
 
-        self.__updating = 1
+    logging.debug( "onInputVolumeChanged" )
 
-        SlicerVmtkCommonLib.Helper.Debug( "onInputVolumeChanged" )
+    # reset the thresholdSlider
+    self.__thresholdSlider.minimum = 0
+    self.__thresholdSlider.maximum = 100
+    self.__thresholdSlider.minimumValue = 0
+    self.__thresholdSlider.maximumValue = 100
 
-        # reset the thresholdSlider
-        self.__thresholdSlider.minimum = 0
-        self.__thresholdSlider.maximum = 100
-        self.__thresholdSlider.minimumValue = 0
-        self.__thresholdSlider.maximumValue = 100
+    currentNode = self.__inputVolumeNodeSelector.currentNode()
+    if not currentNode:
+      return
+      
+    v = currentNode.GetNodeReference("Vesselness")
+    self.__vesselnessVolumeNodeSelector.setCurrentNode(v)
 
-        currentNode = self.__inputVolumeNodeSelector.currentNode()
+    # if we have a vesselnessNode, we will configure the threshold slider for it instead of the original image
+    # if not, the currentNode is the input volume
+    if v:
+      logging.debug( "Using Vesselness volume to configure thresholdSlider.." )
+      currentNode = v
 
-        if currentNode:
+    currentImageData = currentNode.GetImageData()
+    currentDisplayNode = currentNode.GetDisplayNode()
 
-            v = self.selectVesselnessVolume()
+    if not currentImageData:
+      return
 
-            # if we have a vesselnessNode, we will configure the threshold slider for it instead of the original image
-            # if not, the currentNode is the input volume
-            if v:
-                SlicerVmtkCommonLib.Helper.Debug( "Using Vesselness volume to configure thresholdSlider.." )
-                currentNode = v
+    currentScalarRange = currentImageData.GetScalarRange()
+    minimumScalarValue = round( currentScalarRange[0], 0 )
+    maximumScalarValue = round( currentScalarRange[1], 0 )
+    self.__thresholdSlider.minimum = minimumScalarValue
+    self.__thresholdSlider.maximum = maximumScalarValue
 
-            currentImageData = currentNode.GetImageData()
-            currentDisplayNode = currentNode.GetDisplayNode()
+    # if the image has a small scalarRange, we have to adjust the singleStep
+    if maximumScalarValue <= 10:
+      self.__thresholdSlider.singleStep = 0.1
 
-            if currentImageData:
-                currentScalarRange = currentImageData.GetScalarRange()
-                minimumScalarValue = round( currentScalarRange[0], 0 )
-                maximumScalarValue = round( currentScalarRange[1], 0 )
-                self.__thresholdSlider.minimum = minimumScalarValue
-                self.__thresholdSlider.maximum = maximumScalarValue
-
-                # if the image has a small scalarRange, we have to adjust the singleStep
-                if maximumScalarValue <= 10:
-                    self.__thresholdSlider.singleStep = 0.1
-
-                if currentDisplayNode:
-
-                    if currentDisplayNode.GetApplyThreshold():
-
-                        # if a threshold is already applied, use it!
-                        self.__thresholdSlider.minimumValue = currentDisplayNode.GetLowerThreshold()
-                        self.__thresholdSlider.maximumValue = currentDisplayNode.GetUpperThreshold()
-
-                    else:
-
-                        # don't use a threshold, use the scalar range
-                        SlicerVmtkCommonLib.Helper.Debug( "Reset thresholdSlider's values." )
-                        self.__thresholdSlider.minimumValue = minimumScalarValue+(maximumScalarValue-minimumScalarValue)*0.10
-                        self.__thresholdSlider.maximumValue = maximumScalarValue
-
-
-
-
-        self.__updating = 0
-
+    if currentDisplayNode:
+      if currentDisplayNode.GetApplyThreshold():
+        # if a threshold is already applied, use it!
+        self.__thresholdSlider.minimumValue = currentDisplayNode.GetLowerThreshold()
+        self.__thresholdSlider.maximumValue = currentDisplayNode.GetUpperThreshold()
+      else:
+        # don't use a threshold, use the scalar range
+        logging.debug( "Reset thresholdSlider's values." )
+        self.__thresholdSlider.minimumValue = minimumScalarValue+(maximumScalarValue-minimumScalarValue)*0.10
+        self.__thresholdSlider.maximumValue = maximumScalarValue
 
   def resetThresholdOnDisplayNode( self ):
-    '''
-    '''
-    if not self.__updating:
-
-        self.__updating = 1
-
-        SlicerVmtkCommonLib.Helper.Debug( "resetThresholdOnDisplayNode" )
-
-        currentNode = self.__inputVolumeNodeSelector.currentNode()
-
-        if currentNode:
-            currentDisplayNode = currentNode.GetDisplayNode()
-
-            if currentDisplayNode:
-                currentDisplayNode.SetApplyThreshold( 0 )
-
-        self.__updating = 0
+    logging.debug( "resetThresholdOnDisplayNode" )
+    currentNode = self.__inputVolumeNodeSelector.currentNode()
+    if currentNode:
+      currentDisplayNode = currentNode.GetDisplayNode()
+      if currentDisplayNode:
+        currentDisplayNode.SetApplyThreshold( 0 )
 
   def onThresholdSliderChanged( self ):
-    '''
-    '''
-    if not self.__updating:
-
-        self.__updating = 1
-
-        # first, check if we have a vesselness node
-        currentNode = self.selectVesselnessVolume()
-
-        if currentNode:
-            SlicerVmtkCommonLib.Helper.Debug( "There was a vesselness node: " + str( currentNode.GetName() ) )
-        else:
-            SlicerVmtkCommonLib.Helper.Debug( "There was no vesselness node.." )
-            # if we don't have a vesselness node, check if we have an original input node
-            currentNode = self.__inputVolumeNodeSelector.currentNode()
-
-        if currentNode:
-            currentDisplayNode = currentNode.GetDisplayNode()
-
-            if currentDisplayNode:
-
-                currentDisplayNode.SetLowerThreshold( self.__thresholdSlider.minimumValue )
-                currentDisplayNode.SetUpperThreshold( self.__thresholdSlider.maximumValue )
-                currentDisplayNode.SetApplyThreshold( 1 )
-
-        self.__updating = 0
-
-
-  def onIOAdvancedToggle( self ):
-    '''
-    Show the I/O Advanced panel
-    '''
-    if self.__ioAdvancedToggle.checked:
-      self.__ioAdvancedPanel.show()
+    # first, check if we have a vesselness node
+    currentNode = self.__vesselnessVolumeNodeSelector.currentNode()
+    if currentNode:
+      logging.debug( "There was a vesselness node: " + str( currentNode.GetName() ) )
     else:
-      self.__ioAdvancedPanel.hide()
+      logging.debug( "There was no vesselness node.." )
+      # if we don't have a vesselness node, check if we have an original input node
+      currentNode = self.__inputVolumeNodeSelector.currentNode()
+
+    if currentNode:
+      currentDisplayNode = currentNode.GetDisplayNode()
+      if currentDisplayNode:
+        currentDisplayNode.SetLowerThreshold( self.__thresholdSlider.minimumValue )
+        currentDisplayNode.SetUpperThreshold( self.__thresholdSlider.maximumValue )
+        currentDisplayNode.SetApplyThreshold( 1 )
 
   def onSegmentationAdvancedToggle( self ):
     '''
@@ -513,43 +413,29 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     scope == 0: reset all
     scope == 1: reset only threshold slider
     '''
-    if not self.__updating:
+    logging.debug( "restoreDefaults" )
 
-        self.__updating = 1
+    self.__thresholdSlider.minimum = 0
+    self.__thresholdSlider.maximum = 100
+    self.__thresholdSlider.minimumValue = 0
+    self.__thresholdSlider.maximumValue = 100
+    self.__thresholdSlider.singleStep = 1
 
-        SlicerVmtkCommonLib.Helper.Debug( "restoreDefaults" )
+    self.__segmentationAdvancedToggle.setChecked( False )
+    self.__segmentationAdvancedPanel.hide()
 
-        self.__thresholdSlider.minimum = 0
-        self.__thresholdSlider.maximum = 100
-        self.__thresholdSlider.minimumValue = 0
-        self.__thresholdSlider.maximumValue = 100
-        self.__thresholdSlider.singleStep = 1
+    self.__inflationSlider.value = 0
+    self.__curvatureSlider.value = 70
+    self.__attractionSlider.value = 50
+    self.__iterationSpinBox.value = 10
 
-        self.__ioAdvancedToggle.setChecked( False )
-        self.__segmentationAdvancedToggle.setChecked( False )
-        self.__ioAdvancedPanel.hide()
-        self.__segmentationAdvancedPanel.hide()
-
-
-        self.__inflationSlider.value = 0
-        self.__curvatureSlider.value = 70
-        self.__attractionSlider.value = 50
-        self.__iterationSpinBox.value = 10
-
-        self.__updating = 0
-
-        # reset threshold on display node
-        self.resetThresholdOnDisplayNode()
-        # if a volume is selected, the threshold slider values have to match it
-        self.onInputVolumeChanged()
-
-
-
+    # reset threshold on display node
+    self.resetThresholdOnDisplayNode()
+    # if a volume is selected, the threshold slider values have to match it
+    self.onInputVolumeChanged()
 
   def start( self, preview=False ):
-    '''
-    '''
-    SlicerVmtkCommonLib.Helper.Debug( "Starting Level Set Segmentation.." )
+    logging.debug( "Starting Level Set Segmentation.." )
 
     # first we need the nodes
     currentVolumeNode = self.__inputVolumeNodeSelector.currentNode()
@@ -561,11 +447,11 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
 
     if not currentVolumeNode:
         # we need a input volume node
-        return 0
+        return False
 
     if not currentSeedsNode:
         # we need a seeds node
-        return 0
+        return False
 
     if not currentStoppersNode or currentStoppersNode.GetID() == currentSeedsNode.GetID():
         # we need a current stopper node
@@ -593,8 +479,10 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
 
     # now we need to convert the fiducials to vtkIdLists
     seeds = SlicerVmtkCommonLib.Helper.convertFiducialHierarchyToVtkIdList( currentSeedsNode, currentVolumeNode )
-    stoppers = SlicerVmtkCommonLib.Helper.convertFiducialHierarchyToVtkIdList(currentStoppersNode, currentVolumeNode)
-    # stoppers = vtk.vtkIdList()  # TODO
+    if currentStoppersNode:
+      stoppers = SlicerVmtkCommonLib.Helper.convertFiducialHierarchyToVtkIdList(currentStoppersNode, currentVolumeNode)
+    else:
+      stoppers = vtk.vtkIdList()
 
     # the input image for the initialization
     inputImage = vtk.vtkImageData()
@@ -614,7 +502,7 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     evolImageData = vtk.vtkImageData()
 
     # perform the initialization
-    initImageData.DeepCopy( self.GetLogic().performInitialization( inputImage,
+    initImageData.DeepCopy( self.__logic.performInitialization( inputImage,
                                                                  self.__thresholdSlider.minimumValue,
                                                                  self.__thresholdSlider.maximumValue,
                                                                  seeds,
@@ -624,7 +512,7 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     if not initImageData.GetPointData().GetScalars():
         # something went wrong, the image is empty
         SlicerVmtkCommonLib.Helper.Info( "Segmentation failed - the output was empty.." )
-        return -1
+        return False
 
     # check if it is a preview call
     if preview:
@@ -635,7 +523,7 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     else:
 
         # no preview, run the whole thing! we never use the vesselness node here, just the original one
-        evolImageData.DeepCopy( self.GetLogic().performEvolution( currentVolumeNode.GetImageData(),
+        evolImageData.DeepCopy( self.__logic.performEvolution( currentVolumeNode.GetImageData(),
                                                                 initImageData,
                                                                 self.__iterationSpinBox.value,
                                                                 self.__inflationSlider.value,
@@ -646,7 +534,7 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
 
     # create segmentation labelMap
     labelMap = vtk.vtkImageData()
-    labelMap.DeepCopy( self.GetLogic().buildSimpleLabelMap( evolImageData, 0, 5 ) )
+    labelMap.DeepCopy( self.__logic.buildSimpleLabelMap(evolImageData, 5, 0))
 
     currentLabelMapNode.CopyOrientation( currentVolumeNode )
 
@@ -679,7 +567,7 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     currentLabelMapNode.GetIJKToRASMatrix( ijkToRasMatrix )
 
     # call marching cubes
-    model.DeepCopy( self.GetLogic().marchingCubes( evolImageData, ijkToRasMatrix, 0.0 ) )
+    model.DeepCopy( self.__logic.marchingCubes( evolImageData, ijkToRasMatrix, 0.0 ) )
 
     # propagate model to nodes
     currentModelNode.SetAndObservePolyData( model )
@@ -728,8 +616,8 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
             renderer = threeDView.renderWindow().GetRenderers().GetItemAsObject( 0 )
             interactor.FlyTo( renderer, currentCoordinatesRAS[0], currentCoordinatesRAS[1], currentCoordinatesRAS[2] )
 
-    SlicerVmtkCommonLib.Helper.Debug( "End of Level Set Segmentation.." )
-
+    logging.debug( "End of Level Set Segmentation.." )
+    return True
 
 class Slicelet( object ):
   """A slicer slicelet is a module widget that comes up in stand alone mode
