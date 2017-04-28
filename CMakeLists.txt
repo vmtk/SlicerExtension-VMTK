@@ -4,10 +4,10 @@ cmake_minimum_required(VERSION 2.8.9)
 project(SlicerVMTK)
 
 #-----------------------------------------------------------------------------
-set(EXTENSION_HOMEPAGE "http://slicer.vmtk.org/")
+set(EXTENSION_HOMEPAGE "https://github.com/vmtk/SlicerExtension-VMTK")
 set(EXTENSION_CATEGORY "Vascular Modeling Toolkit")
 set(EXTENSION_CONTRIBUTORS "Daniel Haehn (Boston Childrens Hospital), Luca Antiga (Orobix), Steve Pieper (Isomics), Jean-Christophe Fillion-Robin (Kitware)")
-set(EXTENSION_DESCRIPTION "The Vascular Modeling Toolkit as a 3D Slicer4 extension.")
+set(EXTENSION_DESCRIPTION "Vascular Modeling Toolkit for vessel tree segmentation and centerline extraction.")
 set(EXTENSION_STATUS "Beta")
 set(EXTENSION_ICONURL "http://www.nitrc.org/project/screenshot.php?group_id=196&screenshot_id=269")
 set(EXTENSION_SCREENSHOTURLS "http://www.nitrc.org/project/screenshot.php?group_id=196&screenshot_id=126 http://www.nitrc.org/project/screenshot.php?group_id=196&screenshot_id=227 http://www.nitrc.org/project/screenshot.php?group_id=196&screenshot_id=228 http://www.nitrc.org/project/screenshot.php?group_id=196&screenshot_id=229")
