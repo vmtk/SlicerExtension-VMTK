@@ -1,6 +1,8 @@
 The VMTK Extension for 3D Slicer
 --------------------------------
 
+This extension makes the Vascular Modeling Toolkit (VMTK, http://www.vmtk.org/) available in 3D Slicer (www.slicer.org). Features include vessel tree segmentation and centerline extraction.
+
 ## Install from 3D Slicer extension manager
 
 VMTK extension is available for recent 3D Slicer versions. Install 3D Slicer, start 3D Slicer, and in the extension manager install SlicerVMTK extension.
