@@ -10,12 +10,12 @@ SLICER_BUILD_DIR=/path/to/Slicer-SuperBuild
 ```
 
 ```
-git clone git://github.com/vmtk/SlicerExtension-VMTK.git
-mkdir SlicerExtension-VMTK-build/ && cd $_
+git clone git://github.com/vmtk/SlicerVMTK.git
+mkdir SlicerVMTK-build/ && cd $_
 
 EXTENSION_BUILD_DIR=`pwd`
 
-cmake -DSlicer_DIR:PATH=$SLICER_BUILD_DIR/Slicer-build ../SlicerExtension-VMTK
+cmake -DSlicer_DIR:PATH=$SLICER_BUILD_DIR/Slicer-build ../SlicerVMTK
 make -j5
 make package
 ```

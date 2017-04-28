@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.9)
 
 #-----------------------------------------------------------------------------
-project(SlicerExtension-VMTK)
+project(SlicerVMTK)
 
 #-----------------------------------------------------------------------------
 set(EXTENSION_HOMEPAGE "http://slicer.vmtk.org/")
@@ -35,7 +35,9 @@ if(${EXTENSION_NAME}_SUPERBUILD)
 endif()
 
 #-----------------------------------------------------------------------------
-add_subdirectory(PythonModules)
+add_subdirectory(VesselnessFiltering)
+add_subdirectory(LevelSetSegmentation)
+add_subdirectory(CenterlineComputation)
 
 #-----------------------------------------------------------------------------
 set(CPACK_INSTALL_CMAKE_PROJECTS "${CPACK_INSTALL_CMAKE_PROJECTS};${CMAKE_BINARY_DIR};${EXTENSION_NAME};ALL;/")
