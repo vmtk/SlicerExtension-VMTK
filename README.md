@@ -1,9 +1,15 @@
 The VMTK Extension for 3D Slicer
 --------------------------------
 
+## Install from 3D Slicer extension manager
+
+VMTK extension is available for recent 3D Slicer versions. Install 3D Slicer, start 3D Slicer, and in the extension manager install SlicerVMTK extension.
+
 To install manually against a Slicer build:
 
-## Compilation
+## Build and run manually
+
+### Compilation
 
 ```
 SLICER_BUILD_DIR=/path/to/Slicer-SuperBuild
@@ -20,7 +26,7 @@ make -j5
 make package
 ```
 
-## Start Slicer and detect the VMTK extension
+### Start Slicer and detect the VMTK extension
 
 ```
 $SLICER_BUILD_DIR/Slicer \
