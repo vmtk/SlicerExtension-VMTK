@@ -146,6 +146,15 @@ class VesselnessFilteringWidget(ScriptedLoadableModuleWidget):
     self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
                         self.previewVolumeNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
 
+    self.displayThresholdSlider = ctk.ctkSliderWidget()
+    self.displayThresholdSlider.decimals = 2
+    self.displayThresholdSlider.minimum = 0
+    self.displayThresholdSlider.maximum = 1.0
+    self.displayThresholdSlider.singleStep = 0.01
+    self.displayThresholdSlider.toolTip = "Voxels below this vesselness value will be hidden. It does not change the voxel values, only how the vesselness volume is displayed."
+    advancedFormLayout.addRow("Display threshold:", self.displayThresholdSlider)
+    self.displayThresholdSlider.connect('valueChanged(double)', self.onDisplayThresholdChanged)
+
     self.previewVolumeDiameterVoxelSlider = ctk.ctkSliderWidget()
     self.previewVolumeDiameterVoxelSlider.decimals = 0
     self.previewVolumeDiameterVoxelSlider.minimum = 10
@@ -210,15 +219,6 @@ class VesselnessFilteringWidget(ScriptedLoadableModuleWidget):
     self.suppressBlobsSlider.suffix = " %"
     self.suppressBlobsSlider.toolTip = "A higher value filters out more blob-like structures."
     advancedFormLayout.addRow("Suppress blobs:", self.suppressBlobsSlider)
-
-    self.displayThresholdSlider = ctk.ctkSliderWidget()
-    self.displayThresholdSlider.decimals = 2
-    self.displayThresholdSlider.minimum = 0
-    self.displayThresholdSlider.maximum = 1.0
-    self.displayThresholdSlider.singleStep = 0.01
-    self.displayThresholdSlider.toolTip = "Voxels below this vesselness value will be hidden. It does not change the voxel values, only how the vesselness volume is displayed."
-    advancedFormLayout.addRow("Display threshold:", self.displayThresholdSlider)
-    self.displayThresholdSlider.connect('valueChanged(double)', self.onDisplayThresholdChanged)
 
     #
     # Reset, preview and apply buttons
