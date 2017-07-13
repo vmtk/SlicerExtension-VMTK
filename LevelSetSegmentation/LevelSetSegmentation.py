@@ -66,7 +66,6 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
                         self.inputVolumeNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
     self.inputVolumeNodeSelector.connect('currentNodeChanged(vtkMRMLNode*)', self.onInputVolumeChanged)
-    self.inputVolumeNodeSelector.connect('nodeActivated(vtkMRMLNode*)', self.onInputVolumeChanged)
 
     # vesselnessVolume selector
     self.vesselnessVolumeNodeSelector = slicer.qMRMLNodeComboBox()
@@ -79,19 +78,20 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     inputsFormLayout.addRow("Vesselness Volume:", self.vesselnessVolumeNodeSelector)
     self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
                         self.vesselnessVolumeNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
+    self.vesselnessVolumeNodeSelector.connect('currentNodeChanged(vtkMRMLNode*)', self.onVesselnessVolumeChanged)
     self.vesselnessVolumeNodeSelector.setCurrentNode(None)
-    
+
     # seed selector
     self.seedFiducialsNodeSelector = slicer.qSlicerSimpleMarkupsWidget()
     self.seedFiducialsNodeSelector.objectName = 'seedFiducialsNodeSelector'
-    self.seedFiducialsNodeSelector.toolTip = "Select start and end point of the vessel branch."
+    self.seedFiducialsNodeSelector.toolTip = "Select start and end point of the vessel branch. Only the first and last point in the list are used."
     self.seedFiducialsNodeSelector.defaultNodeColor = qt.QColor(0,0,255) # blue
     self.seedFiducialsNodeSelector.jumpToSliceEnabled = True
     self.seedFiducialsNodeSelector.markupsPlaceWidget().placeMultipleMarkups = slicer.qSlicerMarkupsPlaceWidget.ForcePlaceMultipleMarkups
     self.seedFiducialsNodeSelector.setNodeBaseName("seeds")
     self.seedFiducialsNodeSelector.markupsSelectorComboBox().baseName = "Seeds"
     self.seedFiducialsNodeSelector.markupsSelectorComboBox().noneEnabled = False
-    self.seedFiducialsNodeSelector.markupsSelectorComboBox().removeEnabled = False
+    self.seedFiducialsNodeSelector.markupsSelectorComboBox().removeEnabled = True
     inputsFormLayout.addRow("Seeds:", self.seedFiducialsNodeSelector)
     self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
                         self.seedFiducialsNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
@@ -268,6 +268,7 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
 
     # set default values
     self.restoreDefaults()
+    self.onInputVolumeChanged()
 
     # compress the layout
     self.layout.addStretch(1)
@@ -298,44 +299,61 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
 
     logging.debug("onInputVolumeChanged")
 
-    # reset the thresholdSlider
-    self.thresholdSlider.minimum = 0
-    self.thresholdSlider.maximum = 100
-    self.thresholdSlider.minimumValue = 0
-    self.thresholdSlider.maximumValue = 100
-
     currentNode = self.inputVolumeNodeSelector.currentNode()
     if not currentNode:
       return
-      
+
     v = currentNode.GetNodeReference("Vesselness")
-    self.vesselnessVolumeNodeSelector.setCurrentNode(v)
+    if v:
+      self.vesselnessVolumeNodeSelector.setCurrentNode(v)
+
+    self.updateThresholdRange()
+
+  def onVesselnessVolumeChanged(self):
+    vesselnessNode = self.vesselnessVolumeNodeSelector.currentNode()
+    inputVolumeNode = self.inputVolumeNodeSelector.currentNode()
+    if inputVolumeNode and vesselnessNode:
+      inputVolumeNode.SetNodeReferenceID("Vesselness", vesselnessNode.GetID())
+
+    self.updateThresholdRange()
+
+  def updateThresholdRange(self):
 
     # if we have a vesselnessNode, we will configure the threshold slider for it instead of the original image
     # if not, the currentNode is the input volume
-    if v:
-      logging.debug("Using Vesselness volume to configure thresholdSlider..")
-      currentNode = v
+    currentNode = self.vesselnessVolumeNodeSelector.currentNode()
+    if not currentNode:
+        currentNode = self.inputVolumeNodeSelector.currentNode()
+
+    if not currentNode or not currentNode.GetImageData():
+      wasBlocked = self.thresholdSlider.blockSignals(True)
+      # reset the thresholdSlider
+      self.thresholdSlider.minimum = 0
+      self.thresholdSlider.maximum = 100
+      self.thresholdSlider.minimumValue = 0
+      self.thresholdSlider.maximumValue = 100
+      self.thresholdSlider.blockSignals(wasBlocked)
+      return
 
     currentImageData = currentNode.GetImageData()
     currentDisplayNode = currentNode.GetDisplayNode()
 
-    if not currentImageData:
-      return
-
     currentScalarRange = currentImageData.GetScalarRange()
     minimumScalarValue = round(currentScalarRange[0], 0)
     maximumScalarValue = round(currentScalarRange[1], 0)
+
+    wasBlocked = self.thresholdSlider.blockSignals(True)
+
     self.thresholdSlider.minimum = minimumScalarValue
     self.thresholdSlider.maximum = maximumScalarValue
 
     # if the image has a small scalarRange, we have to adjust the singleStep
     if maximumScalarValue <= 10:
-      self.thresholdSlider.singleStep = 0.1
+      self.thresholdSlider.singleStep = 0.01
 
     if currentDisplayNode:
       if currentDisplayNode.GetApplyThreshold():
-        # if a threshold is already applied, use it!
+        # if a threshold is already applied, use it
         self.thresholdSlider.minimumValue = currentDisplayNode.GetLowerThreshold()
         self.thresholdSlider.maximumValue = currentDisplayNode.GetUpperThreshold()
       else:
@@ -343,6 +361,8 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
         logging.debug("Reset thresholdSlider's values.")
         self.thresholdSlider.minimumValue = minimumScalarValue+(maximumScalarValue-minimumScalarValue)*0.10
         self.thresholdSlider.maximumValue = maximumScalarValue
+
+    self.thresholdSlider.blockSignals(wasBlocked)
 
   def resetThresholdOnDisplayNode(self):
     logging.debug("resetThresholdOnDisplayNode")
@@ -518,16 +538,10 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
     # show the segmentation results in the GUI
     selectionNode = slicer.app.applicationLogic().GetSelectionNode()
 
-    if preview and currentVesselnessNode:
-        # if preview and a vesselnessNode was configured, show it
-        selectionNode.SetReferenceActiveVolumeID(currentVesselnessNode.GetID())
-    else:
-        # if not preview, show the original volume
-        if currentVesselnessNode:
-            selectionNode.SetReferenceSecondaryVolumeID(currentVesselnessNode.GetID())
-        selectionNode.SetReferenceActiveVolumeID(currentVolumeNode.GetID())
-    selectionNode.SetReferenceActiveLabelVolumeID(currentLabelMapNode.GetID())
-    slicer.app.applicationLogic().PropagateVolumeSelection()
+    # preview
+    # currentVesselnessNode
+    slicer.util.setSliceViewerLayers(background=currentVolumeNode, foreground=currentVesselnessNode, label=currentLabelMapNode,
+      foregroundOpacity = 0.6 if preview else 0.1)
 
     # generate 3D model
     model = vtk.vtkPolyData()
@@ -588,7 +602,7 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
 
     logging.debug("End of Level Set Segmentation..")
     return True
-    
+
   @staticmethod
   def convertFiducialHierarchyToVtkIdList(hierarchyNode,volumeNode):
     outputIds = vtk.vtkIdList()
@@ -629,8 +643,7 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
 
     ijkCoordinates = rasToIjkMatrix.MultiplyPoint(rasCoordinates)
 
-    return ijkCoordinates 
-        
+    return ijkCoordinates
 
 class LevelSetSegmentationLogic(object):
     '''
@@ -686,7 +699,7 @@ class LevelSetSegmentationLogic(object):
 
         if method == "collidingfronts":
             # ignore sidebranches, use colliding fronts
-            logging.debug("Using Colliding fronts algorithm")
+            logging.debug("Using colliding fronts algorithm")
             logging.debug("number of vtk ids: " + str(sourceSeedIds.GetNumberOfIds()))
             logging.debug("SourceSeedIds:")
             logging.debug(sourceSeedIds)
@@ -694,9 +707,9 @@ class LevelSetSegmentationLogic(object):
             collidingFronts.SetInputData(speedImage)
             sourceSeedId1 = vtk.vtkIdList()
             sourceSeedId1.InsertNextId(sourceSeedIds.GetId(0))
-            sourceSeedId2 = vtk.vtkIdList()
-            sourceSeedId2.InsertNextId(sourceSeedIds.GetId(1))
             collidingFronts.SetSeeds1(sourceSeedId1)
+            sourceSeedId2 = vtk.vtkIdList()
+            sourceSeedId2.InsertNextId(sourceSeedIds.GetId(sourceSeedIds.GetNumberOfIds()-1))
             collidingFronts.SetSeeds2(sourceSeedId2)
             collidingFronts.ApplyConnectivityOn()
             collidingFronts.StopOnTargetsOn()
@@ -709,6 +722,7 @@ class LevelSetSegmentationLogic(object):
             subtract.Update()
 
         elif method == "fastmarching":
+            logging.debug("Using fast marching algorithm")
             fastMarching = vtkvmtkSegmentation.vtkvmtkFastMarchingUpwindGradientImageFilter()
             fastMarching.SetInputData(speedImage)
             fastMarching.SetSeeds(sourceSeedIds)
@@ -731,12 +745,12 @@ class LevelSetSegmentationLogic(object):
             else:
                 subtract = vtk.vtkImageThreshold()
                 subtract.SetInputData(fastMarching.GetOutput())
-                subtract.ThresholdByLower(2000)  # TODO find robuste value
+                subtract.ThresholdByLower(2000)  # TODO find robust value
                 subtract.ReplaceInOff()
                 subtract.ReplaceOutOn()
                 subtract.SetOutValue(-1)
                 subtract.Update()
-        
+
         elif method == "threshold":
             raise NotImplementedError()
         elif method == "isosurface":
@@ -931,8 +945,8 @@ class LevelSetSegmentationLogic(object):
         result.DeepCopy(stripper.GetOutput())
 
         return result
-        
-        
+
+
 class Slicelet(object):
   """A slicer slicelet is a module widget that comes up in stand alone mode
   implemented as a python class.
