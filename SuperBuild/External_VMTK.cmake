@@ -24,7 +24,8 @@ if(NOT DEFINED ${proj}_DIR AND NOT ${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
   ExternalProject_Add(${proj}
     ${${proj}_EP_ARGS}
     #GIT_REPOSITORY "${git_protocol}://github.com/vmtk/vmtk.git"
-    #GIT_TAG "2cecfb427a45bbb5240de687929954c60ebab06f" # "more debugging test for mac os 10.13" (58c8829) commit broke Python wrapping, so we need to use the one before
+    #GIT_TAG "master"
+    # Use this repository/branch to test changes using nightly builds:
     GIT_REPOSITORY "${git_protocol}://github.com/rlizzo/vmtk"
     GIT_TAG "update_cmake_policies"
     SOURCE_DIR ${CMAKE_BINARY_DIR}/${proj}
