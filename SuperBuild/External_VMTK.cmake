@@ -23,11 +23,11 @@ if(NOT DEFINED ${proj}_DIR AND NOT ${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
 
   ExternalProject_Add(${proj}
     ${${proj}_EP_ARGS}
-    #GIT_REPOSITORY "${git_protocol}://github.com/vmtk/vmtk.git"
-    #GIT_TAG "master"
-    # Use this repository/branch to test changes using nightly builds:
-    GIT_REPOSITORY "${git_protocol}://github.com/rlizzo/vmtk"
+    GIT_REPOSITORY "${git_protocol}://github.com/vmtk/vmtk.git"
     GIT_TAG "master"
+    # Use this repository/branch to test changes using nightly builds:
+    #GIT_REPOSITORY "${git_protocol}://github.com/rlizzo/vmtk"
+    #GIT_TAG "master"
     SOURCE_DIR ${CMAKE_BINARY_DIR}/${proj}
     BINARY_DIR ${proj}-build
     CMAKE_CACHE_ARGS
