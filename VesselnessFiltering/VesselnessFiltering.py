@@ -26,7 +26,7 @@ class VesselnessFiltering(ScriptedLoadableModule):
 """ # replace with organization, grant and thanks.
 
     # Perform initializations that can only be performed when Slicer has started up
-    qt.QTimer.singleShot(0, self.registerCustomVrPresets)
+    slicer.app.connect("startupCompleted()", self.registerCustomVrPresets)
 
   def registerCustomVrPresets(self):
     moduleDir = os.path.dirname(self.parent.path)
