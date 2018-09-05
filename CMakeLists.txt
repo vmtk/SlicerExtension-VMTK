@@ -11,10 +11,13 @@ set(EXTENSION_DESCRIPTION "Vascular Modeling Toolkit for vessel tree segmentatio
 set(EXTENSION_STATUS "Beta")
 set(EXTENSION_ICONURL "http://www.nitrc.org/project/screenshot.php?group_id=196&screenshot_id=269")
 set(EXTENSION_SCREENSHOTURLS "http://www.nitrc.org/project/screenshot.php?group_id=196&screenshot_id=126 http://www.nitrc.org/project/screenshot.php?group_id=196&screenshot_id=227 http://www.nitrc.org/project/screenshot.php?group_id=196&screenshot_id=228 http://www.nitrc.org/project/screenshot.php?group_id=196&screenshot_id=229")
-set(EXTENSION_DEPENDS "NA")
 set(EXTENSION_LICENSE_FILE ${Slicer_LICENSE_FILE})
 set(EXTENSION_README_FILE ${Slicer_README_FILE})
 set(EXTENSION_BUILD_SUBDIRECTORY inner-build)
+
+set(EXTENSION_DEPENDS "")
+#list(APPEND EXTENSION_DEPENDS ITKv4)
+#list(APPEND EXTENSION_DEPENDS VTKv9)
 
 set(SUPERBUILD_TOPLEVEL_PROJECT inner)
 
@@ -52,10 +55,3 @@ list(APPEND CPACK_INSTALL_CMAKE_PROJECTS "${CMAKE_BINARY_DIR};${EXTENSION_NAME};
 list(APPEND CPACK_INSTALL_CMAKE_PROJECTS "${${EXTENSION_NAME}_CPACK_INSTALL_CMAKE_PROJECTS}")
 include(${Slicer_EXTENSION_CPACK})
 
-#set(CPACK_INSTALL_CMAKE_PROJECTS "${CPACK_INSTALL_CMAKE_PROJECTS};${CMAKE_BINARY_DIR};${EXTENSION_NAME};ALL;/")
-#if(NOT APPLE)
-#  set(CPACK_INSTALL_CMAKE_PROJECTS "${CPACK_INSTALL_CMAKE_PROJECTS};${VMTK_DIR};VMTK;RuntimeLibraries;/")
-#endif()
-#set(CPACK_INSTALL_CMAKE_PROJECTS "${CPACK_INSTALL_CMAKE_PROJECTS};${VMTK_DIR};VMTK;PythonRuntimeLibraries;/")
-#set(CPACK_INSTALL_CMAKE_PROJECTS "${CPACK_INSTALL_CMAKE_PROJECTS};${VMTK_DIR};VMTK;RuntimeExecutables;/")
-#include(${Slicer_EXTENSION_CPACK})
