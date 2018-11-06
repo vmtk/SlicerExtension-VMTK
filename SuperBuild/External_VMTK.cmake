@@ -17,17 +17,17 @@ endif()
 
 if(NOT DEFINED ${proj}_DIR AND NOT ${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
 
-ExternalProject_SetIfNotDefined(
-  ${CMAKE_PROJECT_NAME}_${proj}_GIT_REPOSITORY
-  "${EP_GIT_PROTOCOL}://github.com/vmtk/vmtk.git"
-  QUIET
-  )
+  ExternalProject_SetIfNotDefined(
+    ${CMAKE_PROJECT_NAME}_${proj}_GIT_REPOSITORY
+    "${EP_GIT_PROTOCOL}://github.com/lassoan/vmtk.git"
+    QUIET
+    )
 
-ExternalProject_SetIfNotDefined(
-  ${CMAKE_PROJECT_NAME}_${proj}_GIT_TAG
-  "a0dacdc2499a3828d7a649c9c1d32363ce407b1a"
-  QUIET
-  )
+  ExternalProject_SetIfNotDefined(
+    ${CMAKE_PROJECT_NAME}_${proj}_GIT_TAG
+    "f5469652deaeeb823123bfa93f9f11e391aa05ac"
+    QUIET
+    )
 
   set(EP_SOURCE_DIR ${CMAKE_BINARY_DIR}/${proj})
   set(EP_BINARY_DIR ${CMAKE_BINARY_DIR}/${proj}-build)
