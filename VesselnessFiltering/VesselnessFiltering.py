@@ -539,8 +539,11 @@ class VesselnessFilteringLogic(ScriptedLoadableModuleLogic):
 
       foundDiameter = False
 
+      # was cmp in python2 https://stackoverflow.com/questions/22490366/how-to-use-cmp-in-python-3
+      compareValues = lambda a,b: (a > b) - (a < b) 
+
       edgeImageSeedValue = edgeImage.GetScalarComponentAsFloat(ijk[0], ijk[1], ijk[2], 0)
-      seedValueSign = cmp(edgeImageSeedValue, 0)  # returns 1 if >0 or -1 if <0
+      seedValueSign = compareValues(edgeImageSeedValue, 0)  # returns 1 if >0 or -1 if <0
 
       # the list of hits
       # [left, right, top, bottom, front, back]
@@ -566,7 +569,7 @@ class VesselnessFilteringLogic(ScriptedLoadableModuleLogic):
           # first loop, check if we have hits
           for v in range(len(edgeValues)):
 
-              if not hits[v] and cmp(edgeValues[v], 0) != seedValueSign:
+              if not hits[v] and compareValues(edgeValues[v], 0) != seedValueSign:
                   # hit
                   hits[v] = True
 
