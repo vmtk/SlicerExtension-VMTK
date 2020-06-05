@@ -139,6 +139,21 @@ class CenterlineComputationWidget(ScriptedLoadableModuleWidget):
     self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
                         self.voronoiModelNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
 
+    if slicer.app.majorVersion*100+slicer.app.minorVersion >= 411:
+        # curve node selector
+        self.rootCurveNodeSelector = slicer.qMRMLNodeComboBox()
+        self.rootCurveNodeSelector.objectName = 'rootCurveNodeSelector'
+        self.rootCurveNodeSelector.toolTip = "Select a markups curve node to export results into a hierarchy of curves."
+        self.rootCurveNodeSelector.nodeTypes = ['vtkMRMLMarkupsCurveNode']
+        self.rootCurveNodeSelector.baseName = "tree"
+        self.rootCurveNodeSelector.noneEnabled = True
+        self.rootCurveNodeSelector.addEnabled = True
+        self.rootCurveNodeSelector.selectNodeUponCreation = True
+        self.rootCurveNodeSelector.removeEnabled = True
+        outputsFormLayout.addRow("Curve tree root:", self.rootCurveNodeSelector)
+        self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
+            self.rootCurveNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
+
     #
     # Reset, preview and apply buttons
     #
@@ -162,6 +177,8 @@ class CenterlineComputationWidget(ScriptedLoadableModuleWidget):
     self.outputModelNodeSelector.setMRMLScene(slicer.mrmlScene)
     self.outputEndPointsNodeSelector.setMRMLScene(slicer.mrmlScene)
     self.voronoiModelNodeSelector.setMRMLScene(slicer.mrmlScene)
+    if slicer.app.majorVersion*100+slicer.app.minorVersion >= 411:
+        self.rootCurveNodeSelector.setMRMLScene(slicer.mrmlScene)
 
     # compress the layout
     self.layout.addStretch(1)
@@ -190,6 +207,10 @@ class CenterlineComputationWidget(ScriptedLoadableModuleWidget):
     currentOutputModelNode = self.outputModelNodeSelector.currentNode()
     currentEndPointsMarkupsNode = self.outputEndPointsNodeSelector.currentNode()
     currentVoronoiModelNode = self.voronoiModelNodeSelector.currentNode()
+    if slicer.app.majorVersion*100+slicer.app.minorVersion >= 411:
+        rootCurveNode = self.rootCurveNodeSelector.currentNode()
+    else:
+        rootCurveNode = None
 
     if not currentModelNode:
       # we need a input volume node
@@ -245,9 +266,7 @@ class CenterlineComputationWidget(ScriptedLoadableModuleWidget):
       # here we start the actual centerline computation which is mathematically more robust and accurate but takes longer than the network extraction
 
       # clip surface at endpoints identified by the network extraction
-      tupel = self.logic.clipSurfaceAtEndPoints(network, currentModelNode.GetPolyData())
-      clippedSurface = tupel[0]
-      endpoints = tupel[1]
+      clippedSurface, endpoints = self.logic.clipSurfaceAtEndPoints(network, currentModelNode.GetPolyData())
 
       # now find the one endpoint which is closest to the seed and use it as the source point for centerline computation
       # all other endpoints are the target points
@@ -355,6 +374,9 @@ class CenterlineComputationWidget(ScriptedLoadableModuleWidget):
       currentVoronoiModelDisplayNode.SetVisibility(1)
       currentVoronoiModelDisplayNode.SetOpacity(0.5)
 
+    if rootCurveNode and not preview:
+      self.logic.createCurveTreeFromCenterline(currentOutputModelNode, rootCurveNode)
+
     logging.debug("End of Centerline Computation..")
 
     return True
@@ -369,6 +391,11 @@ class CenterlineComputationLogic(object):
         '''
         Constructor
         '''
+        self.blankingArrayName = 'Blanking'
+        self.radiusArrayName = 'Radius'
+        self.groupIdsArrayName = 'GroupIds'
+        self.centerlineIdsArrayName = 'CenterlineIds'
+        self.tractIdsArrayName = 'TractIds'
 
     def prepareModel(self, polyData):
         '''
@@ -637,7 +664,79 @@ class CenterlineComputationLogic(object):
 
         return [outPolyData, outPolyData2]
 
+    def createCurveTreeFromCenterline(self, centerlineModel, rootCurve=None):
 
+        import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
+
+        branchExtractor = vtkvmtkComputationalGeometry.vtkvmtkCenterlineBranchExtractor()
+        branchExtractor.SetInputData(centerlineModel.GetPolyData())
+        branchExtractor.SetBlankingArrayName(self.blankingArrayName)
+        branchExtractor.SetRadiusArrayName(self.radiusArrayName)
+        branchExtractor.SetGroupIdsArrayName(self.groupIdsArrayName)
+        branchExtractor.SetCenterlineIdsArrayName(self.centerlineIdsArrayName)
+        branchExtractor.SetTractIdsArrayName(self.tractIdsArrayName)
+        branchExtractor.Update()
+        centerlines = branchExtractor.GetOutput()
+
+        mergeCenterlines = vtkvmtkComputationalGeometry.vtkvmtkMergeCenterlines()
+        mergeCenterlines.SetInputData(centerlines)
+        mergeCenterlines.SetRadiusArrayName(self.radiusArrayName)
+        mergeCenterlines.SetGroupIdsArrayName(self.groupIdsArrayName)
+        mergeCenterlines.SetCenterlineIdsArrayName(self.centerlineIdsArrayName)
+        mergeCenterlines.SetTractIdsArrayName(self.tractIdsArrayName)
+        mergeCenterlines.SetBlankingArrayName(self.blankingArrayName)
+        mergeCenterlines.SetResamplingStepLength(1.0)
+        mergeCenterlines.SetMergeBlanked(True)
+        mergeCenterlines.Update()
+        mergedCenterlines = mergeCenterlines.GetOutput()
+
+        # Delete existing children of the output markups curve
+        if rootCurve:
+          shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
+          curveItem = shNode.GetItemByDataNode(rootCurve)
+          shNode.RemoveItemChildren(curveItem)
+
+        self.processedCellIds=[]
+        self._addCenterline(mergedCenterlines, replaceCurve=rootCurve)
+
+    def _addCenterline(self, mergedCenterlines, name=None, cellId=0, parentItem=None, replaceCurve=None):
+        # Add current cell as a curve node
+        assignAttribute = vtk.vtkAssignAttribute()
+        assignAttribute.SetInputData(mergedCenterlines)
+        assignAttribute.Assign(self.groupIdsArrayName, vtk.vtkDataSetAttributes.SCALARS, vtk.vtkAssignAttribute.CELL_DATA)
+        thresholder = vtk.vtkThreshold()
+        thresholder.SetInputConnection(assignAttribute.GetOutputPort())
+        groupId = mergedCenterlines.GetCellData().GetArray(self.groupIdsArrayName).GetValue(cellId)
+        thresholder.ThresholdBetween(groupId-0.5, groupId+0.5)
+        thresholder.Update()
+        if replaceCurve is None:
+            if name is None:
+                name = "branch"
+            curveNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsCurveNode", name)
+        else:
+            curveNode = replaceCurve
+            if name is None:
+                name = curveNode.GetName()
+        curveNode.SetControlPointPositionsWorld(thresholder.GetOutput().GetPoints())
+        slicer.modules.markups.logic().SetAllMarkupsVisibility(curveNode, False)
+        slicer.app.processEvents()
+        shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
+        curveItem = shNode.GetItemByDataNode(curveNode)
+        if parentItem is not None:
+            shNode.SetItemParent(curveItem, parentItem)
+        # Add connecting cells
+        self.processedCellIds.append(cellId)
+        cellPoints = mergedCenterlines.GetCell(cellId).GetPointIds()
+        endPointIndex = cellPoints.GetId(cellPoints.GetNumberOfIds()-1)
+        numberOfCells = mergedCenterlines.GetNumberOfCells()
+        branchIndex = 0
+        for neighborCellIndex in range(numberOfCells):
+            if neighborCellIndex in self.processedCellIds:
+                continue
+            if endPointIndex != mergedCenterlines.GetCell(neighborCellIndex).GetPointIds().GetId(0):
+                continue
+            branchIndex += 1
+            self._addCenterline(mergedCenterlines, "{0}_{1}".format(name, branchIndex), neighborCellIndex, curveItem)
 
     
 class Slicelet(object):
