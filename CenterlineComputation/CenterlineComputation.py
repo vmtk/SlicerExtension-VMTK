@@ -8,384 +8,388 @@ import logging
 # python includes
 import math
 
+
 #
 # Centerline Computation using VMTK based Tools
 #
 
 class CenterlineComputation(ScriptedLoadableModule):
-  """Uses ScriptedLoadableModule base class, available at:
-  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
-  """
-  def __init__(self, parent):
-    ScriptedLoadableModule.__init__(self, parent)
-    self.parent.title = "Centerline Computation"
-    self.parent.categories = ["Vascular Modeling Toolkit"]
-    self.parent.dependencies = []
-    self.parent.contributors = ["Daniel Haehn (Boston Children's Hospital)", "Luca Antiga (Orobix)", "Steve Pieper (Isomics)", "Andras Lasso (PerkLab)"]
-    self.parent.helpText = """
+    """Uses ScriptedLoadableModule base class, available at:
+    https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+    """
+
+    def __init__(self, parent):
+        ScriptedLoadableModule.__init__(self, parent)
+        self.parent.title = "Centerline Computation"
+        self.parent.categories = ["Vascular Modeling Toolkit"]
+        self.parent.dependencies = []
+        self.parent.contributors = ["Daniel Haehn (Boston Children's Hospital)", "Luca Antiga (Orobix)",
+                                    "Steve Pieper (Isomics)", "Andras Lasso (PerkLab)"]
+        self.parent.helpText = """
 """
-    self.parent.acknowledgementText = """
-""" # replace with organization, grant and thanks.
+        self.parent.acknowledgementText = """
+"""  # replace with organization, grant and thanks.
+
 
 class CenterlineComputationWidget(ScriptedLoadableModuleWidget):
-  """Uses ScriptedLoadableModuleWidget base class, available at:
-  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
-  """
+    """Uses ScriptedLoadableModuleWidget base class, available at:
+    https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+    """
 
-  def __init__(self, parent=None):
-    ScriptedLoadableModuleWidget.__init__(self, parent)
+    def __init__(self, parent=None):
+        ScriptedLoadableModuleWidget.__init__(self, parent)
 
-    # the pointer to the logic
-    self.logic = CenterlineComputationLogic()
+        # the pointer to the logic
+        self.logic = CenterlineComputationLogic()
 
-    if not parent:
-      # after setup, be ready for events
-      self.parent.show()
-    else:
-      # register default slots
-      self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)', self.onMRMLSceneChanged)
+        if not parent:
+            # after setup, be ready for events
+            self.parent.show()
+        else:
+            # register default slots
+            self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)', self.onMRMLSceneChanged)
 
-  def setup(self):
-    ScriptedLoadableModuleWidget.setup(self)
+    def setup(self):
+        ScriptedLoadableModuleWidget.setup(self)
 
-    #
-    # Inputs
-    #
+        #
+        # Inputs
+        #
 
-    inputsCollapsibleButton = ctk.ctkCollapsibleButton()
-    inputsCollapsibleButton.text = "Inputs"
-    self.layout.addWidget(inputsCollapsibleButton)
-    inputsFormLayout = qt.QFormLayout(inputsCollapsibleButton)
+        inputsCollapsibleButton = ctk.ctkCollapsibleButton()
+        inputsCollapsibleButton.text = "Inputs"
+        self.layout.addWidget(inputsCollapsibleButton)
+        inputsFormLayout = qt.QFormLayout(inputsCollapsibleButton)
 
-    # inputVolume selector
-    self.inputModelNodeSelector = slicer.qMRMLNodeComboBox()
-    self.inputModelNodeSelector.objectName = 'inputModelNodeSelector'
-    self.inputModelNodeSelector.toolTip = "Select the input model."
-    self.inputModelNodeSelector.nodeTypes = ['vtkMRMLModelNode']
-    self.inputModelNodeSelector.hideChildNodeTypes = ['vtkMRMLAnnotationNode']  # hide all annotation nodes
-    self.inputModelNodeSelector.noneEnabled = False
-    self.inputModelNodeSelector.addEnabled = False
-    self.inputModelNodeSelector.removeEnabled = False
-    inputsFormLayout.addRow("Vessel tree model:", self.inputModelNodeSelector)
-    self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
-                        self.inputModelNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
-
-    # seed selector
-    self.seedFiducialsNodeSelector = slicer.qSlicerSimpleMarkupsWidget()
-    self.seedFiducialsNodeSelector.objectName = 'seedFiducialsNodeSelector'
-    self.seedFiducialsNodeSelector = slicer.qSlicerSimpleMarkupsWidget()
-    self.seedFiducialsNodeSelector.objectName = 'seedFiducialsNodeSelector'
-    self.seedFiducialsNodeSelector.toolTip = "Select a fiducial to use as the origin of the Centerline."
-    self.seedFiducialsNodeSelector.setNodeBaseName("OriginSeed")
-    self.seedFiducialsNodeSelector.defaultNodeColor = qt.QColor(0,255,0)
-    self.seedFiducialsNodeSelector.tableWidget().hide()
-    self.seedFiducialsNodeSelector.markupsSelectorComboBox().noneEnabled = False
-    self.seedFiducialsNodeSelector.markupsPlaceWidget().placeMultipleMarkups = slicer.qSlicerMarkupsPlaceWidget.ForcePlaceSingleMarkup
-    inputsFormLayout.addRow("Start point:", self.seedFiducialsNodeSelector)
-    self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
-                        self.seedFiducialsNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
-
-    #
-    # Outputs
-    #
-
-    outputsCollapsibleButton = ctk.ctkCollapsibleButton()
-    outputsCollapsibleButton.text = "Outputs"
-    self.layout.addWidget(outputsCollapsibleButton)
-    outputsFormLayout = qt.QFormLayout(outputsCollapsibleButton)
-                        
-    # outputModel selector
-    self.outputModelNodeSelector = slicer.qMRMLNodeComboBox()
-    self.outputModelNodeSelector.objectName = 'outputModelNodeSelector'
-    self.outputModelNodeSelector.toolTip = "Select the output model for the Centerlines."
-    self.outputModelNodeSelector.nodeTypes = ['vtkMRMLModelNode']
-    self.outputModelNodeSelector.baseName = "CenterlineComputationModel"
-    self.outputModelNodeSelector.hideChildNodeTypes = ['vtkMRMLAnnotationNode']  # hide all annotation nodes
-    self.outputModelNodeSelector.noneEnabled = True
-    self.outputModelNodeSelector.noneDisplay = "Create new model"
-    self.outputModelNodeSelector.addEnabled = True
-    self.outputModelNodeSelector.selectNodeUponCreation = True
-    self.outputModelNodeSelector.removeEnabled = True
-    outputsFormLayout.addRow("Centerline model:", self.outputModelNodeSelector)
-    self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
-                        self.outputModelNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
-
-    self.outputEndPointsNodeSelector = slicer.qMRMLNodeComboBox()
-    self.outputEndPointsNodeSelector.objectName = 'outputEndPointsNodeSelector'
-    self.outputEndPointsNodeSelector.toolTip = "Select the output model for the Centerlines."
-    self.outputEndPointsNodeSelector.nodeTypes = ['vtkMRMLMarkupsFiducialNode']
-    self.outputEndPointsNodeSelector.baseName = "Centerline endpoints"
-    self.outputEndPointsNodeSelector.noneEnabled = True
-    self.outputEndPointsNodeSelector.noneDisplay = "Create new markups fiducial"
-    self.outputEndPointsNodeSelector.addEnabled = True
-    self.outputEndPointsNodeSelector.selectNodeUponCreation = True
-    self.outputEndPointsNodeSelector.removeEnabled = True
-    outputsFormLayout.addRow("Centerline endpoints:", self.outputEndPointsNodeSelector)
-    self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
-                        self.outputEndPointsNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
-                        
-    # voronoiModel selector
-    self.voronoiModelNodeSelector = slicer.qMRMLNodeComboBox()
-    self.voronoiModelNodeSelector.objectName = 'voronoiModelNodeSelector'
-    self.voronoiModelNodeSelector.toolTip = "Select the output model for the Voronoi Diagram."
-    self.voronoiModelNodeSelector.nodeTypes = ['vtkMRMLModelNode']
-    self.voronoiModelNodeSelector.baseName = "VoronoiModel"
-    self.voronoiModelNodeSelector.hideChildNodeTypes = ['vtkMRMLAnnotationNode']  # hide all annotation nodes
-    self.voronoiModelNodeSelector.noneEnabled = True
-    self.voronoiModelNodeSelector.addEnabled = True
-    self.voronoiModelNodeSelector.selectNodeUponCreation = True
-    self.voronoiModelNodeSelector.removeEnabled = True
-    outputsFormLayout.addRow("Voronoi Model:", self.voronoiModelNodeSelector)
-    self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
-                        self.voronoiModelNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
-
-    if slicer.app.majorVersion*100+slicer.app.minorVersion >= 411:
-        # curve node selector
-        self.rootCurveNodeSelector = slicer.qMRMLNodeComboBox()
-        self.rootCurveNodeSelector.objectName = 'rootCurveNodeSelector'
-        self.rootCurveNodeSelector.toolTip = "Select a markups curve node to export results into a hierarchy of curves."
-        self.rootCurveNodeSelector.nodeTypes = ['vtkMRMLMarkupsCurveNode']
-        self.rootCurveNodeSelector.baseName = "tree"
-        self.rootCurveNodeSelector.noneEnabled = True
-        self.rootCurveNodeSelector.addEnabled = True
-        self.rootCurveNodeSelector.selectNodeUponCreation = True
-        self.rootCurveNodeSelector.removeEnabled = True
-        outputsFormLayout.addRow("Curve tree root:", self.rootCurveNodeSelector)
+        # inputVolume selector
+        self.inputModelNodeSelector = slicer.qMRMLNodeComboBox()
+        self.inputModelNodeSelector.objectName = 'inputModelNodeSelector'
+        self.inputModelNodeSelector.toolTip = "Select the input model."
+        self.inputModelNodeSelector.nodeTypes = ['vtkMRMLModelNode']
+        self.inputModelNodeSelector.hideChildNodeTypes = ['vtkMRMLAnnotationNode']  # hide all annotation nodes
+        self.inputModelNodeSelector.noneEnabled = False
+        self.inputModelNodeSelector.addEnabled = False
+        self.inputModelNodeSelector.removeEnabled = False
+        inputsFormLayout.addRow("Vessel tree model:", self.inputModelNodeSelector)
         self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
-            self.rootCurveNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
+                            self.inputModelNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
 
-    #
-    # Reset, preview and apply buttons
-    #
+        # seed selector
+        self.seedFiducialsNodeSelector = slicer.qSlicerSimpleMarkupsWidget()
+        self.seedFiducialsNodeSelector.objectName = 'seedFiducialsNodeSelector'
+        self.seedFiducialsNodeSelector = slicer.qSlicerSimpleMarkupsWidget()
+        self.seedFiducialsNodeSelector.objectName = 'seedFiducialsNodeSelector'
+        self.seedFiducialsNodeSelector.toolTip = "Select a fiducial to use as the origin of the Centerline."
+        self.seedFiducialsNodeSelector.setNodeBaseName("OriginSeed")
+        self.seedFiducialsNodeSelector.defaultNodeColor = qt.QColor(0, 255, 0)
+        self.seedFiducialsNodeSelector.tableWidget().hide()
+        self.seedFiducialsNodeSelector.markupsSelectorComboBox().noneEnabled = False
+        self.seedFiducialsNodeSelector.markupsPlaceWidget().placeMultipleMarkups = slicer.qSlicerMarkupsPlaceWidget.ForcePlaceSingleMarkup
+        inputsFormLayout.addRow("Start point:", self.seedFiducialsNodeSelector)
+        self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
+                            self.seedFiducialsNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
 
-    self.buttonBox = qt.QDialogButtonBox()
-    self.previewButton = self.buttonBox.addButton(self.buttonBox.Discard)
-    self.previewButton.setIcon(qt.QIcon())
-    self.previewButton.text = "Preview"
-    self.previewButton.toolTip = "Click to refresh the preview."
-    self.startButton = self.buttonBox.addButton(self.buttonBox.Apply)
-    self.startButton.setIcon(qt.QIcon())
-    self.startButton.text = "Start"
-    self.startButton.enabled = False
-    self.startButton.toolTip = "Click to start the filtering."
-    self.layout.addWidget(self.buttonBox)
-    self.previewButton.connect("clicked()", self.onPreviewButtonClicked)
-    self.startButton.connect("clicked()", self.onStartButtonClicked)
+        #
+        # Outputs
+        #
 
-    self.inputModelNodeSelector.setMRMLScene(slicer.mrmlScene)
-    self.seedFiducialsNodeSelector.setMRMLScene(slicer.mrmlScene)
-    self.outputModelNodeSelector.setMRMLScene(slicer.mrmlScene)
-    self.outputEndPointsNodeSelector.setMRMLScene(slicer.mrmlScene)
-    self.voronoiModelNodeSelector.setMRMLScene(slicer.mrmlScene)
-    if slicer.app.majorVersion*100+slicer.app.minorVersion >= 411:
-        self.rootCurveNodeSelector.setMRMLScene(slicer.mrmlScene)
+        outputsCollapsibleButton = ctk.ctkCollapsibleButton()
+        outputsCollapsibleButton.text = "Outputs"
+        self.layout.addWidget(outputsCollapsibleButton)
+        outputsFormLayout = qt.QFormLayout(outputsCollapsibleButton)
 
-    # compress the layout
-    self.layout.addStretch(1)
+        # outputModel selector
+        self.outputModelNodeSelector = slicer.qMRMLNodeComboBox()
+        self.outputModelNodeSelector.objectName = 'outputModelNodeSelector'
+        self.outputModelNodeSelector.toolTip = "Select the output model for the Centerlines."
+        self.outputModelNodeSelector.nodeTypes = ['vtkMRMLModelNode']
+        self.outputModelNodeSelector.baseName = "CenterlineComputationModel"
+        self.outputModelNodeSelector.hideChildNodeTypes = ['vtkMRMLAnnotationNode']  # hide all annotation nodes
+        self.outputModelNodeSelector.noneEnabled = True
+        self.outputModelNodeSelector.noneDisplay = "Create new model"
+        self.outputModelNodeSelector.addEnabled = True
+        self.outputModelNodeSelector.selectNodeUponCreation = True
+        self.outputModelNodeSelector.removeEnabled = True
+        outputsFormLayout.addRow("Centerline model:", self.outputModelNodeSelector)
+        self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
+                            self.outputModelNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
 
-  def onMRMLSceneChanged(self):
-    logging.debug("onMRMLSceneChanged")
+        self.outputEndPointsNodeSelector = slicer.qMRMLNodeComboBox()
+        self.outputEndPointsNodeSelector.objectName = 'outputEndPointsNodeSelector'
+        self.outputEndPointsNodeSelector.toolTip = "Select the output model for the Centerlines."
+        self.outputEndPointsNodeSelector.nodeTypes = ['vtkMRMLMarkupsFiducialNode']
+        self.outputEndPointsNodeSelector.baseName = "Centerline endpoints"
+        self.outputEndPointsNodeSelector.noneEnabled = True
+        self.outputEndPointsNodeSelector.noneDisplay = "Create new markups fiducial"
+        self.outputEndPointsNodeSelector.addEnabled = True
+        self.outputEndPointsNodeSelector.selectNodeUponCreation = True
+        self.outputEndPointsNodeSelector.removeEnabled = True
+        outputsFormLayout.addRow("Centerline endpoints:", self.outputEndPointsNodeSelector)
+        self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
+                            self.outputEndPointsNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
 
-  def onStartButtonClicked(self):
-    qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
-    # this is no preview
-    self.start(False)
-    qt.QApplication.restoreOverrideCursor()
+        # voronoiModel selector
+        self.voronoiModelNodeSelector = slicer.qMRMLNodeComboBox()
+        self.voronoiModelNodeSelector.objectName = 'voronoiModelNodeSelector'
+        self.voronoiModelNodeSelector.toolTip = "Select the output model for the Voronoi Diagram."
+        self.voronoiModelNodeSelector.nodeTypes = ['vtkMRMLModelNode']
+        self.voronoiModelNodeSelector.baseName = "VoronoiModel"
+        self.voronoiModelNodeSelector.hideChildNodeTypes = ['vtkMRMLAnnotationNode']  # hide all annotation nodes
+        self.voronoiModelNodeSelector.noneEnabled = True
+        self.voronoiModelNodeSelector.addEnabled = True
+        self.voronoiModelNodeSelector.selectNodeUponCreation = True
+        self.voronoiModelNodeSelector.removeEnabled = True
+        outputsFormLayout.addRow("Voronoi Model:", self.voronoiModelNodeSelector)
+        self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
+                            self.voronoiModelNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
 
-  def onPreviewButtonClicked(self):
-      # calculate the preview
-      self.start(True)
-      # activate startButton
-      self.startButton.enabled = True
+        if slicer.app.majorVersion * 100 + slicer.app.minorVersion >= 411:
+            # curve node selector
+            self.rootCurveNodeSelector = slicer.qMRMLNodeComboBox()
+            self.rootCurveNodeSelector.objectName = 'rootCurveNodeSelector'
+            self.rootCurveNodeSelector.toolTip = "Select a markups curve node to export results into a hierarchy of curves."
+            self.rootCurveNodeSelector.nodeTypes = ['vtkMRMLMarkupsCurveNode']
+            self.rootCurveNodeSelector.baseName = "tree"
+            self.rootCurveNodeSelector.noneEnabled = True
+            self.rootCurveNodeSelector.addEnabled = True
+            self.rootCurveNodeSelector.selectNodeUponCreation = True
+            self.rootCurveNodeSelector.removeEnabled = True
+            outputsFormLayout.addRow("Curve tree root:", self.rootCurveNodeSelector)
+            self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
+                                self.rootCurveNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
 
-  def start(self, preview=False):
-    logging.debug("Starting Centerline Computation..")
+        #
+        # Reset, preview and apply buttons
+        #
 
-    # first we need the nodes
-    currentModelNode = self.inputModelNodeSelector.currentNode()
-    currentSeedsNode = self.seedFiducialsNodeSelector.currentNode()
-    currentOutputModelNode = self.outputModelNodeSelector.currentNode()
-    currentEndPointsMarkupsNode = self.outputEndPointsNodeSelector.currentNode()
-    currentVoronoiModelNode = self.voronoiModelNodeSelector.currentNode()
-    if slicer.app.majorVersion*100+slicer.app.minorVersion >= 411:
-        rootCurveNode = self.rootCurveNodeSelector.currentNode()
-    else:
-        rootCurveNode = None
+        self.buttonBox = qt.QDialogButtonBox()
+        self.previewButton = self.buttonBox.addButton(self.buttonBox.Discard)
+        self.previewButton.setIcon(qt.QIcon())
+        self.previewButton.text = "Preview"
+        self.previewButton.toolTip = "Click to refresh the preview."
+        self.startButton = self.buttonBox.addButton(self.buttonBox.Apply)
+        self.startButton.setIcon(qt.QIcon())
+        self.startButton.text = "Start"
+        self.startButton.enabled = False
+        self.startButton.toolTip = "Click to start the filtering."
+        self.layout.addWidget(self.buttonBox)
+        self.previewButton.connect("clicked()", self.onPreviewButtonClicked)
+        self.startButton.connect("clicked()", self.onStartButtonClicked)
 
-    if not currentModelNode:
-      # we need a input volume node
-      logging.error("Input model node required")
-      return False
+        self.inputModelNodeSelector.setMRMLScene(slicer.mrmlScene)
+        self.seedFiducialsNodeSelector.setMRMLScene(slicer.mrmlScene)
+        self.outputModelNodeSelector.setMRMLScene(slicer.mrmlScene)
+        self.outputEndPointsNodeSelector.setMRMLScene(slicer.mrmlScene)
+        self.voronoiModelNodeSelector.setMRMLScene(slicer.mrmlScene)
+        if slicer.app.majorVersion * 100 + slicer.app.minorVersion >= 411:
+            self.rootCurveNodeSelector.setMRMLScene(slicer.mrmlScene)
 
-    if not currentSeedsNode:
-      # we need a seeds node
-      logging.error("Input seeds node required")
-      return False
+        # compress the layout
+        self.layout.addStretch(1)
 
-    if not currentOutputModelNode or currentOutputModelNode.GetID() == currentModelNode.GetID():
-      # we need a current model node, the display node is created later
-      newModelNode = slicer.mrmlScene.CreateNodeByClass("vtkMRMLModelNode")
-      newModelNode.UnRegister(None)
-      newModelNode.SetName(slicer.mrmlScene.GetUniqueNameByString(self.outputModelNodeSelector.baseName))
-      currentOutputModelNode = slicer.mrmlScene.AddNode(newModelNode)
-      currentOutputModelNode.CreateDefaultDisplayNodes()
-      self.outputModelNodeSelector.setCurrentNode(currentOutputModelNode)
+    def onMRMLSceneChanged(self):
+        logging.debug("onMRMLSceneChanged")
 
-    if not currentEndPointsMarkupsNode or currentEndPointsMarkupsNode.GetID() == currentSeedsNode.GetID():
-      # we need a current seed node, the display node is created later
-      currentEndPointsMarkupsNode = slicer.mrmlScene.GetNodeByID(slicer.modules.markups.logic().AddNewFiducialNode("Centerline endpoints"))
-      self.outputEndPointsNodeSelector.setCurrentNode(currentEndPointsMarkupsNode)
+    def onStartButtonClicked(self):
+        qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
+        # this is no preview
+        self.start(False)
+        qt.QApplication.restoreOverrideCursor()
 
-    # the output models
-    preparedModel = vtk.vtkPolyData()
-    model = vtk.vtkPolyData()
-    network = vtk.vtkPolyData()
-    voronoi = vtk.vtkPolyData()
+    def onPreviewButtonClicked(self):
+        # calculate the preview
+        self.start(True)
+        # activate startButton
+        self.startButton.enabled = True
 
-    currentCoordinatesRAS = [0, 0, 0]
+    def start(self, preview=False):
+        logging.debug("Starting Centerline Computation..")
 
-    # grab the current coordinates
-    currentSeedsNode.GetNthFiducialPosition(0,currentCoordinatesRAS)
+        # first we need the nodes
+        currentModelNode = self.inputModelNodeSelector.currentNode()
+        currentSeedsNode = self.seedFiducialsNodeSelector.currentNode()
+        currentOutputModelNode = self.outputModelNodeSelector.currentNode()
+        currentEndPointsMarkupsNode = self.outputEndPointsNodeSelector.currentNode()
+        currentVoronoiModelNode = self.voronoiModelNodeSelector.currentNode()
+        if slicer.app.majorVersion * 100 + slicer.app.minorVersion >= 411:
+            rootCurveNode = self.rootCurveNodeSelector.currentNode()
+        else:
+            rootCurveNode = None
 
-    # prepare the model
-    preparedModel.DeepCopy(self.logic.prepareModel(currentModelNode.GetPolyData()))
+        if not currentModelNode:
+            # we need a input volume node
+            logging.error("Input model node required")
+            return False
 
-    # decimate the model (only for network extraction)
-    model.DeepCopy(self.logic.decimateSurface(preparedModel))
+        if not currentSeedsNode:
+            # we need a seeds node
+            logging.error("Input seeds node required")
+            return False
 
-    # open the model at the seed (only for network extraction)
-    model.DeepCopy(self.logic.openSurfaceAtPoint(model, currentCoordinatesRAS))
+        if not currentOutputModelNode or currentOutputModelNode.GetID() == currentModelNode.GetID():
+            # we need a current model node, the display node is created later
+            newModelNode = slicer.mrmlScene.CreateNodeByClass("vtkMRMLModelNode")
+            newModelNode.UnRegister(None)
+            newModelNode.SetName(slicer.mrmlScene.GetUniqueNameByString(self.outputModelNodeSelector.baseName))
+            currentOutputModelNode = slicer.mrmlScene.AddNode(newModelNode)
+            currentOutputModelNode.CreateDefaultDisplayNodes()
+            self.outputModelNodeSelector.setCurrentNode(currentOutputModelNode)
 
-    # extract Network
-    network.DeepCopy(self.logic.extractNetwork(model))
+        if not currentEndPointsMarkupsNode or currentEndPointsMarkupsNode.GetID() == currentSeedsNode.GetID():
+            # we need a current seed node, the display node is created later
+            currentEndPointsMarkupsNode = slicer.mrmlScene.GetNodeByID(
+                slicer.modules.markups.logic().AddNewFiducialNode("Centerline endpoints"))
+            self.outputEndPointsNodeSelector.setCurrentNode(currentEndPointsMarkupsNode)
 
-    #
-    #
-    # not preview mode: real computation!
-    if not preview:
-      # here we start the actual centerline computation which is mathematically more robust and accurate but takes longer than the network extraction
+        # the output models
+        preparedModel = vtk.vtkPolyData()
+        model = vtk.vtkPolyData()
+        network = vtk.vtkPolyData()
+        voronoi = vtk.vtkPolyData()
 
-      # clip surface at endpoints identified by the network extraction
-      clippedSurface, endpoints = self.logic.clipSurfaceAtEndPoints(network, currentModelNode.GetPolyData())
+        currentCoordinatesRAS = [0, 0, 0]
 
-      # now find the one endpoint which is closest to the seed and use it as the source point for centerline computation
-      # all other endpoints are the target points
-      sourcePoint = [0, 0, 0]
+        # grab the current coordinates
+        currentSeedsNode.GetNthFiducialPosition(0, currentCoordinatesRAS)
 
-      # the following arrays have the same indexes and are synchronized at all times
-      distancesToSeed = []
-      targetPoints = []
+        # prepare the model
+        preparedModel.DeepCopy(self.logic.prepareModel(currentModelNode.GetPolyData()))
 
-      # we now need to loop through the endpoints two times
+        # decimate the model (only for network extraction)
+        model.DeepCopy(self.logic.decimateSurface(preparedModel))
 
-      # first loop is to detect the endpoint resulting in the tiny hole we poked in the surface
-      # this is very close to our seed but not the correct sourcePoint
-      for i in range(endpoints.GetNumberOfPoints()):
+        # open the model at the seed (only for network extraction)
+        model.DeepCopy(self.logic.openSurfaceAtPoint(model, currentCoordinatesRAS))
 
-        currentPoint = endpoints.GetPoint(i)
-        # get the euclidean distance
-        currentDistanceToSeed = math.sqrt(math.pow((currentPoint[0] - currentCoordinatesRAS[0]), 2) +
-                                           math.pow((currentPoint[1] - currentCoordinatesRAS[1]), 2) +
-                                           math.pow((currentPoint[2] - currentCoordinatesRAS[2]), 2))
+        # extract Network
+        network.DeepCopy(self.logic.extractNetwork(model))
 
-        targetPoints.append(currentPoint)
-        distancesToSeed.append(currentDistanceToSeed)
+        #
+        #
+        # not preview mode: real computation!
+        if not preview:
+            # here we start the actual centerline computation which is mathematically more robust and accurate but takes longer than the network extraction
 
-      # now we have a list of distances with the corresponding points
-      # the index with the most minimal distance is the holePoint, we want to ignore it
-      # the index with the second minimal distance is the point closest to the seed, we want to set it as sourcepoint
-      # all other points are the targetpoints
+            # clip surface at endpoints identified by the network extraction
+            clippedSurface, endpoints = self.logic.clipSurfaceAtEndPoints(network, currentModelNode.GetPolyData())
 
-      # get the index of the holePoint, which we want to remove from our endPoints
-      holePointIndex = distancesToSeed.index(min(distancesToSeed))
-      # .. and remove it
-      distancesToSeed.pop(holePointIndex)
-      targetPoints.pop(holePointIndex)
+            # now find the one endpoint which is closest to the seed and use it as the source point for centerline computation
+            # all other endpoints are the target points
+            sourcePoint = [0, 0, 0]
 
-      # now find the sourcepoint
-      sourcePointIndex = distancesToSeed.index(min(distancesToSeed))
-      # .. and remove it after saving it as the sourcePoint
-      sourcePoint = targetPoints[sourcePointIndex]
-      distancesToSeed.pop(sourcePointIndex)
-      targetPoints.pop(sourcePointIndex)
+            # the following arrays have the same indexes and are synchronized at all times
+            distancesToSeed = []
+            targetPoints = []
 
-      # again, at this point we have a) the sourcePoint and b) a list of real targetPoints
+            # Get distances of points from source point
+            for i in range(endpoints.GetNumberOfPoints()):
+                currentPoint = endpoints.GetPoint(i)
+                # get the euclidean distance
+                currentDistanceToSeed = math.sqrt(math.pow((currentPoint[0] - currentCoordinatesRAS[0]), 2) +
+                                                  math.pow((currentPoint[1] - currentCoordinatesRAS[1]), 2) +
+                                                  math.pow((currentPoint[2] - currentCoordinatesRAS[2]), 2))
 
+                targetPoints.append(currentPoint)
+                distancesToSeed.append(currentDistanceToSeed)
 
-      # now create the sourceIdList and targetIdList for the actual centerline computation
-      sourceIdList = vtk.vtkIdList()
-      targetIdList = vtk.vtkIdList()
+            # For some reason, closest endpoint was ignored in the original implementation, as it was some kind of
+            # "hole point", but in closed surfaces created by segmentation we don't have such hole points, so
+            # by default we don't ignore it.
+            ignoreClosestEndPoint = False
 
-      pointLocator = vtk.vtkPointLocator()
-      pointLocator.SetDataSet(preparedModel)
-      pointLocator.BuildLocator()
+            if ignoreClosestEndPoint:
+                # endpoint resulting in the tiny hole we poked in the surface
+                # this is very close to our seed but not the correct sourcePoint,
+                # ignore it
+                holePointIndex = distancesToSeed.index(min(distancesToSeed))
+                # .. and remove it
+                distancesToSeed.pop(holePointIndex)
+                targetPoints.pop(holePointIndex)
 
-      # locate the source on the surface
-      sourceId = pointLocator.FindClosestPoint(sourcePoint)
-      sourceIdList.InsertNextId(sourceId)
+            # the index with minimal distance is the point closest to the seed, we want to set it as sourcepoint
+            # all other points are the targetpoints
+            sourcePointIndex = distancesToSeed.index(min(distancesToSeed))
+            # .. and remove it after saving it as the sourcePoint
+            sourcePoint = targetPoints[sourcePointIndex]
+            distancesToSeed.pop(sourcePointIndex)
+            targetPoints.pop(sourcePointIndex)
 
-      currentEndPointsMarkupsNode.GetDisplayNode().SetTextScale(0)
-      currentEndPointsMarkupsNode.RemoveAllMarkups()
-      
-      currentEndPointsMarkupsNode.AddFiducialFromArray(sourcePoint)
+            # at this point we have the sourcePoint and a list of real targetPoints
 
-      # locate the endpoints on the surface
-      for p in targetPoints:
-        fid = currentEndPointsMarkupsNode.AddFiducialFromArray(p)
-        currentEndPointsMarkupsNode.SetNthFiducialSelected(fid,False)
-        id = pointLocator.FindClosestPoint(p)
-        targetIdList.InsertNextId(id)
+            # now create the sourceIdList and targetIdList for the actual centerline computation
+            sourceIdList = vtk.vtkIdList()
+            targetIdList = vtk.vtkIdList()
 
-      tupel = self.logic.computeCenterlines(preparedModel, sourceIdList, targetIdList)
-      network.DeepCopy(tupel[0])
-      voronoi.DeepCopy(tupel[1])
+            pointLocator = vtk.vtkPointLocator()
+            pointLocator.SetDataSet(preparedModel)
+            pointLocator.BuildLocator()
 
-    currentOutputModelNode.SetAndObservePolyData(network)
+            # locate the source on the surface
+            sourceId = pointLocator.FindClosestPoint(sourcePoint)
+            sourceIdList.InsertNextId(sourceId)
 
-        
-    # Make model node semi-transparent to make centerline inside visible
-    currentModelNode.CreateDefaultDisplayNodes()
-    currentModelDisplayNode = currentModelNode.GetDisplayNode()
-    currentModelDisplayNode.SetOpacity(0.4)
+            currentEndPointsMarkupsNode.GetDisplayNode().SetTextScale(0)
+            currentEndPointsMarkupsNode.RemoveAllMarkups()
 
-    if currentVoronoiModelNode:
-      # Configure the displayNode to show the centerline and Voronoi model
-      currentOutputModelNode.CreateDefaultDisplayNodes()
-      currentOutputModelDisplayNode = currentOutputModelNode.GetDisplayNode()
-      currentOutputModelDisplayNode.SetColor(0.0, 0.0, 0.4)  # red
-      currentOutputModelDisplayNode.SetBackfaceCulling(0)
-      currentOutputModelDisplayNode.SetSliceIntersectionVisibility(0)
-      currentOutputModelDisplayNode.SetVisibility(1)
-      currentOutputModelDisplayNode.SetOpacity(1.0)
+            currentEndPointsMarkupsNode.AddFiducialFromArray(sourcePoint)
 
-    # only update the voronoi node if we are not in preview mode
+            # locate the endpoints on the surface
+            for p in targetPoints:
+                fid = currentEndPointsMarkupsNode.AddFiducialFromArray(p)
+                currentEndPointsMarkupsNode.SetNthFiducialSelected(fid, False)
+                id = pointLocator.FindClosestPoint(p)
+                targetIdList.InsertNextId(id)
 
-    if currentVoronoiModelNode and not preview:
-      currentVoronoiModelNode.SetAndObservePolyData(voronoi)
-      currentVoronoiModelNode.CreateDefaultDisplayNodes()
-      currentVoronoiModelDisplayNode = currentVoronoiModelNode.GetDisplayNode()
+            newNetwork, newVoronoi = self.logic.computeCenterlines(preparedModel, sourceIdList, targetIdList)
+            network.DeepCopy(newNetwork)
+            voronoi.DeepCopy(newVoronoi)
 
-      # always configure the displayNode to show the model
-      currentVoronoiModelDisplayNode.SetScalarVisibility(1)
-      currentVoronoiModelDisplayNode.SetBackfaceCulling(0)
-      currentVoronoiModelDisplayNode.SetActiveScalarName("Radius")
-      currentVoronoiModelDisplayNode.SetAndObserveColorNodeID(slicer.mrmlScene.GetNodesByName("Labels").GetItemAsObject(0).GetID())
-      currentVoronoiModelDisplayNode.SetSliceIntersectionVisibility(0)
-      currentVoronoiModelDisplayNode.SetVisibility(1)
-      currentVoronoiModelDisplayNode.SetOpacity(0.5)
+        currentOutputModelNode.SetAndObservePolyData(network)
 
-    if rootCurveNode and not preview:
-      self.logic.createCurveTreeFromCenterline(currentOutputModelNode, rootCurveNode)
+        # Make model node semi-transparent to make centerline inside visible
+        currentModelNode.CreateDefaultDisplayNodes()
+        currentModelDisplayNode = currentModelNode.GetDisplayNode()
+        currentModelDisplayNode.SetOpacity(0.4)
 
-    logging.debug("End of Centerline Computation..")
+        if currentVoronoiModelNode:
+            # Configure the displayNode to show the centerline and Voronoi model
+            currentOutputModelNode.CreateDefaultDisplayNodes()
+            currentOutputModelDisplayNode = currentOutputModelNode.GetDisplayNode()
+            currentOutputModelDisplayNode.SetColor(0.0, 0.0, 0.4)  # red
+            currentOutputModelDisplayNode.SetBackfaceCulling(0)
+            currentOutputModelDisplayNode.SetSliceIntersectionVisibility(0)
+            currentOutputModelDisplayNode.SetVisibility(1)
+            currentOutputModelDisplayNode.SetOpacity(1.0)
 
-    return True
+        # only update the voronoi node if we are not in preview mode
+
+        if currentVoronoiModelNode and not preview:
+            currentVoronoiModelNode.SetAndObservePolyData(voronoi)
+            currentVoronoiModelNode.CreateDefaultDisplayNodes()
+            currentVoronoiModelDisplayNode = currentVoronoiModelNode.GetDisplayNode()
+
+            # always configure the displayNode to show the model
+            currentVoronoiModelDisplayNode.SetScalarVisibility(1)
+            currentVoronoiModelDisplayNode.SetBackfaceCulling(0)
+            currentVoronoiModelDisplayNode.SetActiveScalarName("Radius")
+            currentVoronoiModelDisplayNode.SetAndObserveColorNodeID(
+                slicer.mrmlScene.GetNodesByName("Labels").GetItemAsObject(0).GetID())
+            currentVoronoiModelDisplayNode.SetSliceIntersectionVisibility(0)
+            currentVoronoiModelDisplayNode.SetVisibility(1)
+            currentVoronoiModelDisplayNode.SetOpacity(0.5)
+
+        if rootCurveNode and not preview:
+            self.logic.createCurveTreeFromCenterline(currentOutputModelNode, rootCurveNode)
+
+        logging.debug("End of Centerline Computation..")
+
+        return True
+
 
 class CenterlineComputationLogic(object):
     '''
     classdocs
     '''
-
 
     def __init__(self):
         '''
@@ -451,7 +455,6 @@ class CenterlineComputationLogic(object):
 
         return outPolyData
 
-
     def decimateSurface(self, polyData):
         '''
         '''
@@ -475,7 +478,6 @@ class CenterlineComputationLogic(object):
         outPolyData.DeepCopy(triangleFilter.GetOutput())
 
         return outPolyData
-
 
     def openSurfaceAtPoint(self, polyData, seed):
         '''
@@ -509,8 +511,6 @@ class CenterlineComputationLogic(object):
 
         return outPolyData
 
-
-
     def extractNetwork(self, polyData):
         '''
         Returns the network of the given surface.
@@ -538,7 +538,6 @@ class CenterlineComputationLogic(object):
         outPolyData.DeepCopy(networkExtraction.GetOutput())
 
         return outPolyData
-
 
     def clipSurfaceAtEndPoints(self, networkPolyData, surfacePolyData):
         '''
@@ -603,7 +602,7 @@ class CenterlineComputationLogic(object):
                     endpointsRadius.InsertNextValue(radiusFactor * radius)
 
         polyBall = vtkvmtkComputationalGeometry.vtkvmtkPolyBall()
-        #polyBall.SetInputData(endpoints)
+        # polyBall.SetInputData(endpoints)
         polyBall.SetInput(endpoints)
         polyBall.SetPolyBallRadiusArrayName('Radius')
 
@@ -625,7 +624,6 @@ class CenterlineComputationLogic(object):
 
         return [outPolyData, endpointsPoints]
 
-
     def computeCenterlines(self, polyData, inletSeedIds, outletSeedIds):
         '''
         Returns a tupel of two vtkPolyData objects.
@@ -641,7 +639,6 @@ class CenterlineComputationLogic(object):
         flipNormals = 0
         radiusArrayName = 'Radius'
         costFunction = '1/R'
-
 
         centerlineFilter = vtkvmtkComputationalGeometry.vtkvmtkPolyDataCenterlines()
         centerlineFilter.SetInputData(polyData)
@@ -692,22 +689,23 @@ class CenterlineComputationLogic(object):
 
         # Delete existing children of the output markups curve
         if rootCurve:
-          shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
-          curveItem = shNode.GetItemByDataNode(rootCurve)
-          shNode.RemoveItemChildren(curveItem)
+            shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
+            curveItem = shNode.GetItemByDataNode(rootCurve)
+            shNode.RemoveItemChildren(curveItem)
 
-        self.processedCellIds=[]
+        self.processedCellIds = []
         self._addCenterline(mergedCenterlines, replaceCurve=rootCurve)
 
     def _addCenterline(self, mergedCenterlines, name=None, cellId=0, parentItem=None, replaceCurve=None):
         # Add current cell as a curve node
         assignAttribute = vtk.vtkAssignAttribute()
         assignAttribute.SetInputData(mergedCenterlines)
-        assignAttribute.Assign(self.groupIdsArrayName, vtk.vtkDataSetAttributes.SCALARS, vtk.vtkAssignAttribute.CELL_DATA)
+        assignAttribute.Assign(self.groupIdsArrayName, vtk.vtkDataSetAttributes.SCALARS,
+                               vtk.vtkAssignAttribute.CELL_DATA)
         thresholder = vtk.vtkThreshold()
         thresholder.SetInputConnection(assignAttribute.GetOutputPort())
         groupId = mergedCenterlines.GetCellData().GetArray(self.groupIdsArrayName).GetValue(cellId)
-        thresholder.ThresholdBetween(groupId-0.5, groupId+0.5)
+        thresholder.ThresholdBetween(groupId - 0.5, groupId + 0.5)
         thresholder.Update()
         if replaceCurve is None:
             if name is None:
@@ -727,7 +725,7 @@ class CenterlineComputationLogic(object):
         # Add connecting cells
         self.processedCellIds.append(cellId)
         cellPoints = mergedCenterlines.GetCell(cellId).GetPointIds()
-        endPointIndex = cellPoints.GetId(cellPoints.GetNumberOfIds()-1)
+        endPointIndex = cellPoints.GetId(cellPoints.GetNumberOfIds() - 1)
         numberOfCells = mergedCenterlines.GetNumberOfCells()
         branchIndex = 0
         for neighborCellIndex in range(numberOfCells):
@@ -738,49 +736,51 @@ class CenterlineComputationLogic(object):
             branchIndex += 1
             self._addCenterline(mergedCenterlines, "{0}_{1}".format(name, branchIndex), neighborCellIndex, curveItem)
 
-    
+
 class Slicelet(object):
-  """A slicer slicelet is a module widget that comes up in stand alone mode
-  implemented as a python class.
-  This class provides common wrapper functionality used by all slicer modlets.
-  """
-  # TODO: put this in a SliceletLib
-  # TODO: parse command line arge
+    """A slicer slicelet is a module widget that comes up in stand alone mode
+    implemented as a python class.
+    This class provides common wrapper functionality used by all slicer modlets.
+    """
 
+    # TODO: put this in a SliceletLib
+    # TODO: parse command line arge
 
-  def __init__(self, widgetClass=None):
-    self.parent = qt.QFrame()
-    self.parent.setLayout(qt.QVBoxLayout())
+    def __init__(self, widgetClass=None):
+        self.parent = qt.QFrame()
+        self.parent.setLayout(qt.QVBoxLayout())
 
-    # TODO: should have way to pop up python interactor
-    self.buttons = qt.QFrame()
-    self.buttons.setLayout(qt.QHBoxLayout())
-    self.parent.layout().addWidget(self.buttons)
-    self.addDataButton = qt.QPushButton("Add Data")
-    self.buttons.layout().addWidget(self.addDataButton)
-    self.addDataButton.connect("clicked()", slicer.app.ioManager().openAddDataDialog)
-    self.loadSceneButton = qt.QPushButton("Load Scene")
-    self.buttons.layout().addWidget(self.loadSceneButton)
-    self.loadSceneButton.connect("clicked()", slicer.app.ioManager().openLoadSceneDialog)
+        # TODO: should have way to pop up python interactor
+        self.buttons = qt.QFrame()
+        self.buttons.setLayout(qt.QHBoxLayout())
+        self.parent.layout().addWidget(self.buttons)
+        self.addDataButton = qt.QPushButton("Add Data")
+        self.buttons.layout().addWidget(self.addDataButton)
+        self.addDataButton.connect("clicked()", slicer.app.ioManager().openAddDataDialog)
+        self.loadSceneButton = qt.QPushButton("Load Scene")
+        self.buttons.layout().addWidget(self.loadSceneButton)
+        self.loadSceneButton.connect("clicked()", slicer.app.ioManager().openLoadSceneDialog)
 
-    if widgetClass:
-      self.widget = widgetClass(self.parent)
-      self.widget.setup()
-    self.parent.show()
+        if widgetClass:
+            self.widget = widgetClass(self.parent)
+            self.widget.setup()
+        self.parent.show()
+
 
 class CenterlineComputationSlicelet(Slicelet):
-  """ Creates the interface when module is run as a stand alone gui app.
-  """
+    """ Creates the interface when module is run as a stand alone gui app.
+    """
 
-  def __init__(self):
-    super(CenterlineComputationSlicelet, self).__init__(CenterlineComputationWidget)
+    def __init__(self):
+        super(CenterlineComputationSlicelet, self).__init__(CenterlineComputationWidget)
 
 
 if __name__ == "__main__":
-  # TODO: need a way to access and parse command line arguments
-  # TODO: ideally command line args should handle --xml
+    # TODO: need a way to access and parse command line arguments
+    # TODO: ideally command line args should handle --xml
 
-  import sys
-  print(sys.argv)
+    import sys
 
-  slicelet = CenterlineComputationSlicelet()
+    print(sys.argv)
+
+    slicelet = CenterlineComputationSlicelet()
