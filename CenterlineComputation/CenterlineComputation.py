@@ -191,55 +191,79 @@ class CenterlineComputationWidget(ScriptedLoadableModuleWidget):
         logging.debug("onMRMLSceneChanged")
 
     def onStartButtonClicked(self):
-        qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
-        # this is no preview
         self.start(False)
-        qt.QApplication.restoreOverrideCursor()
 
     def onPreviewButtonClicked(self):
-        # calculate the preview
         self.start(True)
-        # activate startButton
-        self.startButton.enabled = True
 
-    def start(self, preview=False):
+    def start(self, preview):
         logging.debug("Starting Centerline Computation..")
+        qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
+        try:
+            # first we need the nodes
+            currentModelNode = self.inputModelNodeSelector.currentNode()
+            currentSeedsNode = self.seedFiducialsNodeSelector.currentNode()
+            currentOutputModelNode = self.outputModelNodeSelector.currentNode()
+            currentEndPointsMarkupsNode = self.outputEndPointsNodeSelector.currentNode()
+            currentVoronoiModelNode = self.voronoiModelNodeSelector.currentNode()
+            if slicer.app.majorVersion * 100 + slicer.app.minorVersion >= 411:
+                rootCurveNode = self.rootCurveNodeSelector.currentNode()
+            else:
+                rootCurveNode = None
 
-        # first we need the nodes
-        currentModelNode = self.inputModelNodeSelector.currentNode()
-        currentSeedsNode = self.seedFiducialsNodeSelector.currentNode()
-        currentOutputModelNode = self.outputModelNodeSelector.currentNode()
-        currentEndPointsMarkupsNode = self.outputEndPointsNodeSelector.currentNode()
-        currentVoronoiModelNode = self.voronoiModelNodeSelector.currentNode()
-        if slicer.app.majorVersion * 100 + slicer.app.minorVersion >= 411:
-            rootCurveNode = self.rootCurveNodeSelector.currentNode()
-        else:
-            rootCurveNode = None
+            if not currentOutputModelNode or currentOutputModelNode.GetID() == currentModelNode.GetID():
+                # we need a current model node, the display node is created later
+                newModelNode = slicer.mrmlScene.CreateNodeByClass("vtkMRMLModelNode")
+                newModelNode.UnRegister(None)
+                newModelNode.SetName(slicer.mrmlScene.GetUniqueNameByString(self.outputModelNodeSelector.baseName))
+                currentOutputModelNode = slicer.mrmlScene.AddNode(newModelNode)
+                currentOutputModelNode.CreateDefaultDisplayNodes()
+                currentOutputModelNode.GetDisplayNode().SetColor(0.0, 0.0, 1.0)
+                self.outputModelNodeSelector.setCurrentNode(currentOutputModelNode)
+
+            if not currentEndPointsMarkupsNode or currentEndPointsMarkupsNode.GetID() == currentSeedsNode.GetID():
+                # we need a current seed node, the display node is created later
+                currentEndPointsMarkupsNode = slicer.mrmlScene.GetNodeByID(
+                    slicer.modules.markups.logic().AddNewFiducialNode("Centerline endpoints"))
+                self.outputEndPointsNodeSelector.setCurrentNode(currentEndPointsMarkupsNode)
+
+            self.logic.extractCenterline(currentModelNode, currentSeedsNode, currentOutputModelNode,
+                              currentEndPointsMarkupsNode, currentVoronoiModelNode, rootCurveNode, preview)
+
+            self.startButton.enabled = True
+        except Exception as e:
+            slicer.util.errorDisplay(str(e))
+            import traceback
+            traceback.print_exc()
+        qt.QApplication.restoreOverrideCursor()
+
+
+class CenterlineComputationLogic(object):
+    '''
+    classdocs
+    '''
+
+    def __init__(self):
+        '''
+        Constructor
+        '''
+        self.blankingArrayName = 'Blanking'
+        self.radiusArrayName = 'Radius'
+        self.groupIdsArrayName = 'GroupIds'
+        self.centerlineIdsArrayName = 'CenterlineIds'
+        self.tractIdsArrayName = 'TractIds'
+
+    def extractCenterline(self, currentModelNode, currentSeedsNode, currentOutputModelNode, currentEndPointsMarkupsNode,
+                          currentVoronoiModelNode, rootCurveNode, preview=False):
+        logging.debug("Starting Centerline Computation..")
 
         if not currentModelNode:
             # we need a input volume node
-            logging.error("Input model node required")
-            return False
+            raise ValueError("Input model node required")
 
         if not currentSeedsNode:
             # we need a seeds node
-            logging.error("Input seeds node required")
-            return False
-
-        if not currentOutputModelNode or currentOutputModelNode.GetID() == currentModelNode.GetID():
-            # we need a current model node, the display node is created later
-            newModelNode = slicer.mrmlScene.CreateNodeByClass("vtkMRMLModelNode")
-            newModelNode.UnRegister(None)
-            newModelNode.SetName(slicer.mrmlScene.GetUniqueNameByString(self.outputModelNodeSelector.baseName))
-            currentOutputModelNode = slicer.mrmlScene.AddNode(newModelNode)
-            currentOutputModelNode.CreateDefaultDisplayNodes()
-            self.outputModelNodeSelector.setCurrentNode(currentOutputModelNode)
-
-        if not currentEndPointsMarkupsNode or currentEndPointsMarkupsNode.GetID() == currentSeedsNode.GetID():
-            # we need a current seed node, the display node is created later
-            currentEndPointsMarkupsNode = slicer.mrmlScene.GetNodeByID(
-                slicer.modules.markups.logic().AddNewFiducialNode("Centerline endpoints"))
-            self.outputEndPointsNodeSelector.setCurrentNode(currentEndPointsMarkupsNode)
+            raise ValueError("Input seeds node required")
 
         # the output models
         preparedModel = vtk.vtkPolyData()
@@ -253,16 +277,19 @@ class CenterlineComputationWidget(ScriptedLoadableModuleWidget):
         currentSeedsNode.GetNthFiducialPosition(0, currentCoordinatesRAS)
 
         # prepare the model
-        preparedModel.DeepCopy(self.logic.prepareModel(currentModelNode.GetPolyData()))
+        preparedModel.DeepCopy(self.prepareModel(currentModelNode.GetPolyData(), subdivide=True))
+
+        if preparedModel.GetNumberOfPoints() == 0:
+            raise ValueError("Input model preparation failed. It probably has surface errors.")
 
         # decimate the model (only for network extraction)
-        model.DeepCopy(self.logic.decimateSurface(preparedModel))
+        model.DeepCopy(self.decimateSurface(preparedModel))
 
         # open the model at the seed (only for network extraction)
-        model.DeepCopy(self.logic.openSurfaceAtPoint(model, currentCoordinatesRAS))
+        self.openSurfaceAtPoint(model, currentCoordinatesRAS)
 
         # extract Network
-        network.DeepCopy(self.logic.extractNetwork(model))
+        network.DeepCopy(self.extractNetwork(model))
 
         #
         #
@@ -271,7 +298,7 @@ class CenterlineComputationWidget(ScriptedLoadableModuleWidget):
             # here we start the actual centerline computation which is mathematically more robust and accurate but takes longer than the network extraction
 
             # clip surface at endpoints identified by the network extraction
-            clippedSurface, endpoints = self.logic.clipSurfaceAtEndPoints(network, currentModelNode.GetPolyData())
+            clippedSurface, endpoints = self.clipSurfaceAtEndPoints(network, currentModelNode.GetPolyData())
 
             # now find the one endpoint which is closest to the seed and use it as the source point for centerline computation
             # all other endpoints are the target points
@@ -340,7 +367,7 @@ class CenterlineComputationWidget(ScriptedLoadableModuleWidget):
                 id = pointLocator.FindClosestPoint(p)
                 targetIdList.InsertNextId(id)
 
-            newNetwork, newVoronoi = self.logic.computeCenterlines(preparedModel, sourceIdList, targetIdList)
+            newNetwork, newVoronoi = self.computeCenterlines(preparedModel, sourceIdList, targetIdList)
             network.DeepCopy(newNetwork)
             voronoi.DeepCopy(newVoronoi)
 
@@ -379,29 +406,14 @@ class CenterlineComputationWidget(ScriptedLoadableModuleWidget):
             currentVoronoiModelDisplayNode.SetOpacity(0.5)
 
         if rootCurveNode and not preview:
-            self.logic.createCurveTreeFromCenterline(currentOutputModelNode, rootCurveNode)
+            self.createCurveTreeFromCenterline(currentOutputModelNode, rootCurveNode)
 
         logging.debug("End of Centerline Computation..")
 
         return True
 
 
-class CenterlineComputationLogic(object):
-    '''
-    classdocs
-    '''
-
-    def __init__(self):
-        '''
-        Constructor
-        '''
-        self.blankingArrayName = 'Blanking'
-        self.radiusArrayName = 'Radius'
-        self.groupIdsArrayName = 'GroupIds'
-        self.centerlineIdsArrayName = 'CenterlineIds'
-        self.tractIdsArrayName = 'TractIds'
-
-    def prepareModel(self, polyData):
+    def prepareModel(self, polyData, subdivide=True):
         '''
         '''
         # import the vmtk libraries
@@ -424,13 +436,20 @@ class CenterlineComputationLogic(object):
         surfaceTriangulator.Update()
 
         # new steps for preparation to avoid problems because of slim models (f.e. at stenosis)
-        subdiv = vtk.vtkLinearSubdivisionFilter()
-        subdiv.SetInputData(surfaceTriangulator.GetOutput())
-        subdiv.SetNumberOfSubdivisions(1)
-        subdiv.Update()
+        if subdivide:
+            subdiv = vtk.vtkLinearSubdivisionFilter()
+            subdiv.SetInputData(surfaceTriangulator.GetOutput())
+            subdiv.SetNumberOfSubdivisions(1)
+            subdiv.Update()
+            if subdiv.GetOutput().GetNumberOfPoints() == 0:
+                logging.warning("Mesh subdivision failed. Skip subdivision step.")
+                subdivide = False
 
         smooth = vtk.vtkWindowedSincPolyDataFilter()
-        smooth.SetInputData(subdiv.GetOutput())
+        if subdivide:
+            smooth.SetInputData(subdiv.GetOutput())
+        else:
+            smooth.SetInputData(surfaceTriangulator.GetOutput())
         smooth.SetNumberOfIterations(20)
         smooth.SetPassBand(0.1)
         smooth.SetBoundarySmoothing(1)
@@ -494,22 +513,19 @@ class CenterlineComputationLogic(object):
         # id = pointLocator.FindClosestPoint(int(seed[0]),int(seed[1]),int(seed[2]))
         id = pointLocator.FindClosestPoint(seed)
 
-        # the seed is now guaranteed on the surface
-        seed = polyData.GetPoint(id)
+        if id<0:
+            # Calling GetPoint(-1) would crash the application
+            raise ValueError("openSurfaceAtPoint failed: empty input polydata")
 
-        sphere = vtk.vtkSphere()
-        sphere.SetCenter(seed[0], seed[1], seed[2])
-        sphere.SetRadius(someradius)
-
-        clip = vtk.vtkClipPolyData()
-        clip.SetInputData(polyData)
-        clip.SetClipFunction(sphere)
-        clip.Update()
-
-        outPolyData = vtk.vtkPolyData()
-        outPolyData.DeepCopy(clip.GetOutput())
-
-        return outPolyData
+        # Tell the polydata to build 'upward' links from points to cells
+        polyData.BuildLinks()
+        # Mark cells as deleted
+        cellIds = vtk.vtkIdList()
+        polyData.GetPointCells(id, cellIds)
+        for cellIdIndex in range(cellIds.GetNumberOfIds()):
+            polyData.DeleteCell(cellIds.GetId(cellIdIndex))
+        # Remove the marked cells
+        polyData.RemoveDeletedCells()
 
     def extractNetwork(self, polyData):
         '''
