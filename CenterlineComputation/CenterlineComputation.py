@@ -736,6 +736,15 @@ class CenterlineComputationLogic(object):
                 cellIndexArray.SetValue(cellIndex, cellIndex)
             centerlinePropertiesTableNode.GetTable().AddColumn(cellIndexArray)
 
+            # Get average radius
+            pointDataToCellData = vtk.vtkPointDataToCellData()
+            pointDataToCellData.SetInputData(mergedCenterlines)
+            pointDataToCellData.ProcessAllArraysOff()
+            pointDataToCellData.AddPointDataArray(self.radiusArrayName)
+            pointDataToCellData.Update()
+            averageRadiusArray = pointDataToCellData.GetOutput().GetCellData().GetArray(self.radiusArrayName)
+            centerlinePropertiesTableNode.GetTable().AddColumn(averageRadiusArray)
+
             # Get length, curvature, torsion, tortuosity
             centerlineBranchGeometry = vtkvmtkComputationalGeometry.vtkvmtkCenterlineBranchGeometry()
             centerlineBranchGeometry.SetInputData(mergedCenterlines)
@@ -754,14 +763,31 @@ class CenterlineComputationLogic(object):
             for columnName in [self.lengthArrayName, self.curvatureArrayName, self.torsionArrayName, self.tortuosityArrayName]:
                 centerlinePropertiesTableNode.GetTable().AddColumn(centerlineProperties.GetPointData().GetArray(columnName))
 
-            # Get average radius
-            pointDataToCellData = vtk.vtkPointDataToCellData()
-            pointDataToCellData.SetInputData(mergedCenterlines)
-            pointDataToCellData.ProcessAllArraysOff()
-            pointDataToCellData.AddPointDataArray(self.radiusArrayName)
-            pointDataToCellData.Update()
-            averageRadiusArray = pointDataToCellData.GetOutput().GetCellData().GetArray(self.radiusArrayName)
-            centerlinePropertiesTableNode.GetTable().AddColumn(averageRadiusArray)
+            # Get branch start and end positions
+            startPointPositions = vtk.vtkDoubleArray()
+            startPointPositions.SetName("StartPointPosition")
+            endPointPositions = vtk.vtkDoubleArray()
+            endPointPositions.SetName("EndPointPosition")
+            for positions in [startPointPositions, endPointPositions]:
+                positions.SetNumberOfComponents(3)
+                positions.SetComponentName(0, "R")
+                positions.SetComponentName(1, "A")
+                positions.SetComponentName(2, "S")
+                positions.SetNumberOfTuples(numberOfCells)
+            for cellIndex in range(numberOfCells):
+                pointIds = mergedCenterlines.GetCell(cellIndex).GetPointIds()
+                startPointPosition = [0, 0, 0]
+                if pointIds.GetNumberOfIds() > 0:
+                    mergedCenterlines.GetPoint(pointIds.GetId(0), startPointPosition)
+                if pointIds.GetNumberOfIds() > 1:
+                    endPointPosition = [0, 0, 0]
+                    mergedCenterlines.GetPoint(pointIds.GetId(pointIds.GetNumberOfIds()-1), endPointPosition)
+                else:
+                    endPointPosition = startPointPosition
+                startPointPositions.SetTuple3(cellIndex, *startPointPosition)
+                endPointPositions.SetTuple3(cellIndex, *endPointPosition)
+            centerlinePropertiesTableNode.GetTable().AddColumn(startPointPositions)
+            centerlinePropertiesTableNode.GetTable().AddColumn(endPointPositions)
 
             centerlinePropertiesTableNode.GetTable().Modified()
 
