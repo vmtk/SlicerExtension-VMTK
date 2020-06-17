@@ -130,22 +130,6 @@ class CenterlineComputationWidget(ScriptedLoadableModuleWidget):
         self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
                             self.outputEndPointsNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
 
-        # voronoiModel selector
-        self.voronoiModelNodeSelector = slicer.qMRMLNodeComboBox()
-        self.voronoiModelNodeSelector.objectName = 'voronoiModelNodeSelector'
-        self.voronoiModelNodeSelector.toolTip = "Select the output model for the Voronoi Diagram."
-        self.voronoiModelNodeSelector.nodeTypes = ['vtkMRMLModelNode']
-        self.voronoiModelNodeSelector.baseName = "VoronoiModel"
-        self.voronoiModelNodeSelector.hideChildNodeTypes = ['vtkMRMLAnnotationNode']  # hide all annotation nodes
-        self.voronoiModelNodeSelector.noneEnabled = True
-        self.voronoiModelNodeSelector.addEnabled = True
-        self.voronoiModelNodeSelector.renameEnabled = True
-        self.voronoiModelNodeSelector.selectNodeUponCreation = True
-        self.voronoiModelNodeSelector.removeEnabled = True
-        outputsFormLayout.addRow("Voronoi Model:", self.voronoiModelNodeSelector)
-        self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
-                            self.voronoiModelNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
-
         if slicer.app.majorVersion * 100 + slicer.app.minorVersion >= 411:
             # curve node selector
             self.rootCurveNodeSelector = slicer.qMRMLNodeComboBox()
@@ -178,6 +162,49 @@ class CenterlineComputationWidget(ScriptedLoadableModuleWidget):
                                 self.centerlinePropertiesTableNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
 
         #
+        # Advanced outputs
+        #
+        advancedOutputsCollapsibleButton = ctk.ctkCollapsibleButton()
+        advancedOutputsCollapsibleButton.text = "Advanced outputs"
+        advancedOutputsCollapsibleButton.collapsed = True
+        self.layout.addWidget(advancedOutputsCollapsibleButton)
+        advancedOutputsFormLayout = qt.QFormLayout(advancedOutputsCollapsibleButton)
+
+
+        # voronoiModel selector
+        self.voronoiModelNodeSelector = slicer.qMRMLNodeComboBox()
+        self.voronoiModelNodeSelector.objectName = 'voronoiModelNodeSelector'
+        self.voronoiModelNodeSelector.toolTip = "Select the output model for the Voronoi Diagram."
+        self.voronoiModelNodeSelector.nodeTypes = ['vtkMRMLModelNode']
+        self.voronoiModelNodeSelector.baseName = "VoronoiModel"
+        self.voronoiModelNodeSelector.hideChildNodeTypes = ['vtkMRMLAnnotationNode']  # hide all annotation nodes
+        self.voronoiModelNodeSelector.noneEnabled = True
+        self.voronoiModelNodeSelector.addEnabled = True
+        self.voronoiModelNodeSelector.renameEnabled = True
+        self.voronoiModelNodeSelector.selectNodeUponCreation = True
+        self.voronoiModelNodeSelector.removeEnabled = True
+        advancedOutputsFormLayout.addRow("Voronoi Model:", self.voronoiModelNodeSelector)
+        self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
+                            self.voronoiModelNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
+
+        # non-manifold edges selector
+        self.nonManifoldEdgesModelNodeSelector = slicer.qMRMLNodeComboBox()
+        self.nonManifoldEdgesModelNodeSelector.objectName = 'nonManifoldEdgesModelNodeSelector'
+        self.nonManifoldEdgesModelNodeSelector.toolTip = ("Select the output model for storing detected non-manifold edges."
+                                                          + "Non-manifold edges indicate mesh errors, which may make centerline detection fail.")
+        self.nonManifoldEdgesModelNodeSelector.nodeTypes = ['vtkMRMLModelNode']
+        self.nonManifoldEdgesModelNodeSelector.baseName = "Non-manifold edges"
+        #self.nonManifoldEdgesModelNodeSelector.hideChildNodeTypes = ['vtkMRMLAnnotationNode']  # hide all annotation nodes
+        self.nonManifoldEdgesModelNodeSelector.noneEnabled = True
+        self.nonManifoldEdgesModelNodeSelector.addEnabled = True
+        self.nonManifoldEdgesModelNodeSelector.renameEnabled = True
+        self.nonManifoldEdgesModelNodeSelector.selectNodeUponCreation = True
+        self.nonManifoldEdgesModelNodeSelector.removeEnabled = True
+        advancedOutputsFormLayout.addRow("Non-manifold edges:", self.nonManifoldEdgesModelNodeSelector)
+        self.parent.connect('mrmlSceneChanged(vtkMRMLScene*)',
+                            self.nonManifoldEdgesModelNodeSelector, 'setMRMLScene(vtkMRMLScene*)')
+
+        #
         # Reset, preview and apply buttons
         #
 
@@ -200,6 +227,7 @@ class CenterlineComputationWidget(ScriptedLoadableModuleWidget):
         self.outputModelNodeSelector.setMRMLScene(slicer.mrmlScene)
         self.outputEndPointsNodeSelector.setMRMLScene(slicer.mrmlScene)
         self.voronoiModelNodeSelector.setMRMLScene(slicer.mrmlScene)
+        self.nonManifoldEdgesModelNodeSelector.setMRMLScene(slicer.mrmlScene)
         if slicer.app.majorVersion * 100 + slicer.app.minorVersion >= 411:
             self.rootCurveNodeSelector.setMRMLScene(slicer.mrmlScene)
             self.centerlinePropertiesTableNodeSelector.setMRMLScene(slicer.mrmlScene)
@@ -226,6 +254,7 @@ class CenterlineComputationWidget(ScriptedLoadableModuleWidget):
             currentOutputModelNode = self.outputModelNodeSelector.currentNode()
             currentEndPointsMarkupsNode = self.outputEndPointsNodeSelector.currentNode()
             currentVoronoiModelNode = self.voronoiModelNodeSelector.currentNode()
+            nonManifoldEdgesModelNode = self.nonManifoldEdgesModelNodeSelector.currentNode()
             if slicer.app.majorVersion * 100 + slicer.app.minorVersion >= 411:
                 rootCurveNode = self.rootCurveNodeSelector.currentNode()
                 centerlinePropertiesTableNode = self.centerlinePropertiesTableNodeSelector.currentNode()
@@ -250,7 +279,7 @@ class CenterlineComputationWidget(ScriptedLoadableModuleWidget):
                 self.outputEndPointsNodeSelector.setCurrentNode(currentEndPointsMarkupsNode)
 
             self.logic.extractCenterline(currentModelNode, currentSeedsNode, currentOutputModelNode,
-                              currentEndPointsMarkupsNode, currentVoronoiModelNode,
+                              currentEndPointsMarkupsNode, currentVoronoiModelNode, nonManifoldEdgesModelNode,
                               rootCurveNode, centerlinePropertiesTableNode, preview)
 
             self.startButton.enabled = True
@@ -283,7 +312,7 @@ class CenterlineComputationLogic(object):
         self.tortuosityArrayName = 'Tortuosity'
 
     def extractCenterline(self, currentModelNode, currentSeedsNode, currentOutputModelNode, currentEndPointsMarkupsNode,
-                          currentVoronoiModelNode, rootCurveNode, centerlinePropertiesTableNode, preview=False):
+                          currentVoronoiModelNode, nonManifoldEdgesModelNode, rootCurveNode, centerlinePropertiesTableNode, preview=False):
         logging.debug("Starting Centerline Computation..")
 
         if not currentModelNode:
@@ -300,13 +329,27 @@ class CenterlineComputationLogic(object):
         network = vtk.vtkPolyData()
         voronoi = vtk.vtkPolyData()
 
+        nonManifoldEdges = None
+        if nonManifoldEdgesModelNode:
+            if not nonManifoldEdgesModelNode.GetPolyData():
+                nonManifoldEdgesModelNode.SetAndObservePolyData(vtk.vtkPolyData())
+            if not nonManifoldEdgesModelNode.GetDisplayNode():
+                nonManifoldEdgesModelNode.CreateDefaultDisplayNodes()
+                nonManifoldEdgesModelNode.GetDisplayNode().SetColor(1.0,0.0,0.0)
+                nonManifoldEdgesModelNode.GetDisplayNode().SetLineWidth(10)
+            nonManifoldEdges = nonManifoldEdgesModelNode.GetPolyData()
+
         currentCoordinatesRAS = [0, 0, 0]
 
         # grab the current coordinates
         currentSeedsNode.GetNthFiducialPosition(0, currentCoordinatesRAS)
 
         # prepare the model
-        preparedModel.DeepCopy(self.prepareModel(currentModelNode.GetPolyData(), subdivide=True))
+        preparedModel.DeepCopy(self.prepareModel(currentModelNode.GetPolyData(), subdivide=True, nonManifoldEdges=nonManifoldEdges))
+        if nonManifoldEdgesModelNode:
+            numberOfNonManifoldEdges = nonManifoldEdgesModelNode.GetPolyData().GetNumberOfCells()
+            if numberOfNonManifoldEdges>0:
+                logging.error("Found {0} non-manifold edges. Centerline computation may fail.".format(numberOfNonManifoldEdges))
 
         if preparedModel.GetNumberOfPoints() == 0:
             raise ValueError("Input model preparation failed. It probably has surface errors.")
@@ -442,7 +485,7 @@ class CenterlineComputationLogic(object):
         return True
 
 
-    def prepareModel(self, polyData, subdivide=True):
+    def prepareModel(self, polyData, subdivide=True, nonManifoldEdges=None):
         '''
         '''
         # import the vmtk libraries
@@ -501,7 +544,45 @@ class CenterlineComputationLogic(object):
         outPolyData = vtk.vtkPolyData()
         outPolyData.DeepCopy(surfaceCapper.GetOutput())
 
+        if nonManifoldEdges:
+            self.checkNonManifoldSurface(outPolyData, nonManifoldEdges)
+
         return outPolyData
+
+
+    def checkNonManifoldSurface(self, polyData, nonManifoldEdges):
+        '''
+        Returns pairs of point IDs with endpoints of non-manifold edgesin nonManifoldEdges.
+        '''
+        import vtkvmtkDifferentialGeometryPython as vtkvmtkDifferentialGeometry
+        neighborhoods = vtkvmtkDifferentialGeometry.vtkvmtkNeighborhoods()
+        neighborhoods.SetNeighborhoodTypeToPolyDataManifoldNeighborhood()
+        neighborhoods.SetDataSet(polyData)
+        neighborhoods.Build()
+
+        polyData.BuildCells()
+        polyData.BuildLinks(0)
+
+        neighborCellIds = vtk.vtkIdList()
+        nonManifoldEdgeLines = vtk.vtkCellArray() 
+        for i in range(neighborhoods.GetNumberOfNeighborhoods()):
+            neighborhood = neighborhoods.GetNeighborhood(i)
+            for j in range(neighborhood.GetNumberOfPoints()):
+                neighborId = neighborhood.GetPointId(j)
+                if i < neighborId:
+                    neighborCellIds.Initialize()
+                    polyData.GetCellEdgeNeighbors(-1,i,neighborId,neighborCellIds)
+                    if neighborCellIds.GetNumberOfIds() > 2:
+                        nonManifoldEdgeLines.InsertNextCell(2)
+                        nonManifoldEdgeLines.InsertCellPoint(i)
+                        nonManifoldEdgeLines.InsertCellPoint(neighborId)
+
+        nonManifoldEdges.Initialize()
+        points = vtk.vtkPoints()
+        points.DeepCopy(polyData.GetPoints())
+        nonManifoldEdges.SetPoints(points)
+        nonManifoldEdges.SetLines(nonManifoldEdgeLines)
+
 
     def decimateSurface(self, polyData):
         '''
