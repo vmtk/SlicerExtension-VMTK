@@ -370,7 +370,7 @@ class CenterlineComputationLogic(object):
             # here we start the actual centerline computation which is mathematically more robust and accurate but takes longer than the network extraction
 
             # clip surface at endpoints identified by the network extraction
-            clippedSurface, endpoints = self.clipSurfaceAtEndPoints(network, currentModelNode.GetPolyData())
+            clippedSurface, endpoints = self.clipSurfaceAtEndPoints(network, preparedModel) # old: currentModelNode.GetPolyData()
 
             # now find the one endpoint which is closest to the seed and use it as the source point for centerline computation
             # all other endpoints are the target points
@@ -420,7 +420,7 @@ class CenterlineComputationLogic(object):
             targetIdList = vtk.vtkIdList()
 
             pointLocator = vtk.vtkPointLocator()
-            pointLocator.SetDataSet(preparedModel)
+            pointLocator.SetDataSet(clippedSurface)
             pointLocator.BuildLocator()
 
             # locate the source on the surface
@@ -439,7 +439,8 @@ class CenterlineComputationLogic(object):
                 id = pointLocator.FindClosestPoint(p)
                 targetIdList.InsertNextId(id)
 
-            newNetwork, newVoronoi = self.computeCenterlines(preparedModel, sourceIdList, targetIdList)
+            newNetwork, newVoronoi = self.computeCenterlines(clippedSurface, sourceIdList, targetIdList)
+
             network.DeepCopy(newNetwork)
             voronoi.DeepCopy(newVoronoi)
 
@@ -564,7 +565,7 @@ class CenterlineComputationLogic(object):
         polyData.BuildLinks(0)
 
         neighborCellIds = vtk.vtkIdList()
-        nonManifoldEdgeLines = vtk.vtkCellArray() 
+        nonManifoldEdgeLines = vtk.vtkCellArray()
         for i in range(neighborhoods.GetNumberOfNeighborhoods()):
             neighborhood = neighborhoods.GetNeighborhood(i)
             for j in range(neighborhood.GetNumberOfPoints()):
@@ -620,7 +621,6 @@ class CenterlineComputationLogic(object):
         pointLocator.BuildLocator()
 
         # find the closest point next to the seed on the surface
-        # id = pointLocator.FindClosestPoint(int(seed[0]),int(seed[1]),int(seed[2]))
         id = pointLocator.FindClosestPoint(seed)
 
         if id<0:
@@ -693,7 +693,6 @@ class CenterlineComputationLogic(object):
 
         radiusFactor = 1.2
         minRadius = 0.01
-
         for i in range(network.GetNumberOfCells()):
             numberOfCellPoints = network.GetCell(i).GetNumberOfPoints()
             pointId0 = network.GetCell(i).GetPointId(0)
@@ -723,26 +722,11 @@ class CenterlineComputationLogic(object):
                     endpointsPoints.InsertNextPoint(point)
                     endpointsRadius.InsertNextValue(radiusFactor * radius)
 
-        polyBall = vtkvmtkComputationalGeometry.vtkvmtkPolyBall()
-        # polyBall.SetInputData(endpoints)
-        polyBall.SetInput(endpoints)
-        polyBall.SetPolyBallRadiusArrayName(self.radiusArrayName)
-
-        clipper = vtk.vtkClipPolyData()
-        clipper.SetInputData(surfacePolyData)
-        clipper.SetClipFunction(polyBall)
-        clipper.Update()
-
-        connectivityFilter = vtk.vtkPolyDataConnectivityFilter()
-        connectivityFilter.SetInputData(clipper.GetOutput())
-        connectivityFilter.ColorRegionsOff()
-        connectivityFilter.SetExtractionModeToLargestRegion()
-        connectivityFilter.Update()
-
-        clippedSurface = connectivityFilter.GetOutput()
-
         outPolyData = vtk.vtkPolyData()
-        outPolyData.DeepCopy(clippedSurface)
+        outPolyData.DeepCopy(surfacePolyData)
+        numberOfEndpoints = endpointsPoints.GetNumberOfPoints()
+        for pointIndex in range(numberOfEndpoints):
+            self.openSurfaceAtPoint(outPolyData, endpointsPoints.GetPoint(pointIndex))
 
         return [outPolyData, endpointsPoints]
 
