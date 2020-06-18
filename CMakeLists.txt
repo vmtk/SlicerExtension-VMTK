@@ -37,7 +37,12 @@ endif()
 #-----------------------------------------------------------------------------
 add_subdirectory(VesselnessFiltering)
 add_subdirectory(LevelSetSegmentation)
-add_subdirectory(CenterlineComputation)
+if(${Slicer_VERSION_MAJOR}.${Slicer_VERSION_MINOR} VERSION_GREATER_EQUAL 4.11)
+  # New-generation centerline computation - only available for recent Slicer versions
+  add_subdirectory(ExtractCenterline)
+else()
+  add_subdirectory(CenterlineComputation)
+endif()
 
 #-----------------------------------------------------------------------------
 # Packaging
@@ -50,5 +55,5 @@ list(APPEND EXTENSION_CPACK_INSTALL_CMAKE_PROJECTS "${VMTK_DIR};VMTK;RuntimeExec
 set(${EXTENSION_NAME}_CPACK_INSTALL_CMAKE_PROJECTS "${EXTENSION_CPACK_INSTALL_CMAKE_PROJECTS}" CACHE STRING "List of external projects to install" FORCE)
 list(APPEND CPACK_INSTALL_CMAKE_PROJECTS "${CMAKE_BINARY_DIR};${EXTENSION_NAME};ALL;/")
 list(APPEND CPACK_INSTALL_CMAKE_PROJECTS "${${EXTENSION_NAME}_CPACK_INSTALL_CMAKE_PROJECTS}")
+include(${Slicer_EXTENSION_GENERATE_CONFIG})
 include(${Slicer_EXTENSION_CPACK})
-
