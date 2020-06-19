@@ -78,7 +78,7 @@
            <bool>false</bool>
           </property>
           <property name="baseName">
-           <string/>
+           <string>Endpoints</string>
           </property>
           <property name="noneEnabled">
            <bool>true</bool>
