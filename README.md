@@ -3,7 +3,7 @@ The VMTK Extension for 3D Slicer
 
 This extension makes the Vascular Modeling Toolkit (VMTK, http://www.vmtk.org/) available in 3D Slicer (www.slicer.org). Features include vessel tree segmentation and centerline extraction. Short demo video of vessel segmentation and centerline extraction is available here: https://youtu.be/caEuwJ7pCWs
 
-[![](https://img.youtube.com/vi/caEuwJ7pCWs/0.jpg)](https://www.youtube.com/watch?v=caEuwJ7pCWs "VMTK demo")
+[![](ExtractCenterlineVideoThumbnail.png)](https://www.youtube.com/watch?v=yi07mjr3JeU)
 
 # Installation
 
@@ -24,9 +24,7 @@ This module can segment a *single vessel branch* of a vessel tree from an image 
 
 ## Extract Centerline
 
-Determine centerlines in a vessel tree from an input segmentation or model node. It can either do quick approximate centerline network extraction or an accurate centerline computation and branch extraction between designated endpoints. The module can simplify the input to make computations fast (typically 5-20 seconds) without significant decrease in accuracy and can also detect and mark mesh errors (non-manifold edges). A short tutorial video of most important features are available here:
-
-[![](ExtractCenterlineVideoThumbnail.png)](https://www.youtube.com/watch?v=yi07mjr3JeU)
+Determine centerlines in a vessel tree from an input segmentation or model node. It can either do quick approximate centerline network extraction or an accurate centerline computation and branch extraction between designated endpoints. The module can simplify the input to make computations fast (typically 5-20 seconds) without significant decrease in accuracy and can also detect and mark mesh errors (non-manifold edges).
 
 ### Preprocessing
 
