@@ -20,7 +20,7 @@ class VesselnessFiltering(ScriptedLoadableModule):
     self.parent.categories = ["Vascular Modeling Toolkit"]
     self.parent.dependencies = []
     self.parent.contributors = ["Daniel Haehn (Boston Children's Hospital)", "Luca Antiga (Orobix)", "Steve Pieper (Isomics)", "Andras Lasso (PerkLab)"]
-    self.parent.helpText = """
+    self.parent.helpText = """Documentation is available <a href="https://github.com/vmtk/SlicerExtension-VMTK">here</a>.
 """
     self.parent.acknowledgementText = """
 """ # replace with organization, grant and thanks.

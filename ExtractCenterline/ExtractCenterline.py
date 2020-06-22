@@ -24,9 +24,10 @@ class ExtractCenterline(ScriptedLoadableModule):
                                     "Luca Antiga (Orobix)",
                                     "Steve Pieper (Isomics)"]
         self.parent.helpText = """
-    Compute and quantify centerline network of vasculature, airways, etc. from a surface model.
+    Compute and quantify centerline network of vasculature or airways from a surface model.
     Surface model can be created from image volume using Segment Editor module.
-    This module replaces the old "Centerline Computation" module.
+    This module replaces the old "Centerline Computation" module. Documentation is available
+    <a href="https://github.com/vmtk/SlicerExtension-VMTK">here</a>.
     """
         self.parent.acknowledgementText = """
     """  # TODO: replace with organization, grant and thanks.
