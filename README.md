@@ -50,7 +50,7 @@ Accurate, Voronoi model based centerline extraction can be performed by specifyi
 
 Extracted centerlines are saved into a model node if a model node is selected as `Centerline model`.
 
-If a markups curve node is selected as `Centerline curve` then branches are split into separate curve nodes. Geometrical properties (length, average radius, curvature, torsion, tortuosity) are computed if a table node is chosen as `Quantification results`.
+If a markups curve node is selected as `Centerline curve` then branches are split into separate curve nodes. Geometrical properties (length, average radius, curvature, torsion, tortuosity) are computed if a table node is chosen as `Quantification results`. Important: make sure that all endpoints are reachable (none of them are connected with a straight line to some other points in the tree), as unreachable endpoints may make computation run endlessly.
 
 `Voronoi diagram` is a surface similar to medial surface, which is used for searching path between branch endpoints. This model can be saved for quality checks and for getting a surface where branch endpoints can be robustly placed on.
 
