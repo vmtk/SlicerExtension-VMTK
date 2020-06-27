@@ -65,10 +65,12 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
         self.nodeSelectors = [
             (self.ui.inputSurfaceSelector, "InputSurface"),
             (self.ui.endPointsMarkupsSelector, "EndPoints"),
-            (self.ui.outputNetworkModelSelector, "Network"),
+            (self.ui.outputNetworkModelSelector, "NetworkModel"),
+            (self.ui.outputNetworkCurveSelector, "NetworkCurve"),
+            (self.ui.outputNetworkPropertiesTableSelector, "NetworkProperties"),
             (self.ui.outputCenterlineModelSelector, "CenterlineModel"),
             (self.ui.outputCenterlineCurveSelector, "CenterlineCurve"),
-            (self.ui.outputQuantificationResultsTableSelector, "QuantificationResults"),
+            (self.ui.outputCenterlinePropertiesTableSelector, "CenterlineProperties"),
             (self.ui.outputPreprocessedSurfaceModelSelector, "PreprocessedSurface"),
             (self.ui.outputMeshErrorsMarkupsSelector, "MeshErrors"),
             (self.ui.outputVoronoiDiagramModelSelector, "VoronoiDiagram")
@@ -265,22 +267,29 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
 
             # Extract network
             networkModelNode = self._parameterNode.GetNodeReference("Network")
-            if networkModelNode:
+            networkCurveNode = self._parameterNode.GetNodeReference("NetworkCurve")
+            networkPropertiesTableNode = self._parameterNode.GetNodeReference("NetworkProperties")
+            if networkModelNode or networkCurveNode or networkPropertiesTableNode:
                 slicer.util.showStatusMessage("Extract network...")
                 slicer.app.processEvents()  # force update
                 networkPolyData = self.logic.extractNetwork(preprocessedPolyData, endPointsMarkupsNode, computeGeometry=True)
+            if networkModelNode:
                 networkModelNode.SetAndObserveMesh(networkPolyData)
                 if not networkModelNode.GetDisplayNode():
                     networkModelNode.CreateDefaultDisplayNodes()
                     networkModelNode.GetDisplayNode().SetColor(0.0, 0.0, 1.0)
                     inputSurfaceModelNode.GetDisplayNode().SetOpacity(0.4)
+            if networkCurveNode:
+                self.logic.addNetworkCurves(networkPolyData, networkCurveNode)
+            if networkPropertiesTableNode:
+                self.logic.addNetworkProperties(networkPolyData, networkPropertiesTableNode)
 
             # Extract centerline
             centerlineModelNode = self._parameterNode.GetNodeReference("CenterlineModel")
             centerlineCurveNode = self._parameterNode.GetNodeReference("CenterlineCurve")
-            quantificationResultsTableNode = self._parameterNode.GetNodeReference("QuantificationResults")
+            centerlinePropertiesTableNode = self._parameterNode.GetNodeReference("CenterlineProperties")
             voronoiDiagramModelNode = self._parameterNode.GetNodeReference("VoronoiDiagram")
-            if centerlineModelNode or centerlineCurveNode or quantificationResultsTableNode or voronoiDiagramModelNode:
+            if centerlineModelNode or centerlineCurveNode or centerlinePropertiesTableNode or voronoiDiagramModelNode:
                 slicer.util.showStatusMessage("Extract centerline...")
                 slicer.app.processEvents()  # force update
                 centerlinePolyData, voronoiDiagramPolyData = self.logic.extractCenterline(preprocessedPolyData, endPointsMarkupsNode)
@@ -299,10 +308,10 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
                     voronoiDiagramModelNode.GetDisplayNode().SetColor(0.0, 1.0, 0.0)
                     voronoiDiagramModelNode.GetDisplayNode().SetOpacity(0.2)
 
-            if centerlineCurveNode or quantificationResultsTableNode:
+            if centerlineCurveNode or centerlinePropertiesTableNode:
                 slicer.util.showStatusMessage("Generate curves and quantification results table...")
                 slicer.app.processEvents()  # force update
-                self.logic.createCurveTreeFromCenterline(centerlinePolyData, centerlineCurveNode, quantificationResultsTableNode)
+                self.logic.createCurveTreeFromCenterline(centerlinePolyData, centerlineCurveNode, centerlinePropertiesTableNode)
 
         except Exception as e:
             slicer.util.errorDisplay("Failed to compute results: "+str(e))
@@ -802,7 +811,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
 
         return endpointPositions
 
-    def createCurveTreeFromCenterline(self, centerlinePolyData, centerlineCurveNode=None, quantificationResultsTableNode=None):
+    def createCurveTreeFromCenterline(self, centerlinePolyData, centerlineCurveNode=None, centerlinePropertiesTableNode=None):
 
         import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
 
@@ -828,8 +837,8 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
         mergeCenterlines.Update()
         mergedCenterlines = mergeCenterlines.GetOutput()
 
-        if quantificationResultsTableNode:
-            quantificationResultsTableNode.RemoveAllColumns()
+        if centerlinePropertiesTableNode:
+            centerlinePropertiesTableNode.RemoveAllColumns()
 
             # Cell index column
             numberOfCells = mergedCenterlines.GetNumberOfCells()
@@ -838,7 +847,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
             cellIndexArray.SetNumberOfValues(numberOfCells)
             for cellIndex in range(numberOfCells):
                 cellIndexArray.SetValue(cellIndex, cellIndex)
-            quantificationResultsTableNode.GetTable().AddColumn(cellIndexArray)
+            centerlinePropertiesTableNode.GetTable().AddColumn(cellIndexArray)
 
             # Get average radius
             pointDataToCellData = vtk.vtkPointDataToCellData()
@@ -847,7 +856,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
             pointDataToCellData.AddPointDataArray(self.radiusArrayName)
             pointDataToCellData.Update()
             averageRadiusArray = pointDataToCellData.GetOutput().GetCellData().GetArray(self.radiusArrayName)
-            quantificationResultsTableNode.GetTable().AddColumn(averageRadiusArray)
+            centerlinePropertiesTableNode.GetTable().AddColumn(averageRadiusArray)
 
             # Get length, curvature, torsion, tortuosity
             centerlineBranchGeometry = vtkvmtkComputationalGeometry.vtkvmtkCenterlineBranchGeometry()
@@ -865,7 +874,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
             centerlineBranchGeometry.Update()
             centerlineProperties = centerlineBranchGeometry.GetOutput()
             for columnName in [self.lengthArrayName, self.curvatureArrayName, self.torsionArrayName, self.tortuosityArrayName]:
-                quantificationResultsTableNode.GetTable().AddColumn(centerlineProperties.GetPointData().GetArray(columnName))
+                centerlinePropertiesTableNode.GetTable().AddColumn(centerlineProperties.GetPointData().GetArray(columnName))
 
             # Get branch start and end positions
             startPointPositions = vtk.vtkDoubleArray()
@@ -890,19 +899,22 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
                     endPointPosition = startPointPosition
                 startPointPositions.SetTuple3(cellIndex, *startPointPosition)
                 endPointPositions.SetTuple3(cellIndex, *endPointPosition)
-            quantificationResultsTableNode.GetTable().AddColumn(startPointPositions)
-            quantificationResultsTableNode.GetTable().AddColumn(endPointPositions)
+            centerlinePropertiesTableNode.GetTable().AddColumn(startPointPositions)
+            centerlinePropertiesTableNode.GetTable().AddColumn(endPointPositions)
 
-            quantificationResultsTableNode.GetTable().Modified()
+            centerlinePropertiesTableNode.GetTable().Modified()
 
         if centerlineCurveNode:
-            # Delete existing children of the output markups curve
-            shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
-            curveItem = shNode.GetItemByDataNode(centerlineCurveNode)
-            shNode.RemoveItemChildren(curveItem)
-            # Add centerline widgets
-            self.processedCellIds = []
-            self._addCenterline(mergedCenterlines, replaceCurve=centerlineCurveNode)
+            self.addCenterlineCurves(mergedCenterlines, centerlineCurveNode)
+
+    def addCenterlineCurves(self, mergedCenterlines, centerlineCurveNode):
+        # Delete existing children of the output markups curve
+        shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
+        curveItem = shNode.GetItemByDataNode(centerlineCurveNode)
+        shNode.RemoveItemChildren(curveItem)
+        # Add centerline widgets
+        self.processedCellIds = []
+        self._addCenterline(mergedCenterlines, replaceCurve=centerlineCurveNode)
 
     def _addCenterline(self, mergedCenterlines, baseName=None, cellId=0, parentItem=None, replaceCurve=None):
         # Add current cell as a curve node
@@ -932,6 +944,12 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
             if baseName is None:
                 baseName = "branch"
             curveNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsCurveNode", "{0} ({1})".format(baseName, cellId))
+            curveNode.CreateDefaultDisplayNodes()
+            colorNode = slicer.mrmlScene.GetNodeByID("vtkMRMLColorTableNodeRandom")
+            color = [0.5, 0.5, 0.5, 1.0]
+            colorNode.GetColor(cellId, color)
+            curveNode.GetDisplayNode().SetSelectedColor(color[0:3])
+            curveNode.SetNumberOfPointsPerInterpolatingSegment(1)
 
         curveNode.SetAttribute("CellId", str(cellId))
         curveNode.SetAttribute("GroupId", str(groupId))
@@ -955,6 +973,104 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
                 continue
             branchIndex += 1
             self._addCenterline(mergedCenterlines, baseName, neighborCellIndex, curveItem)
+
+    def addNetworkProperties(self, networkPolyData, networkPropertiesTableNode):
+        networkPropertiesTableNode.RemoveAllColumns()
+
+        # Cell index column
+        numberOfCells = networkPolyData.GetNumberOfCells()
+        cellIndexArray = vtk.vtkIntArray()
+        cellIndexArray.SetName("CellId")
+        cellIndexArray.SetNumberOfValues(numberOfCells)
+        for cellIndex in range(numberOfCells):
+            cellIndexArray.SetValue(cellIndex, cellIndex)
+        networkPropertiesTableNode.GetTable().AddColumn(cellIndexArray)
+
+        # Add length
+        lengthArray = networkPolyData.GetCellData().GetArray(self.lengthArrayName)
+        if not lengthArray:
+            raise ValueError("Network polydata does not contain length cell array")
+        networkPropertiesTableNode.GetTable().AddColumn(lengthArray)
+
+        # Add average radius, curvature, torsion values
+        for columnName in [self.radiusArrayName, self.curvatureArrayName, self.torsionArrayName]:
+            pointDataToCellData = vtk.vtkPointDataToCellData()
+            pointDataToCellData.SetInputData(networkPolyData)
+            pointDataToCellData.ProcessAllArraysOff()
+            pointDataToCellData.AddPointDataArray(columnName)
+            pointDataToCellData.Update()
+            averageArray = pointDataToCellData.GetOutput().GetCellData().GetArray(columnName)
+            if not averageArray:
+                raise ValueError("Failed to compute array " + columnName)
+            networkPropertiesTableNode.GetTable().AddColumn(averageArray)
+
+        # Add tortuosity
+        tortuosityArray = networkPolyData.GetCellData().GetArray(self.tortuosityArrayName)
+        if not tortuosityArray:
+            raise ValueError("Network polydata does not contain length cell array")
+        networkPropertiesTableNode.GetTable().AddColumn(tortuosityArray)
+
+        # Add branch start and end positions
+        startPointPositions = vtk.vtkDoubleArray()
+        startPointPositions.SetName("StartPointPosition")
+        endPointPositions = vtk.vtkDoubleArray()
+        endPointPositions.SetName("EndPointPosition")
+        for positions in [startPointPositions, endPointPositions]:
+            positions.SetNumberOfComponents(3)
+            positions.SetComponentName(0, "R")
+            positions.SetComponentName(1, "A")
+            positions.SetComponentName(2, "S")
+            positions.SetNumberOfTuples(numberOfCells)
+        for cellIndex in range(numberOfCells):
+            pointIds = networkPolyData.GetCell(cellIndex).GetPointIds()
+            startPointPosition = [0, 0, 0]
+            if pointIds.GetNumberOfIds() > 0:
+                networkPolyData.GetPoint(pointIds.GetId(0), startPointPosition)
+            if pointIds.GetNumberOfIds() > 1:
+                endPointPosition = [0, 0, 0]
+                networkPolyData.GetPoint(pointIds.GetId(pointIds.GetNumberOfIds()-1), endPointPosition)
+            else:
+                endPointPosition = startPointPosition
+            startPointPositions.SetTuple3(cellIndex, *startPointPosition)
+            endPointPositions.SetTuple3(cellIndex, *endPointPosition)
+        networkPropertiesTableNode.GetTable().AddColumn(startPointPositions)
+        networkPropertiesTableNode.GetTable().AddColumn(endPointPositions)
+
+        networkPropertiesTableNode.GetTable().Modified()
+
+
+    def addNetworkCurves(self, networkPolyData, centerlineCurveNode, baseName=None):
+        shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
+        parentItem = shNode.GetItemByDataNode(centerlineCurveNode)
+
+        # remove old children
+        shNode.RemoveItemChildren(parentItem)
+
+        if baseName is None:
+            baseName = centerlineCurveNode.GetName()
+
+        colorNode = slicer.mrmlScene.GetNodeByID("vtkMRMLColorTableNodeRandom")
+        numberOfCells = networkPolyData.GetNumberOfCells()
+        slicer.app.pauseRender()
+        try:
+            for cellId in range(numberOfCells):
+                curveNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsCurveNode", "{0} ({1})".format(baseName, cellId))
+                curveNode.CreateDefaultDisplayNodes()
+                color = [0.5, 0.5, 0.5, 1.0]
+                colorNode.GetColor(cellId, color)
+                curveNode.GetDisplayNode().SetSelectedColor(color[0:3])
+                curveNode.SetNumberOfPointsPerInterpolatingSegment(1)
+                curveItem = shNode.GetItemByDataNode(curveNode)
+                shNode.SetItemParent(curveItem, parentItem)
+                curveNode.SetAttribute("CellId", str(cellId))
+                cellPoints = networkPolyData.GetCell(cellId).GetPointIds()
+                numberOfCellCurvePoints = cellPoints.GetNumberOfIds()
+                for cellPointIdIndex in range(numberOfCellCurvePoints):
+                    curveNode.AddControlPointWorld(vtk.vtkVector3d(networkPolyData.GetPoint(cellPoints.GetId(cellPointIdIndex))))
+                slicer.modules.markups.logic().SetAllMarkupsVisibility(curveNode, False)
+        finally:
+            slicer.app.resumeRender()
+
 
 #
 # ExtractCenterlineTest
