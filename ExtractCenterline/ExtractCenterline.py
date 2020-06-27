@@ -268,7 +268,7 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
             if networkModelNode:
                 slicer.util.showStatusMessage("Extract network...")
                 slicer.app.processEvents()  # force update
-                networkPolyData = self.logic.extractNetwork(preprocessedPolyData, endPointsMarkupsNode)
+                networkPolyData = self.logic.extractNetwork(preprocessedPolyData, endPointsMarkupsNode, computeGeometry=True)
                 networkModelNode.SetAndObserveMesh(networkPolyData)
                 if not networkModelNode.GetDisplayNode():
                     networkModelNode.CreateDefaultDisplayNodes()
@@ -389,6 +389,9 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
         self.curvatureArrayName = 'Curvature'
         self.torsionArrayName = 'Torsion'
         self.tortuosityArrayName = 'Tortuosity'
+        self.frenetTangentArrayName = 'FrenetTangent'
+        self.frenetNormalArrayName = 'FrenetNormal'
+        self.frenetBinormalArrayName = 'FrenetBinormal'
 
     def setDefaultParameters(self, parameterNode):
         """
@@ -540,7 +543,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
         # All points are selected, use the first one as start point
         return 0
 
-    def extractNetwork(self, surfacePolyData, endPointsMarkupsNode):
+    def extractNetwork(self, surfacePolyData, endPointsMarkupsNode, computeGeometry=False):
         """
         Extract centerline network from surfacePolyData
         :param surfacePolyData: input surface
@@ -595,7 +598,24 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
         networkExtraction.SetMarksArrayName(self.marksArrayName)
         networkExtraction.Update()
 
-        return networkExtraction.GetOutput()
+        if computeGeometry:
+            centerlineGeometry = vtkvmtkComputationalGeometry.vtkvmtkCenterlineGeometry()
+            centerlineGeometry.SetInputData(networkExtraction.GetOutput())
+            centerlineGeometry.SetLengthArrayName(self.lengthArrayName)
+            centerlineGeometry.SetCurvatureArrayName(self.curvatureArrayName)
+            centerlineGeometry.SetTorsionArrayName(self.torsionArrayName)
+            centerlineGeometry.SetTortuosityArrayName(self.tortuosityArrayName)
+            centerlineGeometry.SetFrenetTangentArrayName(self.frenetTangentArrayName)
+            centerlineGeometry.SetFrenetNormalArrayName(self.frenetNormalArrayName)
+            centerlineGeometry.SetFrenetBinormalArrayName(self.frenetBinormalArrayName)
+            # centerlineGeometry.SetLineSmoothing(0)
+            # centerlineGeometry.SetOutputSmoothedLines(0)
+            # centerlineGeometry.SetNumberOfSmoothingIterations(100)
+            # centerlineGeometry.SetSmoothingFactor(0.1)
+            centerlineGeometry.Update() 
+            return centerlineGeometry.GetOutput()
+        else:
+            return networkExtraction.GetOutput()
 
     def extractCenterline(self, surfacePolyData, endPointsMarkupsNode):
         """Compute centerline.
