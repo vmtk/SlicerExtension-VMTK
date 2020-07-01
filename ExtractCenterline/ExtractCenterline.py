@@ -266,7 +266,7 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
             inputSurfaceModelNode = self._parameterNode.GetNodeReference("InputSurface")
 
             # Extract network
-            networkModelNode = self._parameterNode.GetNodeReference("Network")
+            networkModelNode = self._parameterNode.GetNodeReference("NetworkModel")
             networkCurveNode = self._parameterNode.GetNodeReference("NetworkCurve")
             networkPropertiesTableNode = self._parameterNode.GetNodeReference("NetworkProperties")
             if networkModelNode or networkCurveNode or networkPropertiesTableNode:
@@ -338,7 +338,7 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
                 # Make input surface semi-transparent to make all detected endpoints visible
                 inputSurfaceModelNode = self._parameterNode.GetNodeReference("InputSurface")
                 inputSurfaceModelNode.GetDisplayNode().SetOpacity(0.4)
-            
+
             slicer.util.showStatusMessage("Extract network...")
             slicer.app.processEvents()  # force update
             networkPolyData = self.logic.extractNetwork(preprocessedPolyData, endPointsMarkupsNode)
@@ -621,7 +621,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
             # centerlineGeometry.SetOutputSmoothedLines(0)
             # centerlineGeometry.SetNumberOfSmoothingIterations(100)
             # centerlineGeometry.SetSmoothingFactor(0.1)
-            centerlineGeometry.Update() 
+            centerlineGeometry.Update()
             return centerlineGeometry.GetOutput()
         else:
             return networkExtraction.GetOutput()
