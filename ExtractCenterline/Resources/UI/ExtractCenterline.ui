@@ -165,165 +165,263 @@
      <property name="text">
       <string>Outputs</string>
      </property>
-     <layout class="QFormLayout" name="formLayout_4">
-      <item row="0" column="0">
-       <widget class="QLabel" name="label_10">
-        <property name="text">
-         <string>Network model:</string>
+     <layout class="QVBoxLayout" name="verticalLayout">
+      <item>
+       <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox">
+        <property name="title">
+         <string>Network</string>
         </property>
+        <layout class="QFormLayout" name="formLayout_5">
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_10">
+           <property name="text">
+            <string>Network model:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="qMRMLNodeComboBox" name="outputNetworkModelSelector">
+           <property name="toolTip">
+            <string>Result of quick centerline network extraction.</string>
+           </property>
+           <property name="nodeTypes">
+            <stringlist>
+             <string>vtkMRMLModelNode</string>
+            </stringlist>
+           </property>
+           <property name="showChildNodeTypes">
+            <bool>false</bool>
+           </property>
+           <property name="baseName">
+            <string>Network model</string>
+           </property>
+           <property name="noneEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="addEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="removeEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="editEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="renameEnabled">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="label_16">
+           <property name="text">
+            <string>Network properties:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="qMRMLNodeComboBox" name="outputNetworkPropertiesTableSelector">
+           <property name="toolTip">
+            <string>Table containing quantitative analysis of centerline (radius, length, curvature, torsion, etc.)</string>
+           </property>
+           <property name="nodeTypes">
+            <stringlist>
+             <string>vtkMRMLTableNode</string>
+            </stringlist>
+           </property>
+           <property name="showChildNodeTypes">
+            <bool>false</bool>
+           </property>
+           <property name="baseName">
+            <string>Network properties</string>
+           </property>
+           <property name="noneEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="addEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="removeEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="editEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="renameEnabled">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="label_17">
+           <property name="text">
+            <string>Network curve:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="qMRMLNodeComboBox" name="outputNetworkCurveSelector">
+           <property name="toolTip">
+            <string>Centerline extraction result as a hierarchy of markups curves.</string>
+           </property>
+           <property name="nodeTypes">
+            <stringlist>
+             <string>vtkMRMLMarkupsCurveNode</string>
+            </stringlist>
+           </property>
+           <property name="showChildNodeTypes">
+            <bool>false</bool>
+           </property>
+           <property name="baseName">
+            <string>Network curve</string>
+           </property>
+           <property name="noneEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="addEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="removeEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="editEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="renameEnabled">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </widget>
       </item>
-      <item row="0" column="1">
-       <widget class="qMRMLNodeComboBox" name="outputNetworkModelSelector">
-        <property name="toolTip">
-         <string>Result of quick centerline network extraction.</string>
+      <item>
+       <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox_2">
+        <property name="title">
+         <string>Tree</string>
         </property>
-        <property name="nodeTypes">
-         <stringlist>
-          <string>vtkMRMLModelNode</string>
-         </stringlist>
-        </property>
-        <property name="showChildNodeTypes">
-         <bool>false</bool>
-        </property>
-        <property name="baseName">
-         <string>Network model</string>
-        </property>
-        <property name="noneEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="addEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="removeEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="editEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="renameEnabled">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="label_11">
-        <property name="text">
-         <string>Centerline model:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="qMRMLNodeComboBox" name="outputCenterlineModelSelector">
-        <property name="toolTip">
-         <string>Centerline extraction result as a model.</string>
-        </property>
-        <property name="nodeTypes">
-         <stringlist>
-          <string>vtkMRMLModelNode</string>
-         </stringlist>
-        </property>
-        <property name="showChildNodeTypes">
-         <bool>false</bool>
-        </property>
-        <property name="baseName">
-         <string>Centerline model</string>
-        </property>
-        <property name="noneEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="addEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="removeEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="editEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="renameEnabled">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="label_15">
-        <property name="text">
-         <string>Centerline curve:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="qMRMLNodeComboBox" name="outputCenterlineCurveSelector">
-        <property name="toolTip">
-         <string>Centerline extraction result as a hierarchy of markups curves.</string>
-        </property>
-        <property name="nodeTypes">
-         <stringlist>
-          <string>vtkMRMLMarkupsCurveNode</string>
-         </stringlist>
-        </property>
-        <property name="showChildNodeTypes">
-         <bool>false</bool>
-        </property>
-        <property name="baseName">
-         <string>Centerline curve</string>
-        </property>
-        <property name="noneEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="addEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="removeEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="editEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="renameEnabled">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="label_14">
-        <property name="text">
-         <string>Quantification results:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="1">
-       <widget class="qMRMLNodeComboBox" name="outputQuantificationResultsTableSelector">
-        <property name="toolTip">
-         <string>Table containing quantitative analysis of centerline (radius, length, curvature, torsion, etc.)</string>
-        </property>
-        <property name="nodeTypes">
-         <stringlist>
-          <string>vtkMRMLTableNode</string>
-         </stringlist>
-        </property>
-        <property name="showChildNodeTypes">
-         <bool>false</bool>
-        </property>
-        <property name="baseName">
-         <string>Centerline quantification</string>
-        </property>
-        <property name="noneEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="addEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="removeEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="editEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="renameEnabled">
-         <bool>true</bool>
-        </property>
+        <layout class="QFormLayout" name="formLayout_6">
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_11">
+           <property name="text">
+            <string>Centerline model:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="qMRMLNodeComboBox" name="outputCenterlineModelSelector">
+           <property name="toolTip">
+            <string>Centerline extraction result as a model.</string>
+           </property>
+           <property name="nodeTypes">
+            <stringlist>
+             <string>vtkMRMLModelNode</string>
+            </stringlist>
+           </property>
+           <property name="showChildNodeTypes">
+            <bool>false</bool>
+           </property>
+           <property name="baseName">
+            <string>Centerline model</string>
+           </property>
+           <property name="noneEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="addEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="removeEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="editEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="renameEnabled">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="label_15">
+           <property name="text">
+            <string>Centerline curve:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="qMRMLNodeComboBox" name="outputCenterlineCurveSelector">
+           <property name="toolTip">
+            <string>Centerline extraction result as a hierarchy of markups curves.</string>
+           </property>
+           <property name="nodeTypes">
+            <stringlist>
+             <string>vtkMRMLMarkupsCurveNode</string>
+            </stringlist>
+           </property>
+           <property name="showChildNodeTypes">
+            <bool>false</bool>
+           </property>
+           <property name="baseName">
+            <string>Centerline curve</string>
+           </property>
+           <property name="noneEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="addEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="removeEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="editEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="renameEnabled">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="label_14">
+           <property name="text">
+            <string>Centerline properties:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="qMRMLNodeComboBox" name="outputCenterlinePropertiesTableSelector">
+           <property name="toolTip">
+            <string>Table containing quantitative analysis of centerline (radius, length, curvature, torsion, etc.)</string>
+           </property>
+           <property name="nodeTypes">
+            <stringlist>
+             <string>vtkMRMLTableNode</string>
+            </stringlist>
+           </property>
+           <property name="showChildNodeTypes">
+            <bool>false</bool>
+           </property>
+           <property name="baseName">
+            <string>Centerline quantification</string>
+           </property>
+           <property name="noneEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="addEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="removeEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="editEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="renameEnabled">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </widget>
       </item>
      </layout>
@@ -591,6 +689,12 @@
    <container>1</container>
   </customwidget>
   <customwidget>
+   <class>ctkCollapsibleGroupBox</class>
+   <extends>QGroupBox</extends>
+   <header>ctkCollapsibleGroupBox.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
    <class>ctkPushButton</class>
    <extends>QPushButton</extends>
    <header>ctkPushButton.h</header>
@@ -673,8 +777,8 @@
      <y>4</y>
     </hint>
     <hint type="destinationlabel">
-     <x>260</x>
-     <y>127</y>
+     <x>193</x>
+     <y>137</y>
     </hint>
    </hints>
   </connection>
@@ -705,8 +809,8 @@
      <y>4</y>
     </hint>
     <hint type="destinationlabel">
-     <x>344</x>
-     <y>196</y>
+     <x>392</x>
+     <y>233</y>
     </hint>
    </hints>
   </connection>
@@ -721,8 +825,8 @@
      <y>5</y>
     </hint>
     <hint type="destinationlabel">
-     <x>375</x>
-     <y>216</y>
+     <x>392</x>
+     <y>346</y>
     </hint>
    </hints>
   </connection>
@@ -737,15 +841,15 @@
      <y>6</y>
     </hint>
     <hint type="destinationlabel">
-     <x>387</x>
-     <y>245</y>
+     <x>392</x>
+     <y>372</y>
     </hint>
    </hints>
   </connection>
   <connection>
    <sender>ExtractCenterline</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
-   <receiver>outputQuantificationResultsTableSelector</receiver>
+   <receiver>outputCenterlinePropertiesTableSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -753,8 +857,8 @@
      <y>2</y>
     </hint>
     <hint type="destinationlabel">
-     <x>399</x>
-     <y>269</y>
+     <x>392</x>
+     <y>398</y>
     </hint>
    </hints>
   </connection>
@@ -769,8 +873,8 @@
      <y>597</y>
     </hint>
     <hint type="destinationlabel">
-     <x>197</x>
-     <y>437</y>
+     <x>375</x>
+     <y>461</y>
     </hint>
    </hints>
   </connection>
@@ -785,8 +889,8 @@
      <y>593</y>
     </hint>
     <hint type="destinationlabel">
-     <x>183</x>
-     <y>466</y>
+     <x>361</x>
+     <y>463</y>
     </hint>
    </hints>
   </connection>
@@ -801,8 +905,8 @@
      <y>601</y>
     </hint>
     <hint type="destinationlabel">
-     <x>240</x>
-     <y>493</y>
+     <x>403</x>
+     <y>465</y>
     </hint>
    </hints>
   </connection>
@@ -813,12 +917,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>184</x>
-     <y>342</y>
+     <x>362</x>
+     <y>449</y>
     </hint>
     <hint type="destinationlabel">
-     <x>184</x>
-     <y>359</y>
+     <x>362</x>
+     <y>455</y>
     </hint>
    </hints>
   </connection>
@@ -829,12 +933,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>275</x>
-     <y>340</y>
+     <x>403</x>
+     <y>449</y>
     </hint>
     <hint type="destinationlabel">
-     <x>279</x>
-     <y>385</y>
+     <x>403</x>
+     <y>457</y>
     </hint>
    </hints>
   </connection>
@@ -845,12 +949,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>305</x>
-     <y>342</y>
+     <x>403</x>
+     <y>449</y>
     </hint>
     <hint type="destinationlabel">
-     <x>209</x>
-     <y>412</y>
+     <x>387</x>
+     <y>455</y>
     </hint>
    </hints>
   </connection>
@@ -861,12 +965,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>323</x>
-     <y>342</y>
+     <x>403</x>
+     <y>449</y>
     </hint>
     <hint type="destinationlabel">
-     <x>320</x>
-     <y>434</y>
+     <x>403</x>
+     <y>461</y>
     </hint>
    </hints>
   </connection>
@@ -877,12 +981,12 @@
    <slot>setCurrentNode(vtkMRMLNode*)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>243</x>
-     <y>132</y>
+     <x>193</x>
+     <y>137</y>
     </hint>
     <hint type="destinationlabel">
-     <x>322</x>
-     <y>132</y>
+     <x>309</x>
+     <y>140</y>
     </hint>
    </hints>
   </connection>
@@ -915,6 +1019,38 @@
     <hint type="destinationlabel">
      <x>137</x>
      <y>100</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>ExtractCenterline</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>outputNetworkCurveSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>71</x>
+     <y>4</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>169</x>
+     <y>252</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>ExtractCenterline</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>outputNetworkPropertiesTableSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>257</x>
+     <y>5</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>247</x>
+     <y>275</y>
     </hint>
    </hints>
   </connection>
