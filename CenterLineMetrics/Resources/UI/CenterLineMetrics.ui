@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>CenterLineMetrics1</class>
+ <class>CenterLineMetrics</class>
  <widget class="qMRMLWidget" name="CenterLineMetrics">
   <property name="geometry">
    <rect>
@@ -172,7 +172,7 @@
          <item>
           <widget class="QRadioButton" name="radioA">
            <property name="toolTip">
-            <string>Z axis</string>
+            <string>Y axis</string>
            </property>
            <property name="text">
             <string>A</string>
@@ -182,7 +182,7 @@
          <item>
           <widget class="QRadioButton" name="radioS">
            <property name="toolTip">
-            <string>Y axis</string>
+            <string>Z axis</string>
            </property>
            <property name="text">
             <string>S</string>
