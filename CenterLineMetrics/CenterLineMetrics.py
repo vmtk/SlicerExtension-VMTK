@@ -25,9 +25,9 @@ class CenterLineMetrics(ScriptedLoadableModule):
     self.parent.dependencies = []  # TODO: add here list of module names that this module requires
     self.parent.contributors = ["SET (Hobbyist)"]  # TODO: replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
-This module plots average diameters around a VMTK centerline model. It is intended for non-bifurcated centerlines.
-"""  # TODO: update with short description of the module
-    self.parent.helpText += self.getDefaultModuleDocumentationLink()  # TODO: verify that the default URL is correct or change it to the actual documentation
+This module plots average diameters around a VMTK centerline model. It is intended for non-bifurcated centerlines. Documentation is available
+    <a href="https://github.com/chir-set/CenterLineMetrics">here</a>.
+"""  
     self.parent.acknowledgementText = """
 This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc., Andras Lasso, PerkLab,
 and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
