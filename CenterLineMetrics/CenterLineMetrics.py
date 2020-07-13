@@ -67,7 +67,9 @@ class CenterLineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     uiWidget.setMRMLScene(slicer.mrmlScene)
 
     self.logic = CenterLineMetricsLogic()
-    self.ui.radioProjected.setChecked(True) # Default to projected distance
+    self.ui.radioCumulative.setChecked(True) # Default to cumulative distance
+    self.ui.axisLabel.hide()
+    self.ui.axisGroup.hide()
     self.ui.radioS.setChecked(True) # Default to superior
 
     # connections
@@ -159,7 +161,7 @@ class CenterLineMetricsLogic(ScriptedLoadableModuleLogic):
     self.outputTableNode = None
     self.plotChartNode = None
     self.axis = 2 # Default to vertical
-    self.distanceMode = 1 # Default to projected
+    self.distanceMode = 0 # Default to cumulative
 
   def setInputModelNode(self, modelNode):
     if self.inputModelNode == modelNode:
