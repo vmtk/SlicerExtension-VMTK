@@ -43,7 +43,7 @@ if(${Slicer_VERSION_MAJOR}.${Slicer_VERSION_MINOR} VERSION_GREATER_EQUAL 4.11)
 else()
   add_subdirectory(CenterlineComputation)
 endif()
-add_subdirectory(CenterLineMetrics)
+add_subdirectory(CenterlineMetrics)
 
 #-----------------------------------------------------------------------------
 # Packaging

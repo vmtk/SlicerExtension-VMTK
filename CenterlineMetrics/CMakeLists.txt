@@ -1,5 +1,5 @@
 #-----------------------------------------------------------------------------
-set(MODULE_NAME CenterLineMetrics)
+set(MODULE_NAME CenterlineMetrics)
 
 #-----------------------------------------------------------------------------
 set(MODULE_PYTHON_SCRIPTS

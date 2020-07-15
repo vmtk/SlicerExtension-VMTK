@@ -7,13 +7,13 @@ from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
 
 """
-  CenterLineMetrics
+  CenterlineMetrics
   This file is almost totally derived from LineProfile.py.
   The core diameter calculation code is poked from VMTK's
   README.md file.
 """
 
-class CenterLineMetrics(ScriptedLoadableModule):
+class CenterlineMetrics(ScriptedLoadableModule):
   """Uses ScriptedLoadableModule base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
@@ -26,7 +26,7 @@ class CenterLineMetrics(ScriptedLoadableModule):
     self.parent.contributors = ["SET (Hobbyist)"]  # TODO: replace with "Firstname Lastname (Organization)"
     self.parent.helpText = """
 This module plots average diameters around a VMTK centerline model. It is intended for non-bifurcated centerlines. Documentation is available
-    <a href="https://github.com/chir-set/CenterLineMetrics">here</a>.
+    <a href="https://github.com/chir-set/CenterlineMetrics">here</a>.
 """  
     self.parent.acknowledgementText = """
 This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc., Andras Lasso, PerkLab,
@@ -34,10 +34,10 @@ and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR0132
 """  # TODO: replace with organization, grant and thanks.
 
 #
-# CenterLineMetricsWidget
+# CenterlineMetricsWidget
 #
 
-class CenterLineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
+class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
   """Uses ScriptedLoadableModuleWidget base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
@@ -57,7 +57,7 @@ class CenterLineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     ScriptedLoadableModuleWidget.setup(self)
 
     # Load widget from .ui file (created by Qt Designer)
-    uiWidget = slicer.util.loadUI(self.resourcePath('UI/CenterLineMetrics.ui'))
+    uiWidget = slicer.util.loadUI(self.resourcePath('UI/CenterlineMetrics.ui'))
     self.layout.addWidget(uiWidget)
     self.ui = slicer.util.childWidgetVariables(uiWidget)
 
@@ -66,7 +66,7 @@ class CenterLineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     # "setMRMLScene(vtkMRMLScene*)" slot.
     uiWidget.setMRMLScene(slicer.mrmlScene)
 
-    self.logic = CenterLineMetricsLogic()
+    self.logic = CenterlineMetricsLogic()
     self.ui.radioCumulative.setChecked(True) # Default to cumulative distance
     self.ui.axisLabel.hide()
     self.ui.axisGroup.hide()
@@ -143,10 +143,10 @@ class CenterLineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.logic.distanceMode = 1
 
 #
-# CenterLineMetricsLogic
+# CenterlineMetricsLogic
 #
 
-class CenterLineMetricsLogic(ScriptedLoadableModuleLogic):
+class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
   """This class should implement all the actual
   computation done by your module.  The interface
   should be such that other python code can import
@@ -260,10 +260,10 @@ class CenterLineMetricsLogic(ScriptedLoadableModuleLogic):
       previous = point
 
 #
-# CenterLineMetricsTest
+# CenterlineMetricsTest
 #
 
-class CenterLineMetricsTest(ScriptedLoadableModuleTest):
+class CenterlineMetricsTest(ScriptedLoadableModuleTest):
   """
   This is the test case for your scripted module.
   Uses ScriptedLoadableModuleTest base class, available at:
@@ -279,7 +279,7 @@ class CenterLineMetricsTest(ScriptedLoadableModuleTest):
     """
     """
 
-  def test_CenterLineMetrics1(self):
+  def test_CenterlineMetrics1(self):
     """
     """
 
