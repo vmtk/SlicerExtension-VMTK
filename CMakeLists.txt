@@ -44,6 +44,7 @@ else()
   add_subdirectory(CenterlineComputation)
 endif()
 add_subdirectory(CenterlineMetrics)
+add_subdirectory(CrossSectionAnalysis)
 
 #-----------------------------------------------------------------------------
 # Packaging
