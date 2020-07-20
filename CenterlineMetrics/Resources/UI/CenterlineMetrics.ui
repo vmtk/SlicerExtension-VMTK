@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>CenterLineMetrics</class>
+ <class>CenterlineMetrics</class>
  <widget class="qMRMLWidget" name="CenterlineMetrics">
   <property name="geometry">
    <rect>
@@ -263,7 +263,7 @@
  <resources/>
  <connections>
   <connection>
-   <sender>CenterLineMetrics</sender>
+   <sender>CenterlineMetrics</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>inputModelSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
@@ -279,7 +279,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>CenterLineMetrics</sender>
+   <sender>CenterlineMetrics</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>outputTableSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
@@ -295,7 +295,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>CenterLineMetrics</sender>
+   <sender>CenterlineMetrics</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>outputPlotSeriesSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
