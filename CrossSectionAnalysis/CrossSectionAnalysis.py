@@ -55,7 +55,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.widgetMarkupPointAddedObserver = None
     self.widgetMarkupPointRemovedObserver = None
     # Remove observers on previous path when currrent node has changed
-    self.previousPath = None
+    self.currentPathNode = None
 
   def setup(self):
     """
@@ -88,7 +88,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.resetSliderWidget()
 
     # Connections
-    self.ui.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectNode)
+    self.ui.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectPathNode)
     self.ui.positionIndexSliderWidget.connect("valueChanged(double)", self.logic.process)
     # Feedback on module UI
     self.ui.positionIndexSliderWidget.connect("valueChanged(double)", self.showCurrentPositionData)
@@ -105,8 +105,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.logic.removeMarkupObservers()
     self.removeWidgetMarkupObservers(self.ui.inputSelector.currentNode())
       
-  def onSelectNode(self):
-    self.removeWidgetMarkupObservers(self.previousPath)
+  def onSelectPathNode(self):
+    self.removeWidgetMarkupObservers(self.currentPathNode)
     inputPath = self.ui.inputSelector.currentNode()
     self.logic.selectNode(inputPath)
     self.setSliderWidget()
@@ -118,7 +118,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.showCurrentPositionData(0)
     # Remember this path to remove observers later
     self.addWidgetMarkupObservers()
-    self.previousPath = inputPath
+    self.currentPathNode = inputPath
     # Select in markups module if appropriate
     self.selectInMarkupsModule()
     # Diameters can be shown for VMTK centerline models only
