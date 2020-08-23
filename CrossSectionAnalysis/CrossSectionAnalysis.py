@@ -97,7 +97,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.yellowRadioButton.connect("clicked()", self.onRadioYellow)
     self.ui.hideCheckBox.connect("clicked()", self.onHidePath)
     self.ui.createMarkupsCurvePushButton.connect("clicked()", self.createMarksupCurve)
-    self.ui.roiSelector.connect("nodeAddedByUser(vtkMRMLNode*)", self.onCreateROI)
+    self.ui.roiSelector.connect("nodeAddedByUser(vtkMRMLNode*)", self.logic.onCreateROI)
     self.ui.roiSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onCurrentROIChanged)
     self.ui.hideROICheckBox.connect("clicked()", self.onHideROI)
     
@@ -244,21 +244,6 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         markupsWidget.setEditedNode(inputPath)
     else:
         markupsWidget.setEditedNode(None)
-        
-  def onCreateROI(self):
-    inputPath = self.ui.inputSelector.currentNode()
-    if inputPath is None:
-        slicer.mrmlScene.RemoveNode(self.ui.roiSelector.currentNode())
-        return;
-    bounds = numpy.zeros(6)
-    inputPath.GetRASBounds(bounds)
-    box = vtk.vtkBoundingBox(bounds)
-    center = [0.0, 0.0, 0.0]
-    box.GetCenter(center)
-    roi = self.ui.roiSelector.currentNode()
-    roi.SetName("ROI " + inputPath.GetName())
-    roi.SetXYZ(center)
-    roi.SetRadiusXYZ(box.GetLength(0) / 2, box.GetLength(1) / 2, box.GetLength(2) / 2)
     
   def onCurrentROIChanged(self):
     currentROI = self.ui.roiSelector.currentNode()
@@ -404,6 +389,21 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     orient = numpy.zeros(3)
     vtk.vtkTransform().GetOrientation(orient, sliceToRAS)
     return orient
+
+  # Center the ROI on the path, and resize it to the path's bounds.
+  # The ROI name follows the path's name.
+  def onCreateROI(self, roiNode):
+    if self.inputPath is None:
+        slicer.mrmlScene.RemoveNode(roiNode)
+        return;
+    bounds = numpy.zeros(6)
+    self.inputPath.GetRASBounds(bounds)
+    box = vtk.vtkBoundingBox(bounds)
+    center = [0.0, 0.0, 0.0]
+    box.GetCenter(center)
+    roiNode.SetName("ROI " + self.inputPath.GetName())
+    roiNode.SetXYZ(center)
+    roiNode.SetRadiusXYZ(box.GetLength(0) / 2, box.GetLength(1) / 2, box.GetLength(2) / 2)
 
 #
 # CrossSectionAnalysisTest
