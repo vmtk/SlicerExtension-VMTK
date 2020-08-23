@@ -120,7 +120,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.addWidgetMarkupObservers()
     self.currentPathNode = inputPath
     # Select in markups module if appropriate
-    self.selectInMarkupsModule()
+    self.logic.selectCurveInMarkupsModule()
     # Diameters can be shown for VMTK centerline models only
     if inputPath is not None and inputPath.GetClassName() == "vtkMRMLModelNode":
         self.showDiameterLabels(True)
@@ -231,20 +231,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
   def createMarksupCurve(self):
     self.ui.inputSelector.setCurrentNode(None)
     self.logic.createMarksupCurve();
-
-  # Select the path there for future point addition on that path
-  def selectInMarkupsModule(self):
-    inputPath = self.ui.inputSelector.currentNode()
-    markupsWidget = slicer.modules.markups.widgetRepresentation()
-    if inputPath is None:
-        # The markups module keeps selecting the last node ! Future points will be added to that curve.
-        markupsWidget.setEditedNode(None)
-        return
-    if inputPath.GetClassName() != "vtkMRMLModelNode":
-        markupsWidget.setEditedNode(inputPath)
-    else:
-        markupsWidget.setEditedNode(None)
-    
+  
   def onCurrentROIChanged(self):
     currentROI = self.ui.roiSelector.currentNode()
     if currentROI is None:
@@ -408,6 +395,18 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
   # But other modules can do that on their own.
   def createMarksupCurve(self):
     slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsCurveNode")
+    
+  # Select the path there for future point addition on that path
+  def selectCurveInMarkupsModule(self):
+    markupsWidget = slicer.modules.markups.widgetRepresentation()
+    if self.inputPath is None:
+        # The markups module keeps selecting the last node ! Future points will be added to that curve.
+        markupsWidget.setEditedNode(None)
+        return
+    if self.inputPath.GetClassName() != "vtkMRMLModelNode":
+        markupsWidget.setEditedNode(self.inputPath)
+    else:
+        markupsWidget.setEditedNode(None)
 
 #
 # CrossSectionAnalysisTest
