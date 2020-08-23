@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
-    <class>CrossSectionAnalysis</class>
-    <widget class="qMRMLWidget" name="CrossSectionAnalysis">
+ <class>CrossSectionAnalysis</class>
+ <widget class="qMRMLWidget" name="CrossSectionAnalysis">
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
     <width>363</width>
-    <height>704</height>
+    <height>710</height>
    </rect>
   </property>
   <property name="locale">
@@ -216,6 +216,9 @@
       </item>
       <item row="7" column="0">
        <widget class="QLabel" name="label_8">
+        <property name="toolTip">
+         <string>Angles are in Slicer's coordinate system</string>
+        </property>
         <property name="text">
          <string>Orientation:</string>
         </property>
@@ -367,7 +370,7 @@ Caution : ROIs not created here may also be hidden.
  <resources/>
  <connections>
   <connection>
-      <sender>CrossSectionAnalysis</sender>
+   <sender>CrossSectionAnalysis</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>inputSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
@@ -383,7 +386,7 @@ Caution : ROIs not created here may also be hidden.
    </hints>
   </connection>
   <connection>
-      <sender>CrossSectionAnalysis</sender>
+   <sender>CrossSectionAnalysis</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>roiSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>

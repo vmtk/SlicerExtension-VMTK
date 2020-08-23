@@ -217,9 +217,9 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.ui.diameterLabel.setText(diameter + " mm")
     # Orientation
     orient = self.logic.getSliceOrientation()
-    orientation = "x " + str(round(orient[0], 1)) + "°,"
-    orientation += "y " + str(round(orient[1], 1)) + "°,"
-    orientation += "z " + str(round(orient[2], 1)) + "°"
+    orientation = "R " + str(round(orient[0], 1)) + "°,"
+    orientation += " A " + str(round(orient[1], 1)) + "°,"
+    orientation += " S " + str(round(orient[2], 1)) + "°"
     self.ui.orientationLabel.setText(orientation)
 
   # True : for VMTK centerline models only
@@ -370,7 +370,9 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       self.cumDistancesArray[i] = dist
       previous = point
 
-  # Why ?
+  # This information is added because it is easily available.
+  # How useful is it ?
+  # In any case, it is the slice orientation in the RAS coordinate system.
   def getSliceOrientation(self):
     sliceToRAS = self.inputSliceNode.GetSliceToRAS()
     orient = numpy.zeros(3)
