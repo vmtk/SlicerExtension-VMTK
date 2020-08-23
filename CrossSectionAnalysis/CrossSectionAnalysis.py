@@ -230,7 +230,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
   # Created with the default name
   def createMarksupCurve(self):
     self.ui.inputSelector.setCurrentNode(None)
-    slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsCurveNode")
+    self.logic.createMarksupCurve();
 
   # Select the path there for future point addition on that path
   def selectInMarkupsModule(self):
@@ -404,6 +404,10 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     roiNode.SetName("ROI " + self.inputPath.GetName())
     roiNode.SetXYZ(center)
     roiNode.SetRadiusXYZ(box.GetLength(0) / 2, box.GetLength(1) / 2, box.GetLength(2) / 2)
+    
+  # But other modules can do that on their own.
+  def createMarksupCurve(self):
+    slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsCurveNode")
 
 #
 # CrossSectionAnalysisTest
