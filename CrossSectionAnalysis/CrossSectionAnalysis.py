@@ -201,7 +201,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.ui.lengthLabel.setText("")
         self.ui.orientationLabel.setText("")
         return
-    position = "R " + str(int(currentPoint[0])) + ", " + "A " + str(int(currentPoint[1])) + ", " + "S " + str(int(currentPoint[2]))
+    position = "R " + str(round(currentPoint[0], 1)) + ", " + "A " + str(round(currentPoint[1], 1)) + ", " + "S " + str(round(currentPoint[2], 1))
     self.ui.locationLabel.setText(position)
     # Get path length
     sizeOfArray = int(self.logic.cumDistancesArray.size)
