@@ -50,10 +50,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     ScriptedLoadableModuleWidget.__init__(self, parent)
     VTKObservationMixin.__init__(self)  # needed for parameter node observation
     self.logic = None
-    # Widget level observers to update module UI. Logic class has its own.
-    self.widgetMarkupPointObserver = None
-    self.widgetMarkupPointAddedObserver = None
-    self.widgetMarkupPointRemovedObserver = None
+    # Widget level observations to update module UI. Logic class has its own.
+    self.widgetMarkupPointsObservations = []
     # Remove observers on previous path when currrent node has changed
     self.currentPathNode = None
 
@@ -171,15 +169,15 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
   def addWidgetMarkupObservers(self):
       inputPath = self.ui.inputSelector.currentNode()
       if inputPath is not None and inputPath.GetClassName() == "vtkMRMLMarkupsCurveNode":
-        self.widgetMarkupPointObserver = inputPath.AddObserver(slicer.vtkMRMLMarkupsNode.PointEndInteractionEvent, self.onWidgetMarkupPointEndInteraction)
-        self.widgetMarkupPointAddedObserver = inputPath.AddObserver(slicer.vtkMRMLMarkupsNode.PointAddedEvent, self.onWidgetMarkupPointAdded)
-        self.widgetMarkupPointRemovedObserver = inputPath.AddObserver(slicer.vtkMRMLMarkupsNode.PointRemovedEvent, self.onWidgetMarkupPointRemoved)
+        widgetMarkupPointObservation = inputPath.AddObserver(slicer.vtkMRMLMarkupsNode.PointEndInteractionEvent, self.onWidgetMarkupPointEndInteraction)
+        widgetMarkupPointAddedObservation = inputPath.AddObserver(slicer.vtkMRMLMarkupsNode.PointAddedEvent, self.onWidgetMarkupPointAdded)
+        widgetMarkupPointRemovedObservation = inputPath.AddObserver(slicer.vtkMRMLMarkupsNode.PointRemovedEvent, self.onWidgetMarkupPointRemoved)
+        self.widgetMarkupPointsObservations = [widgetMarkupPointObservation, widgetMarkupPointAddedObservation, widgetMarkupPointRemovedObservation]
         
   def removeWidgetMarkupObservers(self, inputPath):
     if inputPath is not None:
-        inputPath.RemoveObserver(self.widgetMarkupPointAddedObserver)
-        inputPath.RemoveObserver(self.widgetMarkupPointRemovedObserver)
-        inputPath.RemoveObserver(self.widgetMarkupPointObserver)
+        for observation in self.widgetMarkupPointsObservations:
+            inputPath.RemoveObserver(observation)
         
   def showCurrentPositionData(self, value):
     # Get coordinates on path
@@ -256,9 +254,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.reformatLogic = slicer.modules.reformat.logic()
     self.pathArray = numpy.zeros(0)
     # Use independent observers to reprocess the slice when a markup curve is modified
-    self.markupPointObserver = None
-    self.markupPointRemovedObserver = None
-    self.markupPointAddedObserver = None
+    self.markupPointObservations = []
     # on markup change, reprocess last point
     self.lastValue = 0
     self.cumDistancesArray = numpy.zeros(0)
@@ -317,15 +313,15 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
   def addMarkupObservers(self):
     # Observe markup curve. VMTK centerlines don't seem to have UI handles.
     if self.inputPath is not None and self.inputPath.GetClassName() == "vtkMRMLMarkupsCurveNode":
-        self.markupPointObserver = self.inputPath.AddObserver(slicer.vtkMRMLMarkupsNode.PointEndInteractionEvent, self.onMarkupPointEndInteraction)
-        self.markupPointRemovedObserver = self.inputPath.AddObserver(slicer.vtkMRMLMarkupsNode.PointRemovedEvent, self.onMarkupPointRemoved)
-        self.markupPointAddedObserver = self.inputPath.AddObserver(slicer.vtkMRMLMarkupsNode.PointAddedEvent, self.onMarkupPointAdded)
+        markupPointObservation = self.inputPath.AddObserver(slicer.vtkMRMLMarkupsNode.PointEndInteractionEvent, self.onMarkupPointEndInteraction)
+        markupPointRemovedObservation = self.inputPath.AddObserver(slicer.vtkMRMLMarkupsNode.PointRemovedEvent, self.onMarkupPointRemoved)
+        markupPointAddedObservation = self.inputPath.AddObserver(slicer.vtkMRMLMarkupsNode.PointAddedEvent, self.onMarkupPointAdded)
+        self.markupPointObservations = [markupPointObservation, markupPointRemovedObservation, markupPointAddedObservation]
         
   def removeMarkupObservers(self):
     if self.inputPath is not None:
-        self.inputPath.RemoveObserver(self.markupPointObserver)
-        self.inputPath.RemoveObserver(self.markupPointRemovedObserver)
-        self.inputPath.RemoveObserver(self.markupPointAddedObserver)
+        for observation in self.markupPointObservations:
+            self.inputPath.RemoveObserver(observation)
         
   # Reposition the slice if a markup control point is moved
   def onMarkupPointEndInteraction(self, caller, event):
