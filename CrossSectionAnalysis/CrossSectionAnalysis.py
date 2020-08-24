@@ -84,8 +84,15 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.moreCollapsibleButton.collapsed = True
     self.ui.advancedCollapsibleButton.collapsed = True
     self.ui.roiCollapsibleButton.collapsed = True
-    self.logic.selectSliceNode(self.ui.sliceNodeSelector.currentNode())
     self.resetSliderWidget()
+    """
+    Unfortunately, it does not select a default node in ui.sliceNodeSelector at this step.
+    enter() does the job.
+    Very bad situation. We must go to another module,
+    and back here for sliceNodeSelector to have a valid node.
+    sliceNodeSelector is created in designer without noneEnabled though.
+    """
+    self.initializeSliceNodeSelector()
 
     # Connections
     
@@ -122,7 +129,9 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
   def enter(self):
     """
     Called each time the user opens this module.
-    """
+    """    
+    # The reformat module must always edit the same node.
+    self.initializeSliceNodeSelector()
     # Make sure parameter node exists and observed
     self.initializeParameterNode()
     
@@ -214,7 +223,21 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
     self._parameterNode.EndModify(wasModified)
       
+  def initializeSliceNodeSelector(self):
+    # When Slicer starts, even if noneEnabled is false,
+    # no slice node is selected. Force the red node.
+    sliceNode = self.ui.sliceNodeSelector.currentNode()
+    if sliceNode is None:
+        print("none")
+        sliceNode = slicer.util.getNode("vtkMRMLSliceNodeRed")
+        self.ui.sliceNodeSelector.setCurrentNode(sliceNode)
+    # Synchronize slice node in logic and Reformat Module
+    self.logic.selectSliceNode(sliceNode)
+        
   def onSelectPathNode(self):
+    # sliceNodeSelector may be unexpectedly None !! Workaround it.
+    self.initializeSliceNodeSelector()
+    
     self.removeWidgetMarkupObservers(self.currentPathNode)
     inputPath = self.ui.inputSelector.currentNode()
     self.logic.selectNode(inputPath)
