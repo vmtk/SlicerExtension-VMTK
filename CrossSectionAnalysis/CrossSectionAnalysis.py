@@ -84,17 +84,15 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.moreCollapsibleButton.collapsed = True
     self.ui.advancedCollapsibleButton.collapsed = True
     self.ui.roiCollapsibleButton.collapsed = True
-    slicer.modules.reformat.widgetRepresentation().setEditedNode(slicer.util.getNode("vtkMRMLSliceNodeRed"))
+    self.logic.selectSliceNode(self.ui.sliceNodeSelector.currentNode())
     self.resetSliderWidget()
 
     # Connections
     self.ui.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectPathNode)
+    self.ui.sliceNodeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.logic.selectSliceNode)
     self.ui.positionIndexSliderWidget.connect("valueChanged(double)", self.logic.process)
     # Feedback on module UI
     self.ui.positionIndexSliderWidget.connect("valueChanged(double)", self.showCurrentPositionData)
-    self.ui.redRadioButton.connect("clicked()", self.onRadioRed)
-    self.ui.greenRadioButton.connect("clicked()", self.onRadioGreen)
-    self.ui.yellowRadioButton.connect("clicked()", self.onRadioYellow)
     self.ui.hideCheckBox.connect("clicked()", self.onHidePath)
     self.ui.createMarkupsCurvePushButton.connect("clicked()", self.createMarksupCurve)
     self.ui.roiSelector.connect("nodeAddedByUser(vtkMRMLNode*)", self.logic.onCreateROI)
@@ -126,15 +124,6 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.showDiameterLabels(True)
     else:
         self.showDiameterLabels(False)
-    
-  def onRadioRed(self):
-    self.logic.selectView("vtkMRMLSliceNodeRed")
-    
-  def onRadioGreen(self):
-    self.logic.selectView("vtkMRMLSliceNodeGreen")
-    
-  def onRadioYellow(self):
-    self.logic.selectView("vtkMRMLSliceNodeYellow")
     
   def onHidePath(self):
     path = self.ui.inputSelector.currentNode()
@@ -263,7 +252,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     Called when the logic class is instantiated. Can be used for initializing member variables.
     """
     self.inputPath = None
-    self.inputSliceNode = slicer.util.getNode("vtkMRMLSliceNodeRed")
+    self.inputSliceNode = None
     self.reformatLogic = slicer.modules.reformat.logic()
     self.pathArray = numpy.zeros(0)
     # Use independent observers to reprocess the slice when a markup curve is modified
@@ -321,9 +310,9 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.fillPathArray()
     self.addMarkupObservers()
     
-  def selectView(self, sliceMRMLNodeName):
-    self.inputSliceNode = slicer.util.getNode(sliceMRMLNodeName)
-    slicer.modules.reformat.widgetRepresentation().setEditedNode(slicer.util.getNode(sliceMRMLNodeName))
+  def selectSliceNode(self, sliceNode):
+    self.inputSliceNode = sliceNode
+    slicer.modules.reformat.widgetRepresentation().setEditedNode(sliceNode)
     
   def addMarkupObservers(self):
     # Observe markup curve. VMTK centerlines don't seem to have UI handles.
