@@ -213,6 +213,20 @@
         </property>
        </widget>
       </item>
+      <item row="8" column="0">
+       <widget class="QLabel" name="label_4">
+        <property name="text">
+         <string>Relative origin:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="8" column="1">
+       <widget class="qMRMLSpinBox" name="relativeOriginSpinBox">
+        <property name="toolTip">
+         <string>Distance will be calculated relative to this point</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
@@ -327,6 +341,11 @@ Caution : ROIs not created here may also be hidden.
    <container>1</container>
   </customwidget>
   <customwidget>
+   <class>ctkDoubleSpinBox</class>
+   <extends>QWidget</extends>
+   <header>ctkDoubleSpinBox.h</header>
+  </customwidget>
+  <customwidget>
    <class>ctkSliderWidget</class>
    <extends>QWidget</extends>
    <header>ctkSliderWidget.h</header>
@@ -341,6 +360,11 @@ Caution : ROIs not created here may also be hidden.
    <class>qMRMLNodeComboBox</class>
    <extends>QWidget</extends>
    <header>qMRMLNodeComboBox.h</header>
+  </customwidget>
+  <customwidget>
+   <class>qMRMLSpinBox</class>
+   <extends>ctkDoubleSpinBox</extends>
+   <header>qMRMLSpinBox.h</header>
   </customwidget>
   <customwidget>
    <class>qMRMLWidget</class>
