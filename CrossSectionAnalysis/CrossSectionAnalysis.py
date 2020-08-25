@@ -105,6 +105,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
     self.ui.sliceNodeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
     self.ui.positionIndexSliderWidget.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
+    self.ui.relativeOriginSpinBox.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
     
     # Application connections
     self.ui.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectPathNode)
@@ -117,6 +118,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.roiSelector.connect("nodeAddedByUser(vtkMRMLNode*)", self.logic.onCreateROI)
     self.ui.roiSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onCurrentROIChanged)
     self.ui.hideROICheckBox.connect("clicked()", self.onHideROI)
+    self.ui.relativeOriginSpinBox.connect("valueChanged(double)", self.logic.onRelativeOriginChanged)
+    self.ui.relativeOriginSpinBox.connect("valueChanged(double)", self.showRelativeDistance)
     
   def cleanup(self):
     """
@@ -203,6 +206,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.inputSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputPath"))
     self.ui.sliceNodeSelector.setCurrentNode(self._parameterNode.GetNodeReference("SliceNode"))
     self.ui.positionIndexSliderWidget.value = float(self._parameterNode.GetParameter("IndexAlongPath"))
+    self.ui.relativeOriginSpinBox.value = float(self._parameterNode.GetParameter("RelativeOrigin"))
 
     # All the GUI updates are done
     self._updatingGUIFromParameterNode = False
@@ -220,6 +224,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self._parameterNode.SetNodeReferenceID("InputPath", self.ui.inputSelector.currentNodeID)
     self._parameterNode.SetNodeReferenceID("SliceNode", self.ui.sliceNodeSelector.currentNodeID)
     self._parameterNode.SetParameter("IndexAlongPath", str(self.ui.positionIndexSliderWidget.value))
+    self._parameterNode.SetParameter("RelativeOrigin", str(self.ui.relativeOriginSpinBox.value))
 
     self._parameterNode.EndModify(wasModified)
       
@@ -273,6 +278,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     sliderWidget.setValue(0)
     sliderWidget.singleStep = 1
     sliderWidget.decimals = 0
+    # relativeOriginSpinBox must always follow the sliderWidget spin box
+    self.resetRelativeOriginWidget()
     
   def setSliderWidget(self):
     inputPath = self.ui.inputSelector.currentNode()
@@ -286,8 +293,24 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     # if control points are deleted one by one
     if self.logic.pathArray.size > 1:
         sliderWidget.maximum = (self.logic.pathArray.size / 3) - 1 - 1
+    # relativeOriginSpinBox must have same value span as the sliderWidget spin box
+    self.setRelativeOriginWidget()
+  
+  def resetRelativeOriginWidget(self):
+    relativeOriginWidget = self.ui.relativeOriginSpinBox
+    relativeOriginWidget.minimum = 0
+    relativeOriginWidget.maximum = 0
+    relativeOriginWidget.setValue(0)
+    relativeOriginWidget.singleStep = 1
+    relativeOriginWidget.decimals = 0
     
-  # logic.onWidgetMarkupPointAdded gets called first
+  def setRelativeOriginWidget(self):
+    sliderWidget = self.ui.positionIndexSliderWidget
+    relativeOriginWidget = self.ui.relativeOriginSpinBox
+    relativeOriginWidget.minimum = sliderWidget.minimum
+    relativeOriginWidget.maximum = sliderWidget.maximum
+    
+  # logic.onMarkupPointAdded gets called first
   def onWidgetMarkupPointAdded(self, caller, event):
     self.setSliderWidget()
     self.ui.positionIndexSliderWidget.setValue(0)
@@ -330,9 +353,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     sizeOfArray = int(self.logic.cumDistancesArray.size)
     length = str(round(self.logic.cumDistancesArray[sizeOfArray - 1], 1))
     self.ui.lengthLabel.setText(length + " mm")
-    # Distance from start
-    distance = str(round(self.logic.cumDistancesArray[int(value)], 1))
-    self.ui.distanceLabel.setText(distance + " mm")
+    # Distance from relative origin
+    self.showRelativeDistance()
     # VMTK centerline radius
     inputPath = self.ui.inputSelector.currentNode()
     if inputPath is not None and inputPath.GetClassName() == "vtkMRMLModelNode" and self.logic.vmtkCenterlineRadii.size > 0:
@@ -344,6 +366,11 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     orientation += " A " + str(round(orient[1], 1)) + "°,"
     orientation += " S " + str(round(orient[2], 1)) + "°"
     self.ui.orientationLabel.setText(orientation)
+
+  def showRelativeDistance(self):
+    pointIndex = int(self.ui.positionIndexSliderWidget.value)
+    relativeDistance = str(round(self.logic.calculateRelativeDistance(pointIndex), 1))
+    self.ui.distanceLabel.setText(relativeDistance + " mm")
 
   # True : for VMTK centerline models only
   def showDiameterLabels(self, show):
@@ -396,6 +423,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.lastValue = 0
     self.cumDistancesArray = numpy.zeros(0)
     self.vmtkCenterlineRadii = numpy.zeros(0)
+    self.relativeOrigin = 0
     # self.backgroundVolumeNode = slicer.app.layoutManager().sliceWidget(self.inputSliceNode.GetName()).sliceLogic().GetBackgroundLayer().GetVolumeNode()
   
   def setDefaultParameters(self, parameterNode):
@@ -404,7 +432,27 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     """
     if not parameterNode.GetParameter("IndexAlongPath"):
       parameterNode.SetParameter("IndexAlongPath", "0.0")
+    if not parameterNode.GetParameter("RelativeOrigin"):
+      parameterNode.SetParameter("RelativeOrigin", "0.0")
+  
+  # Real origin is start of path. Relative origin is any point.
+  def onRelativeOriginChanged(self, value):
+    self.relativeOrigin = value
     
+  # Distance of the relative origin from start of path
+  def getRelativeOriginDistance(self):
+    if self.cumDistancesArray.size == 0:
+        return 0.0
+    return self.cumDistancesArray[int(self.relativeOrigin)]
+
+  # Calculate distance from point and the relative origin
+  def calculateRelativeDistance(self, pointIndex):
+    # Distance of the relative origin from start of path
+    relativeOriginDistance = self.getRelativeOriginDistance()
+    # Distance of point from start of path
+    distanceFromStart = self.cumDistancesArray[pointIndex]
+    return distanceFromStart - relativeOriginDistance
+      
   def resetSliceNodeOrientationToDefault(self):
     if self.inputPath is None or self.inputSliceNode is None:
         return
