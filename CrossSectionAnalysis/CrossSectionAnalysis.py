@@ -447,6 +447,8 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
 
   # Calculate distance from point and the relative origin
   def calculateRelativeDistance(self, pointIndex):
+    if self.cumDistancesArray.size == 0:
+        return 0.0
     # Distance of the relative origin from start of path
     relativeOriginDistance = self.getRelativeOriginDistance()
     # Distance of point from start of path
