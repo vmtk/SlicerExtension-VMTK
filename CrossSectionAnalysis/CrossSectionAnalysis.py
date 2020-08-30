@@ -233,7 +233,6 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     # no slice node is selected. Force the red node.
     sliceNode = self.ui.sliceNodeSelector.currentNode()
     if sliceNode is None:
-        print("none")
         sliceNode = slicer.util.getNode("vtkMRMLSliceNodeRed")
         self.ui.sliceNodeSelector.setCurrentNode(sliceNode)
     # Synchronize slice node in logic and Reformat Module
