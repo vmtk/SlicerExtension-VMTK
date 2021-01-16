@@ -954,6 +954,17 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
         curveNode.SetAttribute("CellId", str(cellId))
         curveNode.SetAttribute("GroupId", str(groupId))
         curveNode.SetControlPointPositionsWorld(thresholder.GetOutput().GetPoints())
+
+        # Add radius as curve measurement
+        curveNode.RemoveAllMeasurements()
+        radiusMeasurement = slicer.vtkMRMLMeasurementConstant()
+        radiusMeasurement.SetName('Radius')
+        radiusMeasurement.SetUnits('mm')
+        radiusMeasurement.SetPrintFormat(None) # Prevent from showing up in subject hierarchy Description column
+        radiusMeasurement.SetControlPointValues(thresholder.GetOutput().GetPointData().GetArray('Radius'))
+        curveNode.AddMeasurement(radiusMeasurement)
+        curveNode.SetInterpolateControlPointMeasurement(True)
+
         slicer.modules.markups.logic().SetAllMarkupsVisibility(curveNode, False)
         slicer.app.processEvents()
         shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
@@ -1053,20 +1064,40 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
         numberOfCells = networkPolyData.GetNumberOfCells()
         slicer.app.pauseRender()
         try:
+            radiusArray = networkPolyData.GetPointData().GetArray('Radius')
             for cellId in range(numberOfCells):
+                # Create curve node
                 curveNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsCurveNode", "{0} ({1})".format(baseName, cellId))
                 curveNode.CreateDefaultDisplayNodes()
                 color = [0.5, 0.5, 0.5, 1.0]
                 colorNode.GetColor(cellId, color)
                 curveNode.GetDisplayNode().SetSelectedColor(color[0:3])
                 curveNode.SetNumberOfPointsPerInterpolatingSegment(1)
+                # Add to subject hierarchy
                 curveItem = shNode.GetItemByDataNode(curveNode)
                 shNode.SetItemParent(curveItem, parentItem)
+
+                # Add point positions and radius array
+                radiusMeasurementArray = vtk.vtkDoubleArray()
+                radiusMeasurementArray.SetName('Radius')
                 curveNode.SetAttribute("CellId", str(cellId))
                 cellPoints = networkPolyData.GetCell(cellId).GetPointIds()
                 numberOfCellCurvePoints = cellPoints.GetNumberOfIds()
                 for cellPointIdIndex in range(numberOfCellCurvePoints):
-                    curveNode.AddControlPointWorld(vtk.vtkVector3d(networkPolyData.GetPoint(cellPoints.GetId(cellPointIdIndex))))
+                    pointId = cellPoints.GetId(cellPointIdIndex)
+                    curveNode.AddControlPointWorld(vtk.vtkVector3d(networkPolyData.GetPoint(pointId)))
+                    radiusMeasurementArray.InsertNextValue(radiusArray.GetValue(pointId))
+
+                # Add measurement
+                curveNode.RemoveAllMeasurements()
+                radiusMeasurement = slicer.vtkMRMLMeasurementConstant()
+                radiusMeasurement.SetName('Radius')
+                radiusMeasurement.SetUnits('mm')
+                radiusMeasurement.SetPrintFormat(None) # Prevent from showing up in subject hierarchy Description column
+                radiusMeasurement.SetControlPointValues(radiusMeasurementArray)
+                curveNode.AddMeasurement(radiusMeasurement)
+                curveNode.SetInterpolateControlPointMeasurement(True)
+
                 slicer.modules.markups.logic().SetAllMarkupsVisibility(curveNode, False)
         finally:
             slicer.app.resumeRender()
