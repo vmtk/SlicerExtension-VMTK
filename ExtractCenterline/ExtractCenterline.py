@@ -916,6 +916,23 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
         self.processedCellIds = []
         self._addCenterline(mergedCenterlines, replaceCurve=centerlineCurveNode)
 
+    def _addCurveMeasurementArray(self, curveNode, radiusArray):
+        try:
+            # Add radius as curve measurement
+            radiusMeasurement = curveNode.GetMeasurement(radiusArray.GetName())
+            if not radiusMeasurement:
+                radiusMeasurement = slicer.vtkMRMLStaticMeasurement()
+                radiusMeasurement.SetName(radiusArray.GetName())
+                radiusMeasurement.SetUnits('mm')
+                radiusMeasurement.SetPrintFormat(None) # Prevent from showing up in subject hierarchy Description column
+                radiusMeasurement.SetControlPointValues(radiusArray)
+                curveNode.AddMeasurement(radiusMeasurement)
+            else:
+                radiusMeasurement.SetControlPointValues(radiusArray)
+        except:
+            # This Slicer version does not support curve measurements
+            pass
+
     def _addCenterline(self, mergedCenterlines, baseName=None, cellId=0, parentItem=None, replaceCurve=None):
         # Add current cell as a curve node
         assignAttribute = vtk.vtkAssignAttribute()
@@ -955,19 +972,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
         curveNode.SetAttribute("GroupId", str(groupId))
         curveNode.SetControlPointPositionsWorld(thresholder.GetOutput().GetPoints())
 
-        try:
-          # Add radius as curve measurement
-          curveNode.RemoveAllMeasurements()
-          radiusMeasurement = slicer.vtkMRMLMeasurementConstant()
-          radiusMeasurement.SetName('Radius')
-          radiusMeasurement.SetUnits('mm')
-          radiusMeasurement.SetPrintFormat(None) # Prevent from showing up in subject hierarchy Description column
-          radiusMeasurement.SetControlPointValues(thresholder.GetOutput().GetPointData().GetArray('Radius'))
-          curveNode.AddMeasurement(radiusMeasurement)
-          curveNode.SetInterpolateControlPointMeasurement(True)
-        except:
-          # This Slicer version does not support curve measurements
-          pass
+        self._addCurveMeasurementArray(curveNode, thresholder.GetOutput().GetPointData().GetArray('Radius'))
 
         slicer.modules.markups.logic().SetAllMarkupsVisibility(curveNode, False)
         slicer.app.processEvents()
@@ -1092,19 +1097,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
                     curveNode.AddControlPointWorld(vtk.vtkVector3d(networkPolyData.GetPoint(pointId)))
                     radiusMeasurementArray.InsertNextValue(radiusArray.GetValue(pointId))
 
-                try:
-                  # Add measurement
-                  curveNode.RemoveAllMeasurements()
-                  radiusMeasurement = slicer.vtkMRMLMeasurementConstant()
-                  radiusMeasurement.SetName('Radius')
-                  radiusMeasurement.SetUnits('mm')
-                  radiusMeasurement.SetPrintFormat(None) # Prevent from showing up in subject hierarchy Description column
-                  radiusMeasurement.SetControlPointValues(radiusMeasurementArray)
-                  curveNode.AddMeasurement(radiusMeasurement)
-                  curveNode.SetInterpolateControlPointMeasurement(True)
-                except:
-                  # This Slicer version does not support curve measurements
-                  pass
+                self._addCurveMeasurementArray(curveNode, radiusMeasurementArray)
 
                 slicer.modules.markups.logic().SetAllMarkupsVisibility(curveNode, False)
         finally:
