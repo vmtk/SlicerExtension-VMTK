@@ -37,7 +37,7 @@ endif()
 #-----------------------------------------------------------------------------
 add_subdirectory(VesselnessFiltering)
 add_subdirectory(LevelSetSegmentation)
-if(${Slicer_VERSION_MAJOR}.${Slicer_VERSION_MINOR} VERSION_GREATER_EQUAL 4.11)
+if(${Slicer_VERSION_MAJOR}.${Slicer_VERSION_MINOR} VERSION_GREATER_EQUAL 4.11 OR ${Slicer_VERSION_MAJOR} EQUAL 0)
   # New-generation centerline computation - only available for recent Slicer versions
   add_subdirectory(ExtractCenterline)
 else()
