@@ -96,6 +96,7 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
         self.ui.subdivideInputSurfaceModelCheckBox.connect("toggled(bool)", self.updateParameterNodeFromGUI)
         self.ui.targetKPointCountWidget.connect('valueChanged(double)', self.updateParameterNodeFromGUI)
         self.ui.decimationAggressivenessWidget.connect('valueChanged(double)', self.updateParameterNodeFromGUI)
+        self.ui.curveSamplingDistanceSpinBox.connect('valueChanged(double)', self.updateParameterNodeFromGUI)
         self.ui.inputSegmentSelectorWidget.connect('currentSegmentChanged(QString)', self.updateParameterNodeFromGUI)
 
         # These connections ensure that whenever user changes some settings on the GUI, that is saved in the MRML scene
@@ -178,6 +179,7 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
         self.ui.targetKPointCountWidget.value = float(self._parameterNode.GetParameter("TargetNumberOfPoints"))/1000.0
 
         self.ui.decimationAggressivenessWidget.value = float(self._parameterNode.GetParameter("DecimationAggressiveness"))
+        self.ui.curveSamplingDistanceSpinBox.value = float(self._parameterNode.GetParameter("CurveSamplingDistance"))
 
         # do not block signals so that related widgets are enabled/disabled according to its state
         self.ui.preprocessInputSurfaceModelCheckBox.checked = (self._parameterNode.GetParameter("PreprocessInputSurface") == "true")
@@ -208,6 +210,7 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
         wasModify = self._parameterNode.StartModify()
         self._parameterNode.SetParameter("TargetNumberOfPoints", str(self.ui.targetKPointCountWidget.value*1000.0))
         self._parameterNode.SetParameter("DecimationAggressiveness", str(self.ui.decimationAggressivenessWidget.value))
+        self._parameterNode.SetParameter("CurveSamplingDistance", str(self.ui.curveSamplingDistanceSpinBox.value))
         self._parameterNode.SetParameter("PreprocessInputSurface", "true" if self.ui.preprocessInputSurfaceModelCheckBox.checked else "false")
         self._parameterNode.SetParameter("SubdivideInputSurface", "true" if self.ui.subdivideInputSurfaceModelCheckBox.checked else "false")
         self._parameterNode.EndModify(wasModify)
@@ -289,10 +292,11 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
             centerlineCurveNode = self._parameterNode.GetNodeReference("CenterlineCurve")
             centerlinePropertiesTableNode = self._parameterNode.GetNodeReference("CenterlineProperties")
             voronoiDiagramModelNode = self._parameterNode.GetNodeReference("VoronoiDiagram")
+            curveSamplingDistance = float(self._parameterNode.GetParameter("CurveSamplingDistance"))
             if centerlineModelNode or centerlineCurveNode or centerlinePropertiesTableNode or voronoiDiagramModelNode:
                 slicer.util.showStatusMessage("Extract centerline...")
                 slicer.app.processEvents()  # force update
-                centerlinePolyData, voronoiDiagramPolyData = self.logic.extractCenterline(preprocessedPolyData, endPointsMarkupsNode)
+                centerlinePolyData, voronoiDiagramPolyData = self.logic.extractCenterline(preprocessedPolyData, endPointsMarkupsNode, curveSamplingDistance)
             if centerlineModelNode:
                 centerlineModelNode.SetAndObserveMesh(centerlinePolyData)
                 if not centerlineModelNode.GetDisplayNode():
@@ -311,7 +315,7 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
             if centerlineCurveNode or centerlinePropertiesTableNode:
                 slicer.util.showStatusMessage("Generate curves and quantification results table...")
                 slicer.app.processEvents()  # force update
-                self.logic.createCurveTreeFromCenterline(centerlinePolyData, centerlineCurveNode, centerlinePropertiesTableNode)
+                self.logic.createCurveTreeFromCenterline(centerlinePolyData, centerlineCurveNode, centerlinePropertiesTableNode, curveSamplingDistance)
 
         except Exception as e:
             slicer.util.errorDisplay("Failed to compute results: "+str(e))
@@ -416,6 +420,8 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
             parameterNode.SetParameter("PreprocessInputSurface", "true")
         if not parameterNode.GetParameter("SubdivideInputSurface"):
             parameterNode.SetParameter("SubdivideInputSurface", "false")
+        if not parameterNode.GetParameter("CurveSamplingDistance"):
+            parameterNode.SetParameter("CurveSamplingDistance", "1.0")
 
     def polyDataFromNode(self, surfaceNode, segmentId):
         if not surfaceNode:
@@ -626,7 +632,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
         else:
             return networkExtraction.GetOutput()
 
-    def extractCenterline(self, surfacePolyData, endPointsMarkupsNode):
+    def extractCenterline(self, surfacePolyData, endPointsMarkupsNode, curveSamplingDistance=1.0):
         """Compute centerline.
         This is more robust and accurate but takes longer than the network extraction.
         :param surfacePolyData:
@@ -698,7 +704,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
         centerlineFilter.SetAppendEndPointsToCenterlines(0)
         centerlineFilter.SetSimplifyVoronoi(1)  # this slightly improves connectivity
         centerlineFilter.SetCenterlineResampling(0)
-        centerlineFilter.SetResamplingStepLength(1.0)
+        centerlineFilter.SetResamplingStepLength(curveSamplingDistance)
         centerlineFilter.Update()
 
         centerlinePolyData = vtk.vtkPolyData()
@@ -811,7 +817,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
 
         return endpointPositions
 
-    def createCurveTreeFromCenterline(self, centerlinePolyData, centerlineCurveNode=None, centerlinePropertiesTableNode=None):
+    def createCurveTreeFromCenterline(self, centerlinePolyData, centerlineCurveNode=None, centerlinePropertiesTableNode=None, curveSamplingDistance=1.0):
 
         import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
 
@@ -832,7 +838,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
         mergeCenterlines.SetCenterlineIdsArrayName(self.centerlineIdsArrayName)
         mergeCenterlines.SetTractIdsArrayName(self.tractIdsArrayName)
         mergeCenterlines.SetBlankingArrayName(self.blankingArrayName)
-        mergeCenterlines.SetResamplingStepLength(1.0)
+        mergeCenterlines.SetResamplingStepLength(curveSamplingDistance)
         mergeCenterlines.SetMergeBlanked(True)
         mergeCenterlines.Update()
         mergedCenterlines = mergeCenterlines.GetOutput()

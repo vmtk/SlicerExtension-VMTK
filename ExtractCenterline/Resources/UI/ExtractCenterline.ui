@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="toolTip">
-   <string/>
+   <string>Sampling distance used for generating centerline curve</string>
   </property>
   <layout class="QFormLayout" name="formLayout">
    <item row="1" column="0" colspan="2">
@@ -666,6 +666,26 @@
         </property>
        </widget>
       </item>
+      <item row="7" column="0">
+       <widget class="QLabel" name="label_2">
+        <property name="text">
+         <string>Curve sampling distance:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="1">
+       <widget class="qMRMLSpinBox" name="curveSamplingDistanceSpinBox">
+        <property name="value">
+         <double>1.000000000000000</double>
+        </property>
+        <property name="quantity">
+         <string>length</string>
+        </property>
+        <property name="unitAwareProperties">
+         <set>qMRMLSpinBox::MaximumValue|qMRMLSpinBox::Precision|qMRMLSpinBox::Prefix|qMRMLSpinBox::Suffix</set>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
@@ -695,6 +715,11 @@
    <container>1</container>
   </customwidget>
   <customwidget>
+   <class>ctkDoubleSpinBox</class>
+   <extends>QWidget</extends>
+   <header>ctkDoubleSpinBox.h</header>
+  </customwidget>
+  <customwidget>
    <class>ctkPushButton</class>
    <extends>QPushButton</extends>
    <header>ctkPushButton.h</header>
@@ -708,6 +733,11 @@
    <class>qMRMLNodeComboBox</class>
    <extends>QWidget</extends>
    <header>qMRMLNodeComboBox.h</header>
+  </customwidget>
+  <customwidget>
+   <class>qMRMLSpinBox</class>
+   <extends>ctkDoubleSpinBox</extends>
+   <header>qMRMLSpinBox.h</header>
   </customwidget>
   <customwidget>
    <class>qMRMLWidget</class>
@@ -810,7 +840,7 @@
     </hint>
     <hint type="destinationlabel">
      <x>392</x>
-     <y>233</y>
+     <y>222</y>
     </hint>
    </hints>
   </connection>
@@ -826,7 +856,7 @@
     </hint>
     <hint type="destinationlabel">
      <x>392</x>
-     <y>346</y>
+     <y>303</y>
     </hint>
    </hints>
   </connection>
@@ -842,7 +872,7 @@
     </hint>
     <hint type="destinationlabel">
      <x>392</x>
-     <y>372</y>
+     <y>318</y>
     </hint>
    </hints>
   </connection>
@@ -858,7 +888,7 @@
     </hint>
     <hint type="destinationlabel">
      <x>392</x>
-     <y>398</y>
+     <y>333</y>
     </hint>
    </hints>
   </connection>
@@ -873,8 +903,8 @@
      <y>597</y>
     </hint>
     <hint type="destinationlabel">
-     <x>375</x>
-     <y>461</y>
+     <x>403</x>
+     <y>487</y>
     </hint>
    </hints>
   </connection>
@@ -889,8 +919,8 @@
      <y>593</y>
     </hint>
     <hint type="destinationlabel">
-     <x>361</x>
-     <y>463</y>
+     <x>403</x>
+     <y>508</y>
     </hint>
    </hints>
   </connection>
@@ -906,7 +936,7 @@
     </hint>
     <hint type="destinationlabel">
      <x>403</x>
-     <y>465</y>
+     <y>528</y>
     </hint>
    </hints>
   </connection>
@@ -917,12 +947,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>362</x>
-     <y>449</y>
+     <x>403</x>
+     <y>405</y>
     </hint>
     <hint type="destinationlabel">
-     <x>362</x>
-     <y>455</y>
+     <x>403</x>
+     <y>426</y>
     </hint>
    </hints>
   </connection>
@@ -934,11 +964,11 @@
    <hints>
     <hint type="sourcelabel">
      <x>403</x>
-     <y>449</y>
+     <y>405</y>
     </hint>
     <hint type="destinationlabel">
      <x>403</x>
-     <y>457</y>
+     <y>447</y>
     </hint>
    </hints>
   </connection>
@@ -950,7 +980,7 @@
    <hints>
     <hint type="sourcelabel">
      <x>403</x>
-     <y>449</y>
+     <y>405</y>
     </hint>
     <hint type="destinationlabel">
      <x>387</x>
@@ -966,11 +996,11 @@
    <hints>
     <hint type="sourcelabel">
      <x>403</x>
-     <y>449</y>
+     <y>405</y>
     </hint>
     <hint type="destinationlabel">
      <x>403</x>
-     <y>461</y>
+     <y>487</y>
     </hint>
    </hints>
   </connection>
@@ -1033,8 +1063,8 @@
      <y>4</y>
     </hint>
     <hint type="destinationlabel">
-     <x>169</x>
-     <y>252</y>
+     <x>301</x>
+     <y>237</y>
     </hint>
    </hints>
   </connection>
@@ -1049,8 +1079,24 @@
      <y>5</y>
     </hint>
     <hint type="destinationlabel">
-     <x>247</x>
-     <y>275</y>
+     <x>379</x>
+     <y>253</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>ExtractCenterline</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>curveSamplingDistanceSpinBox</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>4</x>
+     <y>357</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>204</x>
+     <y>538</y>
     </hint>
    </hints>
   </connection>
