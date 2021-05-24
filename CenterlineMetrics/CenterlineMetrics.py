@@ -205,6 +205,9 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     # Create arrays of data
     distanceArray = self.getArrayFromTable(outputTable, DISTANCE_ARRAY_NAME)
     diameterArray = self.getArrayFromTable(outputTable, DIAMETER_ARRAY_NAME)
+    rArray = self.getArrayFromTable(outputTable, R_ARRAY_NAME)
+    aArray = self.getArrayFromTable(outputTable, A_ARRAY_NAME)
+    sArray = self.getArrayFromTable(outputTable, S_ARRAY_NAME)
 
     # From VMTK README.md
     points = slicer.util.arrayFromModelPoints(inputModel)
@@ -219,6 +222,9 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
         else:
             distanceArray.SetValue(i, cumArray.GetValue(i))
         diameterArray.SetValue(i, radius * 2)
+        rArray.SetValue(i, points[i][0])
+        aArray.SetValue(i, points[i][1])
+        sArray.SetValue(i, points[i][2])
     distanceArray.Modified()
     diameterArray.Modified()
     outputTable.GetTable().Modified()
@@ -285,3 +291,7 @@ class CenterlineMetricsTest(ScriptedLoadableModuleTest):
 
 DISTANCE_ARRAY_NAME = "Distance"
 DIAMETER_ARRAY_NAME = "Diameter"
+R_ARRAY_NAME = "R"
+A_ARRAY_NAME = "A"
+S_ARRAY_NAME = "S"
+
