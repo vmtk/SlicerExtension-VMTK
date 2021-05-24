@@ -20,17 +20,16 @@ class CenterlineMetrics(ScriptedLoadableModule):
 
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
-    self.parent.title = "Centerline metrics"  # TODO: make this more human readable by adding spaces
-    self.parent.categories = ["Vascular Modeling Toolkit"]  # TODO: set categories (folders where the module shows up in the module selector)
-    self.parent.dependencies = []  # TODO: add here list of module names that this module requires
-    self.parent.contributors = ["SET (Hobbyist)"]  # TODO: replace with "Firstname Lastname (Organization)"
+    self.parent.title = "Centerline metrics"
+    self.parent.categories = ["Vascular Modeling Toolkit"]
+    self.parent.dependencies = []
+    self.parent.contributors = ["SET (Hobbyist)"]
     self.parent.helpText = """
 This module plots average diameters around a VMTK centerline model. It is intended for non-bifurcated centerlines. Documentation is available
     <a href="https://github.com/chir-set/CenterlineMetrics">here</a>.
 """  
     self.parent.acknowledgementText = """
-This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc., Andras Lasso, PerkLab,
-and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
+This file was originally developed by SET.
 """  # TODO: replace with organization, grant and thanks.
 
 #
@@ -60,6 +59,9 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     uiWidget = slicer.util.loadUI(self.resourcePath('UI/CenterlineMetrics.ui'))
     self.layout.addWidget(uiWidget)
     self.ui = slicer.util.childWidgetVariables(uiWidget)
+    
+    # Add vertical spacer
+    self.layout.addStretch(1) 
 
     # Set scene in MRML widgets. Make sure that in Qt designer
     # "mrmlSceneChanged(vtkMRMLScene*)" signal in is connected to each MRML widget's.
@@ -67,10 +69,6 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     uiWidget.setMRMLScene(slicer.mrmlScene)
 
     self.logic = CenterlineMetricsLogic()
-    self.ui.radioCumulative.setChecked(True) # Default to cumulative distance
-    self.ui.axisLabel.hide()
-    self.ui.axisGroup.hide()
-    self.ui.radioS.setChecked(True) # Default to superior
 
     # connections
     self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
@@ -82,6 +80,9 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.radioS.connect("clicked()", self.onRadioS)
     self.ui.radioCumulative.connect("clicked()", self.onRadioCumulative)
     self.ui.radioProjected.connect("clicked()", self.onRadioProjected)
+    self.ui.radioLPS.connect("clicked()", self.onRadioLPS)
+    self.ui.radioRAS.connect("clicked()", self.onRadioRAS)
+    self.ui.distinctColumnsCheckBox.connect("clicked()", self.onDistinctCoordinatesCheckBox)
 
     # Refresh Apply button state
     self.onSelectNode()
@@ -135,12 +136,21 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
   def onRadioCumulative(self):
     self.ui.axisLabel.hide()
     self.ui.axisGroup.hide()
-    self.logic.distanceMode = 0
+    self.logic.distanceModeProjected = False
 
   def onRadioProjected(self):
     self.ui.axisLabel.show()
     self.ui.axisGroup.show()
-    self.logic.distanceMode = 1
+    self.logic.distanceModeProjected = True
+    
+  def onRadioLPS(self):
+    self.logic.coordinateSystemColumnRAS = False
+  
+  def onRadioRAS(self):
+    self.logic.coordinateSystemColumnRAS = True
+    
+  def onDistinctCoordinatesCheckBox(self):
+    self.logic.coordinateSystemColumnSingle = not self.ui.distinctColumnsCheckBox.checked
 
 #
 # CenterlineMetricsLogic
@@ -161,7 +171,9 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     self.outputTableNode = None
     self.plotChartNode = None
     self.axis = 2 # Default to vertical
-    self.distanceMode = 0 # Default to cumulative
+    self.distanceModeProjected = False # Default to cumulative
+    self.coordinateSystemColumnSingle = True
+    self.coordinateSystemColumnRAS = True  # LPS or RAS
 
   def setInputModelNode(self, modelNode):
     if self.inputModelNode == modelNode:
@@ -186,39 +198,72 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
       raise ValueError("Input is invalid")
 
     logging.info('Processing started')
+    self.emptyOutputTableNode()
     self.updateOutputTable(self.inputModelNode, self.outputTableNode)
     self.updatePlot(self.outputPlotSeriesNode, self.outputTableNode, self.inputModelNode.GetName())
     self.showPlot()
     logging.info('Processing completed')
+
+  def emptyOutputTableNode(self):
+    # Clears the plot also.
+    while self.outputTableNode.GetTable().GetNumberOfColumns():
+        self.outputTableNode.GetTable().RemoveColumn(0)
+    self.outputTableNode.GetTable().Modified()
     
   def getArrayFromTable(self, outputTable, arrayName):
-    distanceArray = outputTable.GetTable().GetColumnByName(arrayName)
-    if distanceArray:
-      return distanceArray
-    newArray = vtk.vtkDoubleArray()
-    newArray.SetName(arrayName)
-    outputTable.GetTable().AddColumn(newArray)
-    return newArray
+    columnArray = outputTable.GetTable().GetColumnByName(arrayName)
+    if columnArray:
+      return columnArray
+    columnArray = vtk.vtkDoubleArray()
+    columnArray.SetName(arrayName)
+    # outputTable.AddColumn must be used because outputTable.GetTable().AddColumn
+    # does not initialize the column to the right initial size.
+    outputTable.AddColumn(columnArray)
+    return columnArray
 
   def updateOutputTable(self, inputModel, outputTable):
 
     # Create arrays of data
     distanceArray = self.getArrayFromTable(outputTable, DISTANCE_ARRAY_NAME)
     diameterArray = self.getArrayFromTable(outputTable, DIAMETER_ARRAY_NAME)
+    if self.coordinateSystemColumnSingle:
+        coordinatesArray = self.getArrayFromTable(outputTable, "RAS" if self.coordinateSystemColumnRAS else "LPS")
+        coordinatesArray.SetNumberOfComponents(3)
+        coordinatesArray.SetComponentName(0, "R" if self.coordinateSystemColumnRAS else "L")
+        coordinatesArray.SetComponentName(1, "A" if self.coordinateSystemColumnRAS else "P")
+        coordinatesArray.SetComponentName(2, "S")
+    else:
+      coordinatesArray = [
+        self.getArrayFromTable(outputTable, "R" if self.coordinateSystemColumnRAS else "L"),
+        self.getArrayFromTable(outputTable, "A" if self.coordinateSystemColumnRAS else "P"),
+        self.getArrayFromTable(outputTable, "S")
+        ]
 
     # From VMTK README.md
     points = slicer.util.arrayFromModelPoints(inputModel)
     radii = slicer.util.arrayFromModelPointData(inputModel, 'Radius')
     outputTable.GetTable().SetNumberOfRows(radii.size)
-    if self.distanceMode == 0:
+
+    if not self.distanceModeProjected:
         cumArray = vtk.vtkDoubleArray()
         self.cumulateDistances(points, cumArray)
     for i, radius in enumerate(radii):
-        if self.distanceMode != 0:
+        if self.distanceModeProjected:
             distanceArray.SetValue(i, points[i][self.axis])
         else:
             distanceArray.SetValue(i, cumArray.GetValue(i))
         diameterArray.SetValue(i, radius * 2)
+        # Convert each point coordinate
+        if self.coordinateSystemColumnRAS:
+          coordinateValues = points[i]
+        else:
+          coordinateValues = [-points[i][0], -points[i][1], points[i][2]]
+        if self.coordinateSystemColumnSingle:
+            coordinatesArray.SetTuple3(i, coordinateValues[0], coordinateValues[1], coordinateValues[2])
+        else:
+            coordinatesArray[0].SetValue(i, coordinateValues[0])
+            coordinatesArray[1].SetValue(i, coordinateValues[1])
+            coordinatesArray[2].SetValue(i, coordinateValues[2])
     distanceArray.Modified()
     diameterArray.Modified()
     outputTable.GetTable().Modified()
@@ -285,3 +330,4 @@ class CenterlineMetricsTest(ScriptedLoadableModuleTest):
 
 DISTANCE_ARRAY_NAME = "Distance"
 DIAMETER_ARRAY_NAME = "Diameter"
+

@@ -6,12 +6,18 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>424</width>
-    <height>378</height>
+    <width>301</width>
+    <height>482</height>
    </rect>
   </property>
-  <layout class="QFormLayout" name="formLayout">
-   <item row="0" column="0" colspan="2">
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
     <widget class="ctkCollapsibleButton" name="parametersCollapsibleButton">
      <property name="locale">
       <locale language="English" country="UnitedStates"/>
@@ -110,7 +116,230 @@
      </layout>
     </widget>
    </item>
-   <item row="5" column="0" colspan="2">
+   <item>
+    <widget class="ctkCollapsibleButton" name="CollapsibleButton">
+     <property name="text">
+      <string>Advanced</string>
+     </property>
+     <property name="collapsed">
+      <bool>true</bool>
+     </property>
+     <layout class="QFormLayout" name="formLayout">
+      <property name="horizontalSpacing">
+       <number>4</number>
+      </property>
+      <property name="verticalSpacing">
+       <number>4</number>
+      </property>
+      <property name="leftMargin">
+       <number>4</number>
+      </property>
+      <property name="topMargin">
+       <number>4</number>
+      </property>
+      <property name="rightMargin">
+       <number>4</number>
+      </property>
+      <property name="bottomMargin">
+       <number>4</number>
+      </property>
+      <item row="0" column="0">
+       <widget class="QLabel" name="distanceModeLabel">
+        <property name="text">
+         <string>Distance mode:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QFrame" name="frame_2">
+        <property name="frameShape">
+         <enum>QFrame::StyledPanel</enum>
+        </property>
+        <property name="frameShadow">
+         <enum>QFrame::Raised</enum>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout_3">
+         <property name="spacing">
+          <number>4</number>
+         </property>
+         <property name="leftMargin">
+          <number>4</number>
+         </property>
+         <property name="topMargin">
+          <number>4</number>
+         </property>
+         <property name="rightMargin">
+          <number>4</number>
+         </property>
+         <property name="bottomMargin">
+          <number>4</number>
+         </property>
+         <item>
+          <widget class="QRadioButton" name="radioCumulative">
+           <property name="toolTip">
+            <string>Cumulative distance along the centerline</string>
+           </property>
+           <property name="text">
+            <string>Cumulative</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QRadioButton" name="radioProjected">
+           <property name="toolTip">
+            <string>Projected distance on the selected axis. This allows to locate a point in a 2D view.</string>
+           </property>
+           <property name="text">
+            <string>Projected. Projection axis:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QFrame" name="frame">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="frameShape">
+            <enum>QFrame::NoFrame</enum>
+           </property>
+           <property name="frameShadow">
+            <enum>QFrame::Raised</enum>
+           </property>
+           <layout class="QVBoxLayout" name="verticalLayout_5">
+            <property name="spacing">
+             <number>4</number>
+            </property>
+            <property name="leftMargin">
+             <number>20</number>
+            </property>
+            <property name="topMargin">
+             <number>0</number>
+            </property>
+            <property name="rightMargin">
+             <number>4</number>
+            </property>
+            <property name="bottomMargin">
+             <number>4</number>
+            </property>
+            <item>
+             <widget class="QRadioButton" name="radioR">
+              <property name="toolTip">
+               <string>X axis</string>
+              </property>
+              <property name="locale">
+               <locale language="English" country="UnitedStates"/>
+              </property>
+              <property name="text">
+               <string>left-right</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="radioA">
+              <property name="toolTip">
+               <string>Y axis</string>
+              </property>
+              <property name="text">
+               <string>posterior-anterior</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="radioS">
+              <property name="toolTip">
+               <string>Z axis</string>
+              </property>
+              <property name="text">
+               <string>inferior-superior</string>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="tableCoordinatesTypeLabel">
+        <property name="text">
+         <string>Coordinates:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QFrame" name="frame_3">
+        <property name="frameShape">
+         <enum>QFrame::StyledPanel</enum>
+        </property>
+        <property name="frameShadow">
+         <enum>QFrame::Raised</enum>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout_2">
+         <property name="spacing">
+          <number>4</number>
+         </property>
+         <property name="leftMargin">
+          <number>4</number>
+         </property>
+         <property name="topMargin">
+          <number>4</number>
+         </property>
+         <property name="rightMargin">
+          <number>4</number>
+         </property>
+         <property name="bottomMargin">
+          <number>4</number>
+         </property>
+         <item>
+          <widget class="QRadioButton" name="radioRAS">
+           <property name="toolTip">
+            <string>Right-Anterior-Superior coordinate system. Used in the Slicer scene.</string>
+           </property>
+           <property name="text">
+            <string>RAS</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QRadioButton" name="radioLPS">
+           <property name="toolTip">
+            <string>Left-Posterior-Superior coordinate system. Used commonly in files.</string>
+           </property>
+           <property name="text">
+            <string>LPS</string>
+           </property>
+           <property name="checked">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="distinctColumnsCheckBox">
+           <property name="toolTip">
+            <string>Either one column with an array of values, or a distinct column for each value of the triplet.</string>
+           </property>
+           <property name="text">
+            <string>Separate column for each axis</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <widget class="QPushButton" name="applyButton">
      <property name="enabled">
       <bool>false</bool>
@@ -123,7 +352,7 @@
      </property>
     </widget>
    </item>
-   <item row="6" column="0">
+   <item>
     <spacer name="verticalSpacer">
      <property name="orientation">
       <enum>Qt::Vertical</enum>
@@ -136,103 +365,6 @@
      </property>
     </spacer>
    </item>
-   <item row="4" column="0" colspan="2">
-    <widget class="qMRMLCollapsibleButton" name="moreCollapsibleButton">
-     <property name="text">
-      <string>More</string>
-     </property>
-     <property name="checked">
-      <bool>false</bool>
-     </property>
-     <layout class="QFormLayout" name="moreFormLayout">
-      <item row="0" column="0">
-       <widget class="QLabel" name="distanceModeLabel">
-        <property name="text">
-         <string>Distance mode:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QGroupBox" name="distModeGroup">
-        <property name="title">
-         <string/>
-        </property>
-        <layout class="QHBoxLayout" name="distModeLayout" stretch="1,1">
-         <item>
-          <widget class="QRadioButton" name="radioCumulative">
-           <property name="toolTip">
-            <string>Cumulative distance along the centerline</string>
-           </property>
-           <property name="text">
-            <string>Cumulative</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QRadioButton" name="radioProjected">
-           <property name="toolTip">
-            <string>Projected distance on the selected axis. This allows to locate a point in a 2D view.</string>
-           </property>
-           <property name="text">
-            <string>Projected</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="axisLabel">
-        <property name="text">
-         <string>Axis:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QGroupBox" name="axisGroup">
-        <property name="title">
-         <string/>
-        </property>
-        <layout class="QHBoxLayout" name="horizontalLayout">
-         <item>
-          <widget class="QRadioButton" name="radioR">
-           <property name="toolTip">
-            <string>X axis</string>
-           </property>
-           <property name="locale">
-            <locale language="English" country="UnitedStates"/>
-           </property>
-           <property name="text">
-            <string>R</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QRadioButton" name="radioA">
-           <property name="toolTip">
-            <string>Y axis</string>
-           </property>
-           <property name="text">
-            <string>A</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QRadioButton" name="radioS">
-           <property name="toolTip">
-            <string>Z axis</string>
-           </property>
-           <property name="text">
-            <string>S</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
   </layout>
  </widget>
  <customwidgets>
@@ -240,12 +372,6 @@
    <class>ctkCollapsibleButton</class>
    <extends>QWidget</extends>
    <header>ctkCollapsibleButton.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>qMRMLCollapsibleButton</class>
-   <extends>ctkCollapsibleButton</extends>
-   <header>qMRMLCollapsibleButton.h</header>
    <container>1</container>
   </customwidget>
   <customwidget>
@@ -273,8 +399,8 @@
      <y>132</y>
     </hint>
     <hint type="destinationlabel">
-     <x>140</x>
-     <y>66</y>
+     <x>255</x>
+     <y>61</y>
     </hint>
    </hints>
   </connection>
@@ -289,8 +415,8 @@
      <y>135</y>
     </hint>
     <hint type="destinationlabel">
-     <x>93</x>
-     <y>89</y>
+     <x>208</x>
+     <y>87</y>
     </hint>
    </hints>
   </connection>
@@ -305,8 +431,24 @@
      <y>184</y>
     </hint>
     <hint type="destinationlabel">
-     <x>254</x>
-     <y>202</y>
+     <x>282</x>
+     <y>113</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>radioProjected</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>frame</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>146</x>
+     <y>197</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>104</x>
+     <y>214</y>
     </hint>
    </hints>
   </connection>
