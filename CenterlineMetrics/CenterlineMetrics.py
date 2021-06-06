@@ -251,7 +251,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
         apArray = self.getArrayFromTable(outputTable, self.AP_ARRAY_NAME)
         siArray = self.getArrayFromTable(outputTable, self.SI_ARRAY_NAME)
     else:
-        tripletArray = siArray = self.getArrayFromTable(outputTable, self.TRIPLET_ARRAY_NAME, True)
+        tripletArray = self.getArrayFromTable(outputTable, self.TRIPLET_ARRAY_NAME, True)
 
     # From VMTK README.md
     points = slicer.util.arrayFromModelPoints(inputModel)
