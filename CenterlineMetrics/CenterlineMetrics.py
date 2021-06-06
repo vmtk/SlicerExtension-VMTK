@@ -82,6 +82,8 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.radioS.connect("clicked()", self.onRadioS)
     self.ui.radioCumulative.connect("clicked()", self.onRadioCumulative)
     self.ui.radioProjected.connect("clicked()", self.onRadioProjected)
+    self.ui.radioLPS.connect("clicked()", self.onRadioLPS)
+    self.ui.radioRAS.connect("clicked()", self.onRadioRAS)
 
     # Refresh Apply button state
     self.onSelectNode()
@@ -141,6 +143,12 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.axisLabel.show()
     self.ui.axisGroup.show()
     self.logic.distanceMode = 1
+    
+  def onRadioLPS(self):
+    self.logic.setCoordinateType(-1)
+  
+  def onRadioRAS(self):
+    self.logic.setCoordinateType(1)
 
 #
 # CenterlineMetricsLogic
@@ -162,6 +170,11 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     self.plotChartNode = None
     self.axis = 2 # Default to vertical
     self.distanceMode = 0 # Default to cumulative
+    # LPS : -1, RAS : 1. Multiply first 2 values of RAS point coordinates by this factor.
+    self.asRAS = -1
+    self.RL_ARRAY_NAME = "L"
+    self.AP_ARRAY_NAME = "P"
+    self.SI_ARRAY_NAME = "S"
 
   def setInputModelNode(self, modelNode):
     if self.inputModelNode == modelNode:
@@ -186,15 +199,31 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
       raise ValueError("Input is invalid")
 
     logging.info('Processing started')
+    self.emptyOutputTableNode()
     self.updateOutputTable(self.inputModelNode, self.outputTableNode)
     self.updatePlot(self.outputPlotSeriesNode, self.outputTableNode, self.inputModelNode.GetName())
     self.showPlot()
     logging.info('Processing completed')
     
+  def setCoordinateType(self, RASorLPS):
+    self.asRAS = RASorLPS
+    if self.asRAS == -1:
+        self.RL_ARRAY_NAME = "L"
+        self.AP_ARRAY_NAME = "P"
+    else:
+        self.RL_ARRAY_NAME = "R"
+        self.AP_ARRAY_NAME = "A"
+        
+  def emptyOutputTableNode(self):
+    # Clears the plot also.
+    while self.outputTableNode.GetTable().GetNumberOfColumns():
+        self.outputTableNode.GetTable().RemoveColumn(0)
+    self.outputTableNode.GetTable().Modified()
+    
   def getArrayFromTable(self, outputTable, arrayName):
-    distanceArray = outputTable.GetTable().GetColumnByName(arrayName)
-    if distanceArray:
-      return distanceArray
+    columnArray = outputTable.GetTable().GetColumnByName(arrayName)
+    if columnArray:
+      return columnArray
     newArray = vtk.vtkDoubleArray()
     newArray.SetName(arrayName)
     outputTable.GetTable().AddColumn(newArray)
@@ -205,26 +234,38 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     # Create arrays of data
     distanceArray = self.getArrayFromTable(outputTable, DISTANCE_ARRAY_NAME)
     diameterArray = self.getArrayFromTable(outputTable, DIAMETER_ARRAY_NAME)
-    rArray = self.getArrayFromTable(outputTable, R_ARRAY_NAME)
-    aArray = self.getArrayFromTable(outputTable, A_ARRAY_NAME)
-    sArray = self.getArrayFromTable(outputTable, S_ARRAY_NAME)
+    rlArray = self.getArrayFromTable(outputTable, self.RL_ARRAY_NAME)
+    apArray = self.getArrayFromTable(outputTable, self.AP_ARRAY_NAME)
+    siArray = self.getArrayFromTable(outputTable, self.SI_ARRAY_NAME)
 
     # From VMTK README.md
     points = slicer.util.arrayFromModelPoints(inputModel)
     radii = slicer.util.arrayFromModelPointData(inputModel, 'Radius')
     outputTable.GetTable().SetNumberOfRows(radii.size)
+    # A multiplication array for RAS or LPS conversion
+    arrayAsRAS = vtk.vtkDoubleArray()
+    arrayAsRAS.SetNumberOfValues(3)
+    arrayAsRAS.SetValue(0, self.asRAS)
+    arrayAsRAS.SetValue(1, self.asRAS)
+    arrayAsRAS.SetValue(2, 1)
+    convertedPoint = vtk.vtkDoubleArray()
+    convertedPoint.SetNumberOfValues(3)
+    
     if self.distanceMode == 0:
         cumArray = vtk.vtkDoubleArray()
         self.cumulateDistances(points, cumArray)
     for i, radius in enumerate(radii):
+        # Convert each point coordinate
+        convertedPoint = points[i] * arrayAsRAS
         if self.distanceMode != 0:
+            # Remains RAS
             distanceArray.SetValue(i, points[i][self.axis])
         else:
             distanceArray.SetValue(i, cumArray.GetValue(i))
         diameterArray.SetValue(i, radius * 2)
-        rArray.SetValue(i, points[i][0])
-        aArray.SetValue(i, points[i][1])
-        sArray.SetValue(i, points[i][2])
+        rlArray.SetValue(i, convertedPoint[0])
+        apArray.SetValue(i, convertedPoint[1])
+        siArray.SetValue(i, convertedPoint[2])
     distanceArray.Modified()
     diameterArray.Modified()
     outputTable.GetTable().Modified()
@@ -291,7 +332,4 @@ class CenterlineMetricsTest(ScriptedLoadableModuleTest):
 
 DISTANCE_ARRAY_NAME = "Distance"
 DIAMETER_ARRAY_NAME = "Diameter"
-R_ARRAY_NAME = "R"
-A_ARRAY_NAME = "A"
-S_ARRAY_NAME = "S"
 

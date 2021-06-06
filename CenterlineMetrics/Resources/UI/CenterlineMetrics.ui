@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>424</width>
-    <height>378</height>
+    <width>467</width>
+    <height>526</height>
    </rect>
   </property>
   <layout class="QFormLayout" name="formLayout">
@@ -110,7 +110,7 @@
      </layout>
     </widget>
    </item>
-   <item row="5" column="0" colspan="2">
+   <item row="6" column="0" colspan="2">
     <widget class="QPushButton" name="applyButton">
      <property name="enabled">
       <bool>false</bool>
@@ -123,7 +123,7 @@
      </property>
     </widget>
    </item>
-   <item row="6" column="0">
+   <item row="7" column="0">
     <spacer name="verticalSpacer">
      <property name="orientation">
       <enum>Qt::Vertical</enum>
@@ -137,14 +137,20 @@
     </spacer>
    </item>
    <item row="4" column="0" colspan="2">
-    <widget class="qMRMLCollapsibleButton" name="moreCollapsibleButton">
+    <widget class="qMRMLCollapsibleButton" name="distanceCollapsibleButton">
+     <property name="toolTip">
+      <string>How is distance calculated</string>
+     </property>
+     <property name="locale">
+      <locale language="English" country="UnitedStates"/>
+     </property>
      <property name="text">
-      <string>More</string>
+      <string>Distance mode</string>
      </property>
      <property name="checked">
       <bool>false</bool>
      </property>
-     <layout class="QFormLayout" name="moreFormLayout">
+     <layout class="QFormLayout" name="distanceFormLayout">
       <item row="0" column="0">
        <widget class="QLabel" name="distanceModeLabel">
         <property name="text">
@@ -224,6 +230,60 @@
            </property>
            <property name="text">
             <string>S</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item row="5" column="0" colspan="2">
+    <widget class="qMRMLCollapsibleButton" name="tableCoordinatesCollapsibleButton">
+     <property name="toolTip">
+      <string>How to show point coordinates in the table</string>
+     </property>
+     <property name="locale">
+      <locale language="English" country="UnitedStates"/>
+     </property>
+     <property name="text">
+      <string>Table coordinates</string>
+     </property>
+     <property name="checked">
+      <bool>false</bool>
+     </property>
+     <layout class="QFormLayout" name="tableCoordinatesFormLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="tableCoordinatesTypeLabel">
+        <property name="text">
+         <string>Type</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QGroupBox" name="groupBox">
+        <property name="toolTip">
+         <string>Choose a coordinate system</string>
+        </property>
+        <property name="title">
+         <string/>
+        </property>
+        <layout class="QHBoxLayout" name="tableCoordinatesTypeLayout">
+         <item>
+          <widget class="QRadioButton" name="radioLPS">
+           <property name="text">
+            <string>LPS</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QRadioButton" name="radioRAS">
+           <property name="text">
+            <string>RAS</string>
            </property>
           </widget>
          </item>
