@@ -251,7 +251,7 @@
       <string>Table coordinates</string>
      </property>
      <property name="checked">
-      <bool>true</bool>
+      <bool>false</bool>
      </property>
      <layout class="QFormLayout" name="tableCoordinatesFormLayout">
       <item row="0" column="0">
