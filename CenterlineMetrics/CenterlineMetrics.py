@@ -84,6 +84,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.radioProjected.connect("clicked()", self.onRadioProjected)
     self.ui.radioLPS.connect("clicked()", self.onRadioLPS)
     self.ui.radioRAS.connect("clicked()", self.onRadioRAS)
+    self.ui.distinctColumnsCheckBox.connect("clicked()", self.onDistinctCoordinatesCheckBox)
 
     # Refresh Apply button state
     self.onSelectNode()
@@ -149,6 +150,9 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
   
   def onRadioRAS(self):
     self.logic.setCoordinateType(1)
+    
+  def onDistinctCoordinatesCheckBox(self):
+    self.logic.distinctCoordinateColumns =  self.ui.distinctColumnsCheckBox.checked
 
 #
 # CenterlineMetricsLogic
@@ -175,6 +179,9 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     self.RL_ARRAY_NAME = "L"
     self.AP_ARRAY_NAME = "P"
     self.SI_ARRAY_NAME = "S"
+    
+    self.distinctCoordinateColumns = False;
+    self.TRIPLET_ARRAY_NAME = "LPS"
 
   def setInputModelNode(self, modelNode):
     if self.inputModelNode == modelNode:
@@ -210,9 +217,11 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     if self.asRAS == -1:
         self.RL_ARRAY_NAME = "L"
         self.AP_ARRAY_NAME = "P"
+        self.TRIPLET_ARRAY_NAME = "LPS"
     else:
         self.RL_ARRAY_NAME = "R"
         self.AP_ARRAY_NAME = "A"
+        self.TRIPLET_ARRAY_NAME = "RAS"
         
   def emptyOutputTableNode(self):
     # Clears the plot also.
@@ -220,11 +229,14 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
         self.outputTableNode.GetTable().RemoveColumn(0)
     self.outputTableNode.GetTable().Modified()
     
-  def getArrayFromTable(self, outputTable, arrayName):
+  def getArrayFromTable(self, outputTable, arrayName, stringArray = False):
     columnArray = outputTable.GetTable().GetColumnByName(arrayName)
     if columnArray:
       return columnArray
-    newArray = vtk.vtkDoubleArray()
+    if not stringArray:
+        newArray = vtk.vtkDoubleArray()
+    else:
+        newArray = vtk.vtkStringArray()
     newArray.SetName(arrayName)
     outputTable.GetTable().AddColumn(newArray)
     return newArray
@@ -234,9 +246,12 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     # Create arrays of data
     distanceArray = self.getArrayFromTable(outputTable, DISTANCE_ARRAY_NAME)
     diameterArray = self.getArrayFromTable(outputTable, DIAMETER_ARRAY_NAME)
-    rlArray = self.getArrayFromTable(outputTable, self.RL_ARRAY_NAME)
-    apArray = self.getArrayFromTable(outputTable, self.AP_ARRAY_NAME)
-    siArray = self.getArrayFromTable(outputTable, self.SI_ARRAY_NAME)
+    if self.distinctCoordinateColumns:
+        rlArray = self.getArrayFromTable(outputTable, self.RL_ARRAY_NAME)
+        apArray = self.getArrayFromTable(outputTable, self.AP_ARRAY_NAME)
+        siArray = self.getArrayFromTable(outputTable, self.SI_ARRAY_NAME)
+    else:
+        tripletArray = siArray = self.getArrayFromTable(outputTable, self.TRIPLET_ARRAY_NAME, True)
 
     # From VMTK README.md
     points = slicer.util.arrayFromModelPoints(inputModel)
@@ -263,9 +278,12 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
         else:
             distanceArray.SetValue(i, cumArray.GetValue(i))
         diameterArray.SetValue(i, radius * 2)
-        rlArray.SetValue(i, convertedPoint[0])
-        apArray.SetValue(i, convertedPoint[1])
-        siArray.SetValue(i, convertedPoint[2])
+        if self.distinctCoordinateColumns:
+            rlArray.SetValue(i, convertedPoint[0])
+            apArray.SetValue(i, convertedPoint[1])
+            siArray.SetValue(i, convertedPoint[2])
+        else:
+            tripletArray.SetValue(i, str(convertedPoint))
     distanceArray.Modified()
     diameterArray.Modified()
     outputTable.GetTable().Modified()
