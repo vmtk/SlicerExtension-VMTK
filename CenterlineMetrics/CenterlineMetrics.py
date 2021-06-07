@@ -134,13 +134,9 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.logic.setAxis(2)
     
   def onRadioCumulative(self):
-    self.ui.axisLabel.hide()
-    self.ui.axisGroup.hide()
     self.logic.distanceModeProjected = False
 
   def onRadioProjected(self):
-    self.ui.axisLabel.show()
-    self.ui.axisGroup.show()
     self.logic.distanceModeProjected = True
     
   def onRadioLPS(self):
