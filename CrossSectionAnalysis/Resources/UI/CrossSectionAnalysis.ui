@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>363</width>
-    <height>710</height>
+    <width>405</width>
+    <height>802</height>
    </rect>
   </property>
   <property name="locale">
@@ -112,7 +112,7 @@
          <locale language="English" country="UnitedStates"/>
         </property>
         <property name="text">
-         <string>2D slice view:</string>
+         <string>Slice view:</string>
         </property>
        </widget>
       </item>
@@ -226,6 +226,56 @@
          <string>Distance will be calculated relative to this point</string>
         </property>
        </widget>
+      </item>
+      <item row="9" column="0">
+       <widget class="QLabel" name="helperLabel">
+        <property name="text">
+         <string>Move to:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="9" column="1">
+       <layout class="QHBoxLayout" name="helperToPointHorizontalLayout">
+        <item>
+         <widget class="QPushButton" name="helperToMinPushButton">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="toolTip">
+           <string>Move to point with minimum diameter</string>
+          </property>
+          <property name="text">
+           <string>Minimum</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="helperToMaxPushButton">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="toolTip">
+           <string>Move to point with maximum diameter</string>
+          </property>
+          <property name="text">
+           <string>Maximum</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="helperLabel2">
+          <property name="text">
+           <string>diameter</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </item>
      </layout>
     </widget>
