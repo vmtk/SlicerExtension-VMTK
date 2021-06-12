@@ -23,13 +23,13 @@ class CenterlineMetrics(ScriptedLoadableModule):
     self.parent.title = "Centerline metrics"
     self.parent.categories = ["Vascular Modeling Toolkit"]
     self.parent.dependencies = []
-    self.parent.contributors = ["SET (Hobbyist)"]
+    self.parent.contributors = ["SET (Surgeon) (Hobbyist developer)"]
     self.parent.helpText = """
 This module plots average diameters around a VMTK centerline model. It is intended for non-bifurcated centerlines. Documentation is available
     <a href="https://github.com/chir-set/CenterlineMetrics">here</a>.
 """  
     self.parent.acknowledgementText = """
-This file was originally developed by SET.
+This file was originally developed by SET. Many thanks to Andras Lasso for sanitizing the code.
 """  # TODO: replace with organization, grant and thanks.
 
 #
@@ -69,6 +69,8 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     uiWidget.setMRMLScene(slicer.mrmlScene)
 
     self.logic = CenterlineMetricsLogic()
+    self.resetMoveToPointSliderWidget()
+    self.ui.advancedCollapsibleButton.checked = False
 
     # connections
     self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
@@ -78,6 +80,10 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.radioLPS.connect("clicked()", self.onRadioLPS)
     self.ui.radioRAS.connect("clicked()", self.onRadioRAS)
     self.ui.distinctColumnsCheckBox.connect("clicked()", self.onDistinctCoordinatesCheckBox)
+    self.ui.moveToPointSliderWidget.connect("valueChanged(double)", self.moveSliceView)
+    self.ui.jumpCentredInSliceNodeCheckBox.connect("clicked()", self.onJumpCentredInSliceNodeCheckBox)
+    self.ui.moveToMinimumPushButton.connect("clicked()", self.moveSliceViewToMinimumDiameter)
+    self.ui.moveToMaximumPushButton.connect("clicked()", self.moveSliceViewToMaximumDiameter)
 
     # Refresh Apply button state
     self.onSelectNode()
@@ -106,6 +112,9 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.logic.setInputModelNode(self.ui.inputModelSelector.currentNode())
     self.logic.setOutputTableNode(self.ui.outputTableSelector.currentNode())
     self.logic.setOutputPlotSeriesNode(self.ui.outputPlotSeriesSelector.currentNode())
+    self.ui.moveToPointSliderWidget.setValue(0)
+    self.resetMoveToPointSliderWidget()
+    self.resetUIWithEmptyMetrics()
 
   def createOutputNodes(self):
     if not self.ui.outputTableSelector.currentNode():
@@ -116,9 +125,11 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
       self.ui.outputPlotSeriesSelector.setCurrentNode(outputPlotSeriesNode)
 
   def onApplyButton(self):
+    self.resetUIWithEmptyMetrics()
     self.createOutputNodes()
     self.logic.run()
-  
+    self.ui.moveToPointSliderWidget.maximum = self.logic.outputTableNode.GetTable().GetNumberOfRows() - 1
+    
   def onRadioLPS(self):
     self.logic.coordinateSystemColumnRAS = False
   
@@ -127,7 +138,51 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     
   def onDistinctCoordinatesCheckBox(self):
     self.logic.coordinateSystemColumnSingle = not self.ui.distinctColumnsCheckBox.checked
+  
+  def onJumpCentredInSliceNodeCheckBox(self):
+    self.logic.jumpCentredInSliceNode = self.ui.jumpCentredInSliceNodeCheckBox.checked
+    
+  def moveSliceView(self, value):
+    self.logic.moveSliceView(self.ui.sliceViewSelector.currentNode(), value)
+    self.updateUIWithMetrics(value)
+  
+  def updateUIWithMetrics(self, value):
+    tableNode = self.logic.outputTableNode
+    if tableNode is None:
+        return
+    coordinateArray = self.logic.getRASCoordinatesAtIndex(value)
+    distance = str(round(tableNode.GetTable().GetValue(int(value), 0).ToDouble(), 2)) + " mm"
+    diameter = str(round(tableNode.GetTable().GetValue(int(value), 1).ToDouble(), 2)) + " mm"
+    coordinate = "R " + str(round(coordinateArray[0], 1))
+    coordinate += ", A " + str(round(coordinateArray[1], 1))
+    coordinate += ", S" + str(round(coordinateArray[2], 1))
+    self.ui.distanceValueLabel.setText(distance)
+    self.ui.diameterValueLabel.setText(diameter)
+    self.ui.coordinatesValueLabel.setText(coordinate)
+    
+  def resetUIWithEmptyMetrics(self):
+    self.ui.distanceValueLabel.setText("")
+    self.ui.diameterValueLabel.setText("")
+    self.ui.coordinatesValueLabel.setText("")
+    
+  def resetMoveToPointSliderWidget(self):
+    slider = self.ui.moveToPointSliderWidget
+    slider.minimum = 0
+    slider.maximum = 0
+    slider.setValue(0)
 
+  def moveSliceViewToMinimumDiameter(self):
+    point = self.logic.getExtremeDiameterPoint(False)
+    if point == -1:
+        return
+    self.ui.moveToPointSliderWidget.setValue(point)
+  
+  def moveSliceViewToMaximumDiameter(self):
+    point = self.logic.getExtremeDiameterPoint(True)
+    if point == -1:
+        return
+    self.ui.moveToPointSliderWidget.setValue(point)
+    
 #
 # CenterlineMetricsLogic
 #
@@ -148,6 +203,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     self.plotChartNode = None
     self.coordinateSystemColumnSingle = True
     self.coordinateSystemColumnRAS = True  # LPS or RAS
+    self.jumpCentredInSliceNode = False
 
   def setInputModelNode(self, modelNode):
     if self.inputModelNode == modelNode:
@@ -203,13 +259,18 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
         coordinatesArray.SetComponentName(0, "R" if self.coordinateSystemColumnRAS else "L")
         coordinatesArray.SetComponentName(1, "A" if self.coordinateSystemColumnRAS else "P")
         coordinatesArray.SetComponentName(2, "S")
+        # Add a custom attribute to the table. We may easily know how the coordinates are stored.
+        outputTable.SetAttribute("columnSingle", "y")
     else:
       coordinatesArray = [
         self.getArrayFromTable(outputTable, "R" if self.coordinateSystemColumnRAS else "L"),
         self.getArrayFromTable(outputTable, "A" if self.coordinateSystemColumnRAS else "P"),
         self.getArrayFromTable(outputTable, "S")
         ]
-
+      outputTable.SetAttribute("columnSingle", "n")
+    # Custom attribute for quick access to coordinates type.
+    outputTable.SetAttribute("type", "RAS" if self.coordinateSystemColumnRAS else "LPS")
+    
     # From VMTK README.md
     points = slicer.util.arrayFromModelPoints(inputModel)
     radii = slicer.util.arrayFromModelPointData(inputModel, 'Radius')
@@ -271,6 +332,50 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
       cumArray.SetValue(i, dist)
       previous = point
 
+# Get the coordinates of a point of the centerline as RAS. value is index of point.
+  def getRASCoordinatesAtIndex(self, value):
+    tableNode = self.outputTableNode
+    columnSingle = (tableNode.GetAttribute("columnSingle") == "y")
+    coordinateTypeIsRAS = (tableNode.GetAttribute("type") == "RAS")
+    if columnSingle:
+        coordinatesArray = tableNode.GetTable().GetValue(int(value), 2).ToArray()
+        coordinateR = coordinatesArray.GetValue(0) if coordinateTypeIsRAS else -coordinatesArray.GetValue(0)
+        coordinateA = coordinatesArray.GetValue(1) if coordinateTypeIsRAS else -coordinatesArray.GetValue(1)
+        coordinateS = coordinatesArray.GetValue(2)
+    else:
+        coordinateR = tableNode.GetTable().GetValue(int(value), 2).ToDouble() if coordinateTypeIsRAS else -tableNode.GetTable().GetValue(int(value), 2).ToDouble()
+        coordinateA = tableNode.GetTable().GetValue(int(value), 3).ToDouble() if coordinateTypeIsRAS else -tableNode.GetTable().GetValue(int(value), 4).ToDouble()
+        coordinateS = tableNode.GetTable().GetValue(int(value), 4).ToDouble()
+    return [coordinateR, coordinateA, coordinateS];
+
+# Move the selected slice view to a point of the centerline, optionally centering on the point. The slice view orientation, reformat or not, is not changed.
+  def moveSliceView(self, sliceNode, value):
+    tableNode = self.outputTableNode
+    if tableNode is None:
+        return;
+    coordinateArray = self.getRASCoordinatesAtIndex(value)
+    
+    if self.jumpCentredInSliceNode:
+        slicer.vtkMRMLSliceNode.JumpSliceByCentering(sliceNode, coordinateArray[0], coordinateArray[1], coordinateArray[2])
+    else:
+        slicer.vtkMRMLSliceNode.JumpSlice(sliceNode, coordinateArray[0], coordinateArray[1], coordinateArray[2])
+
+# Convenience function to get the point of minimum or maximum diameter. Is useful for arterial stenosis (minimum) or aneurysm (maximum).
+  def getExtremeDiameterPoint(self, boolMaximum):
+    if self.outputTableNode is None:
+        return -1
+    diameterArray = self.outputTableNode.GetTable().GetColumnByName(DIAMETER_ARRAY_NAME)
+    # GetRange or GetValueRange ?
+    diameterRange = diameterArray.GetRange()
+    target = -1
+    # Until we find a smart function, kind of vtkDoubleArray::Find(value)
+    for i in range(diameterArray.GetNumberOfValues()):
+        if diameterArray.GetValue(i) == diameterRange[1 if boolMaximum else 0]:
+            target = i
+            # If there more points with the same value, they are ignored. First point only.
+            break
+    return target
+    
 #
 # CenterlineMetricsTest
 #
