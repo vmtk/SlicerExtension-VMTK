@@ -618,11 +618,12 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     if self.inputSliceNode is None or self.inputPath is None or (self.vmtkCenterlineRadii.size == 0):
         return -1
     target = -1
-    for i in range(self.vmtkCenterlineRadii.size):
-        if self.vmtkCenterlineRadii[i] == (self.vmtkCenterlineRadii.max() if boolMaximum else self.vmtkCenterlineRadii.min()):
-            target = i
-            # If there more points with the same value, they are ignored. First point only.
-            break
+    radiiArray = self.vmtkCenterlineRadii
+    #https://thispointer.com/find-max-value-its-index-in-numpy-array-numpy-amax/
+    maxIndexArray = numpy.where(radiiArray == numpy.amax(radiiArray))
+    minIndexArray = numpy.where(radiiArray == numpy.amin(radiiArray))
+    # If there are more points with the same value, they are ignored. First point only.
+    target = (maxIndexArray[0][0] if boolMaximum else minIndexArray[0][0])
     # If the last point is min or max, decline.
     if target == self.vmtkCenterlineRadii.size - 1:
         target = -1
