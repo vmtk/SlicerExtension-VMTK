@@ -75,11 +75,6 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.inputModelSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectNode)
     self.ui.outputPlotSeriesSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectNode)
     self.ui.outputTableSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectNode)
-    self.ui.radioR.connect("clicked()", self.onRadioR)
-    self.ui.radioA.connect("clicked()", self.onRadioA)
-    self.ui.radioS.connect("clicked()", self.onRadioS)
-    self.ui.radioCumulative.connect("clicked()", self.onRadioCumulative)
-    self.ui.radioProjected.connect("clicked()", self.onRadioProjected)
     self.ui.radioLPS.connect("clicked()", self.onRadioLPS)
     self.ui.radioRAS.connect("clicked()", self.onRadioRAS)
     self.ui.distinctColumnsCheckBox.connect("clicked()", self.onDistinctCoordinatesCheckBox)
@@ -124,21 +119,6 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.createOutputNodes()
     self.logic.run()
   
-  def onRadioR(self):
-    self.logic.setAxis(0)
-    
-  def onRadioA(self):
-    self.logic.setAxis(1)
-    
-  def onRadioS(self):
-    self.logic.setAxis(2)
-    
-  def onRadioCumulative(self):
-    self.logic.distanceModeProjected = False
-
-  def onRadioProjected(self):
-    self.logic.distanceModeProjected = True
-    
   def onRadioLPS(self):
     self.logic.coordinateSystemColumnRAS = False
   
@@ -166,8 +146,6 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     self.outputPlotSeriesNode = None
     self.outputTableNode = None
     self.plotChartNode = None
-    self.axis = 2 # Default to vertical
-    self.distanceModeProjected = False # Default to cumulative
     self.coordinateSystemColumnSingle = True
     self.coordinateSystemColumnRAS = True  # LPS or RAS
 
@@ -185,9 +163,6 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     if self.outputPlotSeriesNode == plotSeriesNode:
       return
     self.outputPlotSeriesNode = plotSeriesNode
-    
-  def setAxis(self, selAxis):
-    self.axis = selAxis
     
   def run(self):
     if not self.inputModelNode:
@@ -240,14 +215,10 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     radii = slicer.util.arrayFromModelPointData(inputModel, 'Radius')
     outputTable.GetTable().SetNumberOfRows(radii.size)
 
-    if not self.distanceModeProjected:
-        cumArray = vtk.vtkDoubleArray()
-        self.cumulateDistances(points, cumArray)
+    cumArray = vtk.vtkDoubleArray()
+    self.cumulateDistances(points, cumArray)
     for i, radius in enumerate(radii):
-        if self.distanceModeProjected:
-            distanceArray.SetValue(i, points[i][self.axis])
-        else:
-            distanceArray.SetValue(i, cumArray.GetValue(i))
+        distanceArray.SetValue(i, cumArray.GetValue(i))
         diameterArray.SetValue(i, radius * 2)
         # Convert each point coordinate
         if self.coordinateSystemColumnRAS:
