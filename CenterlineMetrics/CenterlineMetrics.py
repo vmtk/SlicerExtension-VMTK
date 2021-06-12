@@ -71,6 +71,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.logic = CenterlineMetricsLogic()
     self.resetMoveToPointSliderWidget()
     self.ui.advancedCollapsibleButton.checked = False
+    self.setUnitNodePrecision()
 
     # connections
     self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
@@ -151,8 +152,8 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     if tableNode is None:
         return
     coordinateArray = self.logic.getRASCoordinatesAtIndex(value)
-    distance = str(round(tableNode.GetTable().GetValue(int(value), 0).ToDouble(), 2)) + " mm"
-    diameter = str(round(tableNode.GetTable().GetValue(int(value), 1).ToDouble(), 2)) + " mm"
+    distance = self.logic.getUnitNodeDisplayString(tableNode.GetTable().GetValue(int(value), 0).ToDouble())
+    diameter = self.logic.getUnitNodeDisplayString(tableNode.GetTable().GetValue(int(value), 1).ToDouble())
     coordinate = "R " + str(round(coordinateArray[0], 1))
     coordinate += ", A " + str(round(coordinateArray[1], 1))
     coordinate += ", S" + str(round(coordinateArray[2], 1))
@@ -183,6 +184,11 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
         return
     self.ui.moveToPointSliderWidget.setValue(point)
     
+  def setUnitNodePrecision(self):
+    selectionNode = slicer.mrmlScene.GetNodeByID("vtkMRMLSelectionNodeSingleton")
+    unitNode = slicer.mrmlScene.GetNodeByID(selectionNode.GetUnitNodeID("length"))
+    unitNode.SetPrecision(2)
+
 #
 # CenterlineMetricsLogic
 #
@@ -375,6 +381,11 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
             # If there more points with the same value, they are ignored. First point only.
             break
     return target
+
+  def getUnitNodeDisplayString(self, value):
+    selectionNode = slicer.mrmlScene.GetNodeByID("vtkMRMLSelectionNodeSingleton")
+    unitNode = slicer.mrmlScene.GetNodeByID(selectionNode.GetUnitNodeID("length"))
+    return unitNode.GetDisplayStringFromValue(value)
     
 #
 # CenterlineMetricsTest
