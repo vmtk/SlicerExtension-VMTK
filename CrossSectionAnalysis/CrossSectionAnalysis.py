@@ -22,7 +22,7 @@ class CrossSectionAnalysis(ScriptedLoadableModule):
     self.parent.title = "Cross-section analysis"  # TODO: make this more human readable by adding spaces
     self.parent.categories = ["Vascular Modeling Toolkit"]  # TODO: set categories (folders where the module shows up in the module selector)
     self.parent.dependencies = []  # TODO: add here list of module names that this module requires
-    self.parent.contributors = ["SET (Hobbyist)"]  # TODO: replace with "Firstname Lastname (Organization)"
+    self.parent.contributors = ["SET (Surgeon) (Hobbyist developer)"]  # TODO: replace with "Firstname Lastname (Organization)"
     # TODO: update with short description of the module and a link to online module documentation
     self.parent.helpText = """
 Moves a selected view along a path, and orients the plane at right angle to the path. It is intended to view cross-sections of blood vessels.
@@ -78,8 +78,9 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     # in batch mode, without a graphical user interface.
     self.logic = CrossSectionAnalysisLogic()
     
-    # Hide diameter labels. Concern only VMTK centerline models.
+    # Hide diameter labels and 'move to point' widgets. Concern only VMTK centerline models.
     self.showDiameterLabels(False)
+    self.showHelperWidgets(False)
     
     self.ui.moreCollapsibleButton.collapsed = True
     self.ui.advancedCollapsibleButton.collapsed = True
@@ -120,6 +121,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.hideROICheckBox.connect("clicked()", self.onHideROI)
     self.ui.relativeOriginSpinBox.connect("valueChanged(double)", self.logic.onRelativeOriginChanged)
     self.ui.relativeOriginSpinBox.connect("valueChanged(double)", self.showRelativeDistance)
+    self.ui.helperToMinPushButton.connect("clicked()", self.moveToMinimumDiameter)
+    self.ui.helperToMaxPushButton.connect("clicked()", self.moveToMaximumDiameter)
     
   def cleanup(self):
     """
@@ -260,8 +263,10 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     # Diameters can be shown for VMTK centerline models only
     if inputPath is not None and inputPath.GetClassName() == "vtkMRMLModelNode":
         self.showDiameterLabels(True)
+        self.showHelperWidgets(True)
     else:
         self.showDiameterLabels(False)
+        self.showHelperWidgets(False)
     
   def onHidePath(self):
     path = self.ui.inputSelector.currentNode()
@@ -375,6 +380,13 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
   def showDiameterLabels(self, show):
     self.ui.diameterLabelIndicator.setVisible(show)
     self.ui.diameterLabel.setVisible(show)
+  
+  # True : for VMTK centerline models only
+  def showHelperWidgets(self, show):
+    self.ui.helperLabel.setVisible(show)
+    self.ui.helperLabel2.setVisible(show)
+    self.ui.helperToMinPushButton.setVisible(show)
+    self.ui.helperToMaxPushButton.setVisible(show)
 
   # Created with the default name
   def createMarksupCurve(self):
@@ -393,6 +405,19 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     if roi is None:
         return
     roi.SetDisplayVisibility(not self.ui.hideROICheckBox.checked)
+    
+  def moveToMinimumDiameter(self):
+    point = self.logic.getExtremeDiameterPoint(False)
+    if point == -1:
+        return
+    self.ui.positionIndexSliderWidget.setValue(point)
+    
+  def moveToMaximumDiameter(self):
+    point = self.logic.getExtremeDiameterPoint(True)
+    if point == -1:
+        return
+    self.ui.positionIndexSliderWidget.setValue(point)
+    
 #
 # CrossSectionAnalysisLogic
 #
@@ -588,6 +613,20 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     else:
         markupsWidget.setEditedNode(None)
 
+# Convenience function to get the point of minimum or maximum diameter. Is useful for arterial stenosis (minimum) or aneurysm (maximum).
+  def getExtremeDiameterPoint(self, boolMaximum):
+    if self.inputSliceNode is None or self.inputPath is None or (self.vmtkCenterlineRadii.size == 0):
+        return -1
+    target = -1
+    for i in range(self.vmtkCenterlineRadii.size):
+        if self.vmtkCenterlineRadii[i] == (self.vmtkCenterlineRadii.max() if boolMaximum else self.vmtkCenterlineRadii.min()):
+            target = i
+            # If there more points with the same value, they are ignored. First point only.
+            break
+    # If the last point is min or max, decline.
+    if target == self.vmtkCenterlineRadii.size - 1:
+        target = -1
+    return target
 #
 # CrossSectionAnalysisTest
 #
