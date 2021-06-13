@@ -86,6 +86,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.advancedCollapsibleButton.collapsed = True
     self.ui.roiCollapsibleButton.collapsed = True
     self.resetSliderWidget()
+    self.setUnitNodePrecision()
     """
     Unfortunately, it does not select a default node in ui.sliceNodeSelector at this step.
     enter() does the job.
@@ -355,15 +356,15 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.locationLabel.setText(position)
     # Get path length
     sizeOfArray = int(self.logic.cumDistancesArray.size)
-    length = str(round(self.logic.cumDistancesArray[sizeOfArray - 1], 1))
-    self.ui.lengthLabel.setText(length + " mm")
+    length = self.logic.cumDistancesArray[sizeOfArray - 1]
+    self.ui.lengthLabel.setText(self.logic.getUnitNodeDisplayString(length))
     # Distance from relative origin
     self.showRelativeDistance()
     # VMTK centerline radius
     inputPath = self.ui.inputSelector.currentNode()
     if inputPath is not None and inputPath.GetClassName() == "vtkMRMLModelNode" and self.logic.vmtkCenterlineRadii.size > 0:
-        diameter = str(round(self.logic.vmtkCenterlineRadii[int(value)] * 2, 1))
-        self.ui.diameterLabel.setText(diameter + " mm")
+        diameter = self.logic.vmtkCenterlineRadii[int(value)] * 2
+        self.ui.diameterLabel.setText(self.logic.getUnitNodeDisplayString(diameter))
     # Orientation
     orient = self.logic.getSliceOrientation()
     orientation = "R " + str(round(orient[0], 1)) + "°,"
@@ -373,8 +374,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
   def showRelativeDistance(self):
     pointIndex = int(self.ui.positionIndexSliderWidget.value)
-    relativeDistance = str(round(self.logic.calculateRelativeDistance(pointIndex), 1))
-    self.ui.distanceLabel.setText(relativeDistance + " mm")
+    relativeDistance = self.logic.calculateRelativeDistance(pointIndex)
+    self.ui.distanceLabel.setText(self.logic.getUnitNodeDisplayString(relativeDistance))
 
   # True : for VMTK centerline models only
   def showDiameterLabels(self, show):
@@ -417,6 +418,11 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     if point == -1:
         return
     self.ui.positionIndexSliderWidget.setValue(point)
+    
+  def setUnitNodePrecision(self):
+    selectionNode = slicer.mrmlScene.GetNodeByID("vtkMRMLSelectionNodeSingleton")
+    unitNode = slicer.mrmlScene.GetNodeByID(selectionNode.GetUnitNodeID("length"))
+    unitNode.SetPrecision(2)
     
 #
 # CrossSectionAnalysisLogic
@@ -628,6 +634,12 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     if target == self.vmtkCenterlineRadii.size - 1:
         target = -1
     return target
+
+  def getUnitNodeDisplayString(self, value):
+    selectionNode = slicer.mrmlScene.GetNodeByID("vtkMRMLSelectionNodeSingleton")
+    unitNode = slicer.mrmlScene.GetNodeByID(selectionNode.GetUnitNodeID("length"))
+    return unitNode.GetDisplayStringFromValue(value)
+
 #
 # CrossSectionAnalysisTest
 #
