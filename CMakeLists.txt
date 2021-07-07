@@ -1,9 +1,9 @@
-cmake_minimum_required(VERSION 2.8.9)
+cmake_minimum_required(VERSION 3.13.4)
 
-#-----------------------------------------------------------------------------
 project(SlicerVMTK)
 
 #-----------------------------------------------------------------------------
+# Extension meta-information
 set(EXTENSION_HOMEPAGE "https://github.com/vmtk/SlicerExtension-VMTK")
 set(EXTENSION_CATEGORY "Vascular Modeling Toolkit")
 set(EXTENSION_CONTRIBUTORS "Daniel Haehn (Boston Childrens Hospital), Luca Antiga (Orobix), Steve Pieper (Isomics), Jean-Christophe Fillion-Robin (Kitware)")
@@ -19,6 +19,7 @@ set(EXTENSION_BUILD_SUBDIRECTORY inner-build)
 set(SUPERBUILD_TOPLEVEL_PROJECT inner)
 
 #-----------------------------------------------------------------------------
+# Extension dependencies
 find_package(Slicer REQUIRED)
 include(${Slicer_USE_FILE})
 mark_as_superbuild(Slicer_DIR)
@@ -27,6 +28,7 @@ find_package(Git REQUIRED)
 mark_as_superbuild(GIT_EXECUTABLE)
 
 #-----------------------------------------------------------------------------
+# SuperBuild setup
 option(${EXTENSION_NAME}_SUPERBUILD "Build ${EXTENSION_NAME} and the projects it depends on." ON)
 mark_as_advanced(${EXTENSION_NAME}_SUPERBUILD)
 if(${EXTENSION_NAME}_SUPERBUILD)
@@ -35,6 +37,7 @@ if(${EXTENSION_NAME}_SUPERBUILD)
 endif()
 
 #-----------------------------------------------------------------------------
+# Extension modules
 add_subdirectory(VesselnessFiltering)
 add_subdirectory(LevelSetSegmentation)
 if(${Slicer_VERSION_MAJOR}.${Slicer_VERSION_MINOR} VERSION_GREATER_EQUAL 4.11)
@@ -47,7 +50,6 @@ add_subdirectory(CenterlineMetrics)
 add_subdirectory(CrossSectionAnalysis)
 
 #-----------------------------------------------------------------------------
-# Packaging
 set(EXTENSION_CPACK_INSTALL_CMAKE_PROJECTS)
 if(NOT APPLE)
   list(APPEND EXTENSION_CPACK_INSTALL_CMAKE_PROJECTS "${VMTK_DIR};VMTK;RuntimeLibraries;/")
@@ -55,7 +57,10 @@ endif()
 list(APPEND EXTENSION_CPACK_INSTALL_CMAKE_PROJECTS "${VMTK_DIR};VMTK;PythonRuntimeLibraries;/")
 list(APPEND EXTENSION_CPACK_INSTALL_CMAKE_PROJECTS "${VMTK_DIR};VMTK;RuntimeExecutables;/")
 set(${EXTENSION_NAME}_CPACK_INSTALL_CMAKE_PROJECTS "${EXTENSION_CPACK_INSTALL_CMAKE_PROJECTS}" CACHE STRING "List of external projects to install" FORCE)
+
+#-----------------------------------------------------------------------------
 list(APPEND CPACK_INSTALL_CMAKE_PROJECTS "${CMAKE_BINARY_DIR};${EXTENSION_NAME};ALL;/")
 list(APPEND CPACK_INSTALL_CMAKE_PROJECTS "${${EXTENSION_NAME}_CPACK_INSTALL_CMAKE_PROJECTS}")
 include(${Slicer_EXTENSION_GENERATE_CONFIG})
 include(${Slicer_EXTENSION_CPACK})
+
