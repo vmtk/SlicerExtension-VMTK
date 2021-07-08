@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>460</width>
-    <height>790</height>
+    <height>960</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -46,10 +46,19 @@
         <property name="showChildNodeTypes">
          <bool>false</bool>
         </property>
+        <property name="noneEnabled">
+         <bool>true</bool>
+        </property>
         <property name="addEnabled">
          <bool>false</bool>
         </property>
         <property name="removeEnabled">
+         <bool>false</bool>
+        </property>
+        <property name="editEnabled">
+         <bool>true</bool>
+        </property>
+        <property name="renameEnabled">
          <bool>false</bool>
         </property>
        </widget>
@@ -117,6 +126,56 @@
     </widget>
    </item>
    <item>
+    <widget class="QGroupBox" name="actionGroupBox">
+     <property name="locale">
+      <locale language="English" country="UnitedStates"/>
+     </property>
+     <property name="title">
+      <string/>
+     </property>
+     <property name="flat">
+      <bool>true</bool>
+     </property>
+     <layout class="QHBoxLayout" name="horizontalLayout_2">
+      <property name="leftMargin">
+       <number>0</number>
+      </property>
+      <property name="topMargin">
+       <number>0</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <property name="bottomMargin">
+       <number>0</number>
+      </property>
+      <item>
+       <widget class="QPushButton" name="toggleLayoutButton">
+        <property name="toolTip">
+         <string>Toggle between the plot layout and the preceding one.</string>
+        </property>
+        <property name="text">
+         <string>Toggle layout</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="applyButton">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="toolTip">
+         <string>Run the algorithm.</string>
+        </property>
+        <property name="text">
+         <string>Apply</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <widget class="ctkCollapsibleButton" name="advancedCollapsibleButton">
      <property name="text">
       <string>Advanced</string>
@@ -146,7 +205,7 @@
       <property name="bottomMargin">
        <number>4</number>
       </property>
-      <item row="1" column="1">
+      <item row="0" column="1">
        <widget class="QFrame" name="moveGroupBox">
         <property name="frameShape">
          <enum>QFrame::StyledPanel</enum>
@@ -258,7 +317,7 @@
          <item row="4" column="1">
           <widget class="QLabel" name="diameterValueLabel">
            <property name="toolTip">
-            <string>Diameter at selected point</string>
+            <string>Diameter at selected point, computed by VMTK, as the diameter of the maximum inscribed sphere at this point.</string>
            </property>
            <property name="locale">
             <locale language="English" country="UnitedStates"/>
@@ -300,7 +359,7 @@
         </layout>
        </widget>
       </item>
-      <item row="2" column="1">
+      <item row="1" column="1">
        <widget class="QGroupBox" name="moveHelperGroupBox">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
@@ -312,18 +371,30 @@
          <locale language="English" country="UnitedStates"/>
         </property>
         <property name="title">
-         <string>Helper functions</string>
+         <string/>
         </property>
         <property name="alignment">
          <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
         </property>
         <property name="flat">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
         <property name="checkable">
          <bool>false</bool>
         </property>
         <layout class="QHBoxLayout" name="horizontalLayout">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
          <item>
           <widget class="QPushButton" name="moveToMinimumPushButton">
            <property name="toolTip">
@@ -347,89 +418,227 @@
         </layout>
        </widget>
       </item>
-      <item row="0" column="1">
-       <widget class="QGroupBox" name="coordinatesGroupBox">
+      <item row="2" column="1">
+       <widget class="ctkCollapsibleButton" name="segmentationCollapsibleButton">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
           <horstretch>0</horstretch>
           <verstretch>0</verstretch>
          </sizepolicy>
         </property>
+        <property name="toolTip">
+         <string>Select a segment to view the cross-section and its surface area. It should be the segment from which the centerline was computed.
+
+Caution : surface area at bifurcations may not have clinical meaning.</string>
+        </property>
         <property name="locale">
          <locale language="English" country="UnitedStates"/>
         </property>
-        <property name="title">
-         <string>Coordinates</string>
+        <property name="text">
+         <string>Segmentation</string>
         </property>
-        <layout class="QVBoxLayout" name="verticalLayout_2">
-         <property name="spacing">
-          <number>4</number>
-         </property>
-         <property name="leftMargin">
-          <number>4</number>
-         </property>
-         <property name="topMargin">
-          <number>4</number>
-         </property>
-         <property name="rightMargin">
-          <number>4</number>
-         </property>
-         <property name="bottomMargin">
-          <number>4</number>
-         </property>
-         <item>
-          <widget class="QRadioButton" name="radioRAS">
-           <property name="toolTip">
-            <string>Right-Anterior-Superior coordinate system. Used in the Slicer scene.</string>
+        <layout class="QFormLayout" name="formLayout_3">
+         <item row="0" column="0">
+          <widget class="QLabel" name="segmentationLabel">
+           <property name="locale">
+            <locale language="English" country="UnitedStates"/>
            </property>
            <property name="text">
-            <string>RAS</string>
+            <string>Segmentation:</string>
            </property>
-           <property name="checked">
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="qMRMLNodeComboBox" name="segmentationSelector">
+           <property name="toolTip">
+            <string>Select an input segmentation node</string>
+           </property>
+           <property name="locale">
+            <locale language="English" country="UnitedStates"/>
+           </property>
+           <property name="nodeTypes">
+            <stringlist>
+             <string>vtkMRMLSegmentationNode</string>
+            </stringlist>
+           </property>
+           <property name="noneEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="addEnabled">
+            <bool>false</bool>
+           </property>
+           <property name="removeEnabled">
+            <bool>false</bool>
+           </property>
+           <property name="editEnabled">
             <bool>true</bool>
            </property>
           </widget>
          </item>
-         <item>
-          <widget class="QRadioButton" name="radioLPS">
+         <item row="2" column="1">
+          <widget class="qMRMLSegmentSelectorWidget" name="segmentSelector">
            <property name="toolTip">
-            <string>Left-Posterior-Superior coordinate system. Used commonly in files.</string>
+            <string>Select an input segment node</string>
            </property>
-           <property name="text">
-            <string>LPS</string>
+           <property name="segmentationNodeSelectorVisible">
+            <bool>false</bool>
            </property>
-           <property name="checked">
+           <property name="selectNodeUponCreation">
             <bool>false</bool>
            </property>
           </widget>
          </item>
-         <item>
-          <widget class="QCheckBox" name="distinctColumnsCheckBox">
+         <item row="3" column="0">
+          <widget class="QLabel" name="surfaceAreaLabel">
+           <property name="text">
+            <string>Surface area:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QLabel" name="surfaceAreaValueLabel">
            <property name="toolTip">
-            <string>Either one column with an array of values, or a distinct column for each value of the triplet.</string>
+            <string>Surface area of the cross-section</string>
            </property>
            <property name="text">
-            <string>Separate column for each axis</string>
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="derivedDiameterLabel">
+           <property name="text">
+            <string>Derived diameter:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="QLabel" name="derivedDiameterValueLabel">
+           <property name="toolTip">
+            <string>Diameter of a circle having the  surface area of the cross-section.
+
+The difference with the VMTK diameter, and the diameter ratio, are also provided.
+
+Caution : values at bifurcations may not have clinical meaning.</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="1">
+          <widget class="QPushButton" name="showAvailableCrossSectionsButton">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="toolTip">
+            <string>Show all available cross-sections. It may not be a complete stack, but only what has been created so far.</string>
+           </property>
+           <property name="text">
+            <string>Show available cross-sections</string>
+           </property>
+           <property name="checkable">
+            <bool>true</bool>
            </property>
           </widget>
          </item>
         </layout>
        </widget>
       </item>
+      <item row="3" column="1">
+       <widget class="ctkCollapsibleButton" name="coordinatesCollapsibleButton">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="toolTip">
+         <string>Select type of output coordinates</string>
+        </property>
+        <property name="locale">
+         <locale language="English" country="UnitedStates"/>
+        </property>
+        <property name="text">
+         <string>Coordinates</string>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout_3">
+         <item>
+          <widget class="QGroupBox" name="coordinatesGroupBox">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="locale">
+            <locale language="English" country="UnitedStates"/>
+           </property>
+           <property name="title">
+            <string/>
+           </property>
+           <layout class="QVBoxLayout" name="verticalLayout_2">
+            <property name="spacing">
+             <number>4</number>
+            </property>
+            <property name="leftMargin">
+             <number>4</number>
+            </property>
+            <property name="topMargin">
+             <number>4</number>
+            </property>
+            <property name="rightMargin">
+             <number>4</number>
+            </property>
+            <property name="bottomMargin">
+             <number>4</number>
+            </property>
+            <item>
+             <widget class="QRadioButton" name="radioRAS">
+              <property name="toolTip">
+               <string>Right-Anterior-Superior coordinate system. Used in the Slicer scene.</string>
+              </property>
+              <property name="text">
+               <string>RAS</string>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QRadioButton" name="radioLPS">
+              <property name="toolTip">
+               <string>Left-Posterior-Superior coordinate system. Used commonly in files.</string>
+              </property>
+              <property name="text">
+               <string>LPS</string>
+              </property>
+              <property name="checked">
+               <bool>false</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="distinctColumnsCheckBox">
+              <property name="toolTip">
+               <string>Either one column with an array of values, or a distinct column for each value of the triplet.</string>
+              </property>
+              <property name="text">
+               <string>Separate column for each axis</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
      </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QPushButton" name="applyButton">
-     <property name="enabled">
-      <bool>false</bool>
-     </property>
-     <property name="toolTip">
-      <string>Run the algorithm.</string>
-     </property>
-     <property name="text">
-      <string>Apply</string>
-     </property>
     </widget>
    </item>
    <item>
@@ -469,6 +678,11 @@
    <extends>QWidget</extends>
    <header>qMRMLWidget.h</header>
    <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>qMRMLSegmentSelectorWidget</class>
+   <extends>qMRMLWidget</extends>
+   <header>qMRMLSegmentSelectorWidget.h</header>
   </customwidget>
  </customwidgets>
  <resources/>
@@ -534,6 +748,54 @@
     <hint type="destinationlabel">
      <x>270</x>
      <y>374</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>CenterlineMetrics</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>segmentationSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>229</x>
+     <y>394</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>291</x>
+     <y>704</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>CenterlineMetrics</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>segmentSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>229</x>
+     <y>394</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>291</x>
+     <y>746</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>segmentationSelector</sender>
+   <signal>currentNodeChanged(vtkMRMLNode*)</signal>
+   <receiver>segmentSelector</receiver>
+   <slot>setCurrentNode(vtkMRMLNode*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>291</x>
+     <y>707</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>221</x>
+     <y>749</y>
     </hint>
    </hints>
   </connection>
