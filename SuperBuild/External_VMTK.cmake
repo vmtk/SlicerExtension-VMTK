@@ -1,7 +1,10 @@
+
 set(proj VMTK)
 
 # Set dependency list
-set(${proj}_DEPENDS "")
+set(${proj}_DEPENDS
+  ""
+  )
 
 # Include dependent projects if any
 ExternalProject_Include_Dependencies(${proj} PROJECT_VAR proj)
@@ -17,15 +20,37 @@ endif()
 
 if(NOT DEFINED ${proj}_DIR AND NOT ${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
 
+  set(VMTK_USE_VTK9 ON)
+  if(Slicer_VTK_VERSION_MAJOR VERSION_LESS "9")
+    set(VMTK_USE_VTK9 OFF)
+  endif()
+  ExternalProject_Message(${proj} "VMTK_USE_VTK9:${VMTK_USE_VTK9}")
+
+  set(EXTERNAL_PROJECT_OPTIONAL_CMAKE_CACHE_ARGS)
+  if(VTK_WRAP_PYTHON)
+    list(APPEND EXTERNAL_PROJECT_OPTIONAL_CMAKE_CACHE_ARGS
+      -DPYTHON_EXECUTABLE:FILEPATH=${PYTHON_EXECUTABLE}
+      -DPYTHON_INCLUDE_DIR:PATH=${PYTHON_INCLUDE_DIR}
+      -DPYTHON_LIBRARY:FILEPATH=${PYTHON_LIBRARY}
+      # Required by FindPython3 CMake module used by VTK
+      -DPython3_ROOT_DIR:PATH=${Python3_ROOT_DIR}
+      -DPython3_INCLUDE_DIR:PATH=${Python3_INCLUDE_DIR}
+      -DPython3_LIBRARY:FILEPATH=${Python3_LIBRARY}
+      -DPython3_LIBRARY_DEBUG:FILEPATH=${Python3_LIBRARY_DEBUG}
+      -DPython3_LIBRARY_RELEASE:FILEPATH=${Python3_LIBRARY_RELEASE}
+      -DPython3_EXECUTABLE:FILEPATH=${Python3_EXECUTABLE}
+      )
+  endif()
+
   ExternalProject_SetIfNotDefined(
     ${CMAKE_PROJECT_NAME}_${proj}_GIT_REPOSITORY
-    "${EP_GIT_PROTOCOL}://github.com/lassoan/vmtk.git"
+    "${EP_GIT_PROTOCOL}://github.com/jcfr/vmtk.git"
     QUIET
     )
 
   ExternalProject_SetIfNotDefined(
     ${CMAKE_PROJECT_NAME}_${proj}_GIT_TAG
-    "01855002f11db665f4d8ca1528cf9e95d111d96b"
+    "bdddd70cc2ed40a10ba85bff1279d910db31fc1e"
     QUIET
     )
 
@@ -78,15 +103,27 @@ if(NOT DEFINED ${proj}_DIR AND NOT ${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
       -DUSE_SYSTEM_ITK:BOOL=ON
       -DITK_DIR:PATH=${ITK_DIR}
       -DVTK_DIR:PATH=${VTK_DIR}
-      -DPYTHON_LIBRARY:PATH=${PYTHON_LIBRARY}
       # macOS
       -DCMAKE_INSTALL_NAME_TOOL:FILEPATH=${CMAKE_INSTALL_NAME_TOOL}
       -DCMAKE_MACOSX_RPATH:BOOL=0
+      # Options
+      -DVMTK_USE_VTK9:BOOL=${VMTK_USE_VTK9}
+      ${EXTERNAL_PROJECT_OPTIONAL_CMAKE_CACHE_ARGS}
     INSTALL_COMMAND ""
     DEPENDS
       ${${proj}_DEPENDS}
     )
   set(${proj}_DIR ${EP_BINARY_DIR})
+
+  #-----------------------------------------------------------------------------
+  # Launcher setting specific to build tree
+
+  # NA
+
+  #-----------------------------------------------------------------------------
+  # Launcher setting specific to install tree
+
+  # NA
 
 else()
   ExternalProject_Add_Empty(${proj} DEPENDS ${${proj}_DEPENDS})
