@@ -72,6 +72,10 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.resetMoveToPointSliderWidget()
     self.ui.advancedCollapsibleButton.checked = False
     self.setUnitNodePrecision()
+    self.ui.toggleLayoutButton.visible = False
+    self.previousLayoutId = slicer.app.layoutManager().layout
+    self.ui.segmentationCollapsibleButton.collapsed = True
+    self.ui.coordinatesCollapsibleButton.collapsed = True
 
     # connections
     self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
@@ -85,6 +89,10 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.jumpCentredInSliceNodeCheckBox.connect("clicked()", self.onJumpCentredInSliceNodeCheckBox)
     self.ui.moveToMinimumPushButton.connect("clicked()", self.moveSliceViewToMinimumDiameter)
     self.ui.moveToMaximumPushButton.connect("clicked()", self.moveSliceViewToMaximumDiameter)
+    self.ui.toggleLayoutButton.connect("clicked()", self.toggleLayout)
+    self.ui.segmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSegmentationNodes)
+    self.ui.segmentSelector.connect("currentSegmentChanged(QString)", self.onSelectSegmentationNodes)
+    self.ui.showAvailableCrossSectionsButton.connect("clicked()", self.onShowAvailableCrossSections)
 
     # Refresh Apply button state
     self.onSelectNode()
@@ -94,23 +102,10 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     Called when the application closes and the module widget is destroyed.
     """
     self.removeObservers()
-    
-  def onApplyButton(self):
-    """
-    Run processing when user clicks "Apply" button.
-    """
-    try:
-      self.createOutputNodes()
-      self.logic.run()
-
-    except Exception as e:
-      slicer.util.errorDisplay("Failed to compute results: "+str(e))
-      import traceback
-      traceback.print_exc()
   
   def onSelectNode(self):
-    self.ui.applyButton.enabled = self.ui.inputModelSelector.currentNode()
     self.logic.setInputModelNode(self.ui.inputModelSelector.currentNode())
+    self.ui.applyButton.enabled = self.logic.isInputModelValid()
     self.logic.setOutputTableNode(self.ui.outputTableSelector.currentNode())
     self.logic.setOutputPlotSeriesNode(self.ui.outputPlotSeriesSelector.currentNode())
     self.ui.moveToPointSliderWidget.setValue(0)
@@ -126,10 +121,17 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
       self.ui.outputPlotSeriesSelector.setCurrentNode(outputPlotSeriesNode)
 
   def onApplyButton(self):
+    if not self.logic.isInputModelValid():
+        msg = "Input is invalid."
+        slicer.util.showStatusMessage(msg, 3000)
+        logging.info(msg)
+        return # Just don't do anything
     self.resetUIWithEmptyMetrics()
+    self.resetSurfaceAreaUIWithEmptyMetrics()
     self.createOutputNodes()
     self.logic.run()
-    self.ui.moveToPointSliderWidget.maximum = self.logic.outputTableNode.GetTable().GetNumberOfRows() - 1
+    self.ui.moveToPointSliderWidget.maximum = self.logic.outputTableNode.GetTable().GetNumberOfRows() -1 -1 
+    self.ui.toggleLayoutButton.visible = True
     
   def onRadioLPS(self):
     self.logic.coordinateSystemColumnRAS = False
@@ -144,27 +146,55 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.logic.jumpCentredInSliceNode = self.ui.jumpCentredInSliceNodeCheckBox.checked
     
   def moveSliceView(self, value):
+    # +++, else, crash !!
+    if not self.logic.isInputModelValid():
+      return
     self.logic.moveSliceView(self.ui.sliceViewSelector.currentNode(), value)
     self.updateUIWithMetrics(value)
+    self.updateSurfaceAreaUIWithMetrics(value)
   
   def updateUIWithMetrics(self, value):
     tableNode = self.logic.outputTableNode
     if tableNode is None:
         return
     coordinateArray = self.logic.getRASCoordinatesAtIndex(value)
-    distance = self.logic.getUnitNodeDisplayString(tableNode.GetTable().GetValue(int(value), 0).ToDouble())
-    diameter = self.logic.getUnitNodeDisplayString(tableNode.GetTable().GetValue(int(value), 1).ToDouble())
+    distance = self.logic.getUnitNodeDisplayString(tableNode.GetTable().GetValue(int(value), 0).ToDouble(), "length")
+    diameter = self.logic.getUnitNodeDisplayString(tableNode.GetTable().GetValue(int(value), 1).ToDouble(), "length")
     coordinate = "R " + str(round(coordinateArray[0], 1))
     coordinate += ", A " + str(round(coordinateArray[1], 1))
     coordinate += ", S" + str(round(coordinateArray[2], 1))
     self.ui.distanceValueLabel.setText(distance)
     self.ui.diameterValueLabel.setText(diameter)
     self.ui.coordinatesValueLabel.setText(coordinate)
+  
+  # Show the surface area. In addition, derive the diameter of the circle having this area. Show also the difference and the ratio to the VMTK diameter.
+  def updateSurfaceAreaUIWithMetrics(self, value):
+    surfaceArea = self.logic.currentSurfaceArea
+    if surfaceArea == 0.0:
+        self.resetSurfaceAreaUIWithEmptyMetrics()
+        return
+    tableNode = self.logic.outputTableNode
+    if tableNode is None:
+        return
+    vmtkDiameter = tableNode.GetTable().GetValue(int(value), 1).ToDouble()
+    derivedDiameter = (numpy.sqrt(surfaceArea / numpy.pi)) * 2
+    diameterDifference = (derivedDiameter - vmtkDiameter)
+    diameterRatio = (derivedDiameter / vmtkDiameter)
+    self.ui.surfaceAreaValueLabel.setText(self.logic.getUnitNodeDisplayString(surfaceArea, "area"))
+    derivedValues = self.logic.getUnitNodeDisplayString(derivedDiameter, "length")
+    # Using str().strip() to remove a leading space
+    derivedValues += " [" + self.logic.getUnitNodeDisplayString(diameterDifference, "length").strip() + "]"
+    derivedValues += " [" + str(round(diameterRatio, 2)) + "]"
+    self.ui.derivedDiameterValueLabel.setText(derivedValues)
     
   def resetUIWithEmptyMetrics(self):
     self.ui.distanceValueLabel.setText("")
     self.ui.diameterValueLabel.setText("")
     self.ui.coordinatesValueLabel.setText("")
+  
+  def resetSurfaceAreaUIWithEmptyMetrics(self):
+    self.ui.surfaceAreaValueLabel.setText("")
+    self.ui.derivedDiameterValueLabel.setText("")
     
   def resetMoveToPointSliderWidget(self):
     slider = self.ui.moveToPointSliderWidget
@@ -188,6 +218,26 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     selectionNode = slicer.mrmlScene.GetNodeByID("vtkMRMLSelectionNodeSingleton")
     unitNode = slicer.mrmlScene.GetNodeByID(selectionNode.GetUnitNodeID("length"))
     unitNode.SetPrecision(2)
+    unitNode = slicer.mrmlScene.GetNodeByID(selectionNode.GetUnitNodeID("area"))
+    unitNode.SetPrecision(2)
+  
+  # Useful UI enhancement. Get back to the previous layout that would most certainly have a 3D view before we plot the diameter distribution chart. And back to the plot layout.
+  def toggleLayout(self):
+    wasCurrentLayoutId = slicer.app.layoutManager().layout
+    slicer.app.layoutManager().setLayout(self.previousLayoutId)
+    self.previousLayoutId = wasCurrentLayoutId
+  
+  # Every time we select a segmentation or a segment.
+  def onSelectSegmentationNodes(self):
+    self.logic.segmentationNode = self.ui.segmentationSelector.currentNode()
+    self.logic.currentSegmentID = self.ui.segmentSelector.currentSegmentID()
+    self.resetSurfaceAreaUIWithEmptyMetrics()
+    self.logic.currentSurfaceArea = 0.0
+    # Create cross-section models at start point
+    self.logic.moveSliceView(self.ui.sliceViewSelector.currentNode() , self.ui.moveToPointSliderWidget.value)
+    
+  def onShowAvailableCrossSections(self):
+    self.logic.setShowAvailableCrossSections( self.ui.showAvailableCrossSectionsButton.checked)
 
 #
 # CenterlineMetricsLogic
@@ -210,6 +260,19 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     self.coordinateSystemColumnSingle = True
     self.coordinateSystemColumnRAS = True  # LPS or RAS
     self.jumpCentredInSliceNode = False
+    self.islandModelNode = None
+    self.segmentationNode = None
+    self.currentSegmentID = ""
+    self.currentSurfaceArea = 0.0
+    # Stack of cross-sections
+    self.appendedPolyData = vtk.vtkAppendPolyData()
+    self.appendedModelNode = None
+    self.appendedModelNodeId = ""
+    ## Do not re-append
+    self.appendedPointIndices = vtk.vtkIntArray()
+    ## To reset things if the appended model is removed by the user
+    self.sceneNodeRemovedObservation = None
+    self.showAvailableCrossSections = False
 
   def setInputModelNode(self, modelNode):
     if self.inputModelNode == modelNode:
@@ -225,17 +288,31 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     if self.outputPlotSeriesNode == plotSeriesNode:
       return
     self.outputPlotSeriesNode = plotSeriesNode
+
+  def setShowAvailableCrossSections(self, checked):
+    self.showAvailableCrossSections = checked
+    if self.appendedModelNode is not None:
+        self.appendedModelNode.GetDisplayNode().SetVisibility(self.showAvailableCrossSections)
+
+  def isInputModelValid(self):
+    if not self.inputModelNode:
+      return False
+    if not self.inputModelNode.HasPointScalarName("Radius"):
+      return False
+    return True
     
   def run(self):
-    if not self.inputModelNode:
-      raise ValueError("Input is invalid")
+    if not self.isInputModelValid():
+        msg = "Input is invalid."
+        slicer.util.showStatusMessage(msg, 3000)
+        raise ValueError(msg)
 
     logging.info('Processing started')
     self.emptyOutputTableNode()
     self.updateOutputTable(self.inputModelNode, self.outputTableNode)
     self.updatePlot(self.outputPlotSeriesNode, self.outputTableNode, self.inputModelNode.GetName())
     self.showPlot()
-    logging.info('Processing completed')
+    logging.info('Processing completed')  
 
   def emptyOutputTableNode(self):
     # Clears the plot also.
@@ -255,7 +332,6 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     return columnArray
 
   def updateOutputTable(self, inputModel, outputTable):
-
     # Create arrays of data
     distanceArray = self.getArrayFromTable(outputTable, DISTANCE_ARRAY_NAME)
     diameterArray = self.getArrayFromTable(outputTable, DIAMETER_ARRAY_NAME)
@@ -365,6 +441,11 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
         slicer.vtkMRMLSliceNode.JumpSliceByCentering(sliceNode, coordinateArray[0], coordinateArray[1], coordinateArray[2])
     else:
         slicer.vtkMRMLSliceNode.JumpSlice(sliceNode, coordinateArray[0], coordinateArray[1], coordinateArray[2])
+        
+    centerlinePoints = slicer.util.arrayFromModelPoints(self.inputModelNode)
+    point = centerlinePoints[int(value)]
+    direction = centerlinePoints[int(value) + 1] - point
+    self.createCrossSection(point, direction, value)
 
 # Convenience function to get the point of minimum or maximum diameter. Is useful for arterial stenosis (minimum) or aneurysm (maximum).
   def getExtremeDiameterPoint(self, boolMaximum):
@@ -382,10 +463,145 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
             break
     return target
 
-  def getUnitNodeDisplayString(self, value):
+  def getUnitNodeDisplayString(self, value, category):
     selectionNode = slicer.mrmlScene.GetNodeByID("vtkMRMLSelectionNodeSingleton")
-    unitNode = slicer.mrmlScene.GetNodeByID(selectionNode.GetUnitNodeID("length"))
+    unitNode = slicer.mrmlScene.GetNodeByID(selectionNode.GetUnitNodeID(category))
     return unitNode.GetDisplayStringFromValue(value)
+    
+  
+  def createCrossSection(self, center, normal, pointIndex):
+    if self.segmentationNode is None or self.currentSegmentID == "":
+        # Don't print any message, is perhaps intended.
+        return
+    
+    # Place a plane perpendicular to the centerline
+    plane = vtk.vtkPlane()
+    plane.SetOrigin(center)
+    plane.SetNormal(normal)
+    
+    # If segmentation is transformed, apply it to the cross-section model. We suppose that the centerline model has been transformed similarly.
+    segmentationTransform = vtk.vtkGeneralTransform()
+    slicer.vtkMRMLTransformNode.GetTransformBetweenNodes(self.segmentationNode.GetParentTransformNode(), None, segmentationTransform)
+    
+    # Work on the segment's closed surface
+    closedSurfacePolyData = vtk.vtkPolyData()
+    self.segmentationNode.GetClosedSurfaceRepresentation(self.currentSegmentID, closedSurfacePolyData)
+    
+    # Though not needed here, it was surprising that vtkSegment::GetId() is missing.
+    currentSegment =  self.segmentationNode.GetSegmentation().GetSegment(self.currentSegmentID)
+    
+    # Cut through the closed surface and get the points of the contour.
+    planeCut = vtk.vtkCutter()
+    planeCut.SetInputData(closedSurfacePolyData)
+    planeCut.SetCutFunction(plane)
+    planeCut.Update()
+    planePoints = vtk.vtkPoints()
+    planePoints = planeCut.GetOutput().GetPoints()
+    # self.segmentationNode.GetDisplayNode().GetSegmentVisibility3D(self.currentSegmentID) doesn't work as expected. Even if the segment is hidden in 3D view, it returns True.
+    if planePoints is None:
+        msg = "Could not cut segment. Is it visible in 3D view?"
+        slicer.util.showStatusMessage(msg, 3000)
+        raise ValueError(msg)
+    if planePoints.GetNumberOfPoints() < 3:
+        logging.info("Not enough points to create surface")
+        return
+    
+    # Keep the closed surface around the centerline
+    vCenter = [center[0], center[1], center[2]]
+    connectivityFilter = vtk.vtkConnectivityFilter()
+    connectivityFilter.SetInputData(planeCut.GetOutput())
+    connectivityFilter.SetClosestPoint(vCenter)
+    connectivityFilter.SetExtractionModeToClosestPointRegion()
+    connectivityFilter.Update()
+
+    # Prefer an inverted color for the model
+    segmentColor = currentSegment.GetColor()
+    crossSectionColor = [1 - segmentColor[0], 1 - segmentColor[1], 1 - segmentColor[2]]
+    
+    # Triangulate the contour points
+    contourTriangulator = vtk.vtkContourTriangulator()
+    contourTriangulator.SetInputData(connectivityFilter.GetPolyDataOutput())
+    contourTriangulator.Update()
+    
+    # Finally create and show the model
+    self.currentSurfaceArea = self.createCrossSectionModel(contourTriangulator.GetOutput(), pointIndex, crossSectionColor, currentSegment.GetName())
+    
+    # Let the models follow a transformed input segmentation
+    if self.islandModelNode and segmentationTransform:
+        self.islandModelNode.ApplyTransform(segmentationTransform)
+    if self.appendedModelNode and segmentationTransform:
+        self.appendedModelNode.ApplyTransform(segmentationTransform)
+
+  # Create an exact-fit model representing the cross-section.
+  def createCrossSectionModel(self, islandPolyData, pointIndex, color = [1, 1, 0], segmentName = ""):
+
+    # Replace the model at each point.
+    if self.islandModelNode is not None:
+        slicer.mrmlScene.RemoveNode(self.islandModelNode)
+    self.islandModelNode = None
+    self.islandModelNode = slicer.modules.models.logic().AddModel(islandPolyData)
+    separator = " for " if segmentName else ""
+    self.islandModelNode.SetName("Cross-section" + separator + segmentName)
+    islandModelDisplayNode = self.islandModelNode.GetDisplayNode()
+    islandModelDisplayNode.SetColor(color[0], color[1], color[2])
+    islandModelDisplayNode.SetOpacity(0.75)
+    
+    # N.B. : Cross-sections are not necessarily contiguous
+    self.updateAppendedModel(islandPolyData, pointIndex, segmentName)
+    
+    # Get the surface area.
+    islandProperties = vtk.vtkMassProperties()
+    islandProperties.SetInputData(islandPolyData)
+    return islandProperties.GetSurfaceArea()
+
+  def updateAppendedModel(self, islandPolyData, pointIndex, segmentName = ""):
+    if self.appendedModelNode is not None:
+        self.appendedModelNode.GetDisplayNode().SetVisibility(self.showAvailableCrossSections)
+    # Don't append again if already done at a centerline point
+    for i in range(self.appendedPointIndices.GetNumberOfValues()):
+        if self.appendedPointIndices.GetValue(i) == pointIndex:
+            return
+    
+    # Work on a copy of the input polydata for the stack model
+    islandPolyDataCopy = vtk.vtkPolyData()
+    islandPolyDataCopy.DeepCopy(islandPolyData)
+    # Set same scalar value to each point of polydata.
+    intArray = vtk.vtkIntArray()
+    intArray.SetName("PointIndex")
+    for i in range(islandPolyDataCopy.GetNumberOfPoints()):
+        intArray.InsertNextValue(int(pointIndex))
+    islandPolyDataCopy.GetPointData().SetScalars(intArray)
+    islandPolyDataCopy.Modified()
+    
+    self.appendedPolyData.AddInputData(islandPolyDataCopy)
+    self.appendedPolyData.Update()
+    
+    # Remember where it's already done
+    self.appendedPointIndices.InsertNextValue(int(pointIndex))
+    
+    # Remove stack model and observation
+    if self.appendedModelNode is not None:
+        # Don't react if we remove it from scene on our own
+        slicer.mrmlScene.RemoveObserver(self.sceneNodeRemovedObservation)
+        slicer.mrmlScene.RemoveNode(self.appendedModelNode)
+    # Create a new stack model
+    self.appendedModelNode = slicer.modules.models.logic().AddModel(self.appendedPolyData.GetOutputPort())
+    separator = " for " if segmentName else ""
+    self.appendedModelNode.SetName("Cross-section stack" + separator + segmentName)
+    self.appendedModelNode.GetDisplayNode().SetVisibility(self.showAvailableCrossSections)
+    # Remember stack model by id
+    self.appendedModelNodeId = self.appendedModelNode.GetID()
+    # Add an observation if stack model is deleted by the user
+    self.sceneNodeRemovedObservation = slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeRemovedEvent, self.onSceneNodeRemoved)
+  
+  # Clean up if stack model is removed by user
+  def onSceneNodeRemoved(self, scene, eventString):
+    self.appendedModelNode = slicer.mrmlScene.GetNodeByID(self.appendedModelNodeId)
+    if self.appendedModelNode is None:
+        self.appendedModelNodeId = ""
+        self.appendedPolyData.RemoveAllInputs()
+        self.appendedPointIndices.Reset()
+        slicer.mrmlScene.RemoveObserver(self.sceneNodeRemovedObservation)
     
 #
 # CenterlineMetricsTest
@@ -413,4 +629,3 @@ class CenterlineMetricsTest(ScriptedLoadableModuleTest):
 
 DISTANCE_ARRAY_NAME = "Distance"
 DIAMETER_ARRAY_NAME = "Diameter"
-
