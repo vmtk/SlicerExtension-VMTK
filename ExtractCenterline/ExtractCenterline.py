@@ -702,7 +702,13 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
         centerlineFilter.SetCostFunction('1/R')  # this makes path search prefer go through points with large radius
         centerlineFilter.SetFlipNormals(False)
         centerlineFilter.SetAppendEndPointsToCenterlines(0)
-        centerlineFilter.SetSimplifyVoronoi(1)  # this slightly improves connectivity
+
+        # Voronoi smoothing slightly improves connectivity
+        # Unfortunately, Voronoi smoothing is broken if VMTK is used with VTK9, therefore
+        # disable this feature for now (https://github.com/vmtk/SlicerExtension-VMTK/issues/34)
+        enableVoronoiSmoothing = (slicer.app.majorVersion * 100 + slicer.app.minorVersion < 413)
+        centerlineFilter.SetSimplifyVoronoi(enableVoronoiSmoothing)
+
         centerlineFilter.SetCenterlineResampling(0)
         centerlineFilter.SetResamplingStepLength(curveSamplingDistance)
         centerlineFilter.Update()
