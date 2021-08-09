@@ -491,14 +491,14 @@ Caution : surface area at bifurcations may not have clinical meaning.</string>
          <item row="3" column="0">
           <widget class="QLabel" name="surfaceAreaLabel">
            <property name="text">
-            <string>Surface area:</string>
+            <string>Cross-sectional area:</string>
            </property>
           </widget>
          </item>
          <item row="3" column="1">
           <widget class="QLabel" name="surfaceAreaValueLabel">
            <property name="toolTip">
-            <string>Surface area of the cross-section</string>
+            <string>Area of the cross-section</string>
            </property>
            <property name="text">
             <string/>
