@@ -179,12 +179,13 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     vmtkDiameter = tableNode.GetTable().GetValue(int(value), 1).ToDouble()
     derivedDiameter = (numpy.sqrt(surfaceArea / numpy.pi)) * 2
     diameterDifference = (derivedDiameter - vmtkDiameter)
-    diameterRatio = (derivedDiameter / vmtkDiameter)
+    diameterPercentDifference = (diameterDifference / vmtkDiameter) * 100
+    operator = ("+" if diameterDifference >= 0 else "-")
     self.ui.surfaceAreaValueLabel.setText(self.logic.getUnitNodeDisplayString(surfaceArea, "area"))
     derivedValues = self.logic.getUnitNodeDisplayString(derivedDiameter, "length")
     # Using str().strip() to remove a leading space
-    derivedValues += " [" + self.logic.getUnitNodeDisplayString(diameterDifference, "length").strip() + "]"
-    derivedValues += " [" + str(round(diameterRatio, 2)) + "]"
+    derivedValues += " (MIS diameter " + operator + " " + self.logic.getUnitNodeDisplayString(abs(diameterDifference), "length").strip()
+    derivedValues += ", " + operator + str(round(abs(diameterPercentDifference), 2)) + "%)"
     self.ui.derivedDiameterValueLabel.setText(derivedValues)
     
   def resetUIWithEmptyMetrics(self):

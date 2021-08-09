@@ -310,14 +310,14 @@
             <locale language="English" country="UnitedStates"/>
            </property>
            <property name="text">
-            <string>Diameter:</string>
+            <string>MIS Diameter:</string>
            </property>
           </widget>
          </item>
          <item row="4" column="1">
           <widget class="QLabel" name="diameterValueLabel">
            <property name="toolTip">
-            <string>Diameter at selected point, computed by VMTK, as the diameter of the maximum inscribed sphere at this point.</string>
+            <string>Maximum inscribed sphere (MIS) diameter at selected point.</string>
            </property>
            <property name="locale">
             <locale language="English" country="UnitedStates"/>
@@ -508,16 +508,16 @@ Caution : surface area at bifurcations may not have clinical meaning.</string>
          <item row="4" column="0">
           <widget class="QLabel" name="derivedDiameterLabel">
            <property name="text">
-            <string>Derived diameter:</string>
+            <string>CE diameter:</string>
            </property>
           </widget>
          </item>
          <item row="4" column="1">
           <widget class="QLabel" name="derivedDiameterValueLabel">
            <property name="toolTip">
-            <string>Diameter of a circle having the  surface area of the cross-section.
+            <string>Circular equivalent (CE) diameter : that of a circle having the  surface area of the cross-section.
 
-The difference with the VMTK diameter, and the diameter ratio, are also provided.
+The difference with the maximum inscribed sphere (MIS) diameter, and the diameter ratio, are also provided.
 
 Caution : values at bifurcations may not have clinical meaning.</string>
            </property>
