@@ -91,7 +91,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.moveToMaximumPushButton.connect("clicked()", self.moveSliceViewToMaximumDiameter)
     self.ui.toggleLayoutButton.connect("clicked()", self.toggleLayout)
     self.ui.segmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSegmentationNodes)
-    self.ui.segmentSelector.connect("currentSegmentChanged(QString)", self.onSelectSegmentationNodes)
+    self.ui.segmentSelector.connect("currentSurfaceChanged(QString)", self.onSelectSegmentationNodes)
     self.ui.showAvailableCrossSectionsButton.connect("clicked()", self.onShowAvailableCrossSections)
 
     # Refresh Apply button state
@@ -230,7 +230,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
   
   # Every time we select a segmentation or a segment.
   def onSelectSegmentationNodes(self):
-    self.logic.segmentationNode = self.ui.segmentationSelector.currentNode()
+    self.logic.surfaceNode = self.ui.segmentationSelector.currentNode()
     self.logic.currentSegmentID = self.ui.segmentSelector.currentSegmentID()
     self.resetSurfaceAreaUIWithEmptyMetrics()
     self.logic.currentSurfaceArea = 0.0
@@ -262,7 +262,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     self.coordinateSystemColumnRAS = True  # LPS or RAS
     self.jumpCentredInSliceNode = False
     self.islandModelNode = None
-    self.segmentationNode = None
+    self.surfaceNode = None
     self.currentSegmentID = ""
     self.currentSurfaceArea = 0.0
     # Stack of cross-sections
@@ -471,7 +471,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     
   
   def createCrossSection(self, center, normal, pointIndex):
-    if self.segmentationNode is None or self.currentSegmentID == "":
+    if self.surfaceNode is None or self.currentSegmentID == "":
         # Don't print any message, is perhaps intended.
         return
     
@@ -482,14 +482,18 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     
     # If segmentation is transformed, apply it to the cross-section model. We suppose that the centerline model has been transformed similarly.
     segmentationTransform = vtk.vtkGeneralTransform()
-    slicer.vtkMRMLTransformNode.GetTransformBetweenNodes(self.segmentationNode.GetParentTransformNode(), None, segmentationTransform)
+    slicer.vtkMRMLTransformNode.GetTransformBetweenNodes(self.surfaceNode.GetParentTransformNode(), None, segmentationTransform)
     
     # Work on the segment's closed surface
     closedSurfacePolyData = vtk.vtkPolyData()
-    self.segmentationNode.GetClosedSurfaceRepresentation(self.currentSegmentID, closedSurfacePolyData)
-    
-    # Though not needed here, it was surprising that vtkSegment::GetId() is missing.
-    currentSegment =  self.segmentationNode.GetSegmentation().GetSegment(self.currentSegmentID)
+    if (self.surfaceNode.GetClassName() == "vtkMRMLSegmentationNode"):
+        self.surfaceNode.GetClosedSurfaceRepresentation(self.currentSegmentID, closedSurfacePolyData)
+        
+        # Though not needed here, it was surprising that vtkSegment::GetId() is missing.
+        currentSurface =  self.surfaceNode.GetSegmentation().GetSegment(self.currentSegmentID)
+    else:
+        closedSurfacePolyData = self.surfaceNode.GetPolyData()
+        currentSurface = self.surfaceNode
     
     # Cut through the closed surface and get the points of the contour.
     planeCut = vtk.vtkCutter()
@@ -498,7 +502,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     planeCut.Update()
     planePoints = vtk.vtkPoints()
     planePoints = planeCut.GetOutput().GetPoints()
-    # self.segmentationNode.GetDisplayNode().GetSegmentVisibility3D(self.currentSegmentID) doesn't work as expected. Even if the segment is hidden in 3D view, it returns True.
+    # self.surfaceNode.GetDisplayNode().GetSegmentVisibility3D(self.currentSegmentID) doesn't work as expected. Even if the segment is hidden in 3D view, it returns True.
     if planePoints is None:
         msg = "Could not cut segment. Is it visible in 3D view?"
         slicer.util.showStatusMessage(msg, 3000)
@@ -516,7 +520,10 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     connectivityFilter.Update()
 
     # Prefer an inverted color for the model
-    segmentColor = currentSegment.GetColor()
+    if (self.surfaceNode.GetClassName() == "vtkMRMLSegmentationNode"):
+        segmentColor = currentSurface.GetColor()
+    else:
+        segmentColor = currentSurface.GetDisplayNode().GetColor()
     crossSectionColor = [1 - segmentColor[0], 1 - segmentColor[1], 1 - segmentColor[2]]
     
     # Triangulate the contour points
@@ -525,7 +532,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     contourTriangulator.Update()
     
     # Finally create and show the model
-    self.currentSurfaceArea = self.createCrossSectionModel(contourTriangulator.GetOutput(), pointIndex, crossSectionColor, currentSegment.GetName())
+    self.currentSurfaceArea = self.createCrossSectionModel(contourTriangulator.GetOutput(), pointIndex, crossSectionColor, currentSurface.GetName())
     
     # Let the models follow a transformed input segmentation
     if self.islandModelNode and segmentationTransform:

@@ -444,14 +444,16 @@ Caution : surface area at bifurcations may not have clinical meaning.</string>
             <locale language="English" country="UnitedStates"/>
            </property>
            <property name="text">
-            <string>Segmentation:</string>
+            <string>Surface:</string>
            </property>
           </widget>
          </item>
          <item row="0" column="1">
           <widget class="qMRMLNodeComboBox" name="segmentationSelector">
            <property name="toolTip">
-            <string>Select an input segmentation node</string>
+            <string>Select an input segmentation or model node.
+
+It should be a node from which a centerline has been computed.</string>
            </property>
            <property name="locale">
             <locale language="English" country="UnitedStates"/>
@@ -459,6 +461,7 @@ Caution : surface area at bifurcations may not have clinical meaning.</string>
            <property name="nodeTypes">
             <stringlist>
              <string>vtkMRMLSegmentationNode</string>
+             <string>vtkMRMLModelNode</string>
             </stringlist>
            </property>
            <property name="noneEnabled">
