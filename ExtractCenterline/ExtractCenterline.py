@@ -936,7 +936,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
                 radiusMeasurement = slicer.vtkMRMLStaticMeasurement()
                 radiusMeasurement.SetName(radiusArray.GetName())
                 radiusMeasurement.SetUnits('mm')
-                radiusMeasurement.SetPrintFormat(None) # Prevent from showing up in subject hierarchy Description column
+                radiusMeasurement.SetPrintFormat('') # Prevent from showing up in subject hierarchy Description column
                 radiusMeasurement.SetControlPointValues(radiusArray)
                 curveNode.AddMeasurement(radiusMeasurement)
             else:
