@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>460</width>
-    <height>960</height>
+    <height>1006</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -435,7 +435,7 @@ Caution : surface area at bifurcations may not have clinical meaning.</string>
          <locale language="English" country="UnitedStates"/>
         </property>
         <property name="text">
-         <string>Segmentation</string>
+         <string>Cross-section area measurement</string>
         </property>
         <layout class="QFormLayout" name="formLayout_3">
          <item row="0" column="0">
