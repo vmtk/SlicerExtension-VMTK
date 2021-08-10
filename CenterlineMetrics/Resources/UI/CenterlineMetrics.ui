@@ -41,6 +41,7 @@
         <property name="nodeTypes">
          <stringlist>
           <string>vtkMRMLModelNode</string>
+          <string>vtkMRMLMarkupsCurveNode</string>
          </stringlist>
         </property>
         <property name="showChildNodeTypes">
@@ -310,7 +311,7 @@
             <locale language="English" country="UnitedStates"/>
            </property>
            <property name="text">
-            <string>MIS Diameter:</string>
+            <string>Diameter (MIS):</string>
            </property>
           </widget>
          </item>
@@ -511,7 +512,7 @@ It should be a node from which a centerline has been computed.</string>
          <item row="4" column="0">
           <widget class="QLabel" name="derivedDiameterLabel">
            <property name="text">
-            <string>CE diameter:</string>
+            <string>Diameter (CE):</string>
            </property>
           </widget>
          </item>
