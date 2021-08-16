@@ -523,8 +523,8 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     plane.SetNormal(normal)
     
     # If segmentation is transformed, apply it to the cross-section model. We suppose that the centerline model has been transformed similarly.
-    segmentationTransform = vtk.vtkGeneralTransform()
-    slicer.vtkMRMLTransformNode.GetTransformBetweenNodes(self.surfaceNode.GetParentTransformNode(), None, segmentationTransform)
+    surfaceTransform = vtk.vtkGeneralTransform()
+    slicer.vtkMRMLTransformNode.GetTransformBetweenNodes(self.surfaceNode.GetParentTransformNode(), None, surfaceTransform)
     
     # Work on the segment's closed surface
     closedSurfacePolyData = vtk.vtkPolyData()
@@ -563,10 +563,10 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
 
     # Prefer an inverted color for the model
     if (self.surfaceNode.GetClassName() == "vtkMRMLSegmentationNode"):
-        segmentColor = currentSurface.GetColor()
+        surfaceColor = currentSurface.GetColor()
     else:
-        segmentColor = currentSurface.GetDisplayNode().GetColor()
-    crossSectionColor = [1 - segmentColor[0], 1 - segmentColor[1], 1 - segmentColor[2]]
+        surfaceColor = currentSurface.GetDisplayNode().GetColor()
+    crossSectionColor = [1 - surfaceColor[0], 1 - surfaceColor[1], 1 - surfaceColor[2]]
     
     # Triangulate the contour points
     contourTriangulator = vtk.vtkContourTriangulator()
@@ -577,34 +577,34 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     self.currentSurfaceArea = self.createCrossSectionModel(contourTriangulator.GetOutput(), pointIndex, crossSectionColor, currentSurface.GetName())
     
     # Let the models follow a transformed input segmentation
-    if self.islandModelNode and segmentationTransform:
-        self.islandModelNode.ApplyTransform(segmentationTransform)
-    if self.appendedModelNode and segmentationTransform:
-        self.appendedModelNode.ApplyTransform(segmentationTransform)
+    if self.islandModelNode and surfaceTransform:
+        self.islandModelNode.ApplyTransform(surfaceTransform)
+    if self.appendedModelNode and surfaceTransform:
+        self.appendedModelNode.ApplyTransform(surfaceTransform)
 
   # Create an exact-fit model representing the cross-section.
-  def createCrossSectionModel(self, islandPolyData, pointIndex, color = [1, 1, 0], segmentName = ""):
+  def createCrossSectionModel(self, islandPolyData, pointIndex, color = [1, 1, 0], surfaceName = ""):
 
     # Replace the model at each point.
     if self.islandModelNode is not None:
         slicer.mrmlScene.RemoveNode(self.islandModelNode)
     self.islandModelNode = None
     self.islandModelNode = slicer.modules.models.logic().AddModel(islandPolyData)
-    separator = " for " if segmentName else ""
-    self.islandModelNode.SetName("Cross-section" + separator + segmentName)
+    separator = " for " if surfaceName else ""
+    self.islandModelNode.SetName("Cross-section" + separator + surfaceName)
     islandModelDisplayNode = self.islandModelNode.GetDisplayNode()
     islandModelDisplayNode.SetColor(color[0], color[1], color[2])
     islandModelDisplayNode.SetOpacity(0.75)
     
     # N.B. : Cross-sections are not necessarily contiguous
-    self.updateAppendedModel(islandPolyData, pointIndex, segmentName)
+    self.updateAppendedModel(islandPolyData, pointIndex, surfaceName)
     
     # Get the surface area.
     islandProperties = vtk.vtkMassProperties()
     islandProperties.SetInputData(islandPolyData)
     return islandProperties.GetSurfaceArea()
 
-  def updateAppendedModel(self, islandPolyData, pointIndex, segmentName = ""):
+  def updateAppendedModel(self, islandPolyData, pointIndex, surfaceName = ""):
     if self.appendedModelNode is not None:
         self.appendedModelNode.GetDisplayNode().SetVisibility(self.showAvailableCrossSections)
     # Don't append again if already done at a centerline point
@@ -636,8 +636,8 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
         slicer.mrmlScene.RemoveNode(self.appendedModelNode)
     # Create a new stack model
     self.appendedModelNode = slicer.modules.models.logic().AddModel(self.appendedPolyData.GetOutputPort())
-    separator = " for " if segmentName else ""
-    self.appendedModelNode.SetName("Cross-section stack" + separator + segmentName)
+    separator = " for " if surfaceName else ""
+    self.appendedModelNode.SetName("Cross-section stack" + separator + surfaceName)
     self.appendedModelNode.GetDisplayNode().SetVisibility(self.showAvailableCrossSections)
     # Remember stack model by id
     self.appendedModelNodeId = self.appendedModelNode.GetID()
@@ -673,12 +673,12 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
         separator = " for "
         if (self.surfaceNode.GetClassName() == "vtkMRMLSegmentationNode"):
             currentSurface =  self.surfaceNode.GetSegmentation().GetSegment(self.currentSegmentID)
-            segmentColor = currentSurface.GetColor()
+            surfaceColor = currentSurface.GetColor()
         else:
             currentSurface = self.surfaceNode
-            segmentColor = currentSurface.GetDisplayNode().GetColor()
+            surfaceColor = currentSurface.GetDisplayNode().GetColor()
         # Set sphere color
-        sphereColor = [segmentColor[0] / 5, segmentColor[1] / 5, segmentColor[2] / 5]
+        sphereColor = [surfaceColor[0] / 5, surfaceColor[1] / 5, surfaceColor[2] / 5]
         sphereModelDisplayNode.SetColor(sphereColor[0], sphereColor[1], sphereColor[2])
         
     # Set sphere visibility
@@ -689,10 +689,10 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     self.maximumInscribedSphereModelNode.SetName("Maximum inscribed sphere" + separator + ("" if currentSurface is None else currentSurface.GetName()))
     # Apply transform of surface if any
     if self.surfaceNode:
-        segmentationTransform = vtk.vtkGeneralTransform()
-        slicer.vtkMRMLTransformNode.GetTransformBetweenNodes(self.surfaceNode.GetParentTransformNode(), None, segmentationTransform)
-        if segmentationTransform:
-            self.maximumInscribedSphereModelNode.ApplyTransform(segmentationTransform)
+        surfaceTransform = vtk.vtkGeneralTransform()
+        slicer.vtkMRMLTransformNode.GetTransformBetweenNodes(self.surfaceNode.GetParentTransformNode(), None, surfaceTransform)
+        if surfaceTransform:
+            self.maximumInscribedSphereModelNode.ApplyTransform(surfaceTransform)
     
     
 #
