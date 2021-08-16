@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>460</width>
-    <height>1006</height>
+    <width>425</width>
+    <height>1028</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -530,23 +530,58 @@ Caution : values at bifurcations may not have clinical meaning.</string>
            </property>
           </widget>
          </item>
-         <item row="5" column="1">
-          <widget class="QPushButton" name="showAvailableCrossSectionsButton">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="toolTip">
-            <string>Show all available cross-sections. It may not be a complete stack, but only what has been created so far.</string>
-           </property>
+         <item row="5" column="0">
+          <widget class="QLabel" name="availableCrossSectionsLabel">
            <property name="text">
-            <string>Show available cross-sections</string>
+            <string>Available cross-sections:</string>
            </property>
-           <property name="checkable">
+          </widget>
+         </item>
+         <item row="5" column="1">
+          <widget class="QGroupBox" name="groupBox">
+           <property name="title">
+            <string/>
+           </property>
+           <property name="flat">
             <bool>true</bool>
            </property>
+           <layout class="QHBoxLayout" name="horizontalLayout_3">
+            <item>
+             <widget class="QPushButton" name="showAvailableCrossSectionsButton">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="toolTip">
+               <string>Show all available cross-sections. It may not be a complete stack, but only what has been created so far.</string>
+              </property>
+              <property name="text">
+               <string>Show</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="deleteAvailableCrossSectionsPushButton">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="toolTip">
+               <string>Remove the cross-section stack from scene.</string>
+              </property>
+              <property name="text">
+               <string>Delete</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </widget>
          </item>
         </layout>

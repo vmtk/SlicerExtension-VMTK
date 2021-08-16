@@ -93,6 +93,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.segmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSegmentationNodes)
     self.ui.segmentSelector.connect("currentSurfaceChanged(QString)", self.onSelectSegmentationNodes)
     self.ui.showAvailableCrossSectionsButton.connect("clicked()", self.onShowAvailableCrossSections)
+    self.ui.deleteAvailableCrossSectionsPushButton.connect("clicked()", self.onDeleteAvailableCrossSections)
 
     # Refresh Apply button state
     self.onSelectNode()
@@ -243,6 +244,11 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     
   def onShowAvailableCrossSections(self):
     self.logic.setShowAvailableCrossSections( self.ui.showAvailableCrossSectionsButton.checked)
+
+  # Though we can always do that in the Models module.
+  def onDeleteAvailableCrossSections(self):
+    if self.logic.appendedModelNode is not None:
+        slicer.mrmlScene.RemoveNode(self.logic.appendedModelNode)
 
 #
 # CenterlineMetricsLogic
