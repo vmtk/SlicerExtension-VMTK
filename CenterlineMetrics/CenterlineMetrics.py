@@ -232,6 +232,10 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
   def onSelectSegmentationNodes(self):
     self.logic.surfaceNode = self.ui.segmentationSelector.currentNode()
     self.logic.currentSegmentID = self.ui.segmentSelector.currentSegmentID()
+    if self.logic.surfaceNode is None:
+        self.ui.segmentSelector.setVisible(False)
+    else:
+        self.ui.segmentSelector.setVisible(self.ui.segmentationSelector.currentNode().IsTypeOf("vtkMRMLSegmentationNode"))
     self.resetSurfaceAreaUIWithEmptyMetrics()
     self.logic.currentSurfaceArea = 0.0
     # Create cross-section models at start point
