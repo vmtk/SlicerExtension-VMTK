@@ -105,8 +105,8 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.removeObservers()
   
   def onSelectNode(self):
-    self.logic.setInputModelNode(self.ui.inputModelSelector.currentNode())
-    self.ui.applyButton.enabled = self.logic.isInputModelValid()
+    self.logic.setInputCenterlineNode(self.ui.inputModelSelector.currentNode())
+    self.ui.applyButton.enabled = self.logic.isInputCenterlineValid()
     self.logic.setOutputTableNode(self.ui.outputTableSelector.currentNode())
     self.logic.setOutputPlotSeriesNode(self.ui.outputPlotSeriesSelector.currentNode())
     self.ui.moveToPointSliderWidget.setValue(0)
@@ -122,7 +122,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
       self.ui.outputPlotSeriesSelector.setCurrentNode(outputPlotSeriesNode)
 
   def onApplyButton(self):
-    if not self.logic.isInputModelValid():
+    if not self.logic.isInputCenterlineValid():
         msg = "Input is invalid."
         slicer.util.showStatusMessage(msg, 3000)
         logging.info(msg)
@@ -148,7 +148,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     
   def moveSliceView(self, value):
     # +++, else, crash !!
-    if not self.logic.isInputModelValid():
+    if not self.logic.isInputCenterlineValid():
       return
     self.logic.moveSliceView(self.ui.sliceViewSelector.currentNode(), value)
     self.updateUIWithMetrics(value)
@@ -264,7 +264,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
   def __init__(self):
-    self.inputModelNode = None
+    self.inputCenterlineNode = None
     self.outputPlotSeriesNode = None
     self.outputTableNode = None
     self.plotChartNode = None
@@ -285,10 +285,10 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     self.sceneNodeRemovedObservation = None
     self.showAvailableCrossSections = False
 
-  def setInputModelNode(self, modelNode):
-    if self.inputModelNode == modelNode:
+  def setInputCenterlineNode(self, centerlineNode):
+    if self.inputCenterlineNode == centerlineNode:
       return
-    self.inputModelNode = modelNode
+    self.inputCenterlineNode = centerlineNode
 
   def setOutputTableNode(self, tableNode):
     if self.outputTableNode == tableNode:
@@ -305,29 +305,29 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     if self.appendedModelNode is not None:
         self.appendedModelNode.GetDisplayNode().SetVisibility(self.showAvailableCrossSections)
 
-  def isInputModelValid(self):
-    if not self.inputModelNode:
+  def isInputCenterlineValid(self):
+    if not self.inputCenterlineNode:
       return False
-    if self.inputModelNode.IsTypeOf("vtkMRMLModelNode"):
-        if not self.inputModelNode.HasPointScalarName("Radius"):
+    if self.inputCenterlineNode.IsTypeOf("vtkMRMLModelNode"):
+        if not self.inputCenterlineNode.HasPointScalarName("Radius"):
             return False
     else:
-        controlPointDataArray = slicer.util.arrayFromMarkupsControlPointData(self.inputModelNode, "Radius")
+        controlPointDataArray = slicer.util.arrayFromMarkupsControlPointData(self.inputCenterlineNode, "Radius")
         # Exclude markups curve that don't have radii scalars
         if (controlPointDataArray is None) or (not controlPointDataArray.any()):
             return False
     return True
     
   def run(self):
-    if not self.isInputModelValid():
+    if not self.isInputCenterlineValid():
         msg = "Input is invalid."
         slicer.util.showStatusMessage(msg, 3000)
         raise ValueError(msg)
 
     logging.info('Processing started')
     self.emptyOutputTableNode()
-    self.updateOutputTable(self.inputModelNode, self.outputTableNode)
-    self.updatePlot(self.outputPlotSeriesNode, self.outputTableNode, self.inputModelNode.GetName())
+    self.updateOutputTable(self.inputCenterlineNode, self.outputTableNode)
+    self.updatePlot(self.outputPlotSeriesNode, self.outputTableNode, self.inputCenterlineNode.GetName())
     self.showPlot()
     logging.info('Processing completed')  
 
@@ -348,7 +348,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     outputTable.AddColumn(columnArray)
     return columnArray
 
-  def updateOutputTable(self, inputModel, outputTable):
+  def updateOutputTable(self, inputCenterline, outputTable):
     # Create arrays of data
     distanceArray = self.getArrayFromTable(outputTable, DISTANCE_ARRAY_NAME)
     diameterArray = self.getArrayFromTable(outputTable, DIAMETER_ARRAY_NAME)
@@ -371,12 +371,12 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     outputTable.SetAttribute("type", "RAS" if self.coordinateSystemColumnRAS else "LPS")
     
     # From VMTK README.md
-    if (inputModel.IsTypeOf("vtkMRMLModelNode")):
-        points = slicer.util.arrayFromModelPoints(inputModel)
-        radii = slicer.util.arrayFromModelPointData(inputModel, 'Radius')
+    if (inputCenterline.IsTypeOf("vtkMRMLModelNode")):
+        points = slicer.util.arrayFromModelPoints(inputCenterline)
+        radii = slicer.util.arrayFromModelPointData(inputCenterline, 'Radius')
     else:
-        points = slicer.util.arrayFromMarkupsControlPoints(inputModel)
-        radii = slicer.util.arrayFromMarkupsControlPointData(inputModel, 'Radius')
+        points = slicer.util.arrayFromMarkupsControlPoints(inputCenterline)
+        radii = slicer.util.arrayFromMarkupsControlPointData(inputCenterline, 'Radius')
     outputTable.GetTable().SetNumberOfRows(radii.size)
 
     cumArray = vtk.vtkDoubleArray()
@@ -463,10 +463,10 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     else:
         slicer.vtkMRMLSliceNode.JumpSlice(sliceNode, coordinateArray[0], coordinateArray[1], coordinateArray[2])
         
-    if (self.inputModelNode.IsTypeOf("vtkMRMLModelNode")):
-        centerlinePoints = slicer.util.arrayFromModelPoints(self.inputModelNode)
+    if (self.inputCenterlineNode.IsTypeOf("vtkMRMLModelNode")):
+        centerlinePoints = slicer.util.arrayFromModelPoints(self.inputCenterlineNode)
     else:
-        centerlinePoints = slicer.util.arrayFromMarkupsControlPoints(self.inputModelNode)
+        centerlinePoints = slicer.util.arrayFromMarkupsControlPoints(self.inputCenterlineNode)
     point = centerlinePoints[int(value)]
     direction = centerlinePoints[int(value) + 1] - point
     self.createCrossSection(point, direction, value)
