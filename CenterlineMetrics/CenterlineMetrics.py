@@ -94,6 +94,8 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.segmentSelector.connect("currentSurfaceChanged(QString)", self.onSelectSegmentationNodes)
     self.ui.showAvailableCrossSectionsButton.connect("clicked()", self.onShowAvailableCrossSections)
     self.ui.deleteAvailableCrossSectionsPushButton.connect("clicked()", self.onDeleteAvailableCrossSections)
+    self.ui.misShowPushButton.connect("clicked()", self.onShowMaximumInscribedSphere)
+    self.ui.misDeletePushButton.connect("clicked()", self.onDeleteMaximumInscribedSphere)
 
     # Refresh Apply button state
     self.onSelectNode()
@@ -245,10 +247,19 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
   def onShowAvailableCrossSections(self):
     self.logic.setShowAvailableCrossSections( self.ui.showAvailableCrossSectionsButton.checked)
 
+  def onShowMaximumInscribedSphere(self):
+    self.logic.setShowMaximumInscribedSphere( self.ui.misShowPushButton.checked)
+
   # Though we can always do that in the Models module.
   def onDeleteAvailableCrossSections(self):
     if self.logic.appendedModelNode is not None:
         slicer.mrmlScene.RemoveNode(self.logic.appendedModelNode)
+    
+  def onDeleteMaximumInscribedSphere(self):
+    if self.logic.maximumInscribedSphereModelNode is not None:
+        slicer.mrmlScene.RemoveNode(self.logic.maximumInscribedSphereModelNode)
+        # Not calling logic.onSceneNodeRemoved here
+        self.logic.maximumInscribedSphereModelNode = None
 
 #
 # CenterlineMetricsLogic
@@ -284,6 +295,8 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     ## To reset things if the appended model is removed by the user
     self.sceneNodeRemovedObservation = None
     self.showAvailableCrossSections = False
+    self.maximumInscribedSphereModelNode = None
+    self.showMaximumInscribedSphere = False
 
   def setInputCenterlineNode(self, centerlineNode):
     if self.inputCenterlineNode == centerlineNode:
@@ -304,6 +317,11 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     self.showAvailableCrossSections = checked
     if self.appendedModelNode is not None:
         self.appendedModelNode.GetDisplayNode().SetVisibility(self.showAvailableCrossSections)
+    
+  def setShowMaximumInscribedSphere(self, checked):
+    self.showMaximumInscribedSphere = checked
+    if self.maximumInscribedSphereModelNode is not None:
+        self.maximumInscribedSphereModelNode.GetDisplayNode().SetVisibility(self.showMaximumInscribedSphere)
 
   def isInputCenterlineValid(self):
     if not self.inputCenterlineNode:
@@ -470,6 +488,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     point = centerlinePoints[int(value)]
     direction = centerlinePoints[int(value) + 1] - point
     self.createCrossSection(point, direction, value)
+    self.createMaximumInscribedSphereModel(point, value)
 
 # Convenience function to get the point of minimum or maximum diameter. Is useful for arterial stenosis (minimum) or aneurysm (maximum).
   def getExtremeDiameterPoint(self, boolMaximum):
@@ -633,6 +652,48 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
         self.appendedPolyData.RemoveAllInputs()
         self.appendedPointIndices.Reset()
         slicer.mrmlScene.RemoveObserver(self.sceneNodeRemovedObservation)
+    
+  def createMaximumInscribedSphereModel(self, point, value):
+    if self.maximumInscribedSphereModelNode is not None:
+        slicer.mrmlScene.RemoveNode(self.maximumInscribedSphereModelNode)
+    radius = (self.outputTableNode.GetTable().GetValue(int(value), 1).ToDouble()) / 2
+    sphere = vtk.vtkSphereSource()
+    sphere.SetRadius(radius)
+    sphere.SetCenter(point[0], point[1], point[2])
+    sphere.SetPhiResolution(120)
+    sphere.SetThetaResolution(120)
+    sphere.Update()
+    self.maximumInscribedSphereModelNode = slicer.modules.models.logic().AddModel(sphere.GetOutputPort())
+    sphereModelDisplayNode = self.maximumInscribedSphereModelNode.GetDisplayNode()
+    
+    # Get surface node if specified
+    currentSurface = None
+    separator = ""
+    if self.surfaceNode:
+        separator = " for "
+        if (self.surfaceNode.GetClassName() == "vtkMRMLSegmentationNode"):
+            currentSurface =  self.surfaceNode.GetSegmentation().GetSegment(self.currentSegmentID)
+            segmentColor = currentSurface.GetColor()
+        else:
+            currentSurface = self.surfaceNode
+            segmentColor = currentSurface.GetDisplayNode().GetColor()
+        # Set sphere color
+        sphereColor = [segmentColor[0] / 5, segmentColor[1] / 5, segmentColor[2] / 5]
+        sphereModelDisplayNode.SetColor(sphereColor[0], sphereColor[1], sphereColor[2])
+        
+    # Set sphere visibility
+    sphereModelDisplayNode.SetOpacity(0.33)
+    sphereModelDisplayNode.SetVisibility2D(self.showMaximumInscribedSphere)
+    sphereModelDisplayNode.SetVisibility3D(self.showMaximumInscribedSphere)
+    # Set name
+    self.maximumInscribedSphereModelNode.SetName("Maximum inscribed sphere" + separator + ("" if currentSurface is None else currentSurface.GetName()))
+    # Apply transform of surface if any
+    if self.surfaceNode:
+        segmentationTransform = vtk.vtkGeneralTransform()
+        slicer.vtkMRMLTransformNode.GetTransformBetweenNodes(self.surfaceNode.GetParentTransformNode(), None, segmentationTransform)
+        if segmentationTransform:
+            self.maximumInscribedSphereModelNode.ApplyTransform(segmentationTransform)
+    
     
 #
 # CenterlineMetricsTest
