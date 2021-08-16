@@ -298,8 +298,14 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
   def isInputModelValid(self):
     if not self.inputModelNode:
       return False
-    if not self.inputModelNode.HasPointScalarName("Radius"):
-      return False
+    if self.inputModelNode.IsTypeOf("vtkMRMLModelNode"):
+        if not self.inputModelNode.HasPointScalarName("Radius"):
+            return False
+    else:
+        controlPointDataArray = slicer.util.arrayFromMarkupsControlPointData(self.inputModelNode, "Radius")
+        # Exclude markups curve that don't have radii scalars
+        if (controlPointDataArray is None) or (not controlPointDataArray.any()):
+            return False
     return True
     
   def run(self):
@@ -355,8 +361,12 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     outputTable.SetAttribute("type", "RAS" if self.coordinateSystemColumnRAS else "LPS")
     
     # From VMTK README.md
-    points = slicer.util.arrayFromModelPoints(inputModel)
-    radii = slicer.util.arrayFromModelPointData(inputModel, 'Radius')
+    if (inputModel.IsTypeOf("vtkMRMLModelNode")):
+        points = slicer.util.arrayFromModelPoints(inputModel)
+        radii = slicer.util.arrayFromModelPointData(inputModel, 'Radius')
+    else:
+        points = slicer.util.arrayFromMarkupsControlPoints(inputModel)
+        radii = slicer.util.arrayFromMarkupsControlPointData(inputModel, 'Radius')
     outputTable.GetTable().SetNumberOfRows(radii.size)
 
     cumArray = vtk.vtkDoubleArray()
@@ -443,7 +453,10 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     else:
         slicer.vtkMRMLSliceNode.JumpSlice(sliceNode, coordinateArray[0], coordinateArray[1], coordinateArray[2])
         
-    centerlinePoints = slicer.util.arrayFromModelPoints(self.inputModelNode)
+    if (self.inputModelNode.IsTypeOf("vtkMRMLModelNode")):
+        centerlinePoints = slicer.util.arrayFromModelPoints(self.inputModelNode)
+    else:
+        centerlinePoints = slicer.util.arrayFromMarkupsControlPoints(self.inputModelNode)
     point = centerlinePoints[int(value)]
     direction = centerlinePoints[int(value) + 1] - point
     self.createCrossSection(point, direction, value)

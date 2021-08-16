@@ -521,7 +521,7 @@ It should be a node from which a centerline has been computed.</string>
            <property name="toolTip">
             <string>Circular equivalent (CE) diameter : that of a circle having the  surface area of the cross-section.
 
-The difference with the maximum inscribed sphere (MIS) diameter, and the diameter ratio, are also provided.
+The absolute and percent difference with the maximum inscribed sphere (MIS) diameter are also provided.
 
 Caution : values at bifurcations may not have clinical meaning.</string>
            </property>
