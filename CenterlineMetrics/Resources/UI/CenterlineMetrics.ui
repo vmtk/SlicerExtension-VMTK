@@ -381,7 +381,7 @@ inscribed sphere</string>
            </property>
            <layout class="QHBoxLayout" name="horizontalLayout_4">
             <item>
-             <widget class="QPushButton" name="misShowPushButton">
+             <widget class="QPushButton" name="showMISDiameterPushButton">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                 <horstretch>0</horstretch>
@@ -389,7 +389,7 @@ inscribed sphere</string>
                </sizepolicy>
               </property>
               <property name="toolTip">
-               <string>Show the maximum inscribed sphere.</string>
+               <string>Show the maximum inscribed sphere diameter.</string>
               </property>
               <property name="text">
                <string>Show</string>

@@ -2,7 +2,7 @@ import os
 import unittest
 import logging
 import vtk, qt, ctk, slicer
-import numpy
+import numpy, random
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
 
@@ -91,10 +91,10 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.moveToMaximumPushButton.connect("clicked()", self.moveSliceViewToMaximumDiameter)
     self.ui.toggleLayoutButton.connect("clicked()", self.toggleLayout)
     self.ui.segmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSegmentationNodes)
-    self.ui.segmentSelector.connect("currentSurfaceChanged(QString)", self.onSelectSegmentationNodes)
+    self.ui.segmentSelector.connect("currentSegmentChanged(QString)", self.onSelectSegmentationNodes)
     self.ui.showAvailableCrossSectionsButton.connect("clicked()", self.onShowAvailableCrossSections)
-    self.ui.deleteAvailableCrossSectionsPushButton.connect("clicked()", self.onDeleteAvailableCrossSections)
-    self.ui.misShowPushButton.connect("clicked()", self.onShowMaximumInscribedSphere)
+    self.ui.deleteAvailableCrossSectionsPushButton.connect("clicked()", self.onDeleteCrossSections)
+    self.ui.showMISDiameterPushButton.connect("clicked()", self.onShowMaximumInscribedSphere)
     self.ui.misDeletePushButton.connect("clicked()", self.onDeleteMaximumInscribedSphere)
 
     # Refresh Apply button state
@@ -182,6 +182,14 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     vmtkDiameter = tableNode.GetTable().GetValue(int(value), 1).ToDouble()
     derivedDiameter = (numpy.sqrt(surfaceArea / numpy.pi)) * 2
     diameterDifference = (derivedDiameter - vmtkDiameter)
+    """
+    Taking vmtkDiameter as reference because in practice, vmtkDiameter
+    is almost always smaller than derivedDiameter, at least in diseased arteries. That would also be true in tendons and trachea.
+    Easier to read 'referenceDiameter plus excess'
+    rather than 'referenceDiameter less excess'
+    where excess refers to a virtual circle,
+    while MIS is a real in-situ viewable sphere.
+    """
     diameterPercentDifference = (diameterDifference / vmtkDiameter) * 100
     operator = ("+" if diameterDifference >= 0 else "-")
     self.ui.surfaceAreaValueLabel.setText(self.logic.getUnitNodeDisplayString(surfaceArea, "area"))
@@ -233,9 +241,9 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
   
   # Every time we select a segmentation or a segment.
   def onSelectSegmentationNodes(self):
-    self.logic.surfaceNode = self.ui.segmentationSelector.currentNode()
+    self.logic.lumenSurfaceNode = self.ui.segmentationSelector.currentNode()
     self.logic.currentSegmentID = self.ui.segmentSelector.currentSegmentID()
-    if self.logic.surfaceNode is None:
+    if self.logic.lumenSurfaceNode is None:
         self.ui.segmentSelector.setVisible(False)
     else:
         self.ui.segmentSelector.setVisible(self.ui.segmentationSelector.currentNode().IsTypeOf("vtkMRMLSegmentationNode"))
@@ -248,18 +256,14 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.logic.setShowAvailableCrossSections( self.ui.showAvailableCrossSectionsButton.checked)
 
   def onShowMaximumInscribedSphere(self):
-    self.logic.setShowMaximumInscribedSphere( self.ui.misShowPushButton.checked)
+    self.logic.setShowMaximumInscribedSphereDiameter( self.ui.showMISDiameterPushButton.checked)
 
-  # Though we can always do that in the Models module.
-  def onDeleteAvailableCrossSections(self):
-    if self.logic.appendedModelNode is not None:
-        slicer.mrmlScene.RemoveNode(self.logic.appendedModelNode)
+  # User can delete the the model in the Models module, but we include this feature here for convenience.
+  def onDeleteCrossSections(self):
+    self.logic.deleteCrossSections()
     
   def onDeleteMaximumInscribedSphere(self):
-    if self.logic.maximumInscribedSphereModelNode is not None:
-        slicer.mrmlScene.RemoveNode(self.logic.maximumInscribedSphereModelNode)
-        # Not calling logic.onSceneNodeRemoved here
-        self.logic.maximumInscribedSphereModelNode = None
+    self.logic.deleteMaximumInscribedSphere()
 
 #
 # CenterlineMetricsLogic
@@ -275,6 +279,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
   def __init__(self):
+    random.seed()
     self.inputCenterlineNode = None
     self.outputPlotSeriesNode = None
     self.outputTableNode = None
@@ -283,20 +288,22 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     self.coordinateSystemColumnRAS = True  # LPS or RAS
     self.jumpCentredInSliceNode = False
     self.islandModelNode = None
-    self.surfaceNode = None
+    self.lumenSurfaceNode = None
     self.currentSegmentID = ""
     self.currentSurfaceArea = 0.0
     # Stack of cross-sections
     self.appendedPolyData = vtk.vtkAppendPolyData()
-    self.appendedModelNode = None
-    self.appendedModelNodeId = ""
+    self.crossSectionsModelNode = None
+    self.crossSectionsModelNodeId = ""
+    self.crossSectionColor = [random.random(), random.random(), random.random()]
     ## Do not re-append
-    self.appendedPointIndices = vtk.vtkIntArray()
+    self.crossSectionsPointIndices = vtk.vtkIntArray()
     ## To reset things if the appended model is removed by the user
     self.sceneNodeRemovedObservation = None
     self.showAvailableCrossSections = False
-    self.maximumInscribedSphereModelNode = None
+    self.singleMaximumInscribedSphereModelNode = None
     self.showMaximumInscribedSphere = False
+    self.maximumInscribedSphereColor = [random.random(), random.random(), random.random()]
 
   def setInputCenterlineNode(self, centerlineNode):
     if self.inputCenterlineNode == centerlineNode:
@@ -315,13 +322,13 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
 
   def setShowAvailableCrossSections(self, checked):
     self.showAvailableCrossSections = checked
-    if self.appendedModelNode is not None:
-        self.appendedModelNode.GetDisplayNode().SetVisibility(self.showAvailableCrossSections)
+    if self.crossSectionsModelNode is not None:
+        self.crossSectionsModelNode.GetDisplayNode().SetVisibility(self.showAvailableCrossSections)
     
-  def setShowMaximumInscribedSphere(self, checked):
+  def setShowMaximumInscribedSphereDiameter(self, checked):
     self.showMaximumInscribedSphere = checked
-    if self.maximumInscribedSphereModelNode is not None:
-        self.maximumInscribedSphereModelNode.GetDisplayNode().SetVisibility(self.showMaximumInscribedSphere)
+    if self.singleMaximumInscribedSphereModelNode is not None:
+        self.singleMaximumInscribedSphereModelNode.GetDisplayNode().SetVisibility(self.showMaximumInscribedSphere)
 
   def isInputCenterlineValid(self):
     if not self.inputCenterlineNode:
@@ -335,6 +342,16 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
         if (controlPointDataArray is None) or (not controlPointDataArray.any()):
             return False
     return True
+
+  def deleteCrossSections(self):
+    if self.crossSectionsModelNode is not None:
+        slicer.mrmlScene.RemoveNode(self.crossSectionsModelNode)
+
+  def deleteMaximumInscribedSphere(self):
+    if self.singleMaximumInscribedSphereModelNode is not None:
+        slicer.mrmlScene.RemoveNode(self.singleMaximumInscribedSphereModelNode)
+        # Not calling onSceneNodeRemoved here
+        self.singleMaximumInscribedSphereModelNode = None
     
   def run(self):
     if not self.isInputCenterlineValid():
@@ -513,7 +530,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     
   
   def createCrossSection(self, center, normal, pointIndex):
-    if self.surfaceNode is None or self.currentSegmentID == "":
+    if self.lumenSurfaceNode is None or self.currentSegmentID == "":
         # Don't print any message, is perhaps intended.
         return
     
@@ -524,18 +541,18 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     
     # If segmentation is transformed, apply it to the cross-section model. We suppose that the centerline model has been transformed similarly.
     surfaceTransform = vtk.vtkGeneralTransform()
-    slicer.vtkMRMLTransformNode.GetTransformBetweenNodes(self.surfaceNode.GetParentTransformNode(), None, surfaceTransform)
+    slicer.vtkMRMLTransformNode.GetTransformBetweenNodes(self.lumenSurfaceNode.GetParentTransformNode(), None, surfaceTransform)
     
     # Work on the segment's closed surface
     closedSurfacePolyData = vtk.vtkPolyData()
-    if (self.surfaceNode.GetClassName() == "vtkMRMLSegmentationNode"):
-        self.surfaceNode.GetClosedSurfaceRepresentation(self.currentSegmentID, closedSurfacePolyData)
+    if (self.lumenSurfaceNode.GetClassName() == "vtkMRMLSegmentationNode"):
+        self.lumenSurfaceNode.GetClosedSurfaceRepresentation(self.currentSegmentID, closedSurfacePolyData)
         
         # Though not needed here, it was surprising that vtkSegment::GetId() is missing.
-        currentSurface =  self.surfaceNode.GetSegmentation().GetSegment(self.currentSegmentID)
+        currentSurface =  self.lumenSurfaceNode.GetSegmentation().GetSegment(self.currentSegmentID)
     else:
-        closedSurfacePolyData = self.surfaceNode.GetPolyData()
-        currentSurface = self.surfaceNode
+        closedSurfacePolyData = self.lumenSurfaceNode.GetPolyData()
+        currentSurface = self.lumenSurfaceNode
     
     # Cut through the closed surface and get the points of the contour.
     planeCut = vtk.vtkCutter()
@@ -544,7 +561,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     planeCut.Update()
     planePoints = vtk.vtkPoints()
     planePoints = planeCut.GetOutput().GetPoints()
-    # self.surfaceNode.GetDisplayNode().GetSegmentVisibility3D(self.currentSegmentID) doesn't work as expected. Even if the segment is hidden in 3D view, it returns True.
+    # self.lumenSurfaceNode.GetDisplayNode().GetSegmentVisibility3D(self.currentSegmentID) doesn't work as expected. Even if the segment is hidden in 3D view, it returns True.
     if planePoints is None:
         msg = "Could not cut segment. Is it visible in 3D view?"
         slicer.util.showStatusMessage(msg, 3000)
@@ -560,13 +577,6 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     connectivityFilter.SetClosestPoint(vCenter)
     connectivityFilter.SetExtractionModeToClosestPointRegion()
     connectivityFilter.Update()
-
-    # Prefer an inverted color for the model
-    if (self.surfaceNode.GetClassName() == "vtkMRMLSegmentationNode"):
-        surfaceColor = currentSurface.GetColor()
-    else:
-        surfaceColor = currentSurface.GetDisplayNode().GetColor()
-    crossSectionColor = [1 - surfaceColor[0], 1 - surfaceColor[1], 1 - surfaceColor[2]]
     
     # Triangulate the contour points
     contourTriangulator = vtk.vtkContourTriangulator()
@@ -574,16 +584,16 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     contourTriangulator.Update()
     
     # Finally create and show the model
-    self.currentSurfaceArea = self.createCrossSectionModel(contourTriangulator.GetOutput(), pointIndex, crossSectionColor, currentSurface.GetName())
+    self.currentSurfaceArea = self.createCrossSectionModel(contourTriangulator.GetOutput(), pointIndex, self.crossSectionColor, currentSurface.GetName())
     
     # Let the models follow a transformed input segmentation
     if self.islandModelNode and surfaceTransform:
         self.islandModelNode.ApplyTransform(surfaceTransform)
-    if self.appendedModelNode and surfaceTransform:
-        self.appendedModelNode.ApplyTransform(surfaceTransform)
+    if self.crossSectionsModelNode and surfaceTransform:
+        self.crossSectionsModelNode.ApplyTransform(surfaceTransform)
 
   # Create an exact-fit model representing the cross-section.
-  def createCrossSectionModel(self, islandPolyData, pointIndex, color = [1, 1, 0], surfaceName = ""):
+  def createCrossSectionModel(self, islandPolyData, pointIndex, color, surfaceName = ""):
 
     # Replace the model at each point.
     if self.islandModelNode is not None:
@@ -605,11 +615,11 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     return islandProperties.GetSurfaceArea()
 
   def updateAppendedModel(self, islandPolyData, pointIndex, surfaceName = ""):
-    if self.appendedModelNode is not None:
-        self.appendedModelNode.GetDisplayNode().SetVisibility(self.showAvailableCrossSections)
+    if self.crossSectionsModelNode is not None:
+        self.crossSectionsModelNode.GetDisplayNode().SetVisibility(self.showAvailableCrossSections)
     # Don't append again if already done at a centerline point
-    for i in range(self.appendedPointIndices.GetNumberOfValues()):
-        if self.appendedPointIndices.GetValue(i) == pointIndex:
+    for i in range(self.crossSectionsPointIndices.GetNumberOfValues()):
+        if self.crossSectionsPointIndices.GetValue(i) == pointIndex:
             return
     
     # Work on a copy of the input polydata for the stack model
@@ -627,35 +637,35 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     self.appendedPolyData.Update()
     
     # Remember where it's already done
-    self.appendedPointIndices.InsertNextValue(int(pointIndex))
+    self.crossSectionsPointIndices.InsertNextValue(int(pointIndex))
     
     # Remove stack model and observation
-    if self.appendedModelNode is not None:
+    if self.crossSectionsModelNode is not None:
         # Don't react if we remove it from scene on our own
         slicer.mrmlScene.RemoveObserver(self.sceneNodeRemovedObservation)
-        slicer.mrmlScene.RemoveNode(self.appendedModelNode)
+        slicer.mrmlScene.RemoveNode(self.crossSectionsModelNode)
     # Create a new stack model
-    self.appendedModelNode = slicer.modules.models.logic().AddModel(self.appendedPolyData.GetOutputPort())
+    self.crossSectionsModelNode = slicer.modules.models.logic().AddModel(self.appendedPolyData.GetOutputPort())
     separator = " for " if surfaceName else ""
-    self.appendedModelNode.SetName("Cross-section stack" + separator + surfaceName)
-    self.appendedModelNode.GetDisplayNode().SetVisibility(self.showAvailableCrossSections)
+    self.crossSectionsModelNode.SetName("Cross-section stack" + separator + surfaceName)
+    self.crossSectionsModelNode.GetDisplayNode().SetVisibility(self.showAvailableCrossSections)
     # Remember stack model by id
-    self.appendedModelNodeId = self.appendedModelNode.GetID()
+    self.crossSectionsModelNodeId = self.crossSectionsModelNode.GetID()
     # Add an observation if stack model is deleted by the user
     self.sceneNodeRemovedObservation = slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeRemovedEvent, self.onSceneNodeRemoved)
   
   # Clean up if stack model is removed by user
   def onSceneNodeRemoved(self, scene, eventString):
-    self.appendedModelNode = slicer.mrmlScene.GetNodeByID(self.appendedModelNodeId)
-    if self.appendedModelNode is None:
-        self.appendedModelNodeId = ""
+    self.crossSectionsModelNode = slicer.mrmlScene.GetNodeByID(self.crossSectionsModelNodeId)
+    if self.crossSectionsModelNode is None:
+        self.crossSectionsModelNodeId = ""
         self.appendedPolyData.RemoveAllInputs()
-        self.appendedPointIndices.Reset()
+        self.crossSectionsPointIndices.Reset()
         slicer.mrmlScene.RemoveObserver(self.sceneNodeRemovedObservation)
     
   def createMaximumInscribedSphereModel(self, point, value):
-    if self.maximumInscribedSphereModelNode is not None:
-        slicer.mrmlScene.RemoveNode(self.maximumInscribedSphereModelNode)
+    if self.singleMaximumInscribedSphereModelNode is not None:
+        slicer.mrmlScene.RemoveNode(self.singleMaximumInscribedSphereModelNode)
     radius = (self.outputTableNode.GetTable().GetValue(int(value), 1).ToDouble()) / 2
     sphere = vtk.vtkSphereSource()
     sphere.SetRadius(radius)
@@ -663,36 +673,33 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     sphere.SetPhiResolution(120)
     sphere.SetThetaResolution(120)
     sphere.Update()
-    self.maximumInscribedSphereModelNode = slicer.modules.models.logic().AddModel(sphere.GetOutputPort())
-    sphereModelDisplayNode = self.maximumInscribedSphereModelNode.GetDisplayNode()
+    self.singleMaximumInscribedSphereModelNode = slicer.modules.models.logic().AddModel(sphere.GetOutputPort())
+    sphereModelDisplayNode = self.singleMaximumInscribedSphereModelNode.GetDisplayNode()
     
     # Get surface node if specified
     currentSurface = None
     separator = ""
-    if self.surfaceNode:
+    if self.lumenSurfaceNode:
         separator = " for "
-        if (self.surfaceNode.GetClassName() == "vtkMRMLSegmentationNode"):
-            currentSurface =  self.surfaceNode.GetSegmentation().GetSegment(self.currentSegmentID)
-            surfaceColor = currentSurface.GetColor()
+        if (self.lumenSurfaceNode.GetClassName() == "vtkMRMLSegmentationNode"):
+            currentSurface =  self.lumenSurfaceNode.GetSegmentation().GetSegment(self.currentSegmentID)
         else:
-            currentSurface = self.surfaceNode
-            surfaceColor = currentSurface.GetDisplayNode().GetColor()
+            currentSurface = self.lumenSurfaceNode
         # Set sphere color
-        sphereColor = [surfaceColor[0] / 5, surfaceColor[1] / 5, surfaceColor[2] / 5]
-        sphereModelDisplayNode.SetColor(sphereColor[0], sphereColor[1], sphereColor[2])
+        sphereModelDisplayNode.SetColor(self.maximumInscribedSphereColor[0], self.maximumInscribedSphereColor[1], self.maximumInscribedSphereColor[2])
         
     # Set sphere visibility
     sphereModelDisplayNode.SetOpacity(0.33)
     sphereModelDisplayNode.SetVisibility2D(self.showMaximumInscribedSphere)
     sphereModelDisplayNode.SetVisibility3D(self.showMaximumInscribedSphere)
     # Set name
-    self.maximumInscribedSphereModelNode.SetName("Maximum inscribed sphere" + separator + ("" if currentSurface is None else currentSurface.GetName()))
+    self.singleMaximumInscribedSphereModelNode.SetName("Maximum inscribed sphere" + separator + ("" if currentSurface is None else currentSurface.GetName()))
     # Apply transform of surface if any
-    if self.surfaceNode:
+    if self.lumenSurfaceNode:
         surfaceTransform = vtk.vtkGeneralTransform()
-        slicer.vtkMRMLTransformNode.GetTransformBetweenNodes(self.surfaceNode.GetParentTransformNode(), None, surfaceTransform)
+        slicer.vtkMRMLTransformNode.GetTransformBetweenNodes(self.lumenSurfaceNode.GetParentTransformNode(), None, surfaceTransform)
         if surfaceTransform:
-            self.maximumInscribedSphereModelNode.ApplyTransform(surfaceTransform)
+            self.singleMaximumInscribedSphereModelNode.ApplyTransform(surfaceTransform)
     
     
 #
