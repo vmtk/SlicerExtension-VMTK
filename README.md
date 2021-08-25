@@ -19,7 +19,9 @@ Image processing operation that increases brightness of tubular structures and s
 
 ## Level Set Segmentation
 
-This module can segment a *single vessel branch* of a vessel tree from an image (either unprocessed or vesselness-filtered can be used).
+This module can segment a *single vessel branch* of a vessel tree from an image (either unprocessed or vesselness-filtered can be used). Place "Seeds" points inside vessels and place "Stoppers" points in areas to avoid (where segmentation leaked out to).
+
+To segment multiple branches, you can use Segment Editor module.
 
 ## Extract Centerline
 
