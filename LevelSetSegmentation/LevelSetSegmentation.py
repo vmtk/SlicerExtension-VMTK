@@ -580,7 +580,7 @@ class LevelSetSegmentationWidget(ScriptedLoadableModuleWidget):
             currentSeedsNode.GetNthFiducialPosition(0,currentCoordinatesRAS)
 
         numberOfSliceNodes = slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLSliceNode')
-        for n in xrange(numberOfSliceNodes):
+        for n in range(numberOfSliceNodes):
             sliceNode = slicer.mrmlScene.GetNthNodeByClass(n, "vtkMRMLSliceNode")
             if sliceNode:
                 sliceNode.JumpSliceByOffsetting(currentCoordinatesRAS[0], currentCoordinatesRAS[1], currentCoordinatesRAS[2])
@@ -992,4 +992,3 @@ if __name__ == "__main__":
   print(sys.argv)
 
   slicelet = LevelSetSegmentationSlicelet()
-
