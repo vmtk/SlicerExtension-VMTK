@@ -112,6 +112,8 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.showCrossSectionButton.connect("clicked()", self.onShowCrossSection)
     self.ui.showMISDiameterPushButton.connect("clicked()", self.onShowMaximumInscribedSphere)
     self.ui.sliceViewSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSliceNode)
+    self.ui.relativeOriginSpinBox.connect("valueChanged(double)", self.logic.onRelativeOriginChanged)
+    self.ui.relativeOriginSpinBox.connect("valueChanged(double)", self.showRelativeDistance)
 
     # Refresh Apply button state
     self.onSelectNode()
@@ -168,6 +170,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     numberOfPoints -= 1
 
     self.ui.moveToPointSliderWidget.maximum = numberOfPoints - 1
+    self.ui.relativeOriginSpinBox.maximum = numberOfPoints - 1
     self.updateMeasurements()
 
   def onRadioLPS(self):
@@ -208,7 +211,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     tableNode = self.logic.outputTableNode
     if tableNode:
       # Use precomputed values
-      distanceStr = self.logic.getUnitNodeDisplayString(tableNode.GetTable().GetValue(int(value), 0).ToDouble(), "length").strip()
+      distanceStr = self.logic.getUnitNodeDisplayString(self.logic.calculateRelativeDistance(value), "length").strip()
       misDiameter = tableNode.GetTable().GetValue(int(value), 1).ToDouble()
       diameterStr = self.logic.getUnitNodeDisplayString(misDiameter, "length").strip()
     else:
@@ -272,6 +275,10 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
         orientation += " S " + str(round(orient[2], 1)) + "°"
         self.ui.orientationValueLabel.setText(orientation)
 
+  def showRelativeDistance(self):
+    value = self.ui.moveToPointSliderWidget.value
+    distanceStr = self.logic.getUnitNodeDisplayString(self.logic.calculateRelativeDistance(value), "length").strip()
+    self.ui.distanceValueLabel.setText(distanceStr)
 
   def clearMetrics(self):
     self.ui.coordinatesValueLabel.setText("")
@@ -286,6 +293,8 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     slider.minimum = 0
     slider.maximum = 0
     slider.setValue(0)
+    # relativeOriginSpinBox must always follow the sliderWidget spin box
+    self.resetRelativeOriginWidget()
 
   def moveSliceViewToMinimumDiameter(self):
     point = self.logic.getExtremeDiameterPoint(False)
@@ -370,6 +379,13 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
 
     self.updateUIWithMetrics(value)
 
+  def resetRelativeOriginWidget(self):
+    relativeOriginWidget = self.ui.relativeOriginSpinBox
+    relativeOriginWidget.minimum = 0
+    relativeOriginWidget.maximum = 0
+    relativeOriginWidget.setValue(0)
+    relativeOriginWidget.singleStep = 1
+    relativeOriginWidget.decimals = 0
 
 #
 # CenterlineMetricsLogic
@@ -409,6 +425,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     self.showMaximumInscribedSphere = False
     self.maximumInscribedSphereColor = [0.2, 1.0, 0.4]
     self.orthogonalReformatInSliceNode = False
+    self.relativeOrigin = 0
 
   def resetCrossSections(self):
     self.crossSectionPolyDataCache = {}
@@ -442,6 +459,10 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
         return
     slicer.modules.reformat.widgetRepresentation().setEditedNode(sliceNode)
 
+  # Real origin is start of path. Relative origin is any point.
+  def onRelativeOriginChanged(self, value):
+    self.relativeOrigin = value
+    
   def setShowCrossSection(self, checked):
     self.showCrossSection = checked
     if self.crossSectionModelNode is not None:
@@ -943,6 +964,17 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     orient = np.zeros(3)
     vtk.vtkTransform().GetOrientation(orient, sliceToRAS)
     return orient
+
+  # Calculate distance from point and the relative origin
+  def calculateRelativeDistance(self, pointIndex):
+    if self.outputTableNode is None:
+        return 0.0
+    distanceArray = self.outputTableNode.GetTable().GetColumnByName(DISTANCE_ARRAY_NAME)
+    # Distance of the relative origin from start of path
+    relativeOriginDistance = distanceArray.GetValue(int(self.relativeOrigin))
+    # Distance of point from start of path
+    distanceFromStart = distanceArray.GetValue(int(pointIndex))
+    return distanceFromStart - relativeOriginDistance
 #
 # CenterlineMetricsTest
 #

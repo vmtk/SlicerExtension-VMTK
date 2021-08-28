@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>425</width>
-    <height>476</height>
+    <width>536</width>
+    <height>758</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -430,7 +430,7 @@ The input centerline is expected to be inside the lumen surface.</string>
         </property>
        </widget>
       </item>
-      <item row="2" column="0">
+      <item row="3" column="0">
        <widget class="QLabel" name="distanceLabel">
         <property name="locale">
          <locale language="English" country="UnitedStates"/>
@@ -440,7 +440,7 @@ The input centerline is expected to be inside the lumen surface.</string>
         </property>
        </widget>
       </item>
-      <item row="2" column="1">
+      <item row="3" column="1">
        <widget class="QLabel" name="distanceValueLabel">
         <property name="toolTip">
          <string>Cumulative distance from start of centerline</string>
@@ -453,7 +453,7 @@ The input centerline is expected to be inside the lumen surface.</string>
         </property>
        </widget>
       </item>
-      <item row="3" column="0">
+      <item row="4" column="0">
        <widget class="QLabel" name="coordinatesLabel">
         <property name="locale">
          <locale language="English" country="UnitedStates"/>
@@ -463,7 +463,7 @@ The input centerline is expected to be inside the lumen surface.</string>
         </property>
        </widget>
       </item>
-      <item row="3" column="1">
+      <item row="4" column="1">
        <widget class="QLabel" name="coordinatesValueLabel">
         <property name="toolTip">
          <string>RAS coordinate of selected point</string>
@@ -482,7 +482,7 @@ The input centerline is expected to be inside the lumen surface.</string>
         </property>
        </widget>
       </item>
-      <item row="4" column="0">
+      <item row="5" column="0">
        <widget class="QLabel" name="diameterLabel">
         <property name="locale">
          <locale language="English" country="UnitedStates"/>
@@ -492,7 +492,7 @@ The input centerline is expected to be inside the lumen surface.</string>
         </property>
        </widget>
       </item>
-      <item row="4" column="1">
+      <item row="5" column="1">
        <layout class="QHBoxLayout" name="horizontalLayout_2">
         <item>
          <widget class="QLabel" name="diameterValueLabel">
@@ -542,14 +542,14 @@ The input centerline is expected to be inside the lumen surface.</string>
         </item>
        </layout>
       </item>
-      <item row="5" column="0">
+      <item row="6" column="0">
        <widget class="QLabel" name="surfaceAreaLabel">
         <property name="text">
          <string>Cross-sectional area:</string>
         </property>
        </widget>
       </item>
-      <item row="5" column="1">
+      <item row="6" column="1">
        <layout class="QHBoxLayout" name="horizontalLayout">
         <item>
          <widget class="QLabel" name="surfaceAreaValueLabel">
@@ -579,14 +579,14 @@ The input centerline is expected to be inside the lumen surface.</string>
         </item>
        </layout>
       </item>
-      <item row="6" column="0">
+      <item row="7" column="0">
        <widget class="QLabel" name="derivedDiameterLabel">
         <property name="text">
          <string>Diameter (CE):</string>
         </property>
        </widget>
       </item>
-      <item row="6" column="1">
+      <item row="7" column="1">
        <widget class="QLabel" name="derivedDiameterValueLabel">
         <property name="toolTip">
          <string>Circular equivalent (CE) diameter: that of a circle having the  surface area of the cross-section.
@@ -600,7 +600,7 @@ Caution: values at bifurcations may not have clinical meaning.</string>
         </property>
        </widget>
       </item>
-      <item row="7" column="0">
+      <item row="8" column="0">
        <widget class="QLabel" name="orientationLabel">
         <property name="toolTip">
          <string/>
@@ -610,13 +610,33 @@ Caution: values at bifurcations may not have clinical meaning.</string>
         </property>
        </widget>
       </item>
-      <item row="7" column="1">
+      <item row="8" column="1">
        <widget class="QLabel" name="orientationValueLabel">
         <property name="toolTip">
          <string>Angles are in Slicer's coordinate system</string>
         </property>
         <property name="text">
          <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="label_4">
+        <property name="text">
+         <string>Relative origin:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="qMRMLSpinBox" name="relativeOriginSpinBox">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="toolTip">
+         <string>Distance will be calculated relative to this point</string>
         </property>
        </widget>
       </item>
@@ -652,6 +672,11 @@ Caution: values at bifurcations may not have clinical meaning.</string>
    <container>1</container>
   </customwidget>
   <customwidget>
+   <class>ctkDoubleSpinBox</class>
+   <extends>QWidget</extends>
+   <header>ctkDoubleSpinBox.h</header>
+  </customwidget>
+  <customwidget>
    <class>ctkSliderWidget</class>
    <extends>QWidget</extends>
    <header>ctkSliderWidget.h</header>
@@ -660,6 +685,11 @@ Caution: values at bifurcations may not have clinical meaning.</string>
    <class>qMRMLNodeComboBox</class>
    <extends>QWidget</extends>
    <header>qMRMLNodeComboBox.h</header>
+  </customwidget>
+  <customwidget>
+   <class>qMRMLSpinBox</class>
+   <extends>ctkDoubleSpinBox</extends>
+   <header>qMRMLSpinBox.h</header>
   </customwidget>
   <customwidget>
    <class>qMRMLWidget</class>
