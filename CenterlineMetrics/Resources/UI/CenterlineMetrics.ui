@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>425</width>
-    <height>421</height>
+    <height>476</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -316,10 +316,10 @@ The input centerline is expected to be inside the lumen surface.</string>
       <string>Browse cross-sections</string>
      </property>
      <property name="checked">
-      <bool>false</bool>
+      <bool>true</bool>
      </property>
      <property name="collapsed">
-      <bool>true</bool>
+      <bool>false</bool>
      </property>
      <layout class="QFormLayout" name="formLayout">
       <property name="horizontalSpacing">
@@ -383,6 +383,19 @@ The input centerline is expected to be inside the lumen surface.</string>
           </property>
           <property name="text">
            <string>centered</string>
+          </property>
+          <property name="checkable">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QToolButton" name="orthogonalReformatInSliceNodeCheckBox">
+          <property name="toolTip">
+           <string>Orient the slice view orthogonal to the centerline</string>
+          </property>
+          <property name="text">
+           <string>reformat</string>
           </property>
           <property name="checkable">
            <bool>true</bool>

@@ -80,6 +80,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     # unitNode.SetPrecision(2)
 
     self.ui.segmentSelector.setVisible(False)
+    self.ui.browseCollapsibleButton.collapsed = True
 
     self.ui.toggleTableLayoutButton.visible = False
     self.ui.toggleTableLayoutButton.setIcon(qt.QIcon(':/Icons/Medium/SlicerVisibleInvisible.png'))
@@ -88,6 +89,8 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.previousLayoutId = slicer.app.layoutManager().layout
 
     self.ui.jumpCentredInSliceNodeCheckBox.setIcon(qt.QIcon(':/Icons/ViewCenter.png'))
+    # Until we know where to browse available icons, to use another one. ViewCenter.png has not been found in ./Slicer-*/*. Probably in a resource bundle somewhere.
+    self.ui.orthogonalReformatInSliceNodeCheckBox.setIcon(qt.QIcon(':/Icons/ViewCenter.png'))
 
     # connections
     self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
@@ -99,6 +102,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.distinctColumnsCheckBox.connect("clicked()", self.onDistinctCoordinatesCheckBox)
     self.ui.moveToPointSliderWidget.connect("valueChanged(double)", self.setCurrentPointIndex)
     self.ui.jumpCentredInSliceNodeCheckBox.connect("clicked()", self.onJumpCentredInSliceNodeCheckBox)
+    self.ui.orthogonalReformatInSliceNodeCheckBox.connect("clicked()", self.onOrthogonalReformatInSliceNodeCheckBox)
     self.ui.moveToMinimumPushButton.connect("clicked()", self.moveSliceViewToMinimumDiameter)
     self.ui.moveToMaximumPushButton.connect("clicked()", self.moveSliceViewToMaximumDiameter)
     self.ui.toggleTableLayoutButton.connect("clicked()", self.toggleTableLayout)
@@ -107,6 +111,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.segmentSelector.connect("currentSegmentChanged(QString)", self.onSelectSegmentationNodes)
     self.ui.showCrossSectionButton.connect("clicked()", self.onShowCrossSection)
     self.ui.showMISDiameterPushButton.connect("clicked()", self.onShowMaximumInscribedSphere)
+    self.ui.sliceViewSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.logic.selectSliceNode)
 
     # Refresh Apply button state
     self.onSelectNode()
@@ -176,7 +181,17 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
   
   def onJumpCentredInSliceNodeCheckBox(self):
     self.logic.jumpCentredInSliceNode = self.ui.jumpCentredInSliceNodeCheckBox.checked
-
+  
+  def onOrthogonalReformatInSliceNodeCheckBox (self):
+    self.logic.orthogonalReformatInSliceNode = self.ui.orthogonalReformatInSliceNodeCheckBox.checked
+    inputSliceNode = self.ui.sliceViewSelector.currentNode()
+    if self.ui.orthogonalReformatInSliceNodeCheckBox.checked:
+        if inputSliceNode and self.ui.inputModelSelector.currentNode():
+            self.logic.updateSliceView(inputSliceNode, self.ui.moveToPointSliderWidget.value)
+    else:
+        if inputSliceNode:
+            inputSliceNode.SetOrientationToDefault()
+    
   def updateUIWithMetrics(self, value):
     pointIndex = int(value)
 
@@ -375,6 +390,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     self.maximumInscribedSphereModelNode = None
     self.showMaximumInscribedSphere = False
     self.maximumInscribedSphereColor = [0.2, 1.0, 0.4]
+    self.orthogonalReformatInSliceNode = False
 
   def resetCrossSections(self):
     self.crossSectionPolyDataCache = {}
@@ -401,6 +417,12 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     if self.outputPlotSeriesNode == plotSeriesNode:
       return
     self.outputPlotSeriesNode = plotSeriesNode
+
+  def selectSliceNode(self, sliceNode):
+    # Don't modify Reformat module if we don't plan to use it.
+    if sliceNode is None:
+        return
+    slicer.modules.reformat.widgetRepresentation().setEditedNode(sliceNode)
 
   def setShowCrossSection(self, checked):
     self.showCrossSection = checked
@@ -636,12 +658,18 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     """Move the selected slice view to a point of the centerline, optionally centering on the point.
     The slice view orientation, reformat or not, is not changed.
     """
-
     position = self.getCurvePointPositionAtIndex(value)
+    
     if self.jumpCentredInSliceNode:
         slicer.vtkMRMLSliceNode.JumpSliceByCentering(sliceNode, *position)
     else:
         slicer.vtkMRMLSliceNode.JumpSlice(sliceNode, *position)
+    
+    if self.orthogonalReformatInSliceNode:
+        reformatLogic = slicer.modules.reformat.logic()
+        direction = self.getCurvePointPositionAtIndex(value + 1) - position
+        reformatLogic.SetSliceOrigin(sliceNode, position[0], position[1], position[2])
+        reformatLogic.SetSliceNormal(sliceNode, direction[0], direction[1], direction[2])
 
   def getExtremeDiameterPoint(self, boolMaximum):
     """Convenience function to get the point of minimum or maximum diameter.
