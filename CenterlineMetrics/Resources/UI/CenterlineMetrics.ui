@@ -600,6 +600,26 @@ Caution: values at bifurcations may not have clinical meaning.</string>
         </property>
        </widget>
       </item>
+      <item row="7" column="0">
+       <widget class="QLabel" name="orientationLabel">
+        <property name="toolTip">
+         <string/>
+        </property>
+        <property name="text">
+         <string>Orientation:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="1">
+       <widget class="QLabel" name="orientationValueLabel">
+        <property name="toolTip">
+         <string>Angles are in Slicer's coordinate system</string>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>

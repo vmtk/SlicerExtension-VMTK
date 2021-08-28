@@ -111,7 +111,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.segmentSelector.connect("currentSegmentChanged(QString)", self.onSelectSegmentationNodes)
     self.ui.showCrossSectionButton.connect("clicked()", self.onShowCrossSection)
     self.ui.showMISDiameterPushButton.connect("clicked()", self.onShowMaximumInscribedSphere)
-    self.ui.sliceViewSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.logic.selectSliceNode)
+    self.ui.sliceViewSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSliceNode)
 
     # Refresh Apply button state
     self.onSelectNode()
@@ -191,6 +191,13 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     else:
         if inputSliceNode:
             inputSliceNode.SetOrientationToDefault()
+    self.updateSliceViewOrientationMetrics()
+  
+  def onSelectSliceNode(self, sliceNode):
+    self.logic.selectSliceNode(sliceNode)
+    self.updateSliceViewOrientationMetrics()
+    if sliceNode is None:
+        self.ui.orientationValueLabel.setText("")
     
   def updateUIWithMetrics(self, value):
     pointIndex = int(value)
@@ -254,6 +261,16 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
       self.ui.derivedDiameterValueLabel.setText(derivedDiameterStr)
     else:
       self.ui.derivedDiameterValueLabel.setText("")
+    # Orientation
+    self.updateSliceViewOrientationMetrics()
+    
+  def updateSliceViewOrientationMetrics(self):
+    if self.ui.sliceViewSelector.currentNode():
+        orient = self.logic.getSliceOrientation(self.ui.sliceViewSelector.currentNode())
+        orientation = "R " + str(round(orient[0], 1)) + "°,"
+        orientation += " A " + str(round(orient[1], 1)) + "°,"
+        orientation += " S " + str(round(orient[2], 1)) + "°"
+        self.ui.orientationValueLabel.setText(orientation)
 
 
   def clearMetrics(self):
@@ -262,6 +279,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.diameterValueLabel.setText("")
     self.ui.surfaceAreaValueLabel.setText("")
     self.ui.derivedDiameterValueLabel.setText("")
+    self.ui.orientationValueLabel.setText("")
 
   def resetMoveToPointSliderWidget(self):
     slider = self.ui.moveToPointSliderWidget
@@ -917,6 +935,14 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
       # Set sphere color
       sphereModelDisplayNode.SetColor(self.maximumInscribedSphereColor[0], self.maximumInscribedSphereColor[1], self.maximumInscribedSphereColor[2])
 
+  # This information is added because it is easily available.
+  # How useful is it ?
+  # In any case, it is the slice orientation in the RAS coordinate system.
+  def getSliceOrientation(self, sliceNode):
+    sliceToRAS = sliceNode.GetSliceToRAS()
+    orient = np.zeros(3)
+    vtk.vtkTransform().GetOrientation(orient, sliceToRAS)
+    return orient
 #
 # CenterlineMetricsTest
 #
