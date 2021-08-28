@@ -34,7 +34,7 @@
        </widget>
       </item>
       <item row="0" column="1">
-       <widget class="qMRMLNodeComboBox" name="inputModelSelector">
+       <widget class="qMRMLNodeComboBox" name="inputCenterlineSelector">
         <property name="toolTip">
          <string>Pick the input VMTK centerline.</string>
         </property>
@@ -658,7 +658,7 @@ Caution: values at bifurcations may not have clinical meaning.</string>
   <connection>
    <sender>CenterlineMetrics</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
-   <receiver>inputModelSelector</receiver>
+   <receiver>inputCenterlineSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
    <hints>
     <hint type="sourcelabel">

@@ -94,7 +94,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
 
     # connections
     self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
-    self.ui.inputModelSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectNode)
+    self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectNode)
     self.ui.outputPlotSeriesSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectNode)
     self.ui.outputTableSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectNode)
     self.ui.radioLPS.connect("clicked()", self.onRadioLPS)
@@ -123,7 +123,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.removeObservers()
   
   def onSelectNode(self):
-    self.logic.setInputCenterlineNode(self.ui.inputModelSelector.currentNode())
+    self.logic.setInputCenterlineNode(self.ui.inputCenterlineSelector.currentNode())
     self.ui.applyButton.enabled = self.logic.isInputCenterlineValid()
     self.logic.setOutputTableNode(self.ui.outputTableSelector.currentNode())
     self.logic.setOutputPlotSeriesNode(self.ui.outputPlotSeriesSelector.currentNode())
@@ -186,7 +186,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.logic.orthogonalReformatInSliceNode = self.ui.orthogonalReformatInSliceNodeCheckBox.checked
     inputSliceNode = self.ui.sliceViewSelector.currentNode()
     if self.ui.orthogonalReformatInSliceNodeCheckBox.checked:
-        if inputSliceNode and self.ui.inputModelSelector.currentNode():
+        if inputSliceNode and self.ui.inputCenterlineSelector.currentNode():
             self.logic.updateSliceView(inputSliceNode, self.ui.moveToPointSliderWidget.value)
     else:
         if inputSliceNode:
