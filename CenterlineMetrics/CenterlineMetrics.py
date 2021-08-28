@@ -855,7 +855,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
 
   def getPositionMaximumInscribedSphereRadius(self, pointIndex):
     if not self.isCenterlineRadiusAvailable:
-      raise ValueError("Maximim inscribed sphere radius is not available")
+      raise ValueError("Maximum inscribed sphere radius is not available")
     position = np.zeros(3)
     if self.inputCenterlineNode.IsTypeOf("vtkMRMLModelNode"):
       positionLocal = slicer.util.arrayFromModelPoints(self.inputCenterlineNode)[pointIndex]
