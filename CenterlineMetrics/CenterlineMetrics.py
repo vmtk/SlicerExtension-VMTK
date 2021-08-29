@@ -322,17 +322,15 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
   
   def onJumpCentredInSliceNodeCheckBox(self):
     self.logic.jumpCentredInSliceNode = self.ui.jumpCentredInSliceNodeCheckBox.checked
+    if self.ui.sliceViewSelector.currentNode():
+        self.setCurrentPointIndex(self.ui.moveToPointSliderWidget.value)
+        self.updateSliceViewOrientationMetrics()
   
   def onOrthogonalReformatInSliceNodeCheckBox (self):
     self.logic.orthogonalReformatInSliceNode = self.ui.orthogonalReformatInSliceNodeCheckBox.checked
-    inputSliceNode = self.ui.sliceViewSelector.currentNode()
-    if self.ui.orthogonalReformatInSliceNodeCheckBox.checked:
-        if inputSliceNode and self.ui.inputCenterlineSelector.currentNode():
-            self.logic.updateSliceView(inputSliceNode, self.ui.moveToPointSliderWidget.value)
-    else:
-        if inputSliceNode:
-            inputSliceNode.SetOrientationToDefault()
-    self.updateSliceViewOrientationMetrics()
+    if self.ui.sliceViewSelector.currentNode():
+        self.setCurrentPointIndex(self.ui.moveToPointSliderWidget.value)
+        self.updateSliceViewOrientationMetrics()
   
   def onSelectSliceNode(self, sliceNode):
     self.logic.selectSliceNode(sliceNode)
@@ -863,8 +861,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     return position
 
   def updateSliceView(self, sliceNode, value):
-    """Move the selected slice view to a point of the centerline, optionally centering on the point.
-    The slice view orientation, reformat or not, is not changed.
+    """Move the selected slice view to a point of the centerline, optionally centering on the point, and with optional orthogonal reformat.
     """
     position = self.getCurvePointPositionAtIndex(value)
     
@@ -878,6 +875,8 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
         direction = self.getCurvePointPositionAtIndex(value + 1) - position
         reformatLogic.SetSliceOrigin(sliceNode, position[0], position[1], position[2])
         reformatLogic.SetSliceNormal(sliceNode, direction[0], direction[1], direction[2])
+    else:
+        sliceNode.SetOrientationToDefault()
 
   def getExtremeDiameterPoint(self, boolMaximum):
     """Convenience function to get the point of minimum or maximum diameter.
