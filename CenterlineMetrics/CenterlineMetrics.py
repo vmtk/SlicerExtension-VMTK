@@ -48,6 +48,8 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     ScriptedLoadableModuleWidget.__init__(self, parent)
     VTKObservationMixin.__init__(self)  # needed for parameter node observation
     self.logic = None
+    self._parameterNode = None
+    self._updatingGUIFromParameterNode = False
 
   def setup(self):
     """
@@ -91,7 +93,27 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.jumpCentredInSliceNodeCheckBox.setIcon(qt.QIcon(':/Icons/ViewCenter.png'))
     # Until we know where to browse available icons, to use another one. ViewCenter.png has not been found in ./Slicer-*/*. Probably in a resource bundle somewhere.
     self.ui.orthogonalReformatInSliceNodeCheckBox.setIcon(qt.QIcon(':/Icons/ViewCenter.png'))
-
+    
+    # These connections ensure that we update parameter node when scene is closed
+    self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
+    self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
+    
+    # These connections ensure that whenever user changes some settings on the GUI, that is saved in the MRML scene
+    # (in the selected parameter node).
+    self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+    self.ui.segmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+    self.ui.segmentSelector.connect("currentSegmentChanged(QString)", self.updateParameterNodeFromGUI)
+    self.ui.outputTableSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+    self.ui.outputPlotSeriesSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+    self.ui.sliceViewSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+    self.ui.moveToPointSliderWidget.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
+    self.ui.relativeOriginSpinBox.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
+    self.ui.radioRAS.connect("clicked()", self.updateParameterNodeFromGUI)
+    self.ui.radioLPS.connect("clicked()", self.updateParameterNodeFromGUI)
+    self.ui.distinctColumnsCheckBox.connect("clicked()", self.updateParameterNodeFromGUI)
+    self.ui.jumpCentredInSliceNodeCheckBox.connect("clicked()", self.updateParameterNodeFromGUI)
+    self.ui.orthogonalReformatInSliceNodeCheckBox.connect("clicked()", self.updateParameterNodeFromGUI)
+    
     # connections
     self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
     self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectNode)
@@ -124,6 +146,122 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     """
     self.removeObservers()
   
+  def enter(self):
+    # Make sure parameter node exists and observed
+    self.initializeParameterNode()
+
+  def exit(self):
+    """
+    Called each time the user opens a different module.
+    """
+    # Do not react to parameter node changes (GUI wlil be updated when the user enters into the module)
+    self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
+
+  def onSceneStartClose(self, caller, event):
+    """
+    Called just before the scene is closed.
+    """
+    # Parameter node will be reset, do not use it anymore
+    self.setParameterNode(None)
+
+  def onSceneEndClose(self, caller, event):
+    """
+    Called just after the scene is closed.
+    """
+    # If this module is shown while the scene is closed then recreate a new parameter node immediately
+    if self.parent.isEntered:
+      self.initializeParameterNode()
+      
+  def initializeParameterNode(self):
+    """
+    Ensure parameter node exists and observed.
+    """
+    # Parameter node stores all user choices in parameter values, node selections, etc.
+    # so that when the scene is saved and reloaded, these settings are restored.
+
+    self.setParameterNode(self.logic.getParameterNode())
+
+  def setParameterNode(self, inputParameterNode):
+    """
+    Set and observe parameter node.
+    Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
+    """
+
+    if inputParameterNode:
+      self.logic.setDefaultParameters(inputParameterNode)
+
+    # Unobserve previously selected parameter node and add an observer to the newly selected.
+    # Changes of parameter node are observed so that whenever parameters are changed by a script or any other module
+    # those are reflected immediately in the GUI.
+    if self._parameterNode is not None:
+      self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
+    self._parameterNode = inputParameterNode
+    if self._parameterNode is not None:
+      self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
+
+    # Initial GUI update
+    self.updateGUIFromParameterNode()
+    
+  def updateGUIFromParameterNode(self, caller=None, event=None):
+    """
+    This method is called whenever parameter node is changed.
+    The module GUI is updated to show the current state of the parameter node.
+    """
+
+    if self._parameterNode is None or self._updatingGUIFromParameterNode:
+      return
+
+    # Make sure GUI changes do not call updateParameterNodeFromGUI (it could cause infinite loop)
+    self._updatingGUIFromParameterNode = True
+
+    # Update node selectors and sliders
+    self.ui.inputCenterlineSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputCenterline"))
+    self.ui.segmentationSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputSegmentation"))
+    self.ui.segmentSelector.setCurrentSegmentID(self._parameterNode.GetParameter("InputSegment"))
+    self.ui.outputTableSelector.setCurrentNode(self._parameterNode.GetNodeReference("OutputTable"))
+    self.ui.outputPlotSeriesSelector.setCurrentNode(self._parameterNode.GetNodeReference("OutputPlotSeries"))
+    self.ui.sliceViewSelector.setCurrentNode(self._parameterNode.GetNodeReference("SliceNode"))
+    if self._parameterNode.GetParameter("UseLPS") == "True":
+        self.ui.radioLPS.setChecked(True)
+        self.onRadioLPS()
+    else:
+        self.ui.radioRAS.setChecked(True)
+        self.onRadioRAS()
+    self.ui.distinctColumnsCheckBox.setChecked (self._parameterNode.GetParameter("DistinctColumns") == "True")
+    self.ui.jumpCentredInSliceNodeCheckBox.setChecked (self._parameterNode.GetParameter("CentreInSliceView") == "True")
+    self.ui.orthogonalReformatInSliceNodeCheckBox.setChecked (self._parameterNode.GetParameter("OrthogonalReformat") == "True")
+    
+    # The check events are not triggered by above.
+    self.onDistinctCoordinatesCheckBox()
+    self.onJumpCentredInSliceNodeCheckBox()
+    self.onOrthogonalReformatInSliceNodeCheckBox()
+    
+    # All the GUI updates are done
+    self._updatingGUIFromParameterNode = False
+
+  def updateParameterNodeFromGUI(self, caller=None, event=None):
+    """
+    This method is called when the user makes any change in the GUI.
+    The changes are saved into the parameter node (so that they are restored when the scene is saved and loaded).
+    """
+    if self._parameterNode is None or self._updatingGUIFromParameterNode:
+      return
+
+    wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
+    
+    self._parameterNode.SetNodeReferenceID("InputCenterline", self.ui.inputCenterlineSelector.currentNodeID)
+    self._parameterNode.SetNodeReferenceID("InputSegmentation", self.ui.segmentationSelector.currentNodeID)
+    self._parameterNode.SetParameter("InputSegment", self.ui.segmentSelector.currentSegmentID())
+    self._parameterNode.SetNodeReferenceID("OutputTable", self.ui.outputTableSelector.currentNodeID)
+    self._parameterNode.SetNodeReferenceID("OutputPlotSeries", self.ui.outputPlotSeriesSelector.currentNodeID)
+    self._parameterNode.SetNodeReferenceID("SliceNode", self.ui.sliceViewSelector.currentNodeID)
+    self._parameterNode.SetParameter("UseLPS", "True" if (self.ui.radioLPS.isChecked()) else "False")
+    self._parameterNode.SetParameter("DistinctColumns", "True" if (self.ui.distinctColumnsCheckBox.isChecked()) else "False")
+    self._parameterNode.SetParameter("CentreInSliceView", "True" if (self.ui.jumpCentredInSliceNodeCheckBox.isChecked()) else "False")
+    self._parameterNode.SetParameter("OrthogonalReformat", "True" if (self.ui.orthogonalReformatInSliceNodeCheckBox.isChecked()) else "False")
+    
+    self._parameterNode.EndModify(wasModified)
+    
   def onSelectNode(self):
     self.logic.setInputCenterlineNode(self.ui.inputCenterlineSelector.currentNode())
     self.ui.applyButton.enabled = self.logic.isInputCenterlineValid()
@@ -268,11 +406,35 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.updateSliceViewOrientationMetrics()
     
   def updateSliceViewOrientationMetrics(self):
+    """
+    Please remove comment if commit in trunk.
+    Using hexadecimal for degree character.
+    For obscure reasons, using the degree character triggers :
+    
+    Python 3.6.7 (default, Aug 22 2021, 12:05:08) 
+[GCC Clang 12.0.1] on linux2
+>>> 
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/home/user/programs/Slicer/lib/Python/lib/python3.6/imp.py", line 170, in load_source
+    module = _exec(spec, sys.modules[name])
+  File "<frozen importlib._bootstrap>", line 618, in _exec
+  File "<frozen importlib._bootstrap_external>", line 674, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 781, in get_code
+  File "<frozen importlib._bootstrap_external>", line 741, in source_to_code
+  File "<frozen importlib._bootstrap>", line 219, in _call_with_frames_removed
+  File "/home/user/programs/Slicer/bin/../lib/Slicer-4.13/qt-scripted-modules/CenterlineMetrics.py", line 389
+SyntaxError: (unicode error) 'utf-8' codec can't decode byte 0xb0 in position 0: invalid start byte
+Loading Slicer RC file [/home/user/.slicerrc.py]
+
+    This character is used seamlessly in CrossSectionAnalysis.py though.
+    
+    """
     if self.ui.sliceViewSelector.currentNode():
         orient = self.logic.getSliceOrientation(self.ui.sliceViewSelector.currentNode())
-        orientation = "R " + str(round(orient[0], 1)) + "°,"
-        orientation += " A " + str(round(orient[1], 1)) + "°,"
-        orientation += " S " + str(round(orient[2], 1)) + "°"
+        orientation = "R " + str(round(orient[0], 1)) + chr(0xb0) + ","
+        orientation += " A " + str(round(orient[1], 1)) + chr(0xb0) + ","
+        orientation += " S " + str(round(orient[2], 1)) + chr(0xb0)
         self.ui.orientationValueLabel.setText(orientation)
 
   def showRelativeDistance(self):
@@ -401,6 +563,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
   def __init__(self):
+    ScriptedLoadableModuleLogic.__init__(self)
     self.inputCenterlineNode = None
     self.outputPlotSeriesNode = None
     self.outputTableNode = None
@@ -427,6 +590,12 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     self.orthogonalReformatInSliceNode = False
     self.relativeOrigin = 0
 
+  def setDefaultParameters(self, parameterNode):
+    """
+    Initialize parameter node with default settings.
+    """
+    pass
+    
   def resetCrossSections(self):
     self.crossSectionPolyDataCache = {}
 
