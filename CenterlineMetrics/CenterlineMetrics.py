@@ -136,6 +136,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.sliceViewSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSliceNode)
     self.ui.relativeOriginSpinBox.connect("valueChanged(double)", self.logic.onRelativeOriginChanged)
     self.ui.relativeOriginSpinBox.connect("valueChanged(double)", self.showRelativeDistance)
+    self.ui.torsionSliderWidget.connect("valueChanged(double)", self.onTorsionSliderWidget)
 
     # Refresh Apply button state
     self.onSelectNode()
@@ -310,6 +311,10 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.moveToPointSliderWidget.maximum = numberOfPoints - 1
     self.ui.relativeOriginSpinBox.maximum = numberOfPoints - 1
     self.updateMeasurements()
+    self.ui.torsionSliderWidget.value = 0.0
+    sliceNode = self.ui.sliceViewSelector.currentNode()
+    if sliceNode:
+        sliceNode.SetAttribute("currentTilt", "0.0")
 
   def onRadioLPS(self):
     self.logic.coordinateSystemColumnRAS = False
@@ -328,15 +333,21 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
   
   def onOrthogonalReformatInSliceNodeCheckBox (self):
     self.logic.orthogonalReformatInSliceNode = self.ui.orthogonalReformatInSliceNodeCheckBox.checked
-    if self.ui.sliceViewSelector.currentNode():
+    self.ui.torsionSliderWidget.value = 0.0
+    sliceNode = self.ui.sliceViewSelector.currentNode()
+    if sliceNode:
         self.setCurrentPointIndex(self.ui.moveToPointSliderWidget.value)
         self.updateSliceViewOrientationMetrics()
+        if not self.ui.orthogonalReformatInSliceNodeCheckBox.checked:
+            sliceNode.SetAttribute("currentTilt", "0.0")
   
   def onSelectSliceNode(self, sliceNode):
     self.logic.selectSliceNode(sliceNode)
     self.updateSliceViewOrientationMetrics()
     if sliceNode is None:
         self.ui.orientationValueLabel.setText("")
+    self.ui.torsionSliderWidget.value = 0.0
+    sliceNode.SetAttribute("currentTilt", "0.0")
     
   def updateUIWithMetrics(self, value):
     pointIndex = int(value)
@@ -455,6 +466,7 @@ Loading Slicer RC file [/home/user/.slicerrc.py]
     slider.setValue(0)
     # relativeOriginSpinBox must always follow the sliderWidget spin box
     self.resetRelativeOriginWidget()
+    self.ui.torsionSliderWidget.setValue(0.0)
 
   def moveSliceViewToMinimumDiameter(self):
     point = self.logic.getExtremeDiameterPoint(False)
@@ -546,6 +558,13 @@ Loading Slicer RC file [/home/user/.slicerrc.py]
     relativeOriginWidget.setValue(0)
     relativeOriginWidget.singleStep = 1
     relativeOriginWidget.decimals = 0
+
+  def onTorsionSliderWidget(self):
+    sliceNode = self.ui.sliceViewSelector.currentNode()
+    if sliceNode is None:
+        return
+    angle = self.ui.torsionSliderWidget.value
+    self.logic.rotateAroundZ(sliceNode, angle)
 
 #
 # CenterlineMetricsLogic
@@ -1143,6 +1162,27 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     # Distance of point from start of path
     distanceFromStart = distanceArray.GetValue(int(pointIndex))
     return distanceFromStart - relativeOriginDistance
+
+  """
+  Rotate slice view around it's Z-axis.
+  It is relative to the previous rotation, stored as a slice node attribute.
+  The view is tilted by the difference between the requested angle from the slider and the buffered angle.
+  The buffered angle may not always start at 0.0.
+  """
+  def rotateAroundZ(self, sliceNode, angle):
+    if sliceNode is None:
+        return;
+    currentTilt = 0.0
+    if sliceNode.GetAttribute("currentTilt"):
+        currentTilt = float(sliceNode.GetAttribute("currentTilt"))
+    finalAngle = angle - currentTilt
+    SliceToRAS = sliceNode.GetSliceToRAS()
+    transform=vtk.vtkTransform()
+    transform.SetMatrix(SliceToRAS)
+    transform.RotateZ(finalAngle)
+    SliceToRAS.DeepCopy(transform.GetMatrix())
+    sliceNode.UpdateMatrices()
+    sliceNode.SetAttribute("currentTilt", str(angle))
 #
 # CenterlineMetricsTest
 #

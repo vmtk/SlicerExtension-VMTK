@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>536</width>
-    <height>758</height>
+    <height>800</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -637,6 +637,35 @@ Caution: values at bifurcations may not have clinical meaning.</string>
         </property>
         <property name="toolTip">
          <string>Distance will be calculated relative to this point</string>
+        </property>
+       </widget>
+      </item>
+      <item row="9" column="0">
+       <widget class="QLabel" name="torsionLabel">
+        <property name="text">
+         <string>Torsion:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="9" column="1">
+       <widget class="ctkSliderWidget" name="torsionSliderWidget">
+        <property name="toolTip">
+         <string>Rotate slice view</string>
+        </property>
+        <property name="statusTip">
+         <string/>
+        </property>
+        <property name="locale">
+         <locale language="English" country="UnitedStates"/>
+        </property>
+        <property name="decimals">
+         <number>0</number>
+        </property>
+        <property name="minimum">
+         <double>-180.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>180.000000000000000</double>
         </property>
        </widget>
       </item>
