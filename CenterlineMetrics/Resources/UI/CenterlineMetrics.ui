@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>536</width>
-    <height>800</height>
+    <height>842</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -643,14 +643,14 @@ Caution: values at bifurcations may not have clinical meaning.</string>
       <item row="9" column="0">
        <widget class="QLabel" name="torsionLabel">
         <property name="text">
-         <string>Torsion:</string>
+         <string>Rotate:</string>
         </property>
        </widget>
       </item>
       <item row="9" column="1">
        <widget class="ctkSliderWidget" name="torsionSliderWidget">
         <property name="toolTip">
-         <string>Rotate slice view</string>
+         <string>Rotate slice view around its Z-axis to restore anatomic orientation</string>
         </property>
         <property name="statusTip">
          <string/>
