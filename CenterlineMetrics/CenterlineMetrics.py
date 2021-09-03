@@ -346,8 +346,9 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.updateSliceViewOrientationMetrics()
     if sliceNode is None:
         self.ui.orientationValueLabel.setText("")
+    else:
+        sliceNode.SetAttribute("currentTilt", "0.0")
     self.ui.torsionSliderWidget.value = 0.0
-    sliceNode.SetAttribute("currentTilt", "0.0")
     
   def updateUIWithMetrics(self, value):
     pointIndex = int(value)
