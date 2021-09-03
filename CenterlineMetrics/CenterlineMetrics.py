@@ -415,30 +415,6 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.updateSliceViewOrientationMetrics()
     
   def updateSliceViewOrientationMetrics(self):
-    """
-    Please remove comment if commit in trunk.
-    Using hexadecimal for degree character.
-    For obscure reasons, using the degree character triggers :
-    
-    Python 3.6.7 (default, Aug 22 2021, 12:05:08) 
-[GCC Clang 12.0.1] on linux2
->>> 
-Traceback (most recent call last):
-  File "<string>", line 1, in <module>
-  File "/home/user/programs/Slicer/lib/Python/lib/python3.6/imp.py", line 170, in load_source
-    module = _exec(spec, sys.modules[name])
-  File "<frozen importlib._bootstrap>", line 618, in _exec
-  File "<frozen importlib._bootstrap_external>", line 674, in exec_module
-  File "<frozen importlib._bootstrap_external>", line 781, in get_code
-  File "<frozen importlib._bootstrap_external>", line 741, in source_to_code
-  File "<frozen importlib._bootstrap>", line 219, in _call_with_frames_removed
-  File "/home/user/programs/Slicer/bin/../lib/Slicer-4.13/qt-scripted-modules/CenterlineMetrics.py", line 389
-SyntaxError: (unicode error) 'utf-8' codec can't decode byte 0xb0 in position 0: invalid start byte
-Loading Slicer RC file [/home/user/.slicerrc.py]
-
-    This character is used seamlessly in CrossSectionAnalysis.py though.
-    
-    """
     if self.ui.sliceViewSelector.currentNode():
         orient = self.logic.getSliceOrientation(self.ui.sliceViewSelector.currentNode())
         orientation = "R " + str(round(orient[0], 1)) + chr(0xb0) + ","
