@@ -91,7 +91,6 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.previousLayoutId = slicer.app.layoutManager().layout
 
     self.ui.jumpCentredInSliceNodeCheckBox.setIcon(qt.QIcon(':/Icons/ViewCenter.png'))
-    # Until we know where to browse available icons, to use another one. ViewCenter.png has not been found in ./Slicer-*/*. Probably in a resource bundle somewhere.
     self.ui.orthogonalReformatInSliceNodeCheckBox.setIcon(qt.QIcon(':/Icons/ViewCenter.png'))
     
     # These connections ensure that we update parameter node when scene is closed
