@@ -48,6 +48,8 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     ScriptedLoadableModuleWidget.__init__(self, parent)
     VTKObservationMixin.__init__(self)  # needed for parameter node observation
     self.logic = None
+    self._parameterNode = None
+    self._updatingGUIFromParameterNode = False
 
   def setup(self):
     """
@@ -80,6 +82,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     # unitNode.SetPrecision(2)
 
     self.ui.segmentSelector.setVisible(False)
+    self.ui.browseCollapsibleButton.collapsed = True
 
     self.ui.toggleTableLayoutButton.visible = False
     self.ui.toggleTableLayoutButton.setIcon(qt.QIcon(':/Icons/Medium/SlicerVisibleInvisible.png'))
@@ -88,10 +91,31 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.previousLayoutId = slicer.app.layoutManager().layout
 
     self.ui.jumpCentredInSliceNodeCheckBox.setIcon(qt.QIcon(':/Icons/ViewCenter.png'))
-
+    self.ui.orthogonalReformatInSliceNodeCheckBox.setIcon(qt.QIcon(':/Icons/ViewCenter.png'))
+    
+    # These connections ensure that we update parameter node when scene is closed
+    self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
+    self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
+    
+    # These connections ensure that whenever user changes some settings on the GUI, that is saved in the MRML scene
+    # (in the selected parameter node).
+    self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+    self.ui.segmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+    self.ui.segmentSelector.connect("currentSegmentChanged(QString)", self.updateParameterNodeFromGUI)
+    self.ui.outputTableSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+    self.ui.outputPlotSeriesSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+    self.ui.sliceViewSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+    self.ui.moveToPointSliderWidget.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
+    self.ui.relativeOriginSpinBox.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
+    self.ui.radioRAS.connect("clicked()", self.updateParameterNodeFromGUI)
+    self.ui.radioLPS.connect("clicked()", self.updateParameterNodeFromGUI)
+    self.ui.distinctColumnsCheckBox.connect("clicked()", self.updateParameterNodeFromGUI)
+    self.ui.jumpCentredInSliceNodeCheckBox.connect("clicked()", self.updateParameterNodeFromGUI)
+    self.ui.orthogonalReformatInSliceNodeCheckBox.connect("clicked()", self.updateParameterNodeFromGUI)
+    
     # connections
     self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
-    self.ui.inputModelSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectNode)
+    self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectNode)
     self.ui.outputPlotSeriesSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectNode)
     self.ui.outputTableSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectNode)
     self.ui.radioLPS.connect("clicked()", self.onRadioLPS)
@@ -99,6 +123,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.distinctColumnsCheckBox.connect("clicked()", self.onDistinctCoordinatesCheckBox)
     self.ui.moveToPointSliderWidget.connect("valueChanged(double)", self.setCurrentPointIndex)
     self.ui.jumpCentredInSliceNodeCheckBox.connect("clicked()", self.onJumpCentredInSliceNodeCheckBox)
+    self.ui.orthogonalReformatInSliceNodeCheckBox.connect("clicked()", self.onOrthogonalReformatInSliceNodeCheckBox)
     self.ui.moveToMinimumPushButton.connect("clicked()", self.moveSliceViewToMinimumDiameter)
     self.ui.moveToMaximumPushButton.connect("clicked()", self.moveSliceViewToMaximumDiameter)
     self.ui.toggleTableLayoutButton.connect("clicked()", self.toggleTableLayout)
@@ -107,6 +132,10 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.segmentSelector.connect("currentSegmentChanged(QString)", self.onSelectSegmentationNodes)
     self.ui.showCrossSectionButton.connect("clicked()", self.onShowCrossSection)
     self.ui.showMISDiameterPushButton.connect("clicked()", self.onShowMaximumInscribedSphere)
+    self.ui.sliceViewSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSliceNode)
+    self.ui.relativeOriginSpinBox.connect("valueChanged(double)", self.logic.onRelativeOriginChanged)
+    self.ui.relativeOriginSpinBox.connect("valueChanged(double)", self.showRelativeDistance)
+    self.ui.torsionSliderWidget.connect("valueChanged(double)", self.onTorsionSliderWidget)
 
     # Refresh Apply button state
     self.onSelectNode()
@@ -117,8 +146,124 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     """
     self.removeObservers()
   
+  def enter(self):
+    # Make sure parameter node exists and observed
+    self.initializeParameterNode()
+
+  def exit(self):
+    """
+    Called each time the user opens a different module.
+    """
+    # Do not react to parameter node changes (GUI wlil be updated when the user enters into the module)
+    self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
+
+  def onSceneStartClose(self, caller, event):
+    """
+    Called just before the scene is closed.
+    """
+    # Parameter node will be reset, do not use it anymore
+    self.setParameterNode(None)
+
+  def onSceneEndClose(self, caller, event):
+    """
+    Called just after the scene is closed.
+    """
+    # If this module is shown while the scene is closed then recreate a new parameter node immediately
+    if self.parent.isEntered:
+      self.initializeParameterNode()
+      
+  def initializeParameterNode(self):
+    """
+    Ensure parameter node exists and observed.
+    """
+    # Parameter node stores all user choices in parameter values, node selections, etc.
+    # so that when the scene is saved and reloaded, these settings are restored.
+
+    self.setParameterNode(self.logic.getParameterNode())
+
+  def setParameterNode(self, inputParameterNode):
+    """
+    Set and observe parameter node.
+    Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
+    """
+
+    if inputParameterNode:
+      self.logic.setDefaultParameters(inputParameterNode)
+
+    # Unobserve previously selected parameter node and add an observer to the newly selected.
+    # Changes of parameter node are observed so that whenever parameters are changed by a script or any other module
+    # those are reflected immediately in the GUI.
+    if self._parameterNode is not None:
+      self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
+    self._parameterNode = inputParameterNode
+    if self._parameterNode is not None:
+      self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
+
+    # Initial GUI update
+    self.updateGUIFromParameterNode()
+    
+  def updateGUIFromParameterNode(self, caller=None, event=None):
+    """
+    This method is called whenever parameter node is changed.
+    The module GUI is updated to show the current state of the parameter node.
+    """
+
+    if self._parameterNode is None or self._updatingGUIFromParameterNode:
+      return
+
+    # Make sure GUI changes do not call updateParameterNodeFromGUI (it could cause infinite loop)
+    self._updatingGUIFromParameterNode = True
+
+    # Update node selectors and sliders
+    self.ui.inputCenterlineSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputCenterline"))
+    self.ui.segmentationSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputSegmentation"))
+    self.ui.segmentSelector.setCurrentSegmentID(self._parameterNode.GetParameter("InputSegment"))
+    self.ui.outputTableSelector.setCurrentNode(self._parameterNode.GetNodeReference("OutputTable"))
+    self.ui.outputPlotSeriesSelector.setCurrentNode(self._parameterNode.GetNodeReference("OutputPlotSeries"))
+    self.ui.sliceViewSelector.setCurrentNode(self._parameterNode.GetNodeReference("SliceNode"))
+    if self._parameterNode.GetParameter("UseLPS") == "True":
+        self.ui.radioLPS.setChecked(True)
+        self.onRadioLPS()
+    else:
+        self.ui.radioRAS.setChecked(True)
+        self.onRadioRAS()
+    self.ui.distinctColumnsCheckBox.setChecked (self._parameterNode.GetParameter("DistinctColumns") == "True")
+    self.ui.jumpCentredInSliceNodeCheckBox.setChecked (self._parameterNode.GetParameter("CentreInSliceView") == "True")
+    self.ui.orthogonalReformatInSliceNodeCheckBox.setChecked (self._parameterNode.GetParameter("OrthogonalReformat") == "True")
+    
+    # The check events are not triggered by above.
+    self.onDistinctCoordinatesCheckBox()
+    self.onJumpCentredInSliceNodeCheckBox()
+    self.onOrthogonalReformatInSliceNodeCheckBox()
+    
+    # All the GUI updates are done
+    self._updatingGUIFromParameterNode = False
+
+  def updateParameterNodeFromGUI(self, caller=None, event=None):
+    """
+    This method is called when the user makes any change in the GUI.
+    The changes are saved into the parameter node (so that they are restored when the scene is saved and loaded).
+    """
+    if self._parameterNode is None or self._updatingGUIFromParameterNode:
+      return
+
+    wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
+    
+    self._parameterNode.SetNodeReferenceID("InputCenterline", self.ui.inputCenterlineSelector.currentNodeID)
+    self._parameterNode.SetNodeReferenceID("InputSegmentation", self.ui.segmentationSelector.currentNodeID)
+    self._parameterNode.SetParameter("InputSegment", self.ui.segmentSelector.currentSegmentID())
+    self._parameterNode.SetNodeReferenceID("OutputTable", self.ui.outputTableSelector.currentNodeID)
+    self._parameterNode.SetNodeReferenceID("OutputPlotSeries", self.ui.outputPlotSeriesSelector.currentNodeID)
+    self._parameterNode.SetNodeReferenceID("SliceNode", self.ui.sliceViewSelector.currentNodeID)
+    self._parameterNode.SetParameter("UseLPS", "True" if (self.ui.radioLPS.isChecked()) else "False")
+    self._parameterNode.SetParameter("DistinctColumns", "True" if (self.ui.distinctColumnsCheckBox.isChecked()) else "False")
+    self._parameterNode.SetParameter("CentreInSliceView", "True" if (self.ui.jumpCentredInSliceNodeCheckBox.isChecked()) else "False")
+    self._parameterNode.SetParameter("OrthogonalReformat", "True" if (self.ui.orthogonalReformatInSliceNodeCheckBox.isChecked()) else "False")
+    
+    self._parameterNode.EndModify(wasModified)
+    
   def onSelectNode(self):
-    self.logic.setInputCenterlineNode(self.ui.inputModelSelector.currentNode())
+    self.logic.setInputCenterlineNode(self.ui.inputCenterlineSelector.currentNode())
     self.ui.applyButton.enabled = self.logic.isInputCenterlineValid()
     self.logic.setOutputTableNode(self.ui.outputTableSelector.currentNode())
     self.logic.setOutputPlotSeriesNode(self.ui.outputPlotSeriesSelector.currentNode())
@@ -163,7 +308,12 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     numberOfPoints -= 1
 
     self.ui.moveToPointSliderWidget.maximum = numberOfPoints - 1
+    self.ui.relativeOriginSpinBox.maximum = numberOfPoints - 1
     self.updateMeasurements()
+    self.ui.torsionSliderWidget.value = 0.0
+    sliceNode = self.ui.sliceViewSelector.currentNode()
+    if sliceNode:
+        sliceNode.SetAttribute("currentTilt", "0.0")
 
   def onRadioLPS(self):
     self.logic.coordinateSystemColumnRAS = False
@@ -176,7 +326,29 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
   
   def onJumpCentredInSliceNodeCheckBox(self):
     self.logic.jumpCentredInSliceNode = self.ui.jumpCentredInSliceNodeCheckBox.checked
-
+    if self.ui.sliceViewSelector.currentNode():
+        self.setCurrentPointIndex(self.ui.moveToPointSliderWidget.value)
+        self.updateSliceViewOrientationMetrics()
+  
+  def onOrthogonalReformatInSliceNodeCheckBox (self):
+    self.logic.orthogonalReformatInSliceNode = self.ui.orthogonalReformatInSliceNodeCheckBox.checked
+    self.ui.torsionSliderWidget.value = 0.0
+    sliceNode = self.ui.sliceViewSelector.currentNode()
+    if sliceNode:
+        self.setCurrentPointIndex(self.ui.moveToPointSliderWidget.value)
+        self.updateSliceViewOrientationMetrics()
+        if not self.ui.orthogonalReformatInSliceNodeCheckBox.checked:
+            sliceNode.SetAttribute("currentTilt", "0.0")
+  
+  def onSelectSliceNode(self, sliceNode):
+    self.logic.selectSliceNode(sliceNode)
+    self.updateSliceViewOrientationMetrics()
+    if sliceNode is None:
+        self.ui.orientationValueLabel.setText("")
+    else:
+        sliceNode.SetAttribute("currentTilt", "0.0")
+    self.ui.torsionSliderWidget.value = 0.0
+    
   def updateUIWithMetrics(self, value):
     pointIndex = int(value)
 
@@ -186,7 +358,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     tableNode = self.logic.outputTableNode
     if tableNode:
       # Use precomputed values
-      distanceStr = self.logic.getUnitNodeDisplayString(tableNode.GetTable().GetValue(int(value), 0).ToDouble(), "length").strip()
+      distanceStr = self.logic.getUnitNodeDisplayString(self.logic.calculateRelativeDistance(value), "length").strip()
       misDiameter = tableNode.GetTable().GetValue(int(value), 1).ToDouble()
       diameterStr = self.logic.getUnitNodeDisplayString(misDiameter, "length").strip()
     else:
@@ -239,7 +411,21 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
       self.ui.derivedDiameterValueLabel.setText(derivedDiameterStr)
     else:
       self.ui.derivedDiameterValueLabel.setText("")
+    # Orientation
+    self.updateSliceViewOrientationMetrics()
+    
+  def updateSliceViewOrientationMetrics(self):
+    if self.ui.sliceViewSelector.currentNode():
+        orient = self.logic.getSliceOrientation(self.ui.sliceViewSelector.currentNode())
+        orientation = "R " + str(round(orient[0], 1)) + chr(0xb0) + ","
+        orientation += " A " + str(round(orient[1], 1)) + chr(0xb0) + ","
+        orientation += " S " + str(round(orient[2], 1)) + chr(0xb0)
+        self.ui.orientationValueLabel.setText(orientation)
 
+  def showRelativeDistance(self):
+    value = self.ui.moveToPointSliderWidget.value
+    distanceStr = self.logic.getUnitNodeDisplayString(self.logic.calculateRelativeDistance(value), "length").strip()
+    self.ui.distanceValueLabel.setText(distanceStr)
 
   def clearMetrics(self):
     self.ui.coordinatesValueLabel.setText("")
@@ -247,12 +433,16 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.diameterValueLabel.setText("")
     self.ui.surfaceAreaValueLabel.setText("")
     self.ui.derivedDiameterValueLabel.setText("")
+    self.ui.orientationValueLabel.setText("")
 
   def resetMoveToPointSliderWidget(self):
     slider = self.ui.moveToPointSliderWidget
     slider.minimum = 0
     slider.maximum = 0
     slider.setValue(0)
+    # relativeOriginSpinBox must always follow the sliderWidget spin box
+    self.resetRelativeOriginWidget()
+    self.ui.torsionSliderWidget.setValue(0.0)
 
   def moveSliceViewToMinimumDiameter(self):
     point = self.logic.getExtremeDiameterPoint(False)
@@ -337,6 +527,20 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
 
     self.updateUIWithMetrics(value)
 
+  def resetRelativeOriginWidget(self):
+    relativeOriginWidget = self.ui.relativeOriginSpinBox
+    relativeOriginWidget.minimum = 0
+    relativeOriginWidget.maximum = 0
+    relativeOriginWidget.setValue(0)
+    relativeOriginWidget.singleStep = 1
+    relativeOriginWidget.decimals = 0
+
+  def onTorsionSliderWidget(self):
+    sliceNode = self.ui.sliceViewSelector.currentNode()
+    if sliceNode is None:
+        return
+    angle = self.ui.torsionSliderWidget.value
+    self.logic.rotateAroundZ(sliceNode, angle)
 
 #
 # CenterlineMetricsLogic
@@ -352,6 +556,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
   def __init__(self):
+    ScriptedLoadableModuleLogic.__init__(self)
     self.inputCenterlineNode = None
     self.outputPlotSeriesNode = None
     self.outputTableNode = None
@@ -375,7 +580,15 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     self.maximumInscribedSphereModelNode = None
     self.showMaximumInscribedSphere = False
     self.maximumInscribedSphereColor = [0.2, 1.0, 0.4]
+    self.orthogonalReformatInSliceNode = False
+    self.relativeOrigin = 0
 
+  def setDefaultParameters(self, parameterNode):
+    """
+    Initialize parameter node with default settings.
+    """
+    pass
+    
   def resetCrossSections(self):
     self.crossSectionPolyDataCache = {}
 
@@ -402,6 +615,16 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
       return
     self.outputPlotSeriesNode = plotSeriesNode
 
+  def selectSliceNode(self, sliceNode):
+    # Don't modify Reformat module if we don't plan to use it.
+    if sliceNode is None:
+        return
+    slicer.modules.reformat.widgetRepresentation().setEditedNode(sliceNode)
+
+  # Real origin is start of path. Relative origin is any point.
+  def onRelativeOriginChanged(self, value):
+    self.relativeOrigin = value
+    
   def setShowCrossSection(self, checked):
     self.showCrossSection = checked
     if self.crossSectionModelNode is not None:
@@ -633,15 +856,22 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     return position
 
   def updateSliceView(self, sliceNode, value):
-    """Move the selected slice view to a point of the centerline, optionally centering on the point.
-    The slice view orientation, reformat or not, is not changed.
+    """Move the selected slice view to a point of the centerline, optionally centering on the point, and with optional orthogonal reformat.
     """
-
     position = self.getCurvePointPositionAtIndex(value)
+    
     if self.jumpCentredInSliceNode:
         slicer.vtkMRMLSliceNode.JumpSliceByCentering(sliceNode, *position)
     else:
         slicer.vtkMRMLSliceNode.JumpSlice(sliceNode, *position)
+    
+    if self.orthogonalReformatInSliceNode:
+        reformatLogic = slicer.modules.reformat.logic()
+        direction = self.getCurvePointPositionAtIndex(value + 1) - position
+        reformatLogic.SetSliceOrigin(sliceNode, position[0], position[1], position[2])
+        reformatLogic.SetSliceNormal(sliceNode, direction[0], direction[1], direction[2])
+    else:
+        sliceNode.SetOrientationToDefault()
 
   def getExtremeDiameterPoint(self, boolMaximum):
     """Convenience function to get the point of minimum or maximum diameter.
@@ -788,7 +1018,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
 
   def getPositionMaximumInscribedSphereRadius(self, pointIndex):
     if not self.isCenterlineRadiusAvailable:
-      raise ValueError("Maximim inscribed sphere radius is not available")
+      raise ValueError("Maximum inscribed sphere radius is not available")
     position = np.zeros(3)
     if self.inputCenterlineNode.IsTypeOf("vtkMRMLModelNode"):
       positionLocal = slicer.util.arrayFromModelPoints(self.inputCenterlineNode)[pointIndex]
@@ -889,6 +1119,46 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
       # Set sphere color
       sphereModelDisplayNode.SetColor(self.maximumInscribedSphereColor[0], self.maximumInscribedSphereColor[1], self.maximumInscribedSphereColor[2])
 
+  # This information is added because it is easily available.
+  # How useful is it ?
+  # In any case, it is the slice orientation in the RAS coordinate system.
+  def getSliceOrientation(self, sliceNode):
+    sliceToRAS = sliceNode.GetSliceToRAS()
+    orient = np.zeros(3)
+    vtk.vtkTransform().GetOrientation(orient, sliceToRAS)
+    return orient
+
+  # Calculate distance from point and the relative origin
+  def calculateRelativeDistance(self, pointIndex):
+    if self.outputTableNode is None:
+        return 0.0
+    distanceArray = self.outputTableNode.GetTable().GetColumnByName(DISTANCE_ARRAY_NAME)
+    # Distance of the relative origin from start of path
+    relativeOriginDistance = distanceArray.GetValue(int(self.relativeOrigin))
+    # Distance of point from start of path
+    distanceFromStart = distanceArray.GetValue(int(pointIndex))
+    return distanceFromStart - relativeOriginDistance
+
+  """
+  Rotate slice view around it's Z-axis.
+  It is relative to the previous rotation, stored as a slice node attribute.
+  The view is tilted by the difference between the requested angle from the slider and the buffered angle.
+  The buffered angle may not always start at 0.0.
+  """
+  def rotateAroundZ(self, sliceNode, angle):
+    if sliceNode is None:
+        return;
+    currentTilt = 0.0
+    if sliceNode.GetAttribute("currentTilt"):
+        currentTilt = float(sliceNode.GetAttribute("currentTilt"))
+    finalAngle = angle - currentTilt
+    SliceToRAS = sliceNode.GetSliceToRAS()
+    transform=vtk.vtkTransform()
+    transform.SetMatrix(SliceToRAS)
+    transform.RotateZ(finalAngle)
+    SliceToRAS.DeepCopy(transform.GetMatrix())
+    sliceNode.UpdateMatrices()
+    sliceNode.SetAttribute("currentTilt", str(angle))
 #
 # CenterlineMetricsTest
 #
