@@ -667,10 +667,6 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
           return False
         if (not radiusMeasurement.GetControlPointValues()) or (radiusMeasurement.GetControlPointValues().GetNumberOfValues()<1):
           return False
-        # If called a second time, radiusMeasurement would be True
-        if self.invalidRadiusForcedIn:
-          self.resetCurveWithInvalidRadii()
-          return False
         self.invalidRadiusForcedIn = False
         return True
 
