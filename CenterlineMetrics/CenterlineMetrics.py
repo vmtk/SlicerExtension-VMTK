@@ -171,6 +171,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     # If this module is shown while the scene is closed then recreate a new parameter node immediately
     if self.parent.isEntered:
       self.initializeParameterNode()
+    self.logic.invalidRadiusForcedIn = False
       
   def initializeParameterNode(self):
     """
@@ -295,8 +296,8 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.browseCollapsibleButton.collapsed = False
 
     isCenterlineRadiusAvailable = self.logic.isCenterlineRadiusAvailable()
-    self.ui.toggleTableLayoutButton.visible = isCenterlineRadiusAvailable and (self.logic.outputTableNode is not None)
-    self.ui.togglePlotLayoutButton.visible = isCenterlineRadiusAvailable and (self.logic.outputPlotSeriesNode is not None)
+    self.ui.toggleTableLayoutButton.visible = (isCenterlineRadiusAvailable or self.logic.invalidRadiusForcedIn) and (self.logic.outputTableNode is not None)
+    self.ui.togglePlotLayoutButton.visible = (isCenterlineRadiusAvailable or self.logic.invalidRadiusForcedIn) and (self.logic.outputPlotSeriesNode is not None)
     self.ui.moveToMinimumPushButton.enabled = isCenterlineRadiusAvailable
     self.ui.moveToMaximumPushButton.enabled = isCenterlineRadiusAvailable
     self.ui.showMISDiameterPushButton.enabled = isCenterlineRadiusAvailable
@@ -582,6 +583,8 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     self.maximumInscribedSphereColor = [0.2, 1.0, 0.4]
     self.orthogonalReformatInSliceNode = False
     self.relativeOrigin = 0
+    # If we have modified an input markups curve
+    self.invalidRadiusForcedIn = False
 
   def setDefaultParameters(self, parameterNode):
     """
@@ -657,9 +660,16 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     else:
         radiusMeasurement = self.inputCenterlineNode.GetMeasurement('Radius')
         if not radiusMeasurement:
+          self.resetCurveWithInvalidRadii()
+          self.invalidRadiusForcedIn = True
           return False
         if (not radiusMeasurement.GetControlPointValues()) or (radiusMeasurement.GetControlPointValues().GetNumberOfValues()<1):
           return False
+        # If called a second time, radiusMeasurement would be True
+        if self.invalidRadiusForcedIn:
+          self.resetCurveWithInvalidRadii()
+          return False
+        self.invalidRadiusForcedIn = False
         return True
 
   def getNumberOfPoints(self):
@@ -669,6 +679,35 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
         return self.inputCenterlineNode.GetPolyData().GetNumberOfPoints()
     else:
         return self.inputCenterlineNode.GetCurvePointsWorld().GetNumberOfPoints()
+  """
+  To manage markups curve freely drawn. These do not have 'Radius' measurement.
+  CAUTION : This should not be called on a markups curve created by 'Extract centerline'.
+  Any 'Radius' measurement is forcibly removed before adding with 0.0 radius at each point. This allows to update the coordinates table if the curved is modified in any way in UI. The user modifies, the user updates, manually. The curve is not observed.
+  NOTE : This involves modifying an object this module does not own.
+  """
+  def resetCurveWithInvalidRadii(self):
+    inputCenterline = self.inputCenterlineNode
+    if (not inputCenterline) or (inputCenterline.IsTypeOf("vtkMRMLModelNode")):
+        return False
+    radiusMeasurement = inputCenterline.GetMeasurement("Radius")
+    if radiusMeasurement:
+        numberOfMeasurements = inputCenterline.GetNumberOfMeasurements()
+        for i in range(numberOfMeasurements):
+            if inputCenterline.GetNthMeasurement(i) == radiusMeasurement:
+                inputCenterline.RemoveNthMeasurement(i)
+                break
+    numberOfPoints = self.getNumberOfPoints()
+    radiusMeasurement = slicer.vtkMRMLMeasurementLength()
+    radiusMeasurement.SetName("Radius")
+    controlPointRadiusValues = vtk.vtkDoubleArray()
+    controlPointRadiusValues.SetName("Radius")
+    controlPointRadiusValues.SetNumberOfValues(numberOfPoints)
+    for i in range(numberOfPoints):
+        controlPointRadiusValues.SetValue(i, 0.0)
+    radiusMeasurement.SetControlPointValues(controlPointRadiusValues)
+    inputCenterline.AddMeasurement(radiusMeasurement)
+    inputCenterline.Modified()
+    return True
 
   def run(self):
     self.resetCrossSections()
