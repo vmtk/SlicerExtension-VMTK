@@ -424,6 +424,8 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
         self.ui.orientationValueLabel.setText(orientation)
 
   def showRelativeDistance(self):
+    if not self.logic.outputTableNode:
+        return
     value = self.ui.moveToPointSliderWidget.value
     distanceStr = self.logic.getUnitNodeDisplayString(self.logic.calculateRelativeDistance(value), "length").strip()
     self.ui.distanceValueLabel.setText(distanceStr)
@@ -1172,6 +1174,8 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     if self.outputTableNode is None:
         return 0.0
     distanceArray = self.outputTableNode.GetTable().GetColumnByName(DISTANCE_ARRAY_NAME)
+    if not distanceArray:
+        return 0.0
     # Distance of the relative origin from start of path
     relativeOriginDistance = distanceArray.GetValue(int(self.relativeOrigin))
     # Distance of point from start of path
