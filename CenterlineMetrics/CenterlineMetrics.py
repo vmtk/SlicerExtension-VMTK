@@ -91,8 +91,8 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.previousLayoutId = slicer.app.layoutManager().layout
 
     self.ui.jumpCentredInSliceNodeCheckBox.setIcon(qt.QIcon(':/Icons/ViewCenter.png'))
-    self.ui.orthogonalReformatInSliceNodeCheckBox.setIcon(qt.QIcon(':/Icons/ViewCenter.png'))
-    
+    self.ui.orthogonalReformatInSliceNodeCheckBox.setIcon(qt.QIcon(':/Icons/MouseRotateMode.png'))
+
     # These connections ensure that we update parameter node when scene is closed
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
@@ -106,7 +106,6 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.outputPlotSeriesSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
     self.ui.sliceViewSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
     self.ui.moveToPointSliderWidget.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
-    self.ui.relativeOriginSpinBox.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
     self.ui.radioRAS.connect("clicked()", self.updateParameterNodeFromGUI)
     self.ui.radioLPS.connect("clicked()", self.updateParameterNodeFromGUI)
     self.ui.distinctColumnsCheckBox.connect("clicked()", self.updateParameterNodeFromGUI)
@@ -124,6 +123,8 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.moveToPointSliderWidget.connect("valueChanged(double)", self.setCurrentPointIndex)
     self.ui.jumpCentredInSliceNodeCheckBox.connect("clicked()", self.onJumpCentredInSliceNodeCheckBox)
     self.ui.orthogonalReformatInSliceNodeCheckBox.connect("clicked()", self.onOrthogonalReformatInSliceNodeCheckBox)
+    self.ui.useCurrentPointAsOriginButton.connect("clicked()", self.onUseCurrentPointAsOrigin)
+    self.ui.goToOriginButton.connect("clicked()", self.onGoToOriginPoint)
     self.ui.moveToMinimumPushButton.connect("clicked()", self.moveSliceViewToMinimumDiameter)
     self.ui.moveToMaximumPushButton.connect("clicked()", self.moveSliceViewToMaximumDiameter)
     self.ui.toggleTableLayoutButton.connect("clicked()", self.toggleTableLayout)
@@ -133,8 +134,6 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.ui.showCrossSectionButton.connect("clicked()", self.onShowCrossSection)
     self.ui.showMISDiameterPushButton.connect("clicked()", self.onShowMaximumInscribedSphere)
     self.ui.sliceViewSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSliceNode)
-    self.ui.relativeOriginSpinBox.connect("valueChanged(double)", self.logic.onRelativeOriginChanged)
-    self.ui.relativeOriginSpinBox.connect("valueChanged(double)", self.showRelativeDistance)
     self.ui.torsionSliderWidget.connect("valueChanged(double)", self.onTorsionSliderWidget)
 
     # Refresh Apply button state
@@ -309,7 +308,6 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     numberOfPoints -= 1
 
     self.ui.moveToPointSliderWidget.maximum = numberOfPoints - 1
-    self.ui.relativeOriginSpinBox.maximum = numberOfPoints - 1
     self.updateMeasurements()
     self.ui.torsionSliderWidget.value = 0.0
     sliceNode = self.ui.sliceViewSelector.currentNode()
@@ -331,7 +329,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
         self.setCurrentPointIndex(self.ui.moveToPointSliderWidget.value)
         self.updateSliceViewOrientationMetrics()
   
-  def onOrthogonalReformatInSliceNodeCheckBox (self):
+  def onOrthogonalReformatInSliceNodeCheckBox(self):
     self.logic.orthogonalReformatInSliceNode = self.ui.orthogonalReformatInSliceNodeCheckBox.checked
     self.ui.torsionSliderWidget.value = 0.0
     sliceNode = self.ui.sliceViewSelector.currentNode()
@@ -340,7 +338,14 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
         self.updateSliceViewOrientationMetrics()
         if not self.ui.orthogonalReformatInSliceNodeCheckBox.checked:
             sliceNode.SetAttribute("currentTilt", "0.0")
-  
+
+  def onUseCurrentPointAsOrigin(self):
+    self.logic.relativeOriginPointIndex = int(self.ui.moveToPointSliderWidget.value)
+    self.updateMeasurements()
+
+  def onGoToOriginPoint(self):
+    self.ui.moveToPointSliderWidget.value = self.logic.relativeOriginPointIndex
+
   def onSelectSliceNode(self, sliceNode):
     self.logic.selectSliceNode(sliceNode)
     self.updateSliceViewOrientationMetrics()
@@ -376,7 +381,8 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
       if self.logic.inputCenterlineNode.IsTypeOf("vtkMRMLModelNode"):
         distanceStr = ""  # TODO: implement for models
       else:
-        distanceStr = self.logic.getUnitNodeDisplayString(self.logic.inputCenterlineNode.GetCurveLengthWorld(0, pointIndex), "length").strip()
+        distanceFromOrigin = self.logic.inputCenterlineNode.GetCurveLengthWorld(self.logic.relativeOriginPointIndex, pointIndex)
+        distanceStr = self.logic.getUnitNodeDisplayString(distanceFromOrigin, "length").strip()
     self.ui.distanceValueLabel.setText(distanceStr)
     self.ui.diameterValueLabel.setText(diameterStr)
     
@@ -443,8 +449,6 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     slider.minimum = 0
     slider.maximum = 0
     slider.setValue(0)
-    # relativeOriginSpinBox must always follow the sliderWidget spin box
-    self.resetRelativeOriginWidget()
     self.ui.torsionSliderWidget.setValue(0.0)
 
   def moveSliceViewToMinimumDiameter(self):
@@ -530,14 +534,6 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
 
     self.updateUIWithMetrics(value)
 
-  def resetRelativeOriginWidget(self):
-    relativeOriginWidget = self.ui.relativeOriginSpinBox
-    relativeOriginWidget.minimum = 0
-    relativeOriginWidget.maximum = 0
-    relativeOriginWidget.setValue(0)
-    relativeOriginWidget.singleStep = 1
-    relativeOriginWidget.decimals = 0
-
   def onTorsionSliderWidget(self):
     sliceNode = self.ui.sliceViewSelector.currentNode()
     if sliceNode is None:
@@ -584,9 +580,19 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     self.showMaximumInscribedSphere = False
     self.maximumInscribedSphereColor = [0.2, 1.0, 0.4]
     self.orthogonalReformatInSliceNode = False
-    self.relativeOrigin = 0
+    self.relativeOriginPointIndex = 0
     # If we have modified an input markups curve
     self.invalidRadiusForcedIn = False
+
+  @property
+  def relativeOriginPointIndex(self):
+    originPointIndexStr = self.getParameterNode().GetParameter("originPointIndex")
+    originPointIndex = int(float(originPointIndexStr)) if originPointIndexStr else 0
+    return originPointIndex
+
+  @relativeOriginPointIndex.setter
+  def relativeOriginPointIndex(self, originPointIndex):
+    self.getParameterNode().SetParameter("originPointIndex", str(originPointIndex))
 
   def setDefaultParameters(self, parameterNode):
     """
@@ -626,10 +632,6 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
         return
     slicer.modules.reformat.widgetRepresentation().setEditedNode(sliceNode)
 
-  # Real origin is start of path. Relative origin is any point.
-  def onRelativeOriginChanged(self, value):
-    self.relativeOrigin = value
-    
   def setShowCrossSection(self, checked):
     self.showCrossSection = checked
     if self.crossSectionModelNode is not None:
@@ -961,6 +963,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     # Work on the segment's closed surface
     closedSurfacePolyData = vtk.vtkPolyData()
     if self.lumenSurfaceNode.GetClassName() == "vtkMRMLSegmentationNode":
+      self.lumenSurfaceNode.CreateClosedSurfaceRepresentation()
       self.lumenSurfaceNode.GetClosedSurfaceRepresentation(self.currentSegmentID, closedSurfacePolyData)
     else:
       closedSurfacePolyData = self.lumenSurfaceNode.GetPolyData()
@@ -1173,7 +1176,10 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     if not distanceArray:
         return 0.0
     # Distance of the relative origin from start of path
-    relativeOriginDistance = distanceArray.GetValue(int(self.relativeOrigin))
+    relativeOriginPointIndex = int(self.relativeOriginPointIndex)
+    if relativeOriginPointIndex >= distanceArray.GetNumberOfValues():
+      relativeOriginPointIndex = distanceArray.GetNumberOfValues()
+    relativeOriginDistance = distanceArray.GetValue(relativeOriginPointIndex)
     # Distance of point from start of path
     distanceFromStart = distanceArray.GetValue(int(pointIndex))
     return distanceFromStart - relativeOriginDistance
