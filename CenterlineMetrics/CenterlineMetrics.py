@@ -271,7 +271,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.clearMetrics()
 
   def createOutputNodes(self):
-    if self.logic.isCenterlineRadiusAvailable():
+    if self.logic.isCenterlineRadiusAvailable(False):
       if not self.ui.outputTableSelector.currentNode():
         outputTableNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode")
         self.ui.outputTableSelector.setCurrentNode(outputTableNode)
@@ -293,9 +293,10 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
 
     self.ui.browseCollapsibleButton.collapsed = False
 
-    isCenterlineRadiusAvailable = self.logic.isCenterlineRadiusAvailable()
-    self.ui.toggleTableLayoutButton.visible = isCenterlineRadiusAvailable and (self.logic.outputTableNode is not None)
-    self.ui.togglePlotLayoutButton.visible = isCenterlineRadiusAvailable  and (self.logic.outputPlotSeriesNode is not None)
+    isCenterlineRadiusAvailable = self.logic.isCenterlineRadiusAvailable(False)
+    isCenterlineRadiusAvailableInTable = self.logic.isCenterlineRadiusAvailable(True)
+    self.ui.toggleTableLayoutButton.visible = isCenterlineRadiusAvailableInTable and (self.logic.outputTableNode is not None)
+    self.ui.togglePlotLayoutButton.visible = isCenterlineRadiusAvailableInTable and (self.logic.outputPlotSeriesNode is not None)
     self.ui.moveToMinimumPushButton.enabled = isCenterlineRadiusAvailable
     self.ui.moveToMaximumPushButton.enabled = isCenterlineRadiusAvailable
     self.ui.showMISDiameterPushButton.enabled = isCenterlineRadiusAvailable
@@ -653,7 +654,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
   def isInputCenterlineValid(self):
     return self.inputCenterlineNode is not None
 
-  def isCenterlineRadiusAvailable(self):
+  def isCenterlineRadiusAvailable(self, queryTable = True):
     if not self.inputCenterlineNode:
       return False
     if self.inputCenterlineNode.IsTypeOf("vtkMRMLModelNode"):
@@ -661,7 +662,10 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     else:
         radiusMeasurement = self.inputCenterlineNode.GetMeasurement('Radius')
         if not radiusMeasurement:
-          return False
+          forcedInRadius = None
+          if self.outputTableNode and queryTable:
+            forcedInRadius = self.outputTableNode.GetAttribute("forcedInZeroRadius")
+          return (forcedInRadius is not None)
         if (not radiusMeasurement.GetControlPointValues()) or (radiusMeasurement.GetControlPointValues().GetNumberOfValues()<1):
           return False
         return True
@@ -739,7 +743,14 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
         numberOfPoints = len(points)
         radii = np.zeros(numberOfPoints)
         controlPointFloatIndices = inputCenterline.GetCurveWorld().GetPointData().GetArray('PedigreeIDs')
-        controlPointRadiusValues = inputCenterline.GetMeasurement('Radius').GetControlPointValues()
+        radiusMeasurement = inputCenterline.GetMeasurement("Radius")
+        controlPointRadiusValues = vtk.vtkDoubleArray()
+        if not radiusMeasurement:
+            controlPointRadiusValues.SetNumberOfValues(numberOfPoints)
+            controlPointRadiusValues.Fill(0.0)
+            outputTable.SetAttribute("forcedInZeroRadius", "True")
+        else :
+            controlPointRadiusValues = inputCenterline.GetMeasurement('Radius').GetControlPointValues()
         for pointIndex in range(numberOfPoints-1):
             controlPointFloatIndex = controlPointFloatIndices.GetValue(pointIndex)
             controlPointIndexA = int(controlPointFloatIndex)
@@ -1031,6 +1042,9 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
       radius = slicer.util.arrayFromModelPointData(self.inputCenterlineNode, 'Radius')[pointIndex]
     else:
       self.inputCenterlineNode.GetCurveWorld().GetPoints().GetPoint(pointIndex, position)
+      radiusMeasurement = self.inputCenterlineNode.GetMeasurement('Radius')
+      if not radiusMeasurement:
+          return position, 0.0
       # Get curve point radius by interpolating control point measurements
       # Need to compute manually until this method becomes available:
       #  radius = self.inputCenterlineNode.GetMeasurement('Radius').GetCurvePointValue(pointIndex)
