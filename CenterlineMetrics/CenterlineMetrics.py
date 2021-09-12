@@ -170,6 +170,8 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     # If this module is shown while the scene is closed then recreate a new parameter node immediately
     if self.parent.isEntered:
       self.initializeParameterNode()
+    # Clean up logic variables too.
+    self.logic.initMemberVariables()
       
   def initializeParameterNode(self):
     """
@@ -561,6 +563,9 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
   """
   def __init__(self):
     ScriptedLoadableModuleLogic.__init__(self)
+    self.initMemberVariables()
+
+  def initMemberVariables(self):
     self.inputCenterlineNode = None
     self.outputPlotSeriesNode = None
     self.outputTableNode = None
