@@ -46,7 +46,7 @@ if(${Slicer_VERSION_MAJOR}.${Slicer_VERSION_MINOR} VERSION_GREATER_EQUAL 4.11)
 else()
   add_subdirectory(CenterlineComputation)
 endif()
-add_subdirectory(CenterlineMetrics)
+add_subdirectory(CrossSectionAnalysis)
 
 #-----------------------------------------------------------------------------
 set(EXTENSION_CPACK_INSTALL_CMAKE_PROJECTS)
