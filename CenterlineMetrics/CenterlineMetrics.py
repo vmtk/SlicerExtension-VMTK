@@ -381,7 +381,10 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
       if self.logic.inputCenterlineNode.IsTypeOf("vtkMRMLModelNode"):
         distanceStr = ""  # TODO: implement for models
       else:
-        distanceFromOrigin = self.logic.inputCenterlineNode.GetCurveLengthWorld(self.logic.relativeOriginPointIndex, pointIndex)
+        if self.logic.relativeOriginPointIndex <= pointIndex:
+            distanceFromOrigin = self.logic.inputCenterlineNode.GetCurveLengthBetweenStartEndPointsWorld(self.logic.relativeOriginPointIndex, pointIndex)
+        else:
+            distanceFromOrigin = -self.logic.inputCenterlineNode.GetCurveLengthBetweenStartEndPointsWorld(pointIndex, self.logic.relativeOriginPointIndex)
         distanceStr = self.logic.getUnitNodeDisplayString(distanceFromOrigin, "length").strip()
     self.ui.distanceValueLabel.setText(distanceStr)
     self.ui.diameterValueLabel.setText(diameterStr)
