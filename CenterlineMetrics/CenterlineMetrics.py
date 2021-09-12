@@ -609,6 +609,7 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
       return
     self.inputCenterlineNode = centerlineNode
     self.resetCrossSections()
+    self.relativeOriginPointIndex = 0
 
   def setLumenSurface(self, lumenSurfaceNode, currentSegmentID):
     if (self.lumenSurfaceNode == lumenSurfaceNode) and (self.currentSegmentID == currentSegmentID):
