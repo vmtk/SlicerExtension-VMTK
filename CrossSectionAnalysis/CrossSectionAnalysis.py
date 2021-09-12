@@ -7,36 +7,35 @@ from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
 
 """
-  CenterlineMetrics
-  This file is almost totally derived from LineProfile.py.
-  The core diameter calculation code is poked from VMTK's
-  README.md file.
+  CrossSectionAnalysis : renamed from CenterlineMetrics, and merged with former deprecated CrossSectionAnalysis module.
+  This file was originally derived from LineProfile.py.
+  Many more features have been added since.
 """
 
-class CenterlineMetrics(ScriptedLoadableModule):
+class CrossSectionAnalysis(ScriptedLoadableModule):
   """Uses ScriptedLoadableModule base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
 
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
-    self.parent.title = "Centerline metrics"
+    self.parent.title = "Cross-section analysis"
     self.parent.categories = ["Vascular Modeling Toolkit"]
     self.parent.dependencies = []
     self.parent.contributors = ["SET (Surgeon) (Hobbyist developer)"]
     self.parent.helpText = """
-This module plots average diameters around a VMTK centerline model. It is intended for non-bifurcated centerlines. Documentation is available
+This module describes cross-sections along a VMTK centerline model, a VMTK centerline markups curve or an arbitrary markups curve. Documentation is available
     <a href="https://github.com/chir-set/CenterlineMetrics">here</a>.
 """  
     self.parent.acknowledgementText = """
-This file was originally developed by SET. Many thanks to Andras Lasso for sanitizing the code.
+This file was originally developed by SET. Many thanks to Andras Lasso for sanitizing the code and UI, and for guidance throughout.
 """  # TODO: replace with organization, grant and thanks.
 
 #
-# CenterlineMetricsWidget
+# CrossSectionAnalysisWidget
 #
 
-class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
+class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
   """Uses ScriptedLoadableModuleWidget base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
@@ -58,7 +57,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     ScriptedLoadableModuleWidget.setup(self)
 
     # Load widget from .ui file (created by Qt Designer)
-    uiWidget = slicer.util.loadUI(self.resourcePath('UI/CenterlineMetrics.ui'))
+    uiWidget = slicer.util.loadUI(self.resourcePath('UI/CrossSectionAnalysis.ui'))
     self.layout.addWidget(uiWidget)
     self.ui = slicer.util.childWidgetVariables(uiWidget)
     
@@ -70,7 +69,7 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     # "setMRMLScene(vtkMRMLScene*)" slot.
     uiWidget.setMRMLScene(slicer.mrmlScene)
 
-    self.logic = CenterlineMetricsLogic()
+    self.logic = CrossSectionAnalysisLogic()
     self.resetMoveToPointSliderWidget()
 
     # TODO: a module must not change the application-wide unit format
@@ -549,10 +548,10 @@ class CenterlineMetricsWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
     self.logic.rotateAroundZ(sliceNode, angle)
 
 #
-# CenterlineMetricsLogic
+# CrossSectionAnalysisLogic
 #
 
-class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
+class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
   """This class should implement all the actual
   computation done by your module.  The interface
   should be such that other python code can import
@@ -1195,10 +1194,10 @@ class CenterlineMetricsLogic(ScriptedLoadableModuleLogic):
     sliceNode.UpdateMatrices()
     sliceNode.SetAttribute("currentTilt", str(angle))
 #
-# CenterlineMetricsTest
+# CrossSectionAnalysisTest
 #
 
-class CenterlineMetricsTest(ScriptedLoadableModuleTest):
+class CrossSectionAnalysisTest(ScriptedLoadableModuleTest):
   """
   This is the test case for your scripted module.
   Uses ScriptedLoadableModuleTest base class, available at:
@@ -1214,7 +1213,7 @@ class CenterlineMetricsTest(ScriptedLoadableModuleTest):
     """
     """
 
-  def test_CenterlineMetrics1(self):
+  def test_CrossSectionAnalysis1(self):
     """
     """
 

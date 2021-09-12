@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>CenterlineMetrics</class>
- <widget class="qMRMLWidget" name="CenterlineMetrics">
+ <class>CrossSectionAnalysis</class>
+ <widget class="qMRMLWidget" name="CrossSectionAnalysis">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -758,7 +758,7 @@ Caution: values at bifurcations may not have clinical meaning.</string>
  <resources/>
  <connections>
   <connection>
-   <sender>CenterlineMetrics</sender>
+   <sender>CrossSectionAnalysis</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>inputCenterlineSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
@@ -774,7 +774,7 @@ Caution: values at bifurcations may not have clinical meaning.</string>
    </hints>
   </connection>
   <connection>
-   <sender>CenterlineMetrics</sender>
+   <sender>CrossSectionAnalysis</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>outputTableSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
@@ -790,7 +790,7 @@ Caution: values at bifurcations may not have clinical meaning.</string>
    </hints>
   </connection>
   <connection>
-   <sender>CenterlineMetrics</sender>
+   <sender>CrossSectionAnalysis</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>outputPlotSeriesSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
@@ -806,7 +806,7 @@ Caution: values at bifurcations may not have clinical meaning.</string>
    </hints>
   </connection>
   <connection>
-   <sender>CenterlineMetrics</sender>
+   <sender>CrossSectionAnalysis</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>sliceViewSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
@@ -822,7 +822,7 @@ Caution: values at bifurcations may not have clinical meaning.</string>
    </hints>
   </connection>
   <connection>
-   <sender>CenterlineMetrics</sender>
+   <sender>CrossSectionAnalysis</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>segmentationSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
@@ -838,7 +838,7 @@ Caution: values at bifurcations may not have clinical meaning.</string>
    </hints>
   </connection>
   <connection>
-   <sender>CenterlineMetrics</sender>
+   <sender>CrossSectionAnalysis</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>segmentSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
