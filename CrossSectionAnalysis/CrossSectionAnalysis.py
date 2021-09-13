@@ -345,6 +345,12 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
   def onUseCurrentPointAsOrigin(self):
     self.logic.relativeOriginPointIndex = int(self.ui.moveToPointSliderWidget.value)
     self.updateMeasurements()
+    
+    # Update table, to show distances relative to new origin.
+    if self.logic.outputTableNode:
+        self.logic.updateOutputTable(self.logic.inputCenterlineNode, self.logic.outputTableNode)
+        # Update plot view. Else X-axis always starts at 0, truncating the graph.
+        slicer.app.layoutManager().plotWidget(0).plotView().fitToContent()
 
   def onGoToOriginPoint(self):
     self.ui.moveToPointSliderWidget.value = self.logic.relativeOriginPointIndex
@@ -775,8 +781,10 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
 
     cumArray = vtk.vtkDoubleArray()
     self.cumulateDistances(points, cumArray)
+    relArray = vtk.vtkDoubleArray()
+    self.updateCumulativeDistancesToRelativeOrigin(cumArray, relArray)
     for i, radius in enumerate(radii):
-        distanceArray.SetValue(i, cumArray.GetValue(i))
+        distanceArray.SetValue(i, relArray.GetValue(i))
         diameterArray.SetValue(i, radius * 2)
         # Convert each point coordinate
         if self.coordinateSystemColumnRAS:
@@ -867,6 +875,13 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       dist += np.linalg.norm(point - previous)
       cumArray.SetValue(i, dist)
       previous = point
+  
+  def updateCumulativeDistancesToRelativeOrigin(self, cumArray, relArray):
+    distanceAtRelativeOrigin = cumArray.GetValue(self.relativeOriginPointIndex)
+    numberOfValues = cumArray.GetNumberOfValues()
+    relArray.SetNumberOfValues(numberOfValues)
+    for i in range(numberOfValues):
+      relArray.SetValue(i, cumArray.GetValue(i) - distanceAtRelativeOrigin)  
 
   def getCurvePointPositionAtIndex(self, value):
     """Get the coordinates of a point of the centerline as RAS. value is index of point.
