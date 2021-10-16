@@ -730,6 +730,8 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     # Create arrays of data
     distanceArray = self.getArrayFromTable(outputTable, DISTANCE_ARRAY_NAME)
     misDiameterArray = self.getArrayFromTable(outputTable, MIS_DIAMETER_ARRAY_NAME)
+    ceDiameterArray = self.getArrayFromTable(outputTable, CE_DIAMETER_ARRAY_NAME)
+    crossSectionAreaArray = self.getArrayFromTable(outputTable, CROSS_SECTION_AREA_ARRAY_NAME)
     if self.coordinateSystemColumnSingle:
         coordinatesArray = self.getArrayFromTable(outputTable, "RAS" if self.coordinateSystemColumnRAS else "LPS")
         coordinatesArray.SetNumberOfComponents(3)
@@ -786,6 +788,23 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     for i, radius in enumerate(radii):
         distanceArray.SetValue(i, relArray.GetValue(i))
         misDiameterArray.SetValue(i, radius * 2)
+        
+        if (inputCenterline.IsTypeOf("vtkMRMLModelNode")):
+            # Exclude last point where area cannot be computed
+            if i < (len(radii) - 1):
+                crossSectionArea = self.getCrossSectionArea(i)
+                ceDiameter = (np.sqrt(crossSectionArea / np.pi)) * 2
+                crossSectionAreaArray.SetValue(i, crossSectionArea)
+                ceDiameterArray.SetValue(i, ceDiameter)
+            else:
+                crossSectionAreaArray.SetValue(i, 0.0)
+                ceDiameterArray.SetValue(i, 0.0)
+        else:
+            crossSectionArea = self.getCrossSectionArea(i)
+            ceDiameter = (np.sqrt(crossSectionArea / np.pi)) * 2
+            crossSectionAreaArray.SetValue(i, crossSectionArea)
+            ceDiameterArray.SetValue(i, ceDiameter)
+        
         # Convert each point coordinate
         if self.coordinateSystemColumnRAS:
           coordinateValues = points[i]
@@ -799,6 +818,8 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
             coordinatesArray[2].SetValue(i, coordinateValues[2])
     distanceArray.Modified()
     misDiameterArray.Modified()
+    crossSectionAreaArray.Modified()
+    ceDiameterArray.Modified()
     outputTable.GetTable().Modified()
 
   def updatePlot(self, outputPlotSeries, outputTable, name=None):
@@ -1234,3 +1255,6 @@ class CrossSectionAnalysisTest(ScriptedLoadableModuleTest):
 
 DISTANCE_ARRAY_NAME = "Distance"
 MIS_DIAMETER_ARRAY_NAME = "Diameter (MIS)"
+CE_DIAMETER_ARRAY_NAME = "Diameter (CE)"
+CROSS_SECTION_AREA_ARRAY_NAME = "Cross-section area"
+
