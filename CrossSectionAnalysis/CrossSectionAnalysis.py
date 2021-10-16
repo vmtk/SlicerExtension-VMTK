@@ -809,8 +809,11 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
                 crossSectionAreaArray.SetValue(i, crossSectionArea)
                 ceDiameterArray.SetValue(i, ceDiameter)
             else:
-                crossSectionAreaArray.SetValue(i, 0.0)
-                ceDiameterArray.SetValue(i, 0.0)
+                # Don't use 0.0 as it would always be the minimum ! Arbitrarily choosing the previous point is not fundamentally harmful.
+                crossSectionArea = self.getCrossSectionArea(i - 1)
+                ceDiameter = (np.sqrt(crossSectionArea / np.pi)) * 2
+                crossSectionAreaArray.SetValue(i, crossSectionArea)
+                ceDiameterArray.SetValue(i, ceDiameter)
         else:
             crossSectionArea = self.getCrossSectionArea(i)
             ceDiameter = (np.sqrt(crossSectionArea / np.pi)) * 2
