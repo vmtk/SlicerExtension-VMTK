@@ -883,11 +883,14 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     if not self.plotChartNode:
       plotChartNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLPlotChartNode")
       self.plotChartNode = plotChartNode
-    self.plotChartNode.SetXAxisTitle(DISTANCE_ARRAY_NAME+" (mm)")
+      
+    lengthUnit = self.getUnitNodeUnitDisplayString(0.0, "length")
+    areaUnit = self.getUnitNodeUnitDisplayString(0.0, "area")
+    self.plotChartNode.SetXAxisTitle(DISTANCE_ARRAY_NAME + " (" + lengthUnit + ")")
     if self.outputPlotSeriesType == 2:
-        self.plotChartNode.SetYAxisTitle("Area (cm²)")
+        self.plotChartNode.SetYAxisTitle("Area (" + areaUnit + ")")
     else:
-        self.plotChartNode.SetYAxisTitle("Diameter (mm)")
+        self.plotChartNode.SetYAxisTitle("Diameter (" + lengthUnit + ")")
     # Make sure the plot is in the chart
     if not self.plotChartNode.HasPlotSeriesNodeID(self.outputPlotSeriesNode.GetID()):
       self.plotChartNode.AddAndObservePlotSeriesNodeID(self.outputPlotSeriesNode.GetID())
@@ -979,6 +982,13 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     selectionNode = slicer.mrmlScene.GetNodeByID("vtkMRMLSelectionNodeSingleton")
     unitNode = slicer.mrmlScene.GetNodeByID(selectionNode.GetUnitNodeID(category))
     return unitNode.GetDisplayStringFromValue(value)
+
+  def getUnitNodeUnitDisplayString(self, value, category):
+    selectionNode = slicer.mrmlScene.GetNodeByID("vtkMRMLSelectionNodeSingleton")
+    unitNode = slicer.mrmlScene.GetNodeByID(selectionNode.GetUnitNodeID(category))
+    displayString = unitNode.GetDisplayStringFromValue(value)
+    splitString = displayString.split()
+    return splitString[len(splitString) - 1]
 
   def computeCrossSectionPolydata(self, pointIndex):
     center = np.zeros(3)
