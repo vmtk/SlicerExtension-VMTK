@@ -124,8 +124,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.orthogonalReformatInSliceNodeCheckBox.connect("clicked()", self.onOrthogonalReformatInSliceNodeCheckBox)
     self.ui.useCurrentPointAsOriginButton.connect("clicked()", self.onUseCurrentPointAsOrigin)
     self.ui.goToOriginButton.connect("clicked()", self.onGoToOriginPoint)
-    self.ui.moveToMinimumPushButton.connect("clicked()", self.moveSliceViewToMinimumDiameter)
-    self.ui.moveToMaximumPushButton.connect("clicked()", self.moveSliceViewToMaximumDiameter)
+    self.ui.moveToMinimumPushButton.connect("clicked()", self.moveSliceViewToMinimumMISDiameter)
+    self.ui.moveToMaximumPushButton.connect("clicked()", self.moveSliceViewToMaximumMISDiameter)
     self.ui.toggleTableLayoutButton.connect("clicked()", self.toggleTableLayout)
     self.ui.togglePlotLayoutButton.connect("clicked()", self.togglePlotLayout)
     self.ui.segmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSegmentationNodes)
@@ -463,14 +463,14 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     slider.setValue(0)
     self.ui.torsionSliderWidget.setValue(0.0)
 
-  def moveSliceViewToMinimumDiameter(self):
-    point = self.logic.getExtremeDiameterPoint(False)
+  def moveSliceViewToMinimumMISDiameter(self):
+    point = self.logic.getExtremeMISDiameterPoint(False)
     if point == -1:
         return
     self.ui.moveToPointSliderWidget.setValue(point)
   
-  def moveSliceViewToMaximumDiameter(self):
-    point = self.logic.getExtremeDiameterPoint(True)
+  def moveSliceViewToMaximumMISDiameter(self):
+    point = self.logic.getExtremeMISDiameterPoint(True)
     if point == -1:
         return
     self.ui.moveToPointSliderWidget.setValue(point)
@@ -729,7 +729,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
   def updateOutputTable(self, inputCenterline, outputTable):
     # Create arrays of data
     distanceArray = self.getArrayFromTable(outputTable, DISTANCE_ARRAY_NAME)
-    diameterArray = self.getArrayFromTable(outputTable, DIAMETER_ARRAY_NAME)
+    misDiameterArray = self.getArrayFromTable(outputTable, MIS_DIAMETER_ARRAY_NAME)
     if self.coordinateSystemColumnSingle:
         coordinatesArray = self.getArrayFromTable(outputTable, "RAS" if self.coordinateSystemColumnRAS else "LPS")
         coordinatesArray.SetNumberOfComponents(3)
@@ -785,7 +785,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.updateCumulativeDistancesToRelativeOrigin(cumArray, relArray)
     for i, radius in enumerate(radii):
         distanceArray.SetValue(i, relArray.GetValue(i))
-        diameterArray.SetValue(i, radius * 2)
+        misDiameterArray.SetValue(i, radius * 2)
         # Convert each point coordinate
         if self.coordinateSystemColumnRAS:
           coordinateValues = points[i]
@@ -798,7 +798,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
             coordinatesArray[1].SetValue(i, coordinateValues[1])
             coordinatesArray[2].SetValue(i, coordinateValues[2])
     distanceArray.Modified()
-    diameterArray.Modified()
+    misDiameterArray.Modified()
     outputTable.GetTable().Modified()
 
   def updatePlot(self, outputPlotSeries, outputTable, name=None):
@@ -808,7 +808,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       outputPlotSeries.SetName(name)
     outputPlotSeries.SetAndObserveTableNodeID(outputTable.GetID())
     outputPlotSeries.SetXColumnName(DISTANCE_ARRAY_NAME)
-    outputPlotSeries.SetYColumnName(DIAMETER_ARRAY_NAME)
+    outputPlotSeries.SetYColumnName(MIS_DIAMETER_ARRAY_NAME)
     outputPlotSeries.SetPlotType(slicer.vtkMRMLPlotSeriesNode.PlotTypeScatter)
     outputPlotSeries.SetMarkerStyle(slicer.vtkMRMLPlotSeriesNode.MarkerStyleNone)
     outputPlotSeries.SetColor(0, 0.6, 1.0)
@@ -843,7 +843,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       plotChartNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLPlotChartNode")
       self.plotChartNode = plotChartNode
       self.plotChartNode.SetXAxisTitle(DISTANCE_ARRAY_NAME+" (mm)")
-      self.plotChartNode.SetYAxisTitle(DIAMETER_ARRAY_NAME+" (mm)")
+      self.plotChartNode.SetYAxisTitle(MIS_DIAMETER_ARRAY_NAME+" (mm)")
     # Make sure the plot is in the chart
     if not self.plotChartNode.HasPlotSeriesNodeID(self.outputPlotSeriesNode.GetID()):
       self.plotChartNode.AddAndObservePlotSeriesNodeID(self.outputPlotSeriesNode.GetID())
@@ -913,19 +913,19 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     else:
         sliceNode.SetOrientationToDefault()
 
-  def getExtremeDiameterPoint(self, boolMaximum):
+  def getExtremeMISDiameterPoint(self, boolMaximum):
     """Convenience function to get the point of minimum or maximum diameter.
     Is useful for arterial stenosis (minimum) or aneurysm (maximum).
     """
     if self.outputTableNode is None:
         return -1
-    diameterArray = self.outputTableNode.GetTable().GetColumnByName(DIAMETER_ARRAY_NAME)
+    misDiameterArray = self.outputTableNode.GetTable().GetColumnByName(MIS_DIAMETER_ARRAY_NAME)
     # GetRange or GetValueRange ?
-    diameterRange = diameterArray.GetRange()
+    misDiameterRange = misDiameterArray.GetRange()
     target = -1
     # Until we find a smart function, kind of vtkDoubleArray::Find(value)
-    for i in range(diameterArray.GetNumberOfValues()):
-        if diameterArray.GetValue(i) == diameterRange[1 if boolMaximum else 0]:
+    for i in range(misDiameterArray.GetNumberOfValues()):
+        if misDiameterArray.GetValue(i) == misDiameterRange[1 if boolMaximum else 0]:
             target = i
             # If there more points with the same value, they are ignored. First point only.
             break
@@ -1233,4 +1233,4 @@ class CrossSectionAnalysisTest(ScriptedLoadableModuleTest):
     """
 
 DISTANCE_ARRAY_NAME = "Distance"
-DIAMETER_ARRAY_NAME = "Diameter"
+MIS_DIAMETER_ARRAY_NAME = "Diameter (MIS)"
