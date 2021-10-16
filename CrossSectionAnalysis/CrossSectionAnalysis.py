@@ -91,6 +91,10 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
     self.ui.jumpCentredInSliceNodeCheckBox.setIcon(qt.QIcon(':/Icons/ViewCenter.png'))
     self.ui.orthogonalReformatInSliceNodeCheckBox.setIcon(qt.QIcon(':/Icons/MouseRotateMode.png'))
+    self.ui.outputPlotSeriesTypeComboBox.addItem("MIS diameter")
+    self.ui.outputPlotSeriesTypeComboBox.addItem("CE diameter")
+    self.ui.outputPlotSeriesTypeComboBox.addItem("Cross-section area")
+    self.ui.outputPlotSeriesTypeComboBox.setCurrentIndex(0)
 
     # These connections ensure that we update parameter node when scene is closed
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
@@ -134,6 +138,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.showMISDiameterPushButton.connect("clicked()", self.onShowMaximumInscribedSphere)
     self.ui.sliceViewSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSliceNode)
     self.ui.torsionSliderWidget.connect("valueChanged(double)", self.onTorsionSliderWidget)
+    self.ui.outputPlotSeriesTypeComboBox.connect("currentIndexChanged(int)", self.setPlotSeriesType)
 
     # Refresh Apply button state
     self.onSelectNode()
@@ -553,6 +558,9 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     angle = self.ui.torsionSliderWidget.value
     self.logic.rotateAroundZ(sliceNode, angle)
 
+  def setPlotSeriesType(self, type):
+    self.logic.setPlotSeriesType(type)
+
 #
 # CrossSectionAnalysisLogic
 #
@@ -596,6 +604,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.maximumInscribedSphereColor = [0.2, 1.0, 0.4]
     self.orthogonalReformatInSliceNode = False
     self.relativeOriginPointIndex = 0
+    self.outputPlotSeriesType = 0
 
   @property
   def relativeOriginPointIndex(self):
@@ -650,6 +659,9 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.showCrossSection = checked
     if self.crossSectionModelNode is not None:
         self.crossSectionModelNode.GetDisplayNode().SetVisibility(self.showCrossSection)
+  
+  def setPlotSeriesType(self, type):
+    self.outputPlotSeriesType = type
 
   def deleteCrossSection(self):
     if self.crossSectionModelNode is not None:
@@ -829,7 +841,12 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       outputPlotSeries.SetName(name)
     outputPlotSeries.SetAndObserveTableNodeID(outputTable.GetID())
     outputPlotSeries.SetXColumnName(DISTANCE_ARRAY_NAME)
-    outputPlotSeries.SetYColumnName(MIS_DIAMETER_ARRAY_NAME)
+    if self.outputPlotSeriesType == 0:
+        outputPlotSeries.SetYColumnName(MIS_DIAMETER_ARRAY_NAME)
+    elif self.outputPlotSeriesType == 1:
+        outputPlotSeries.SetYColumnName(CE_DIAMETER_ARRAY_NAME)
+    else:
+        outputPlotSeries.SetYColumnName(CROSS_SECTION_AREA_ARRAY_NAME)
     outputPlotSeries.SetPlotType(slicer.vtkMRMLPlotSeriesNode.PlotTypeScatter)
     outputPlotSeries.SetMarkerStyle(slicer.vtkMRMLPlotSeriesNode.MarkerStyleNone)
     outputPlotSeries.SetColor(0, 0.6, 1.0)
@@ -863,8 +880,11 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     if not self.plotChartNode:
       plotChartNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLPlotChartNode")
       self.plotChartNode = plotChartNode
-      self.plotChartNode.SetXAxisTitle(DISTANCE_ARRAY_NAME+" (mm)")
-      self.plotChartNode.SetYAxisTitle(MIS_DIAMETER_ARRAY_NAME+" (mm)")
+    self.plotChartNode.SetXAxisTitle(DISTANCE_ARRAY_NAME+" (mm)")
+    if self.outputPlotSeriesType == 2:
+        self.plotChartNode.SetYAxisTitle("Area (cm²)")
+    else:
+        self.plotChartNode.SetYAxisTitle("Diameter (mm)")
     # Make sure the plot is in the chart
     if not self.plotChartNode.HasPlotSeriesNodeID(self.outputPlotSeriesNode.GetID()):
       self.plotChartNode.AddAndObservePlotSeriesNodeID(self.outputPlotSeriesNode.GetID())

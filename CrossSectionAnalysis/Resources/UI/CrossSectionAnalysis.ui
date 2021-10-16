@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>362</width>
-    <height>538</height>
+    <width>558</width>
+    <height>818</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -192,6 +192,16 @@ The input centerline is expected to be inside the lumen surface.</string>
           </property>
           <property name="renameEnabled">
            <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="outputPlotSeriesTypeComboBox">
+          <property name="toolTip">
+           <string>Select the plot's Y axis</string>
+          </property>
+          <property name="currentIndex">
+           <number>-1</number>
           </property>
          </widget>
         </item>
