@@ -869,6 +869,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     crossSectionAreaArray.Modified()
     ceDiameterArray.Modified()
     outputTable.GetTable().Modified()
+    self.showStatusMessage("Updating table :", "finished", str(numberOfPoints), "points")
 
   def updatePlot(self, outputPlotSeries, outputTable, name=None):
 
