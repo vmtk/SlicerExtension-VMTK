@@ -114,6 +114,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.distinctColumnsCheckBox.connect("clicked()", self.updateParameterNodeFromGUI)
     self.ui.jumpCentredInSliceNodeCheckBox.connect("clicked()", self.updateParameterNodeFromGUI)
     self.ui.orthogonalReformatInSliceNodeCheckBox.connect("clicked()", self.updateParameterNodeFromGUI)
+    self.ui.outputPlotSeriesTypeComboBox.connect("currentIndexChanged(int)", self.updateParameterNodeFromGUI)
     
     # connections
     self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
@@ -238,6 +239,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.jumpCentredInSliceNodeCheckBox.setChecked (self._parameterNode.GetParameter("CentreInSliceView") == "True")
     self.ui.orthogonalReformatInSliceNodeCheckBox.setChecked (self._parameterNode.GetParameter("OrthogonalReformat") == "True")
     self.ui.showMISDiameterPushButton.setChecked (self._parameterNode.GetParameter("ShowMISModel") == "True")
+    self.ui.outputPlotSeriesTypeComboBox.setCurrentIndex (int(self._parameterNode.GetParameter("OutputPlotSeriesType")))
     
     # The check events are not triggered by above.
     self.onDistinctCoordinatesCheckBox()
@@ -268,6 +270,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self._parameterNode.SetParameter("CentreInSliceView", "True" if (self.ui.jumpCentredInSliceNodeCheckBox.isChecked()) else "False")
     self._parameterNode.SetParameter("OrthogonalReformat", "True" if (self.ui.orthogonalReformatInSliceNodeCheckBox.isChecked()) else "False")
     self._parameterNode.SetParameter("ShowMISModel", "True" if (self.ui.showMISDiameterPushButton.isChecked()) else "False")
+    self._parameterNode.SetParameter("OutputPlotSeriesType", str(self.ui.outputPlotSeriesTypeComboBox.currentIndex))
     
     self._parameterNode.EndModify(wasModified)
     
@@ -649,7 +652,12 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     """
     Initialize parameter node with default settings.
     """
-    pass
+    parameterNode.SetParameter("UseLPS", "False")
+    parameterNode.SetParameter("DistinctColumns", "False")
+    parameterNode.SetParameter("CentreInSliceView", "True")
+    parameterNode.SetParameter("OrthogonalReformat", "True")
+    parameterNode.SetParameter("ShowMISModel", "False")
+    parameterNode.SetParameter("OutputPlotSeriesType", "0")
     
   def resetCrossSections(self):
     self.crossSectionPolyDataCache = {}
