@@ -128,8 +128,10 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.orthogonalReformatInSliceNodeCheckBox.connect("clicked()", self.onOrthogonalReformatInSliceNodeCheckBox)
     self.ui.useCurrentPointAsOriginButton.connect("clicked()", self.onUseCurrentPointAsOrigin)
     self.ui.goToOriginButton.connect("clicked()", self.onGoToOriginPoint)
-    self.ui.moveToMinimumPushButton.connect("clicked()", self.moveSliceViewToMinimumMISDiameter)
-    self.ui.moveToMaximumPushButton.connect("clicked()", self.moveSliceViewToMaximumMISDiameter)
+    self.ui.moveToMinimumMISDiameterPushButton.connect("clicked()", self.moveSliceViewToMinimumMISDiameter)
+    self.ui.moveToMaximumMISDiameterPushButton.connect("clicked()", self.moveSliceViewToMaximumMISDiameter)
+    self.ui.moveToMinimumAreaPushButton.connect("clicked()", self.moveSliceViewToMinimumArea)
+    self.ui.moveToMaximumAreaPushButton.connect("clicked()", self.moveSliceViewToMaximumArea)
     self.ui.toggleTableLayoutButton.connect("clicked()", self.toggleTableLayout)
     self.ui.togglePlotLayoutButton.connect("clicked()", self.togglePlotLayout)
     self.ui.segmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSegmentationNodes)
@@ -305,10 +307,12 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     isCenterlineRadiusAvailableInTable = self.logic.isCenterlineRadiusAvailable(True)
     self.ui.toggleTableLayoutButton.visible = isCenterlineRadiusAvailableInTable and (self.logic.outputTableNode is not None)
     self.ui.togglePlotLayoutButton.visible = isCenterlineRadiusAvailableInTable and (self.logic.outputPlotSeriesNode is not None)
-    self.ui.moveToMinimumPushButton.enabled = isCenterlineRadiusAvailable
-    self.ui.moveToMaximumPushButton.enabled = isCenterlineRadiusAvailable
+    self.ui.moveToMinimumMISDiameterPushButton.enabled = isCenterlineRadiusAvailable
+    self.ui.moveToMaximumMISDiameterPushButton.enabled = isCenterlineRadiusAvailable
     self.ui.showMISDiameterPushButton.enabled = isCenterlineRadiusAvailable
 
+    self.ui.moveToMinimumAreaPushButton.enabled = self.logic.lumenSurfaceNode is not None
+    self.ui.moveToMaximumAreaPushButton.enabled = self.logic.lumenSurfaceNode is not None
     self.ui.showCrossSectionButton.enabled = self.logic.lumenSurfaceNode is not None
 
     numberOfPoints = self.logic.getNumberOfPoints()
@@ -469,17 +473,29 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.torsionSliderWidget.setValue(0.0)
 
   def moveSliceViewToMinimumMISDiameter(self):
-    point = self.logic.getExtremeMISDiameterPoint(False)
+    point = self.logic.getExtremeMetricPoint(MIS_DIAMETER_ARRAY_NAME, False)
     if point == -1:
         return
     self.ui.moveToPointSliderWidget.setValue(point)
   
   def moveSliceViewToMaximumMISDiameter(self):
-    point = self.logic.getExtremeMISDiameterPoint(True)
+    point = self.logic.getExtremeMetricPoint(MIS_DIAMETER_ARRAY_NAME, True)
     if point == -1:
         return
     self.ui.moveToPointSliderWidget.setValue(point)
 
+  def moveSliceViewToMinimumArea(self):
+    point = self.logic.getExtremeMetricPoint(CROSS_SECTION_AREA_ARRAY_NAME, False)
+    if point == -1:
+        return
+    self.ui.moveToPointSliderWidget.setValue(point)
+
+  def moveSliceViewToMaximumArea(self):
+    point = self.logic.getExtremeMetricPoint(CROSS_SECTION_AREA_ARRAY_NAME, True)
+    if point == -1:
+        return
+    self.ui.moveToPointSliderWidget.setValue(point)
+    
   def toggleTableLayout(self):
     """Useful UI enhancement. Get back to the previous layout that would most certainly
     have a 3D view before we plot the diameter distribution chart. And back to the plot layout.
@@ -508,6 +524,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.segmentSelector.setVisible(self.ui.segmentationSelector.currentNode() is not None
       and self.ui.segmentationSelector.currentNode().IsTypeOf("vtkMRMLSegmentationNode"))
     # Update measurements (surface can be changed dynamically, after Apply)
+    self.ui.moveToMinimumAreaPushButton.enabled = self.logic.lumenSurfaceNode is not None
+    self.ui.moveToMaximumAreaPushButton.enabled = self.logic.lumenSurfaceNode is not None
     self.ui.showCrossSectionButton.enabled = self.logic.lumenSurfaceNode is not None
     self.updateMeasurements()
     
@@ -960,19 +978,19 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     else:
         sliceNode.SetOrientationToDefault()
 
-  def getExtremeMISDiameterPoint(self, boolMaximum):
+  def getExtremeMetricPoint(self, arrayName, boolMaximum):
     """Convenience function to get the point of minimum or maximum diameter.
     Is useful for arterial stenosis (minimum) or aneurysm (maximum).
     """
     if self.outputTableNode is None:
         return -1
-    misDiameterArray = self.outputTableNode.GetTable().GetColumnByName(MIS_DIAMETER_ARRAY_NAME)
+    metricArray = self.outputTableNode.GetTable().GetColumnByName(arrayName)
     # GetRange or GetValueRange ?
-    misDiameterRange = misDiameterArray.GetRange()
+    metricRange = metricArray.GetRange()
     target = -1
     # Until we find a smart function, kind of vtkDoubleArray::Find(value)
-    for i in range(misDiameterArray.GetNumberOfValues()):
-        if misDiameterArray.GetValue(i) == misDiameterRange[1 if boolMaximum else 0]:
+    for i in range(metricArray.GetNumberOfValues()):
+        if metricArray.GetValue(i) == metricRange[1 if boolMaximum else 0]:
             target = i
             # If there more points with the same value, they are ignored. First point only.
             break
