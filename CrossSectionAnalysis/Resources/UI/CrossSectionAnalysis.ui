@@ -423,6 +423,9 @@ The input centerline is expected to be inside the lumen surface.</string>
           <property name="checkable">
            <bool>true</bool>
           </property>
+          <property name="checked">
+           <bool>false</bool>
+          </property>
          </widget>
         </item>
         <item>
@@ -435,6 +438,9 @@ The input centerline is expected to be inside the lumen surface.</string>
           </property>
           <property name="checkable">
            <bool>true</bool>
+          </property>
+          <property name="checked">
+           <bool>false</bool>
           </property>
          </widget>
         </item>
@@ -600,9 +606,9 @@ The input centerline is expected to be inside the lumen surface.</string>
          </widget>
         </item>
         <item>
-         <widget class="QToolButton" name="moveToMinimumPushButton">
+         <widget class="QToolButton" name="moveToMinimumMISDiameterPushButton">
           <property name="toolTip">
-           <string>Jump to the smallest diameter point.</string>
+           <string>Jump to the smallest MIS diameter point.</string>
           </property>
           <property name="text">
            <string>min</string>
@@ -610,9 +616,9 @@ The input centerline is expected to be inside the lumen surface.</string>
          </widget>
         </item>
         <item>
-         <widget class="QToolButton" name="moveToMaximumPushButton">
+         <widget class="QToolButton" name="moveToMaximumMISDiameterPushButton">
           <property name="toolTip">
-           <string>Jump to the largest diameter point.</string>
+           <string>Jump to the largest MIS diameter point.</string>
           </property>
           <property name="text">
            <string>max</string>
@@ -650,6 +656,32 @@ The input centerline is expected to be inside the lumen surface.</string>
           </property>
           <property name="text">
            <string/>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QToolButton" name="moveToMinimumAreaPushButton">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Jump to the smallest cross-section area point.</string>
+          </property>
+          <property name="text">
+           <string>min</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QToolButton" name="moveToMaximumAreaPushButton">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Jump to the largest cross-section area point.</string>
+          </property>
+          <property name="text">
+           <string>max</string>
           </property>
          </widget>
         </item>
