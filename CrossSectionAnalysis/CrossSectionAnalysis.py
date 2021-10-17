@@ -603,7 +603,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.plotChartNode = None
     self.coordinateSystemColumnSingle = True
     self.coordinateSystemColumnRAS = True  # LPS or RAS
-    self.jumpCentredInSliceNode = False
+    self.jumpCentredInSliceNode = True
     self.lumenSurfaceNode = None
     self.currentSegmentID = ""
     self.crossSectionPolyDataCache = {}
@@ -620,7 +620,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.maximumInscribedSphereModelNode = None
     self.showMaximumInscribedSphere = False
     self.maximumInscribedSphereColor = [0.2, 1.0, 0.4]
-    self.orthogonalReformatInSliceNode = False
+    self.orthogonalReformatInSliceNode = True
     self.relativeOriginPointIndex = 0
     self.outputPlotSeriesType = 0
 

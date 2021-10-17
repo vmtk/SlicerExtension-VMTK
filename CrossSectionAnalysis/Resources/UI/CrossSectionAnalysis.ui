@@ -424,7 +424,7 @@ The input centerline is expected to be inside the lumen surface.</string>
            <bool>true</bool>
           </property>
           <property name="checked">
-           <bool>false</bool>
+           <bool>true</bool>
           </property>
          </widget>
         </item>
@@ -440,7 +440,7 @@ The input centerline is expected to be inside the lumen surface.</string>
            <bool>true</bool>
           </property>
           <property name="checked">
-           <bool>false</bool>
+           <bool>true</bool>
           </property>
          </widget>
         </item>
