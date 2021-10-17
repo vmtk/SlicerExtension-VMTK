@@ -624,6 +624,17 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.relativeOriginPointIndex = 0
     self.outputPlotSeriesType = 0
 
+  def showStatusMessage(self, message, message1 = "", message2 = "", message3 = ""):
+    msg = message
+    if message1:
+        msg += " " + message1
+    if message2:
+        msg += " " + message2
+    if message3:
+        msg += " " + message3
+    slicer.util.showStatusMessage(msg, 3000)
+    slicer.app.processEvents()
+    
   @property
   def relativeOriginPointIndex(self):
     originPointIndexStr = self.getParameterNode().GetParameter("originPointIndex")
@@ -783,6 +794,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     if (inputCenterline.IsTypeOf("vtkMRMLModelNode")):
         pointsLocal = slicer.util.arrayFromModelPoints(inputCenterline)
         points = np.zeros(pointsLocal.shape)
+        numberOfPoints = len(points)
         for pointIndex in range(len(pointsLocal)):
           inputCenterline.TransformPointToWorld(pointsLocal[pointIndex], points[pointIndex])
         radii = slicer.util.arrayFromModelPointData(inputCenterline, 'Radius')
@@ -816,6 +828,9 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     relArray = vtk.vtkDoubleArray()
     self.updateCumulativeDistancesToRelativeOrigin(cumArray, relArray)
     for i, radius in enumerate(radii):
+        # Since we compute cross-section area sequentially, this step may be long.
+        if (((i + 1) % 25) == 0):
+            self.showStatusMessage("Updating table :", str(i + 1), "/", str(numberOfPoints))
         distanceArray.SetValue(i, relArray.GetValue(i))
         misDiameterArray.SetValue(i, radius * 2)
         
