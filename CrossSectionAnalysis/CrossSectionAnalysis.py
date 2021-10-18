@@ -699,6 +699,18 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
   
   def setPlotSeriesType(self, type):
     self.outputPlotSeriesType = type
+    if self.outputPlotSeriesNode and self.outputTableNode and self.inputCenterlineNode:
+        self.updatePlot(self.outputPlotSeriesNode, self.outputTableNode, self.inputCenterlineNode.GetName())
+    if self.isPlotVisible():
+        lengthUnit = self.getUnitNodeUnitDisplayString(0.0, "length")
+        areaUnit = self.getUnitNodeUnitDisplayString(0.0, "area")
+        self.plotChartNode.SetXAxisTitle(DISTANCE_ARRAY_NAME + " (" + lengthUnit + ")")
+        if self.outputPlotSeriesType == 2:
+            self.plotChartNode.SetYAxisTitle("Area (" + areaUnit + ")")
+        else:
+            self.plotChartNode.SetYAxisTitle("Diameter (" + lengthUnit + ")")
+        
+        slicer.app.layoutManager().plotWidget(0).plotView().fitToContent()
 
   def deleteCrossSection(self):
     if self.crossSectionModelNode is not None:
