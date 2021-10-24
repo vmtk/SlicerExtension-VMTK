@@ -300,6 +300,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         logging.info(msg)
         return # Just don't do anything
 
+    slicer.app.setOverrideCursor(qt.Qt.WaitCursor)
     self.previousLayoutId = slicer.app.layoutManager().layout
     self.clearMetrics()
     self.createOutputNodes()
@@ -329,6 +330,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     sliceNode = self.ui.sliceViewSelector.currentNode()
     if sliceNode:
         sliceNode.SetAttribute("currentTilt", "0.0")
+    slicer.app.restoreOverrideCursor()
 
   def onRadioLPS(self):
     self.logic.coordinateSystemColumnRAS = False
@@ -356,6 +358,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
             sliceNode.SetAttribute("currentTilt", "0.0")
 
   def onUseCurrentPointAsOrigin(self):
+    slicer.app.setOverrideCursor(qt.Qt.WaitCursor)
     self.logic.relativeOriginPointIndex = int(self.ui.moveToPointSliderWidget.value)
     self.updateMeasurements()
     
@@ -364,6 +367,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.logic.updateOutputTable(self.logic.inputCenterlineNode, self.logic.outputTableNode)
         # Update plot view. Else X-axis always starts at 0, truncating the graph.
         slicer.app.layoutManager().plotWidget(0).plotView().fitToContent()
+    slicer.app.restoreOverrideCursor()
 
   def onGoToOriginPoint(self):
     self.ui.moveToPointSliderWidget.value = self.logic.relativeOriginPointIndex
