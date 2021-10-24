@@ -701,11 +701,11 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     if self.isPlotVisible():
         lengthUnit = self.getUnitNodeUnitDisplayString(0.0, "length")
         areaUnit = self.getUnitNodeUnitDisplayString(0.0, "area")
-        self.plotChartNode.SetXAxisTitle(DISTANCE_ARRAY_NAME + " (" + lengthUnit + ")")
+        self.plotChartNode.SetXAxisTitle(f"{DISTANCE_ARRAY_NAME} ({ lengthUnit})")
         if self.outputPlotSeriesType == 2:
-            self.plotChartNode.SetYAxisTitle("Area (" + areaUnit + ")")
+            self.plotChartNode.SetYAxisTitle(f"Area ({areaUnit})")
         else:
-            self.plotChartNode.SetYAxisTitle("Diameter (" + lengthUnit + ")")
+            self.plotChartNode.SetYAxisTitle(f"Diameter ({lengthUnit})")
         
         slicer.app.layoutManager().plotWidget(0).plotView().fitToContent()
 
@@ -937,11 +937,11 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       
     lengthUnit = self.getUnitNodeUnitDisplayString(0.0, "length")
     areaUnit = self.getUnitNodeUnitDisplayString(0.0, "area")
-    self.plotChartNode.SetXAxisTitle(DISTANCE_ARRAY_NAME + " (" + lengthUnit + ")")
+    self.plotChartNode.SetXAxisTitle(f"{DISTANCE_ARRAY_NAME} ( {lengthUnit})")
     if self.outputPlotSeriesType == 2:
-        self.plotChartNode.SetYAxisTitle("Area (" + areaUnit + ")")
+        self.plotChartNode.SetYAxisTitle(f"Area ({areaUnit})")
     else:
-        self.plotChartNode.SetYAxisTitle("Diameter (" + lengthUnit + ")")
+        self.plotChartNode.SetYAxisTitle(f"Diameter ({lengthUnit})")
     # Make sure the plot is in the chart
     if not self.plotChartNode.HasPlotSeriesNodeID(self.outputPlotSeriesNode.GetID()):
       self.plotChartNode.AddAndObservePlotSeriesNodeID(self.outputPlotSeriesNode.GetID())
