@@ -627,14 +627,9 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.relativeOriginPointIndex = 0
     self.outputPlotSeriesType = 0
 
-  def showStatusMessage(self, message, message1 = "", message2 = "", message3 = ""):
-    msg = message
-    if message1:
-        msg += " " + message1
-    if message2:
-        msg += " " + message2
-    if message3:
-        msg += " " + message3
+  def showStatusMessage(self, messages):
+    separator = " "
+    msg = separator.join(messages)
     slicer.util.showStatusMessage(msg, 3000)
     slicer.app.processEvents()
     
@@ -850,7 +845,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     for i, radius in enumerate(radii):
         # Since we compute cross-section area sequentially, this step may be long.
         if (((i + 1) % 25) == 0):
-            self.showStatusMessage("Updating table :", str(i + 1), "/", str(numberOfPoints))
+            self.showStatusMessage(("Updating table :", str(i + 1), "/", str(numberOfPoints)))
         distanceArray.SetValue(i, relArray.GetValue(i))
         misDiameterArray.SetValue(i, radius * 2)
         
@@ -889,7 +884,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     crossSectionAreaArray.Modified()
     ceDiameterArray.Modified()
     outputTable.GetTable().Modified()
-    self.showStatusMessage("Updating table :", "finished", str(numberOfPoints), "points")
+    self.showStatusMessage(("Updating table :", "finished", str(numberOfPoints), "points"))
 
   def updatePlot(self, outputPlotSeries, outputTable, name=None):
 
