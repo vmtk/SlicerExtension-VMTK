@@ -91,10 +91,10 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
     self.ui.jumpCentredInSliceNodeCheckBox.setIcon(qt.QIcon(':/Icons/ViewCenter.png'))
     self.ui.orthogonalReformatInSliceNodeCheckBox.setIcon(qt.QIcon(':/Icons/MouseRotateMode.png'))
-    self.ui.outputPlotSeriesTypeComboBox.addItem("MIS diameter")
-    self.ui.outputPlotSeriesTypeComboBox.addItem("CE diameter")
-    self.ui.outputPlotSeriesTypeComboBox.addItem("Cross-section area")
-    self.ui.outputPlotSeriesTypeComboBox.setCurrentIndex(0)
+    self.ui.outputPlotSeriesTypeComboBox.addItem("MIS diameter", MIS_DIAMETER)
+    self.ui.outputPlotSeriesTypeComboBox.addItem("CE diameter", CE_DIAMETER)
+    self.ui.outputPlotSeriesTypeComboBox.addItem("Cross-section area", CROSS_SECTION_AREA)
+    self.ui.outputPlotSeriesTypeComboBox.setCurrentIndex(self.ui.outputPlotSeriesTypeComboBox.findData(MIS_DIAMETER))
 
     # These connections ensure that we update parameter node when scene is closed
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
@@ -239,7 +239,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.jumpCentredInSliceNodeCheckBox.setChecked (self._parameterNode.GetParameter("CentreInSliceView") == "True")
     self.ui.orthogonalReformatInSliceNodeCheckBox.setChecked (self._parameterNode.GetParameter("OrthogonalReformat") == "True")
     self.ui.showMISDiameterPushButton.setChecked (self._parameterNode.GetParameter("ShowMISModel") == "True")
-    self.ui.outputPlotSeriesTypeComboBox.setCurrentIndex (int(self._parameterNode.GetParameter("OutputPlotSeriesType")))
+    itemIndex = self.ui.outputPlotSeriesTypeComboBox.findData(int(self._parameterNode.GetParameter("OutputPlotSeriesType")))
+    self.ui.outputPlotSeriesTypeComboBox.setCurrentIndex(itemIndex)
     
     # The check events are not triggered by above.
     self.onDistinctCoordinatesCheckBox()
@@ -270,7 +271,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self._parameterNode.SetParameter("CentreInSliceView", "True" if (self.ui.jumpCentredInSliceNodeCheckBox.isChecked()) else "False")
     self._parameterNode.SetParameter("OrthogonalReformat", "True" if (self.ui.orthogonalReformatInSliceNodeCheckBox.isChecked()) else "False")
     self._parameterNode.SetParameter("ShowMISModel", "True" if (self.ui.showMISDiameterPushButton.isChecked()) else "False")
-    self._parameterNode.SetParameter("OutputPlotSeriesType", str(self.ui.outputPlotSeriesTypeComboBox.currentIndex))
+    self._parameterNode.SetParameter("OutputPlotSeriesType", str(self.ui.outputPlotSeriesTypeComboBox.currentData))
     
     self._parameterNode.EndModify(wasModified)
     
@@ -580,7 +581,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.logic.rotateAroundZ(sliceNode, angle)
 
   def setPlotSeriesType(self, type):
-    self.logic.setPlotSeriesType(type)
+    self.logic.setPlotSeriesType(self.ui.outputPlotSeriesTypeComboBox.currentData)
 
 #
 # CrossSectionAnalysisLogic
@@ -692,6 +693,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     if self.crossSectionModelNode is not None:
         self.crossSectionModelNode.GetDisplayNode().SetVisibility(self.showCrossSection)
   
+  # type is item data of QComboBox, not item index
   def setPlotSeriesType(self, type):
     self.outputPlotSeriesType = type
     if self.outputPlotSeriesNode and self.outputTableNode and self.inputCenterlineNode:
@@ -1339,4 +1341,7 @@ DISTANCE_ARRAY_NAME = "Distance"
 MIS_DIAMETER_ARRAY_NAME = "Diameter (MIS)"
 CE_DIAMETER_ARRAY_NAME = "Diameter (CE)"
 CROSS_SECTION_AREA_ARRAY_NAME = "Cross-section area"
+MIS_DIAMETER = 0
+CE_DIAMETER = 1
+CROSS_SECTION_AREA = 2
 
