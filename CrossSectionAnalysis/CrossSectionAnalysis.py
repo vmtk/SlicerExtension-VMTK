@@ -22,7 +22,7 @@ class CrossSectionAnalysis(ScriptedLoadableModule):
     self.parent.title = "Cross-section analysis"
     self.parent.categories = ["Vascular Modeling Toolkit"]
     self.parent.dependencies = []
-    self.parent.contributors = ["SET (Surgeon) (Hobbyist developer)"]
+    self.parent.contributors = ["SET (Surgeon) (Hobbyist developer)", "Andras Lasso (PerkLab)"]
     self.parent.helpText = """
 This module describes cross-sections along a VMTK centerline model, a VMTK centerline markups curve or an arbitrary markups curve. Documentation is available
     <a href="https://github.com/vmtk/SlicerExtension-VMTK/tree/master/CrossSectionAnalysis">here</a>.
