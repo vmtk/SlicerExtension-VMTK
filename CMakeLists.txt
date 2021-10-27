@@ -47,6 +47,8 @@ else()
   add_subdirectory(CenterlineComputation)
 endif()
 add_subdirectory(CrossSectionAnalysis)
+add_subdirectory(FiducialCenterlineExtraction)
+add_subdirectory(CurveCenterlineExtraction)
 
 #-----------------------------------------------------------------------------
 set(EXTENSION_CPACK_INSTALL_CMAKE_PROJECTS)
