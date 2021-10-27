@@ -1,0 +1,680 @@
+import os
+import unittest
+import logging
+import vtk, qt, ctk, slicer
+from slicer.ScriptedLoadableModule import *
+from slicer.util import VTKObservationMixin
+import numpy as np
+
+#
+# FiducialCenterlineExtraction
+#
+
+class FiducialCenterlineExtraction(ScriptedLoadableModule):
+  """Uses ScriptedLoadableModule base class, available at:
+  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+  """
+
+  def __init__(self, parent):
+    ScriptedLoadableModule.__init__(self, parent)
+    self.parent.title = "Fiducial centerline extraction" 
+    self.parent.categories = ["Vascular Modeling Toolkit"]
+    self.parent.dependencies = ["SegmentEditorFloodFilling", "ExtractCenterline"]
+    self.parent.contributors = ["SET [Surgeon] [Hobbyist developer]"]
+    self.parent.helpText = """
+This <a href="https://github.com/vmtk/SlicerExtension-VMTK/tree/master/FiducialCenterlineExtraction/">module</a> is intended to create a segmentation from a contrast enhanced CT angioscan, and to finally extract centerlines from the surface model.
+<br><br>It assumes that data acquisition of the input volume is nearly perfect, and that fiducial points are placed in the contrasted lumen.
+<br><br>The 'Flood filling' effect of the '<a href="https://github.com/lassoan/SlicerSegmentEditorExtraEffects">Segment editor extra effects</a>' is used for segmentation.
+<br><br>The '<a href="https://github.com/vmtk/SlicerExtension-VMTK/tree/master/ExtractCenterline/">SlicerExtension-VMTK Extract centerline</a>' module is required.
+"""
+    # TODO: replace with organization, grant and thanks
+    self.parent.acknowledgementText = """
+This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc., Andras Lasso, PerkLab,
+and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
+"""
+
+#
+# FiducialCenterlineExtractionWidget
+#
+
+class FiducialCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
+  """Uses ScriptedLoadableModuleWidget base class, available at:
+  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+  """
+
+  def __init__(self, parent=None):
+    """
+    Called when the user opens the module the first time and the widget is initialized.
+    """
+    ScriptedLoadableModuleWidget.__init__(self, parent)
+    VTKObservationMixin.__init__(self)  # needed for parameter node observation
+    self.logic = None
+    self._parameterNode = None
+    self._updatingGUIFromParameterNode = False
+
+  def setup(self):
+    """
+    Called when the user opens the module the first time and the widget is initialized.
+    """
+    ScriptedLoadableModuleWidget.setup(self)
+
+    # Load widget from .ui file (created by Qt Designer).
+    # Additional widgets can be instantiated manually and added to self.layout.
+    uiWidget = slicer.util.loadUI(self.resourcePath('UI/FiducialCenterlineExtraction.ui'))
+    self.layout.addWidget(uiWidget)
+    self.ui = slicer.util.childWidgetVariables(uiWidget)
+
+    # Set scene in MRML widgets. Make sure that in Qt designer the top-level qMRMLWidget's
+    # "mrmlSceneChanged(vtkMRMLScene*)" signal in is connected to each MRML widget's.
+    # "setMRMLScene(vtkMRMLScene*)" slot.
+    uiWidget.setMRMLScene(slicer.mrmlScene)
+
+    # Create logic class. Logic implements all computations that should be possible to run
+    # in batch mode, without a graphical user interface.
+    self.logic = FiducialCenterlineExtractionLogic()
+    
+    self.ui.floodFillingCollapsibleGroupBox.checked = False
+
+    # Connections
+
+    # These connections ensure that we update parameter node when scene is closed
+    self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
+    self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
+
+    # These connections ensure that whenever user changes some settings on the GUI, that is saved in the MRML scene
+    # (in the selected parameter node).
+    self.ui.inputFiducialSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+    self.ui.inputSliceNodeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+    self.ui.inputROISelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+    self.ui.intensityToleranceSpinBox.connect("valueChanged(int)", self.updateParameterNodeFromGUI)
+    self.ui.neighbourhoodSizeDoubleSpinBox.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
+    self.ui.extractCenterlinesCheckBox.connect("toggled(bool)", self.updateParameterNodeFromGUI)
+
+    # Application connections
+    self.ui.inputFiducialSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onFiducialNode)
+    self.ui.inputSliceNodeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSliceNode)
+    self.ui.inputROISelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onROINode)
+    self.ui.intensityToleranceSpinBox.connect("valueChanged(int)", self.logic.setIntensityTolerance)
+    self.ui.neighbourhoodSizeDoubleSpinBox.connect("valueChanged(double)", self.logic.setNeighbourhoodSize)
+    self.ui.extractCenterlinesCheckBox.connect("toggled(bool)", self.logic.setExtractCenterlines)
+    self.ui.preFitROIToolButton.connect("clicked()", self.preFitROI)
+
+    # Buttons
+    self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
+
+    # Make sure parameter node is initialized (needed for module reload)
+    self.initializeParameterNode()
+    
+    # A hidden one for the curious !
+    shortcut = qt.QShortcut(self.ui.FiducialCenterlineExtraction)
+    shortcut.setKey(qt.QKeySequence('Meta+d'))
+    shortcut.connect( 'activated()', lambda: self.removeOutputNodes())
+
+  def inform(self, message):
+    slicer.util.showStatusMessage(message, 3000)
+    logging.info(message)
+
+  def onFiducialNode(self, node):
+    if node is None:
+        self.logic.setInputFiducialNode(None)
+        return
+    numberOfControlPoints = node.GetNumberOfControlPoints()
+    if numberOfControlPoints < 2:
+        self.inform("Fiducial node must have at least 2 points.")
+        self.ui.inputFiducialSelector.setCurrentNode(None)
+        self.logic.setInputFiducialNode(None)
+        return
+    self.logic.setInputFiducialNode(node)
+  
+  def onSliceNode(self, node):
+    if node is None:
+        self.logic.setInputSliceNode(None)
+        return
+    self.logic.setInputSliceNode(node)
+    
+  def onROINode(self, node):
+    if node is None:
+        self.logic.setInputROINode(None)
+        return
+    self.logic.setInputROINode(node)
+    node.SetDisplayVisibility(True)
+
+  # The ROI will have to be manually adjusted.
+  def preFitROI(self):
+    inputFiducialNode = self.ui.inputFiducialSelector.currentNode()
+    inputROINode = self.ui.inputROISelector.currentNode()
+    if (inputFiducialNode is None) or (inputROINode is None):
+        return
+    fiducialBounds = np.zeros(6)
+    inputFiducialNode.GetBounds(fiducialBounds)
+    vFiducialBounds=vtk.vtkBoundingBox()
+    vFiducialBounds.SetBounds(fiducialBounds)
+    center = np.zeros(3)
+    vFiducialBounds.GetCenter(center)
+    inputROINode.SetCenter(center)
+    lengths = np.zeros(3)
+    vFiducialBounds.GetLengths(lengths)
+    inputROINode.SetRadiusXYZ((lengths[0] / 2, lengths[1] / 2, lengths[2] / 2))
+    inputROINode.SetDisplayVisibility(True)
+
+  def cleanup(self):
+    """
+    Called when the application closes and the module widget is destroyed.
+    """
+    self.removeObservers()
+
+  def enter(self):
+    """
+    Called each time the user opens this module.
+    """
+    # Make sure parameter node exists and observed
+    self.initializeParameterNode()
+
+  def exit(self):
+    """
+    Called each time the user opens a different module.
+    """
+    # Do not react to parameter node changes (GUI wlil be updated when the user enters into the module)
+    self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
+
+  def onSceneStartClose(self, caller, event):
+    """
+    Called just before the scene is closed.
+    """
+    # Parameter node will be reset, do not use it anymore
+    self.setParameterNode(None)
+
+  def onSceneEndClose(self, caller, event):
+    """
+    Called just after the scene is closed.
+    """
+    # If this module is shown while the scene is closed then recreate a new parameter node immediately
+    if self.parent.isEntered:
+      self.initializeParameterNode()
+    self.logic.initMemberVariables()
+
+  def initializeParameterNode(self):
+    """
+    Ensure parameter node exists and observed.
+    """
+    # Parameter node stores all user choices in parameter values, node selections, etc.
+    # so that when the scene is saved and reloaded, these settings are restored.
+
+    self.setParameterNode(self.logic.getParameterNode())
+
+  def setParameterNode(self, inputParameterNode):
+    """
+    Set and observe parameter node.
+    Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
+    """
+
+    if inputParameterNode:
+      self.logic.setDefaultParameters(inputParameterNode)
+
+    # Unobserve previously selected parameter node and add an observer to the newly selected.
+    # Changes of parameter node are observed so that whenever parameters are changed by a script or any other module
+    # those are reflected immediately in the GUI.
+    if self._parameterNode is not None:
+      self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
+    self._parameterNode = inputParameterNode
+    if self._parameterNode is not None:
+      self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
+
+    # Initial GUI update
+    self.updateGUIFromParameterNode()
+
+  def updateGUIFromParameterNode(self, caller=None, event=None):
+    """
+    This method is called whenever parameter node is changed.
+    The module GUI is updated to show the current state of the parameter node.
+    """
+
+    if self._parameterNode is None or self._updatingGUIFromParameterNode:
+      return
+
+    # Make sure GUI changes do not call updateParameterNodeFromGUI (it could cause infinite loop)
+    self._updatingGUIFromParameterNode = True
+
+    # Update node selectors and sliders
+    self.ui.inputFiducialSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputFiducialNode"))
+    self.ui.inputSliceNodeSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputSliceNode"))
+    self.ui.inputROISelector.setCurrentNode(self._parameterNode.GetNodeReference("InputROINode"))
+    self.ui.intensityToleranceSpinBox.value = int(self._parameterNode.GetParameter("IntensityTolerance"))
+    self.ui.neighbourhoodSizeDoubleSpinBox.value = float(self._parameterNode.GetParameter("NeighbourhoodSize"))
+    self.ui.extractCenterlinesCheckBox.setChecked (self._parameterNode.GetParameter("ExtractCenterlines") == "True")
+
+    # Update buttons states and tooltips
+
+    # All the GUI updates are done
+    self._updatingGUIFromParameterNode = False
+
+  def updateParameterNodeFromGUI(self, caller=None, event=None):
+    """
+    This method is called when the user makes any change in the GUI.
+    The changes are saved into the parameter node (so that they are restored when the scene is saved and loaded).
+    """
+
+    if self._parameterNode is None or self._updatingGUIFromParameterNode:
+      return
+
+    wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
+
+    self._parameterNode.SetNodeReferenceID("InputFiducialNode", self.ui.inputFiducialSelector.currentNodeID)
+    self._parameterNode.SetNodeReferenceID("InputSliceNode", self.ui.inputSliceNodeSelector.currentNodeID)
+    self._parameterNode.SetNodeReferenceID("InputROINode", self.ui.inputROISelector.currentNodeID)
+    self._parameterNode.SetParameter("IntensityTolerance", str(self.ui.intensityToleranceSpinBox.value))
+    self._parameterNode.SetParameter("NeighbourhoodSize", str(self.ui.neighbourhoodSizeDoubleSpinBox.value))
+    self._parameterNode.SetParameter("ExtractCenterlines", str(self.ui.extractCenterlinesCheckBox.isChecked()))
+
+    self._parameterNode.EndModify(wasModified)
+
+  def UpdateInputNodeWithThisOutputNode(self, outputNode, referenceID):
+    outputNodeID = ""
+    if outputNode:
+        outputNodeID = outputNode.GetID()
+    self.logic.inputFiducialNode.SetNodeReferenceID(referenceID, outputNodeID)
+    
+  def UpdateInputNodeWithOutputNodes(self):
+    if not self.logic.inputFiducialNode:
+        return
+    wasModified = self.logic.inputFiducialNode.StartModify()
+    self.UpdateInputNodeWithThisOutputNode(self.logic.outputSegmentation, "OutputSegmentation")
+    self.UpdateInputNodeWithThisOutputNode(self.logic.outputCenterlineModel, "OutputCenterlineModel")
+    self.UpdateInputNodeWithThisOutputNode(self.logic.outputCenterlineCurve, "OutputCenterlineCurve")
+    self.logic.inputFiducialNode.EndModify(wasModified)
+    
+  def UpdateLogicWithOutputNodes(self):
+    if not self.logic.inputFiducialNode:
+        return
+    self.logic.outputSegmentation = self.logic.inputFiducialNode.GetNodeReference("OutputSegmentation")
+    self.logic.outputCenterlineModel = self.logic.inputFiducialNode.GetNodeReference("OutputCenterlineModel")
+    self.logic.outputCenterlineCurve = self.logic.inputFiducialNode.GetNodeReference("OutputCenterlineCurve")
+
+  def removeOutputNodes(self):
+    self.logic.removeOutputNodes()
+    self.UpdateInputNodeWithOutputNodes()
+    
+  def onApplyButton(self):
+    """
+    Run processing when user clicks "Apply" button.
+    """
+    try:
+        if self.logic.inputFiducialNode is None:
+            self.inform("No input fiducial node specified.")
+            return
+        if self.logic.inputSliceNode is None:
+            self.inform("No input slice node specified.")
+            return
+        # Ensure there's a background volume node.
+        sliceNode = self.logic.inputSliceNode
+        sliceWidget = slicer.app.layoutManager().sliceWidget(sliceNode.GetName())
+        volumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
+        if volumeNode is None:
+            self.inform("No volume node selected in input slice node.")
+            return
+        # We no longer preprocess input surface in 'Extract centerline', to avoid crashes. Force a ROI to reduce computation time.
+        if self.logic.inputROINode is None:
+            self.inform("No input ROI node specified.")
+            return
+        # Restore logic output objects with saved ones. They will be replaced.
+        self.UpdateLogicWithOutputNodes()
+        # Compute output
+        self.logic.process()
+        # Update parameter node with references to new output nodes.
+        self.UpdateInputNodeWithOutputNodes()
+
+    except Exception as e:
+        slicer.util.errorDisplay("Failed to compute results: "+str(e))
+        import traceback
+        traceback.print_exc()
+
+
+#
+# FiducialCenterlineExtractionLogic
+#
+
+class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
+  """This class should implement all the actual
+  computation done by your module.  The interface
+  should be such that other python code can import
+  this class and make use of the functionality without
+  requiring an instance of the Widget.
+  Uses ScriptedLoadableModuleLogic base class, available at:
+  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+  """
+
+  def __init__(self):
+    """
+    Called when the logic class is instantiated. Can be used for initializing member variables.
+    """
+    ScriptedLoadableModuleLogic.__init__(self)
+    self.initMemberVariables()
+    
+  def initMemberVariables(self):
+    self.inputFiducialNode = None
+    self.inputSliceNode = None
+    self.inputROINode = None
+    self.intensityTolerance = 100
+    self.neighbourhoodSize = 2.0
+    self.extractCenterlines = False
+    self.outputSegmentation = None
+    self.outputCenterlineModel = None
+    self.outputCenterlineCurve = None
+    self.segmentEditorWidgets = None
+    self.extractCenterlineWidgets = None
+    
+  def setInputFiducialNode(self, node):
+    if self.inputFiducialNode == node:
+        return
+    self.inputFiducialNode = node
+    
+  def setInputSliceNode(self, node):
+    if self.inputSliceNode == node:
+        return
+    self.inputSliceNode = node
+    
+  def setInputROINode(self, node):
+    if self.inputROINode == node:
+        return
+    self.inputROINode = node
+    
+  def setIntensityTolerance(self, value):
+    self.intensityTolerance = value
+
+  def setNeighbourhoodSize(self, value):
+    self.neighbourhoodSize = value
+
+  def setExtractCenterlines(self, value):
+    self.extractCenterlines = value
+    
+  def removeOutputNodes(self):
+    # Remove child centerline curves of self.outputCenterlineCurve
+    shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
+    outputCurveMainId = shNode.GetItemByDataNode(self.outputCenterlineCurve)
+    if (outputCurveMainId > 0) and (outputCurveMainId != shNode.GetSceneItemID()):
+        while shNode.GetNumberOfItemChildren(outputCurveMainId):
+            outputCurveChildId = shNode.GetItemByPositionUnderParent(outputCurveMainId, 0)
+            outputCurveChild = shNode.GetItemDataNode(outputCurveChildId)
+            slicer.mrmlScene.RemoveNode(outputCurveChild)
+
+    slicer.mrmlScene.RemoveNode(self.outputSegmentation)
+    slicer.mrmlScene.RemoveNode(self.outputCenterlineModel)
+    slicer.mrmlScene.RemoveNode(self.outputCenterlineCurve)
+    self.outputSegmentation = None
+    self.outputCenterlineModel = None
+    self.outputCenterlineCurve = None
+
+  def setDefaultParameters(self, parameterNode):
+    """
+    Initialize parameter node with default settings.
+    """
+    if not parameterNode.GetParameter("IntensityTolerance"):
+      parameterNode.SetParameter("IntensityTolerance", "100")
+    if not parameterNode.GetParameter("NeighbourhoodSize"):
+      parameterNode.SetParameter("NeighbourhoodSize", "2.0")
+    """
+    Though we want to extract centerlines, we default this flag to False.
+    Check that an accurate model is generated first.
+    Else, it can be very lengthy and disappointing if there is too much leakage. Also, Slicer may crash during centerline extraction.
+    """
+    if not parameterNode.GetParameter("ExtractCenterlines"):
+      parameterNode.SetParameter("ExtractCenterlines", "False")
+
+  def showStatusMessage(self, messages):
+    separator = " "
+    msg = separator.join(messages)
+    slicer.util.showStatusMessage(msg, 3000)
+    slicer.app.processEvents()
+    
+  def process(self):
+    import time
+    startTime = time.time()
+    logging.info('Processing started')
+
+    # Don't stack many segmentations. Environment may quickly become confusing. Work with only one segmentation.
+    self.removeOutputNodes()
+    
+    slicer.util.showStatusMessage("Segment editor setup")
+    slicer.app.processEvents()
+    """
+    Find segment editor widgets.
+    Use a dedicated class to store widget references once only.
+    Not reasonable to dig through the UI on every run.
+    """
+    if not self.segmentEditorWidgets:
+        self.segmentEditorWidgets = SegmentEditorWidgets()
+        self.segmentEditorWidgets.findWidgets()
+    # Create a new segmentation. It will contain only one segment.
+    segmentation=slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode")
+    self.outputSegmentation = segmentation
+    # Local direct reference to slicer.modules.SegmentEditorWidget.editor
+    seWidgetEditor=self.segmentEditorWidgets.widgetEditor
+
+    # Get volume node
+    sliceWidget = slicer.app.layoutManager().sliceWidget(self.inputSliceNode.GetName())
+    volumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
+    
+    # Set segment editor controls
+    seWidgetEditor.setSegmentationNode(segmentation)
+    seWidgetEditor.setMasterVolumeNode(volumeNode)
+    
+    # If Segment Editor is not shown once, click() fails.
+    mainWindow = slicer.util.mainWindow()
+    mainWindow.moduleSelector().selectModule('SegmentEditor')
+    
+    # Add a new segment
+    newSegmentQPushButton = self.segmentEditorWidgets.newSegmentQPushButton
+    newSegmentQPushButton.click()
+    
+    # Use 'Flood filling' effect. Each fiducial point will be a user click.
+    # Set parameters
+    seWidgetEditor.setActiveEffectByName("Flood filling")
+    ffEffect = seWidgetEditor.activeEffect()
+    ffEffect.setParameter("IntensityTolerance", self.intensityTolerance)
+    ffEffect.setParameter("NeighborhoodSizeMm", self.neighbourhoodSize)
+    # ffEffect.optionsFrame().children()
+    # ROI combobox in 'Flood filling' UI does not have a name.
+    roiComboBox = ffEffect.optionsFrame().children()[5]
+    roiComboBox.setCurrentNode(self.inputROINode)
+    # Reset segment editor masking widgets. Values set by previous work must not interfere here.
+    self.segmentEditorWidgets.resetMaskingWidgets()
+    
+    # For each fiducial point, simulate a mouse click.
+    points=vtk.vtkPoints()
+    self.inputFiducialNode.GetControlPointPositionsWorld(points)
+    numberOfFiducialControlPoints = points.GetNumberOfPoints()
+    for i in range(numberOfFiducialControlPoints):
+        # Show progress in status bar. Helpful to wait.
+        t = time.time()
+        msg = f'Flood filling : {t-startTime:.2f} seconds - '
+        self.showStatusMessage((msg, str(i + 1), "/", str(numberOfFiducialControlPoints)))
+        
+        rasPoint = points.GetPoint(i)
+        slicer.vtkMRMLSliceNode.JumpSlice(sliceWidget.sliceLogic().GetSliceNode(), *rasPoint)
+        point3D = qt.QVector3D(rasPoint[0], rasPoint[1], rasPoint[2])
+        point2D = ffEffect.rasToXy(point3D, sliceWidget)
+        xySliceViewCoord = (point2D.x(), point2D.y())
+        """
+        https://discourse.slicer.org/t/how-to-call-the-islands-function-of-the-segment-editor-from-a-python-script-with-keep-selected-island/14763
+        """
+        slicer.util.clickAndDrag(sliceWidget, start = xySliceViewCoord, end = xySliceViewCoord, steps = 1)
+    
+    # Switch off active effect
+    seWidgetEditor.setActiveEffect(None)
+    # Show segment
+    show3DctkMenuButton = self.segmentEditorWidgets.show3DctkMenuButton
+    # Don't use click() here, smoothing options make a mess.
+    show3DctkMenuButton.setChecked(True)
+    # Hide ROI
+    if self.inputROINode:
+        self.inputROINode.SetDisplayVisibility(False)
+    
+    if not self.extractCenterlines:
+        stopTime = time.time()
+        message = f'Processing completed in {stopTime-startTime:.2f} seconds'
+        logging.info(message)
+        slicer.util.showStatusMessage(message, 5000)
+        return
+    
+    #---------------------- Extract centerlines ---------------------
+    slicer.util.showStatusMessage("Extract centerline setup")
+    slicer.app.processEvents()
+    mainWindow.moduleSelector().selectModule('ExtractCenterline')
+    if not self.extractCenterlineWidgets:
+        self.extractCenterlineWidgets = ExtractCenterlineWidgets()
+        self.extractCenterlineWidgets.findWidgets()
+    
+    inputSurfaceComboBox = self.extractCenterlineWidgets.inputSurfaceComboBox
+    endPointsMarkupsSelector = self.extractCenterlineWidgets.endPointsMarkupsSelector
+    outputCenterlineModelSelector = self.extractCenterlineWidgets.outputCenterlineModelSelector
+    outputCenterlineCurveSelector = self.extractCenterlineWidgets.outputCenterlineCurveSelector
+    preprocessInputSurfaceModelCheckBox = self.extractCenterlineWidgets.preprocessInputSurfaceModelCheckBox
+    applyButton = self.extractCenterlineWidgets.applyButton
+    
+    # Set input segmentation and endpoints
+    inputSurfaceComboBox.setCurrentNode(segmentation)
+    endPointsMarkupsSelector.setCurrentNode(self.inputFiducialNode)
+    # Output centerline model
+    centerlineModel = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode")
+    outputCenterlineModelSelector.setCurrentNode(centerlineModel)
+    self.outputCenterlineModel = centerlineModel
+    # Output centerline curve
+    centerlineCurve = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsCurveNode")
+    outputCenterlineCurveSelector.setCurrentNode(centerlineCurve)
+    self.outputCenterlineCurve = centerlineCurve
+    """
+    Don't preprocess input surface. Decimation error may crash Slicer. Quadric method for decimation is slower but more reliable.
+    """
+    preprocessInputSurfaceModelCheckBox.setChecked(False)
+    # Apply
+    applyButton.click()
+    # Close network pane; we don't use this here.
+    self.extractCenterlineWidgets.outputNetworkGroupBox.collapsed = True
+    
+    stopTime = time.time()
+    message = f'Processing completed in {stopTime-startTime:.2f} seconds'
+    logging.info(message)
+    slicer.util.showStatusMessage(message, 5000)
+
+#
+# FiducialCenterlineExtractionTest
+#
+
+class FiducialCenterlineExtractionTest(ScriptedLoadableModuleTest):
+  """
+  This is the test case for your scripted module.
+  Uses ScriptedLoadableModuleTest base class, available at:
+  https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
+  """
+
+  def setUp(self):
+    """ Do whatever is needed to reset the state - typically a scene clear will be enough.
+    """
+    slicer.mrmlScene.Clear()
+
+  def runTest(self):
+    """Run as few or as many tests as needed here.
+    """
+    self.setUp()
+    self.test_FiducialCenterlineExtraction1()
+
+  def test_FiducialCenterlineExtraction1(self):
+
+    self.delayDisplay("Starting the test")
+
+    # Test the module logic
+
+    logic = FiducialCenterlineExtractionLogic()
+
+    self.delayDisplay('Test passed')
+
+"""
+Weird and unusual approach to remote control modules, but very efficient.
+Get reference to widgets exposed by an API.
+Widgets can be removed, or their names may change.
+That's true for library interfaces also.
+"""
+class SegmentEditorWidgets(ScriptedLoadableModule):
+    def __init__(self):
+        self.widgetEditor = None
+        self.segmentationNodeComboBox = None
+        self.masterVolumeNodeComboBox = None
+        self.newSegmentQPushButton = None
+        self.removeSegmentQPushButton = None
+        self.show3DctkMenuButton = None
+        self.maskingGroupBox = None
+        self.maskModeComboBox = None
+        self.masterVolumeIntensityMaskCheckBox = None
+        self.masterVolumeIntensityMaskRangeWidget = None
+        self.overwriteModeComboBox = None
+    
+    # Find widgets we are using only
+    def findWidgets(self):
+        # Create slicer.modules.SegmentEditorWidget
+        slicer.modules.segmenteditor.widgetRepresentation()
+        self.widgetEditor = slicer.modules.SegmentEditorWidget.editor
+        
+        # widgetEditor.children()
+        # Get segment editor controls and set values
+        self.segmentationNodeComboBox = self.widgetEditor.findChild(slicer.qMRMLNodeComboBox, "SegmentationNodeComboBox")
+        self.masterVolumeNodeComboBox = self.widgetEditor.findChild(slicer.qMRMLNodeComboBox, "MasterVolumeNodeComboBox")
+        self.newSegmentQPushButton = self.widgetEditor.findChild(qt.QPushButton, "AddSegmentButton")
+        self.removeSegmentQPushButton = self.widgetEditor.findChild(qt.QPushButton, "RemoveSegmentButton")
+        self.show3DctkMenuButton = self.widgetEditor.findChild(ctk.ctkMenuButton, "Show3DButton")
+        
+        # Get segment editor masking groupbox and its widgets
+        self.maskingGroupBox = self.widgetEditor.findChild(qt.QGroupBox, "MaskingGroupBox")
+        self.maskModeComboBox = self.maskingGroupBox.findChild(qt.QComboBox, "MaskModeComboBox")
+        self.masterVolumeIntensityMaskCheckBox = self.maskingGroupBox.findChild(ctk.ctkCheckBox, "MasterVolumeIntensityMaskCheckBox")
+        self.masterVolumeIntensityMaskRangeWidget = self.maskingGroupBox.findChild(ctk.ctkRangeWidget, "masterVolumeIntensityMaskRangeWidget")
+        self.overwriteModeComboBox = self.maskingGroupBox.findChild(qt.QComboBox, "OverwriteModeComboBox")
+
+    """
+    findWidgets() must have been called first.
+    Must be called when the first used effect is activated.
+    """
+    def resetMaskingWidgets(self):
+        self.maskModeComboBox.setCurrentIndex(0)
+        self.masterVolumeIntensityMaskCheckBox.checked = False
+        self.overwriteModeComboBox.setCurrentIndex(0)
+
+class ExtractCenterlineWidgets(ScriptedLoadableModule):
+    def __init__(self):
+        self.mainContainer = None
+        self.inputCollapsibleButton = None
+        self.outputCollapsibleButton = None
+        self.advancedCollapsibleButton = None
+        self.applyButton = None
+        self.inputSurfaceComboBox = None
+        self.endPointsMarkupsSelector = None
+        self.inputSegmentSelectorWidget = None # Unused
+        self.outputNetworkGroupBox = None
+        self.outputTreeGroupBox = None
+        self.outputCenterlineModelSelector = None
+        self.outputCenterlineCurveSelector = None
+        self.preprocessInputSurfaceModelCheckBox = None
+    
+    def findWidgets(self):
+        ecWidgetRepresentation = slicer.modules.extractcenterline.widgetRepresentation()
+        
+        # Containers
+        self.mainContainer = ecWidgetRepresentation.findChild(slicer.qMRMLWidget, "ExtractCenterline")
+        self.inputCollapsibleButton = self.mainContainer.findChild(ctk.ctkCollapsibleButton, "inputsCollapsibleButton")
+        self.outputCollapsibleButton = self.mainContainer.findChild(ctk.ctkCollapsibleButton, "outputsCollapsibleButton")
+        self.advancedCollapsibleButton = self.mainContainer.findChild(ctk.ctkCollapsibleButton, "advancedCollapsibleButton")
+        self.applyButton = self.mainContainer.findChild(qt.QPushButton, "applyButton")
+        
+        # Input widgets
+        self.inputSurfaceComboBox = self.inputCollapsibleButton.findChild(slicer.qMRMLNodeComboBox, "inputSurfaceSelector")
+        self.endPointsMarkupsSelector = self.inputCollapsibleButton.findChild(slicer.qMRMLNodeComboBox, "endPointsMarkupsSelector")
+        self.inputSegmentSelectorWidget = self.inputCollapsibleButton.findChild(slicer.qMRMLSegmentSelectorWidget, "inputSegmentSelectorWidget")
+        
+        # Output widgets
+        self.outputNetworkGroupBox = self.outputCollapsibleButton.findChild(ctk.ctkCollapsibleGroupBox, "CollapsibleGroupBox")
+        self.outputTreeGroupBox = self.outputCollapsibleButton.findChild(ctk.ctkCollapsibleGroupBox, "CollapsibleGroupBox_2")
+        self.outputCenterlineModelSelector = self.outputTreeGroupBox.findChild(slicer.qMRMLNodeComboBox, "outputCenterlineModelSelector")
+        self.outputCenterlineCurveSelector = self.outputTreeGroupBox.findChild(slicer.qMRMLNodeComboBox, "outputCenterlineCurveSelector")
+        
+        # Advanced widgets
+        self.preprocessInputSurfaceModelCheckBox = self.advancedCollapsibleButton.findChild(qt.QCheckBox, "preprocessInputSurfaceModelCheckBox")
+        
