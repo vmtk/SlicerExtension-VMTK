@@ -105,7 +105,7 @@ class FiducialCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObserv
     # Make sure parameter node is initialized (needed for module reload)
     self.initializeParameterNode()
     
-    # A hidden one for the curious !
+    # A hidden one for the curious ! For developers.
     shortcut = qt.QShortcut(self.ui.FiducialCenterlineExtraction)
     shortcut.setKey(qt.QKeySequence('Meta+d'))
     shortcut.connect( 'activated()', lambda: self.removeOutputNodes())
@@ -125,6 +125,12 @@ class FiducialCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObserv
         self.logic.setInputFiducialNode(None)
         return
     self.logic.setInputFiducialNode(node)
+    # Update UI with previous referenced segmentation. May be changed before logic.process().
+    referencedSegmentationNode = node.GetNodeReference("OutputSegmentation")
+    if referencedSegmentationNode:
+        self.ui.outputSegmentationSelector.setCurrentNode(node.GetNodeReference("OutputSegmentation"))
+    # Reuse last known parameters
+    self.updateGUIParametersFromInputNode()
   
   def onSliceNode(self, node):
     if node is None:
@@ -268,6 +274,10 @@ class FiducialCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObserv
 
     self._parameterNode.EndModify(wasModified)
 
+  """
+  Let each one trace last used parameter values and output nodes.
+  These can be restored when an input fiducial is selected again.
+  """
   def UpdateInputNodeWithThisOutputNode(self, outputNode, referenceID):
     outputNodeID = ""
     if outputNode:
@@ -282,17 +292,37 @@ class FiducialCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObserv
     self.UpdateInputNodeWithThisOutputNode(self.logic.outputCenterlineModel, "OutputCenterlineModel")
     self.UpdateInputNodeWithThisOutputNode(self.logic.outputCenterlineCurve, "OutputCenterlineCurve")
     self.logic.inputFiducialNode.EndModify(wasModified)
-    
+
+  def UpdateInputNodeWithParameters(self):
+    if not self.logic.inputFiducialNode:
+        return
+    wasModified = self.logic.inputFiducialNode.StartModify()
+    inputROINodeID = self.logic.inputROINode.GetID()
+    self.logic.inputFiducialNode.SetNodeReferenceID("InputROINode", inputROINodeID)
+    self.logic.inputFiducialNode.SetAttribute("InputIntensityTolerance", str(self.ui.intensityToleranceSpinBox.value))
+    self.logic.inputFiducialNode.SetAttribute("NeighbourhoodSize", str(self.ui.neighbourhoodSizeDoubleSpinBox.value))
+    self.logic.inputFiducialNode.EndModify(wasModified)
+
+  # Restore parameters from input fiducial
+  def updateGUIParametersFromInputNode(self):
+    if not self.logic.inputFiducialNode:
+        return
+    self.ui.inputROISelector.setCurrentNode(self.logic.inputFiducialNode.GetNodeReference("InputROINode"))
+    intensityTolerance = self.logic.inputFiducialNode.GetAttribute("InputIntensityTolerance")
+    if intensityTolerance:
+        self.ui.intensityToleranceSpinBox.value = int(intensityTolerance)
+    neighbourhoodSize = self.logic.inputFiducialNode.GetAttribute("NeighbourhoodSize")
+    if neighbourhoodSize:
+        self.ui.neighbourhoodSizeDoubleSpinBox.value = float(neighbourhoodSize)
+  
+  # Restore output nodes in logic
   def UpdateLogicWithOutputNodes(self):
     if not self.logic.inputFiducialNode:
         return
-    self.logic.outputSegmentation = self.logic.inputFiducialNode.GetNodeReference("OutputSegmentation")
+    # Here we use a segmentation specified in UI, not the one referenced in the input fiducial.
+    self.logic.outputSegmentation = self.ui.outputSegmentationSelector.currentNode()
     self.logic.outputCenterlineModel = self.logic.inputFiducialNode.GetNodeReference("OutputCenterlineModel")
     self.logic.outputCenterlineCurve = self.logic.inputFiducialNode.GetNodeReference("OutputCenterlineCurve")
-
-  def removeOutputNodes(self):
-    self.logic.removeOutputNodes()
-    self.UpdateInputNodeWithOutputNodes()
     
   def onApplyButton(self):
     """
@@ -316,19 +346,48 @@ class FiducialCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObserv
         if self.logic.inputROINode is None:
             self.inform("No input ROI node specified.")
             return
-        # Restore logic output objects with saved ones. They will be replaced.
+        # Restore logic output objects relevant to the input fiducial.
         self.UpdateLogicWithOutputNodes()
         # Compute output
         self.logic.process()
-        # Update parameter node with references to new output nodes.
+        # Update input node with references to new output nodes.
         self.UpdateInputNodeWithOutputNodes()
+        # Update input node with input parameters.
+        self.UpdateInputNodeWithParameters()
+        # Update segmentation selector if it was none
+        self.ui.outputSegmentationSelector.setCurrentNode(self.logic.outputSegmentation)
 
     except Exception as e:
         slicer.util.errorDisplay("Failed to compute results: "+str(e))
         import traceback
         traceback.print_exc()
 
+  # Handy during development
+  def removeOutputNodes(self):
+    inputFiducialNode = self.ui.inputFiducialSelector.currentNode()
+    if not inputFiducialNode:
+        return
+    # Remove segment, ID is controlled.
+    segmentID = "Segment_" + inputFiducialNode.GetID()
+    segmentation = self.logic.outputSegmentation
+    segment = segmentation.GetSegmentation().GetSegment(segmentID)
+    if segment:
+        segmentation.GetSegmentation().RemoveSegment(segment)
+    # Remove child centerline curves of self.outputCenterlineCurve
+    shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
+    outputCurveMainId = shNode.GetItemByDataNode(self.logic.outputCenterlineCurve)
+    if (outputCurveMainId > 0) and (outputCurveMainId != shNode.GetSceneItemID()):
+        while shNode.GetNumberOfItemChildren(outputCurveMainId):
+            outputCurveChildId = shNode.GetItemByPositionUnderParent(outputCurveMainId, 0)
+            outputCurveChild = shNode.GetItemDataNode(outputCurveChildId)
+            slicer.mrmlScene.RemoveNode(outputCurveChild)
 
+    slicer.mrmlScene.RemoveNode(self.logic.outputCenterlineModel)
+    slicer.mrmlScene.RemoveNode(self.logic.outputCenterlineCurve)
+    self.logic.outputCenterlineModel = None
+    self.logic.outputCenterlineCurve = None
+    # Remove node references to centerlines
+    self.UpdateInputNodeWithOutputNodes()
 #
 # FiducialCenterlineExtractionLogic
 #
@@ -386,24 +445,7 @@ class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
 
   def setExtractCenterlines(self, value):
     self.extractCenterlines = value
-    
-  def removeOutputNodes(self):
-    # Remove child centerline curves of self.outputCenterlineCurve
-    shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
-    outputCurveMainId = shNode.GetItemByDataNode(self.outputCenterlineCurve)
-    if (outputCurveMainId > 0) and (outputCurveMainId != shNode.GetSceneItemID()):
-        while shNode.GetNumberOfItemChildren(outputCurveMainId):
-            outputCurveChildId = shNode.GetItemByPositionUnderParent(outputCurveMainId, 0)
-            outputCurveChild = shNode.GetItemDataNode(outputCurveChildId)
-            slicer.mrmlScene.RemoveNode(outputCurveChild)
-
-    slicer.mrmlScene.RemoveNode(self.outputSegmentation)
-    slicer.mrmlScene.RemoveNode(self.outputCenterlineModel)
-    slicer.mrmlScene.RemoveNode(self.outputCenterlineCurve)
-    self.outputSegmentation = None
-    self.outputCenterlineModel = None
-    self.outputCenterlineCurve = None
-
+  
   def setDefaultParameters(self, parameterNode):
     """
     Initialize parameter node with default settings.
@@ -430,9 +472,6 @@ class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     import time
     startTime = time.time()
     logging.info('Processing started')
-
-    # Don't stack many segmentations. Environment may quickly become confusing. Work with only one segmentation.
-    self.removeOutputNodes()
     
     slicer.util.showStatusMessage("Segment editor setup")
     slicer.app.processEvents()
@@ -444,9 +483,14 @@ class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     if not self.segmentEditorWidgets:
         self.segmentEditorWidgets = SegmentEditorWidgets()
         self.segmentEditorWidgets.findWidgets()
-    # Create a new segmentation. It will contain only one segment.
-    segmentation=slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode")
-    self.outputSegmentation = segmentation
+    # Create a new segmentation if none is specified.
+    if not self.outputSegmentation:
+        segmentation=slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode")
+        self.outputSegmentation = segmentation
+    else:
+        # Prefer a local reference for readability
+        segmentation = self.outputSegmentation
+        
     # Local direct reference to slicer.modules.SegmentEditorWidget.editor
     seWidgetEditor=self.segmentEditorWidgets.widgetEditor
 
@@ -462,11 +506,34 @@ class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     mainWindow = slicer.util.mainWindow()
     mainWindow.moduleSelector().selectModule('SegmentEditor')
     
-    # Add a new segment
-    newSegmentQPushButton = self.segmentEditorWidgets.newSegmentQPushButton
-    newSegmentQPushButton.click()
+    #---------------------- Manage segment --------------------
+    # Remove a segment node and keep its color
+    segment = None
+    segmentColor = []
+    """
+    Control the segment ID.
+    It will be the same in all segmentations.
+    We can reach it precisely.
+    """
+    segmentID = "Segment_" + self.inputFiducialNode.GetID()
+    segment = segmentation.GetSegmentation().GetSegment(segmentID)
+    if segment:
+        segmentColor = segment.GetColor()
+        segmentation.GetSegmentation().RemoveSegment(segment)
     
-    # Use 'Flood filling' effect. Each fiducial point will be a user click.
+    # Add a new segment, with controlled ID and known color.
+    object = segmentation.GetSegmentation().AddEmptySegment(segmentID)
+    segment = segmentation.GetSegmentation().GetSegment(object)
+    # Visually identify the segment by the input fiducial name
+    segmentName = "Segment_" + self.inputFiducialNode.GetName()
+    segment.SetName(segmentName)
+    if len(segmentColor):
+        segment.SetColor(segmentColor)
+    # Select new segment
+    seWidgetEditor.setCurrentSegmentID(segmentID)
+    
+    #---------------------- Flood filling --------------------
+    # Each fiducial point will be a user click.
     # Set parameters
     seWidgetEditor.setActiveEffectByName("Flood filling")
     ffEffect = seWidgetEditor.activeEffect()
@@ -525,6 +592,7 @@ class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
         self.extractCenterlineWidgets.findWidgets()
     
     inputSurfaceComboBox = self.extractCenterlineWidgets.inputSurfaceComboBox
+    inputSegmentSelectorWidget = self.extractCenterlineWidgets.inputSegmentSelectorWidget
     endPointsMarkupsSelector = self.extractCenterlineWidgets.endPointsMarkupsSelector
     outputCenterlineModelSelector = self.extractCenterlineWidgets.outputCenterlineModelSelector
     outputCenterlineCurveSelector = self.extractCenterlineWidgets.outputCenterlineCurveSelector
@@ -533,15 +601,24 @@ class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     
     # Set input segmentation and endpoints
     inputSurfaceComboBox.setCurrentNode(segmentation)
+    inputSegmentSelectorWidget.setCurrentSegmentID(segmentID)
     endPointsMarkupsSelector.setCurrentNode(self.inputFiducialNode)
-    # Output centerline model
-    centerlineModel = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode")
+    # Output centerline model. A single node throughout.
+    centerlineModel = self.outputCenterlineModel
+    if not centerlineModel:
+        centerlineModel = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode")
+        # Visually identify the segment by the input fiducial name
+        centerlineModel.SetName("Centerline_model_" + self.inputFiducialNode.GetName())
+        self.outputCenterlineModel = centerlineModel
     outputCenterlineModelSelector.setCurrentNode(centerlineModel)
-    self.outputCenterlineModel = centerlineModel
-    # Output centerline curve
-    centerlineCurve = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsCurveNode")
+    # Output centerline curve. A single node throughout.
+    centerlineCurve = self.outputCenterlineCurve
+    if not centerlineCurve:
+        centerlineCurve = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsCurveNode")
+        # Visually identify the segment by the input fiducial name
+        centerlineCurve.SetName("Centerline_curve_" + self.inputFiducialNode.GetName())
+        self.outputCenterlineCurve = centerlineCurve
     outputCenterlineCurveSelector.setCurrentNode(centerlineCurve)
-    self.outputCenterlineCurve = centerlineCurve
     """
     Don't preprocess input surface. Decimation error may crash Slicer. Quadric method for decimation is slower but more reliable.
     """
@@ -647,7 +724,7 @@ class ExtractCenterlineWidgets(ScriptedLoadableModule):
         self.applyButton = None
         self.inputSurfaceComboBox = None
         self.endPointsMarkupsSelector = None
-        self.inputSegmentSelectorWidget = None # Unused
+        self.inputSegmentSelectorWidget = None
         self.outputNetworkGroupBox = None
         self.outputTreeGroupBox = None
         self.outputCenterlineModelSelector = None

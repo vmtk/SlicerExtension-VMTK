@@ -22,6 +22,10 @@ The 'Flood filling' effect will be applied at each point in this slice view. The
 
 An ROI must be used to limit the segmentation. Using an ROI may save time, both during segmentation and during centerline extraction. A helper button pre-fits the ROI bounds to that of the input fiducial node. Manual resizing of the ROI is *unavoidable* to enclose the anatomical region of interest.
 
+**Output segmentation node**
+
+If no segmentation node is specified, one will be created, and it will persist across runs. An arbitrary segmentation node may also be provided. Segments will be added to the segmentation node, one for each input fiducial.
+
 **Flood filling parameters**
 
 Please refer to the manual of '[Segment editor extra effects](https://github.com/lassoan/SlicerSegmentEditorExtraEffects)' for their meaning. In brief, high values are needed for 'Intensity tolerance' with contrasted CT angiograms; increasing the value of 'Neighbourhood size' prevents leakage during segmentation.
@@ -31,8 +35,6 @@ Please refer to the manual of '[Segment editor extra effects](https://github.com
 Check this to call the 'Extract centerline' module. It is optional by default because it make take much time, depending on the input surface. It is recommended to generate a segmentation first. Once it is considered reliable, generate a centerline model and a centerline curve as a last step.
 
 **Notes**
-
-On repeat run, all output nodes are removed from scene and replaced by new ones.
 
 If the centerlines are not extracted though the segmentation is good, interaction is required. Smoothing with ‘Fill holes’ at minimal kernel size helps to create centerlines (smoothing may be faster using the 3D brush). Afterwards, work should be continued directly in ‘Extract centerline’ module obviously.
 
