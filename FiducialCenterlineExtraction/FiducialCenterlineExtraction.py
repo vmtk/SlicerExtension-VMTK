@@ -603,6 +603,7 @@ class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     inputSurfaceComboBox.setCurrentNode(segmentation)
     inputSegmentSelectorWidget.setCurrentSegmentID(segmentID)
     endPointsMarkupsSelector.setCurrentNode(self.inputFiducialNode)
+    
     # Output centerline model. A single node throughout.
     centerlineModel = self.outputCenterlineModel
     if not centerlineModel:
@@ -610,7 +611,10 @@ class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
         # Visually identify the segment by the input fiducial name
         centerlineModel.SetName("Centerline_model_" + self.inputFiducialNode.GetName())
         self.outputCenterlineModel = centerlineModel
+    # Account for rename
+    centerlineModel.SetName("Centerline_model_" + self.inputFiducialNode.GetName())
     outputCenterlineModelSelector.setCurrentNode(centerlineModel)
+    
     # Output centerline curve. A single node throughout.
     centerlineCurve = self.outputCenterlineCurve
     if not centerlineCurve:
@@ -618,7 +622,10 @@ class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
         # Visually identify the segment by the input fiducial name
         centerlineCurve.SetName("Centerline_curve_" + self.inputFiducialNode.GetName())
         self.outputCenterlineCurve = centerlineCurve
+    # Account for rename
+    centerlineCurve.SetName("Centerline_curve_" + self.inputFiducialNode.GetName())
     outputCenterlineCurveSelector.setCurrentNode(centerlineCurve)
+    
     """
     Don't preprocess input surface. Decimation error may crash Slicer. Quadric method for decimation is slower but more reliable.
     """

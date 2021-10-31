@@ -659,6 +659,8 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
         outputFiducialNode.AddControlPointWorld(lastInputCurveControlPoint)
         endPointsMarkupsSelector.setCurrentNode(outputFiducialNode)
         self.outputFiducialNode = outputFiducialNode
+    # Account for rename. Control points are not remaned though.
+    outputFiducialNode.SetName("Endpoints_" + self.inputCurveNode.GetName())
     
     # Output centerline model. A single node throughout.
     centerlineModel = self.outputCenterlineModel
@@ -667,7 +669,10 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
         # Visually identify the segment by the input fiducial name
         centerlineModel.SetName("Centerline_model_" + self.inputCurveNode.GetName())
         self.outputCenterlineModel = centerlineModel
+    # Account for rename
+    centerlineModel.SetName("Centerline_model_" + self.inputCurveNode.GetName())
     outputCenterlineModelSelector.setCurrentNode(centerlineModel)
+    
     # Output centerline curve. A single node throughout.
     centerlineCurve = self.outputCenterlineCurve
     if not centerlineCurve:
@@ -675,6 +680,9 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
         # Visually identify the segment by the input fiducial name
         centerlineCurve.SetName("Centerline_curve_" + self.inputCurveNode.GetName())
         self.outputCenterlineCurve = centerlineCurve
+    # Account for rename
+    centerlineCurve.SetName("Centerline_curve_" + self.inputCurveNode.GetName())
+    
     outputCenterlineCurveSelector.setCurrentNode(centerlineCurve)
     """
     Don't preprocess input surface. Decimation error may crash Slicer. Quadric method for decimation is slower but more reliable.
