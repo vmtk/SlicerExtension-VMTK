@@ -96,6 +96,7 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
     self.ui.intensityToleranceSpinBox.connect("valueChanged(int)", self.logic.setIntensityTolerance)
     self.ui.neighbourhoodSizeDoubleSpinBox.connect("valueChanged(double)", self.logic.setNeighbourhoodSize)
     self.ui.extractCenterlinesCheckBox.connect("toggled(bool)", self.logic.setExtractCenterlines)
+    self.ui.restoreSliceViewToolButton.connect("clicked()", self.onRestoreSliceViews)
 
     # Buttons
     self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
@@ -127,6 +128,9 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
     referencedSegmentationNode = node.GetNodeReference("OutputSegmentation")
     if referencedSegmentationNode:
         self.ui.outputSegmentationSelector.setCurrentNode(referencedSegmentationNode)
+    # Show last known volume used for segmentation.
+    referencedInputVolume = node.GetNodeReference("InputVolumeNode")
+    self.updateSliceViews(referencedInputVolume)
     # Reuse last known parameters
     self.updateGUIParametersFromInputNode()
   
@@ -135,6 +139,36 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
         self.logic.setInputSliceNode(None)
         return
     self.logic.setInputSliceNode(node)
+
+  def updateSliceViews(self, node):
+    # Don't allow None node, is very annoying.
+    if not node:
+        return
+    sliceNode = self.logic.inputSliceNode
+    if not sliceNode:
+        return
+    # Don't upset UI if we have the right volume node
+    sliceWidget = slicer.app.layoutManager().sliceWidget(sliceNode.GetName())
+    volumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
+    if node == volumeNode:
+        return
+    views = slicer.app.layoutManager().sliceViewNames()
+    for view in views:
+        sliceWidget = slicer.app.layoutManager().sliceWidget(view)
+        sliceCompositeNode = sliceWidget.sliceLogic().GetSliceCompositeNode()
+        if node is not None:
+            sliceCompositeNode.SetBackgroundVolumeID(node.GetID())
+            sliceWidget.sliceLogic().FitSliceToAll()
+        else:
+            sliceCompositeNode.SetBackgroundVolumeID(None)
+
+  def onRestoreSliceViews(self):
+    # Show last known volume used for segmentation.
+    inputCurveNode = self.ui.inputCurveSelector.currentNode()
+    if not inputCurveNode:
+        return
+    referencedInputVolume = inputCurveNode.GetNodeReference("InputVolumeNode")
+    self.updateSliceViews(referencedInputVolume)
     
   def cleanup(self):
     """
@@ -269,6 +303,12 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
     if not self.logic.inputCurveNode:
         return
     wasModified = self.logic.inputCurveNode.StartModify()
+    
+    sliceNode = self.logic.inputSliceNode
+    sliceWidget = slicer.app.layoutManager().sliceWidget(sliceNode.GetName())
+    volumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
+    self.logic.inputCurveNode.SetNodeReferenceID("InputVolumeNode", volumeNode.GetID())
+    
     self.logic.inputCurveNode.SetAttribute("TubeDiameter", str(self.ui.tubeDiameterSpinBox.value))
     self.logic.inputCurveNode.SetAttribute("InputIntensityTolerance", str(self.ui.intensityToleranceSpinBox.value))
     self.logic.inputCurveNode.SetAttribute("NeighbourhoodSize", str(self.ui.neighbourhoodSizeDoubleSpinBox.value))

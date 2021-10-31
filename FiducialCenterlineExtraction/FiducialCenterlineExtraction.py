@@ -98,6 +98,7 @@ class FiducialCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObserv
     self.ui.neighbourhoodSizeDoubleSpinBox.connect("valueChanged(double)", self.logic.setNeighbourhoodSize)
     self.ui.extractCenterlinesCheckBox.connect("toggled(bool)", self.logic.setExtractCenterlines)
     self.ui.preFitROIToolButton.connect("clicked()", self.preFitROI)
+    self.ui.restoreSliceViewToolButton.connect("clicked()", self.onRestoreSliceViews)
 
     # Buttons
     self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
@@ -129,6 +130,9 @@ class FiducialCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObserv
     referencedSegmentationNode = node.GetNodeReference("OutputSegmentation")
     if referencedSegmentationNode:
         self.ui.outputSegmentationSelector.setCurrentNode(node.GetNodeReference("OutputSegmentation"))
+    # Show last known volume used for segmentation.
+    referencedInputVolume = node.GetNodeReference("InputVolumeNode")
+    self.updateSliceViews(referencedInputVolume)
     # Reuse last known parameters
     self.updateGUIParametersFromInputNode()
   
@@ -163,6 +167,36 @@ class FiducialCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObserv
     inputROINode.SetRadiusXYZ((lengths[0] / 2, lengths[1] / 2, lengths[2] / 2))
     inputROINode.SetDisplayVisibility(True)
 
+  def updateSliceViews(self, volumeNode):
+    # Don't allow None node, is very annoying.
+    if not volumeNode:
+        return
+    sliceNode = self.logic.inputSliceNode
+    if not sliceNode:
+        return
+    # Don't upset UI if we have the right volume node
+    sliceWidget = slicer.app.layoutManager().sliceWidget(sliceNode.GetName())
+    backgroudVolumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
+    if volumeNode == backgroudVolumeNode:
+        return
+    views = slicer.app.layoutManager().sliceViewNames()
+    for view in views:
+        sliceWidget = slicer.app.layoutManager().sliceWidget(view)
+        sliceCompositeNode = sliceWidget.sliceLogic().GetSliceCompositeNode()
+        if volumeNode is not None:
+            sliceCompositeNode.SetBackgroundVolumeID(volumeNode.GetID())
+            sliceWidget.sliceLogic().FitSliceToAll()
+        else:
+            sliceCompositeNode.SetBackgroundVolumeID(None)
+
+  def onRestoreSliceViews(self):
+    # Show last known volume used for segmentation.
+    inputFiducialNode = self.ui.inputFiducialSelector.currentNode()
+    if not inputFiducialNode:
+        return
+    referencedInputVolume = inputFiducialNode.GetNodeReference("InputVolumeNode")
+    self.updateSliceViews(referencedInputVolume)
+  
   def cleanup(self):
     """
     Called when the application closes and the module widget is destroyed.
@@ -297,6 +331,12 @@ class FiducialCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObserv
     if not self.logic.inputFiducialNode:
         return
     wasModified = self.logic.inputFiducialNode.StartModify()
+    
+    sliceNode = self.logic.inputSliceNode
+    sliceWidget = slicer.app.layoutManager().sliceWidget(sliceNode.GetName())
+    volumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
+    self.logic.inputFiducialNode.SetNodeReferenceID("InputVolumeNode", volumeNode.GetID())
+    
     inputROINodeID = self.logic.inputROINode.GetID()
     self.logic.inputFiducialNode.SetNodeReferenceID("InputROINode", inputROINodeID)
     self.logic.inputFiducialNode.SetAttribute("InputIntensityTolerance", str(self.ui.intensityToleranceSpinBox.value))
