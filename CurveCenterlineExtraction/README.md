@@ -18,6 +18,10 @@ At least 3 control points are required. All control points must lie in the contr
 
 The 'Flood filling' effect will be applied at each point in this slice view. The current offset will be changed consequently.
 
+**Output segmentation node**
+
+If no segmentation node is specified, one will be created, and it will persist across runs. An arbitrary segmentation node may also be provided. Segments will be added to the segmentation node, one for each input curve.
+
 **Input tube diameter**
 
 This value should be slightly greater than the maximum estimated diameter of the artery.
@@ -31,8 +35,6 @@ Please refer to the manual of '[Segment editor extra effects](https://github.com
 Check this to call the 'Extract centerline' module. It is optional by default because it make take much time, depending on the input surface. It is recommended to generate a segmentation first. Once it is considered reliable, generate a centerline model and a centerline curve as a last step.
 
 **Notes**
-
-On repeat run, all output nodes are removed from scene and replaced by new ones.
 
 If the centerlines are not extracted though the segmentation is good, interaction is required. Smoothing with ‘Fill holes’ at minimal kernel size helps to create centerlines (smoothing may be faster using the 3D brush). Afterwards, work should be continued directly in ‘Extract centerline’ module obviously.
 

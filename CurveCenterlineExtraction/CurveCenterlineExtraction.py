@@ -123,6 +123,12 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
         self.logic.setInputCurveNode(None)
         return
     self.logic.setInputCurveNode(node)
+    # Update UI with previous referenced segmentation. May be changed before logic.process().
+    referencedSegmentationNode = node.GetNodeReference("OutputSegmentation")
+    if referencedSegmentationNode:
+        self.ui.outputSegmentationSelector.setCurrentNode(referencedSegmentationNode)
+    # Reuse last known parameters
+    self.updateGUIParametersFromInputNode()
   
   def onSliceNode(self, node):
     if node is None:
@@ -239,6 +245,10 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
 
     self._parameterNode.EndModify(wasModified)
 
+  """
+  Let each one trace last used parameter values and output nodes.
+  These can be restored when an input curve is selected again.
+  """
   def UpdateInputNodeWithThisOutputNode(self, outputNode, referenceID):
     outputNodeID = ""
     if outputNode:
@@ -254,19 +264,40 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
     self.UpdateInputNodeWithThisOutputNode(self.logic.outputCenterlineModel, "OutputCenterlineModel")
     self.UpdateInputNodeWithThisOutputNode(self.logic.outputCenterlineCurve, "OutputCenterlineCurve")
     self.logic.inputCurveNode.EndModify(wasModified)
-    
+
+  def UpdateInputNodeWithParameters(self):
+    if not self.logic.inputCurveNode:
+        return
+    wasModified = self.logic.inputCurveNode.StartModify()
+    self.logic.inputCurveNode.SetAttribute("TubeDiameter", str(self.ui.tubeDiameterSpinBox.value))
+    self.logic.inputCurveNode.SetAttribute("InputIntensityTolerance", str(self.ui.intensityToleranceSpinBox.value))
+    self.logic.inputCurveNode.SetAttribute("NeighbourhoodSize", str(self.ui.neighbourhoodSizeDoubleSpinBox.value))
+    self.logic.inputCurveNode.EndModify(wasModified)
+
+  # Restore parameters from input curve
+  def updateGUIParametersFromInputNode(self):
+    if not self.logic.inputCurveNode:
+        return
+    tubeDiameter = self.logic.inputCurveNode.GetAttribute("TubeDiameter")
+    if tubeDiameter:
+        self.ui.tubeDiameterSpinBox.value = float(tubeDiameter)
+    intensityTolerance = self.logic.inputCurveNode.GetAttribute("InputIntensityTolerance")
+    if intensityTolerance:
+        self.ui.intensityToleranceSpinBox.value = int(intensityTolerance)
+    neighbourhoodSize = self.logic.inputCurveNode.GetAttribute("NeighbourhoodSize")
+    if neighbourhoodSize:
+        self.ui.neighbourhoodSizeDoubleSpinBox.value = float(neighbourhoodSize)
+
+  # Restore output nodes in logic
   def UpdateLogicWithOutputNodes(self):
     if not self.logic.inputCurveNode:
         return
     self.logic.outputFiducialNode = self.logic.inputCurveNode.GetNodeReference("OutputFiducialNode")
-    self.logic.outputSegmentation = self.logic.inputCurveNode.GetNodeReference("OutputSegmentation")
+    # Here we use a segmentation specified in UI, not the one referenced in the input fiducial.
+    self.logic.outputSegmentation = self.ui.outputSegmentationSelector.currentNode()
     self.logic.outputCenterlineModel = self.logic.inputCurveNode.GetNodeReference("OutputCenterlineModel")
     self.logic.outputCenterlineCurve = self.logic.inputCurveNode.GetNodeReference("OutputCenterlineCurve")
 
-  def removeOutputNodes(self):
-    self.logic.removeOutputNodes()
-    self.UpdateInputNodeWithOutputNodes()
-    
   def onApplyButton(self):
     """
     Run processing when user clicks "Apply" button.
@@ -288,19 +319,42 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
         if volumeNode is None:
             self.inform("No volume node selected in input slice node.")
             return
-        # Restore logic output objects with saved ones. They will be replaced.
+        # Restore logic output objects with referenced ones.
         self.UpdateLogicWithOutputNodes()
         # Compute output
         self.logic.process()
         # Update parameter node with references to new output nodes.
         self.UpdateInputNodeWithOutputNodes()
+        # Update input node with input parameters.
+        self.UpdateInputNodeWithParameters()
+        # Update segmentation selector if it was none
+        self.ui.outputSegmentationSelector.setCurrentNode(self.logic.outputSegmentation)
 
     except Exception as e:
       slicer.util.errorDisplay("Failed to compute results: "+str(e))
       import traceback
       traceback.print_exc()
 
-
+  # Handy during development
+  def removeOutputNodes(self):
+    inputCurveNode = self.ui.inputCurveSelector.currentNode()
+    if not inputCurveNode:
+        return
+    slicer.mrmlScene.RemoveNode(inputCurveNode.GetNodeReference("OutputFiducialNode"))
+    slicer.mrmlScene.RemoveNode(inputCurveNode.GetNodeReference("OutputCenterlineModel"))
+    slicer.mrmlScene.RemoveNode(inputCurveNode.GetNodeReference("OutputCenterlineCurve"))
+    self.logic.outputCurveNode = None
+    self.logic.outputCenterlineModel = None
+    self.logic.outputCenterlineCurve = None
+    
+    # Remove segment, ID is controlled.
+    segmentation = inputCurveNode.GetNodeReference("OutputSegmentation")
+    segmentID = "Segment_" + inputCurveNode.GetID()
+    segment = segmentation.GetSegmentation().GetSegment(segmentID)
+    if segment:
+        segmentation.GetSegmentation().RemoveSegment(segment)
+    # Remove node references to centerlines and enpoint fiducial
+    self.UpdateInputNodeWithOutputNodes()
 #
 # CurveCenterlineExtractionLogic
 #
@@ -358,30 +412,6 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
   def setExtractCenterlines(self, value):
     self.extractCenterlines = value
 
-  def removeOutputNodes(self):
-    # https://discourse.slicer.org/t/how-to-collapse-a-folder-by-code/20082
-    # Get segmentation ID and it's parent folder in subject hierarchy.
-    shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
-    segmentationItemID = shNode.GetItemByDataNode(self.outputSegmentation)
-    parentID = shNode.GetItemParent(segmentationItemID)
-    
-    slicer.mrmlScene.RemoveNode(self.outputFiducialNode)
-    slicer.mrmlScene.RemoveNode(self.outputSegmentation)
-    slicer.mrmlScene.RemoveNode(self.outputCenterlineModel)
-    slicer.mrmlScene.RemoveNode(self.outputCenterlineCurve)
-    self.outputFiducialNode = None
-    self.outputSegmentation = None
-    self.outputCenterlineModel = None
-    self.outputCenterlineCurve = None
-    
-    """
-    Remove folder containing removed segmentation. This folder is created by 'Split volume', and it appropriates itself the Segmentation node.
-    However, after smoothing, the segmentation subject hierarchy item is reparented to the study item, and is no longer a child of the folder item. Avoid removing the study. There will be left over folders, and it's not possible to identify them reliably.
-    """
-    if shNode.GetItemLevel(parentID) == "Folder":
-        if shNode.GetNumberOfItemChildren(parentID) == 0:
-            shNode.RemoveItem(parentID)
-
   def setDefaultParameters(self, parameterNode):
     """
     Initialize parameter node with default settings.
@@ -411,9 +441,6 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     startTime = time.time()
     logging.info('Processing started')
     
-    # Don't stack many segmentations. Environment may quickly become confusing. Work with only one segmentation.
-    self.removeOutputNodes()
-    
     slicer.util.showStatusMessage("Segment editor setup")
     slicer.app.processEvents()
     """
@@ -425,9 +452,14 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
         self.segmentEditorWidgets = SegmentEditorWidgets()
         self.segmentEditorWidgets.findWidgets()
 
-    # Create a new segmentation. It will contain only one segment.
-    segmentation=slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode")
-    self.outputSegmentation = segmentation
+    # Create a new segmentation if none is specified.
+    if not self.outputSegmentation:
+        segmentation=slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode")
+        self.outputSegmentation = segmentation
+    else:
+        # Prefer a local reference for readability
+        segmentation = self.outputSegmentation
+
     # Local direct reference to slicer.modules.SegmentEditorWidget.editor
     seWidgetEditor=self.segmentEditorWidgets.widgetEditor
 
@@ -462,7 +494,7 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     tube.SetNumberOfSides(30)
     tube.CappingOn()
     tube.Update()
-    segmentation.AddSegmentFromClosedSurfaceRepresentation(tube.GetOutput(), "tempTube")
+    segmentation.AddSegmentFromClosedSurfaceRepresentation(tube.GetOutput(), "TubeMask")
     
     #---------------------- Split volume ---------------------
     slicer.util.showStatusMessage("Split volume")
@@ -480,16 +512,47 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     allScalarVolumeNodes = slicer.mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
     outputSplitVolumeNode = allScalarVolumeNodes.GetItemAsObject(allScalarVolumeNodes.GetNumberOfItems() - 1)
     # Remove no longer needed drawn tube segment
-    segment = segmentation.GetSegmentation().GetSegment("tempTube")
+    segment = segmentation.GetSegmentation().GetSegment("TubeMask")
     segmentation.GetSegmentation().RemoveSegment(segment)
     # Replace master volume of segmentation
     seWidgetEditor.setMasterVolumeNode(outputSplitVolumeNode)
     segmentation.SetReferenceImageGeometryParameterFromVolumeNode(outputSplitVolumeNode)
     
+    #---------------------- Workaround ------------------------
+    # See below
+    shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
+    shSplitVolumeId = shNode.GetItemByDataNode(outputSplitVolumeNode)
+    shSplitVolumeParentId = shNode.GetItemParent(shSplitVolumeId)
+    shSegmentationId = shNode.GetItemByDataNode(segmentation)
+    shSceneId = shNode.GetSceneItemID()
+    
+    #---------------------- Manage segment --------------------
+    # Remove a segment node and keep its color
+    segment = None
+    segmentColor = []
+    """
+    Control the segment ID.
+    It will be the same in all segmentations.
+    We can reach it precisely.
+    """
+    segmentID = "Segment_" + self.inputCurveNode.GetID()
+    segment = segmentation.GetSegmentation().GetSegment(segmentID)
+    if segment:
+        segmentColor = segment.GetColor()
+        segmentation.GetSegmentation().RemoveSegment(segment)
+    
+    # Add a new segment, with controlled ID and known color.
+    object = segmentation.GetSegmentation().AddEmptySegment(segmentID)
+    segment = segmentation.GetSegmentation().GetSegment(object)
+    # Visually identify the segment by the input fiducial name
+    segmentName = "Segment_" + self.inputCurveNode.GetName()
+    segment.SetName(segmentName)
+    if len(segmentColor):
+        segment.SetColor(segmentColor)
+    # Select new segment
+    seWidgetEditor.setCurrentSegmentID(segmentID)
+    
     #---------------------- Flood filling ---------------------
-    # Add a new segment : from splt volume segment
-    newSegmentQPushButton = self.segmentEditorWidgets.newSegmentQPushButton
-    newSegmentQPushButton.click()
     # Set parameters
     seWidgetEditor.setActiveEffectByName("Flood filling")
     ffEffect = seWidgetEditor.activeEffect()
@@ -524,8 +587,38 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     # Replace master volume of segmentation
     seWidgetEditor.setMasterVolumeNode(volumeNode)
     segmentation.SetReferenceImageGeometryParameterFromVolumeNode(volumeNode)
-    # Remove no longer needed split volume
+    # Remove no longer needed split volume.
     slicer.mrmlScene.RemoveNode(outputSplitVolumeNode)
+    """
+    WORKAROUND : remove stray nodes
+    - "$VOLUME_NAME split" : a folder created by 'Split volume'
+    - "$VOLUME_NAME Segment_$CURVENAME{_$INDEX}" : don't know where it comes
+    from. It appears on second run and next, with same input curve in same
+    segmentation. The segmentation item is a child of that folder.
+    It becomes really messy. We remove them with thorough checking.
+    """
+    # First, reparent the segmentation item to scene item.
+    shNode.SetItemParent(shSegmentationId, shSceneId)
+    # Remove an empty folder directly
+    if shNode.GetNumberOfItemChildren(shSplitVolumeParentId) == 0:
+        if shNode.GetItemLevel(shSplitVolumeParentId) == "Folder":
+            shNode.RemoveItem(shSplitVolumeParentId)
+    else:
+        """
+        Iterate through each child item of the folder. Each one must be scalar
+        volume node (observational).
+        Flag for removal if there are only scalar volume nodes.
+        """
+        canRemove = True
+        for i in range(shNode.GetNumberOfItemChildren(shSplitVolumeParentId)):
+            shWeirdId = shNode.GetItemByPositionUnderParent(shSplitVolumeParentId, i)
+            weirdNode = shNode.GetItemDataNode(shWeirdId)
+            if not weirdNode.IsA("vtkMRMLScalarVolumeNode"):
+                canRemove = False
+                break
+        if canRemove:
+            if shNode.GetItemLevel(shSplitVolumeParentId) == "Folder":
+                shNode.RemoveItem(shSplitVolumeParentId)
     
     if not self.extractCenterlines:
         stopTime = time.time()
@@ -543,6 +636,7 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
         self.extractCenterlineWidgets.findWidgets()
     
     inputSurfaceComboBox = self.extractCenterlineWidgets.inputSurfaceComboBox
+    inputSegmentSelectorWidget = self.extractCenterlineWidgets.inputSegmentSelectorWidget
     endPointsMarkupsSelector = self.extractCenterlineWidgets.endPointsMarkupsSelector
     outputCenterlineModelSelector = self.extractCenterlineWidgets.outputCenterlineModelSelector
     outputCenterlineCurveSelector = self.extractCenterlineWidgets.outputCenterlineCurveSelector
@@ -551,23 +645,37 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     
     # Set input segmentation
     inputSurfaceComboBox.setCurrentNode(segmentation)
-    # Create 2 fiducial endpoints, at start and end of input curve. We call it output because it is not user input. It is replaced on successive runs.
-    self.outputFiducialNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
-    firstInputCurveControlPoint = self.inputCurveNode.GetNthControlPointPositionVector(0)
-    self.outputFiducialNode.AddControlPointWorld(firstInputCurveControlPoint)
-    endPointsMarkupsSelector.setCurrentNode(self.outputFiducialNode)
-    lastInputCurveControlPoint = self.inputCurveNode.GetNthControlPointPositionVector(curveControlPoints.GetNumberOfPoints() - 1)
-    self.outputFiducialNode.AddControlPointWorld(lastInputCurveControlPoint)
-    endPointsMarkupsSelector.setCurrentNode(self.outputFiducialNode)
+    inputSegmentSelectorWidget.setCurrentSegmentID(segmentID)
+    # Create 2 fiducial endpoints, at start and end of input curve. We call it output because it is not user input.
+    outputFiducialNode = self.outputFiducialNode
+    if not outputFiducialNode:
+        outputFiducialNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
+        # Visually identify the segment by the input fiducial name
+        outputFiducialNode.SetName("Endpoints_" + self.inputCurveNode.GetName())
+        firstInputCurveControlPoint = self.inputCurveNode.GetNthControlPointPositionVector(0)
+        outputFiducialNode.AddControlPointWorld(firstInputCurveControlPoint)
+        endPointsMarkupsSelector.setCurrentNode(outputFiducialNode)
+        lastInputCurveControlPoint = self.inputCurveNode.GetNthControlPointPositionVector(curveControlPoints.GetNumberOfPoints() - 1)
+        outputFiducialNode.AddControlPointWorld(lastInputCurveControlPoint)
+        endPointsMarkupsSelector.setCurrentNode(outputFiducialNode)
+        self.outputFiducialNode = outputFiducialNode
     
-    # Output centerline model
-    centerlineModel = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode")
+    # Output centerline model. A single node throughout.
+    centerlineModel = self.outputCenterlineModel
+    if not centerlineModel:
+        centerlineModel = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode")
+        # Visually identify the segment by the input fiducial name
+        centerlineModel.SetName("Centerline_model_" + self.inputCurveNode.GetName())
+        self.outputCenterlineModel = centerlineModel
     outputCenterlineModelSelector.setCurrentNode(centerlineModel)
-    self.outputCenterlineModel = centerlineModel
-    # Output centerline curve
-    centerlineCurve = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsCurveNode")
+    # Output centerline curve. A single node throughout.
+    centerlineCurve = self.outputCenterlineCurve
+    if not centerlineCurve:
+        centerlineCurve = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsCurveNode")
+        # Visually identify the segment by the input fiducial name
+        centerlineCurve.SetName("Centerline_curve_" + self.inputCurveNode.GetName())
+        self.outputCenterlineCurve = centerlineCurve
     outputCenterlineCurveSelector.setCurrentNode(centerlineCurve)
-    self.outputCenterlineCurve = centerlineCurve
     """
     Don't preprocess input surface. Decimation error may crash Slicer. Quadric method for decimation is slower but more reliable.
     """
@@ -670,7 +778,7 @@ class ExtractCenterlineWidgets(ScriptedLoadableModule):
         self.applyButton = None
         self.inputSurfaceComboBox = None
         self.endPointsMarkupsSelector = None
-        self.inputSegmentSelectorWidget = None # Unused
+        self.inputSegmentSelectorWidget = None
         self.outputNetworkGroupBox = None
         self.outputTreeGroupBox = None
         self.outputCenterlineModelSelector = None
