@@ -5,6 +5,7 @@ import vtk, qt, ctk, slicer
 import numpy as np
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
+import vtkSlicerCrossSectionAnalysisModuleLogicPython as LibCrossSectionCompute
 
 """
   CrossSectionAnalysis : renamed from CenterlineMetrics, and merged with former deprecated CrossSectionAnalysis module.
@@ -763,13 +764,20 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
         slicer.util.showStatusMessage(msg, 3000)
         raise ValueError(msg)
 
+    import time
+    startTime = time.time()
     logging.info('Processing started')
+    
     if self.outputTableNode:
       self.emptyOutputTableNode()
       self.updateOutputTable(self.inputCenterlineNode, self.outputTableNode)
     if self.outputPlotSeriesNode:
       self.updatePlot(self.outputPlotSeriesNode, self.outputTableNode, self.inputCenterlineNode.GetName())
-    logging.info('Processing completed')  
+      
+    stopTime = time.time()
+    message = f'Processing completed in {stopTime-startTime:.2f} seconds'
+    logging.info(message)
+    slicer.util.showStatusMessage(message, 5000) 
 
   def emptyOutputTableNode(self):
     # Clears the plot also.
@@ -848,31 +856,26 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.cumulateDistances(points, cumArray)
     relArray = vtk.vtkDoubleArray()
     self.updateCumulativeDistancesToRelativeOrigin(cumArray, relArray)
+
+    """
+    Fill in cross-section areas in C++ threads.
+    N.B. : polydata caching is not concerned here.
+    """
+    self.showStatusMessage(("Waiting for background jobs...", ))
+    crossSectionCompute = LibCrossSectionCompute.vtkCrossSectionCompute()
+    crossSectionCompute.SetNumberOfThreads(os.cpu_count())
+    crossSectionCompute.SetInputCenterlineNode(inputCenterline)
+    crossSectionCompute.SetInputSurfaceNode(self.lumenSurfaceNode, self.currentSegmentID)
+    crossSectionCompute.UpdateTable(crossSectionAreaArray, ceDiameterArray)
+
     for i, radius in enumerate(radii):
-        # Since we compute cross-section area sequentially, this step may be long.
+        """ Show progress anyway, even though we no longer compute
+        cross-section area sequentially."""
         if (((i + 1) % 25) == 0):
             self.showStatusMessage(("Updating table :", str(i + 1), "/", str(numberOfPoints)))
+
         distanceArray.SetValue(i, relArray.GetValue(i))
         misDiameterArray.SetValue(i, radius * 2)
-        
-        if (inputCenterline.IsTypeOf("vtkMRMLModelNode")):
-            # Exclude last point where area cannot be computed
-            if i < (len(radii) - 1):
-                crossSectionArea = self.getCrossSectionArea(i)
-                ceDiameter = (np.sqrt(crossSectionArea / np.pi)) * 2
-                crossSectionAreaArray.SetValue(i, crossSectionArea)
-                ceDiameterArray.SetValue(i, ceDiameter)
-            else:
-                # Don't use 0.0 as it would always be the minimum ! Arbitrarily choosing the previous point is not fundamentally harmful.
-                crossSectionArea = self.getCrossSectionArea(i - 1)
-                ceDiameter = (np.sqrt(crossSectionArea / np.pi)) * 2
-                crossSectionAreaArray.SetValue(i, crossSectionArea)
-                ceDiameterArray.SetValue(i, ceDiameter)
-        else:
-            crossSectionArea = self.getCrossSectionArea(i)
-            ceDiameter = (np.sqrt(crossSectionArea / np.pi)) * 2
-            crossSectionAreaArray.SetValue(i, crossSectionArea)
-            ceDiameterArray.SetValue(i, ceDiameter)
         
         # Convert each point coordinate
         if self.coordinateSystemColumnRAS:
@@ -887,11 +890,11 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
             coordinatesArray[2].SetValue(i, coordinateValues[2])
     distanceArray.Modified()
     misDiameterArray.Modified()
-    crossSectionAreaArray.Modified()
-    ceDiameterArray.Modified()
+    #crossSectionAreaArray.Modified()
+    #ceDiameterArray.Modified()
     outputTable.GetTable().Modified()
     self.showStatusMessage(("Updating table :", "finished", str(numberOfPoints), "points"))
-
+    
   def updatePlot(self, outputPlotSeries, outputTable, name=None):
 
     # Create plot
@@ -1073,8 +1076,8 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     # Work on the segment's closed surface
     closedSurfacePolyData = vtk.vtkPolyData()
     if self.lumenSurfaceNode.GetClassName() == "vtkMRMLSegmentationNode":
-      self.lumenSurfaceNode.CreateClosedSurfaceRepresentation()
-      self.lumenSurfaceNode.GetClosedSurfaceRepresentation(self.currentSegmentID, closedSurfacePolyData)
+        self.lumenSurfaceNode.CreateClosedSurfaceRepresentation()
+        self.lumenSurfaceNode.GetClosedSurfaceRepresentation(self.currentSegmentID, closedSurfacePolyData)
     else:
       closedSurfacePolyData = self.lumenSurfaceNode.GetPolyData()
 

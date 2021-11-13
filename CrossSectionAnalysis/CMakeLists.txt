@@ -1,6 +1,11 @@
 #-----------------------------------------------------------------------------
 set(MODULE_NAME CrossSectionAnalysis)
 
+if(${Slicer_VERSION_MAJOR}.${Slicer_VERSION_MINOR} VERSION_GREATER 4.11)
+  message(STATUS "Slicer version: ${Slicer_VERSION_MAJOR}.${Slicer_VERSION_MINOR}.${Slicer_VERSION_PATCH}. Trying parallel cross-section calculation with threads")
+    add_subdirectory(cpp)
+endif()
+
 #-----------------------------------------------------------------------------
 set(MODULE_PYTHON_SCRIPTS
   ${MODULE_NAME}.py
