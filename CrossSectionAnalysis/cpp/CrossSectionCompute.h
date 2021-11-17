@@ -76,8 +76,7 @@ private:
    * and deletes it on completion.
    * Each thread receives a range of centerline points.
    */
-  static void DoCompute(vtkDoubleArray * crossSectionAreaArray,
-			vtkDoubleArray * ceDiameterArray,
+  static void DoCompute(vtkDoubleArray * bufferArray,
 			unsigned int startPointIndex,
 			unsigned int endPointIndex,
 			vtkCrossSectionCompute * worker);
@@ -89,7 +88,7 @@ private:
    */
   void SetClosedSurfacePolyData(vtkPolyData * inputClosedSurfacePolyData)
   {
-    closedSurfacePolyData = inputClosedSurfacePolyData;;
+    closedSurfacePolyData = inputClosedSurfacePolyData;
   }
   
   /*

@@ -27,11 +27,12 @@ vtkCrossSectionCompute::vtkCrossSectionCompute()
   inputCenterlineNode = NULL;
   inputSurfaceNode = NULL;
   inputSegmentID = "";
-  closedSurfacePolyData = vtkPolyData::New();
+  closedSurfacePolyData = vtkSmartPointer<vtkPolyData>::New();
 }
 
 vtkCrossSectionCompute::~vtkCrossSectionCompute()
 {
+    std::cout << "DTOR" << std::endl;
 }
 
 // Translated and adapted from the Python implementation.
@@ -120,6 +121,7 @@ vtkPolyData * vtkCrossSectionCompute::ComputeCrossSectionPolydata(unsigned int p
 
   vtkPolyData * contourPolyData = vtkPolyData::New();
   contourPolyData->DeepCopy(contourTriangulator->GetOutput());
+  
   return contourPolyData;
 }
 
@@ -128,8 +130,7 @@ vtkPolyData * vtkCrossSectionCompute::ComputeCrossSectionPolydata(unsigned int p
  * Run by each thread.
  * The work horse is the worker instance.
  */
-void vtkCrossSectionCompute::DoCompute(vtkDoubleArray * crossSectionAreaArray,
-				vtkDoubleArray * ceDiameterArray,
+void vtkCrossSectionCompute::DoCompute(vtkDoubleArray * bufferArray,
 				unsigned int startPointIndex,
 	                        unsigned int endPointIndex,
 				vtkCrossSectionCompute * worker)
@@ -146,11 +147,9 @@ void vtkCrossSectionCompute::DoCompute(vtkDoubleArray * crossSectionAreaArray,
     crossSectionProperties->SetInputData(polydata.Get());
     const double crossSectionSurfaceArea = crossSectionProperties->GetSurfaceArea();
     const double ceDiameter = (sqrt(crossSectionSurfaceArea / vtkMath::Pi())) * 2;
-    // Update the output table arrays
-    mtx.lock();
-    crossSectionAreaArray->SetValue(i, crossSectionSurfaceArea);
-    ceDiameterArray->SetValue(i, ceDiameter);
-    mtx.unlock();
+    
+    bufferArray->InsertNextTuple3(i, crossSectionSurfaceArea, ceDiameter);;
+    polydata->Delete();
   }
 
   // Manage last point for an input centerline model
@@ -162,14 +161,15 @@ void vtkCrossSectionCompute::DoCompute(vtkDoubleArray * crossSectionAreaArray,
     const unsigned int numberOfPoints = modelPoints->GetNumberOfPoints();
     if (endPointIndex == (numberOfPoints - 1))
     {
-            const unsigned int beforeLastPointIndex = endPointIndex - 1;
-            mtx.lock();
-            crossSectionAreaArray->SetValue(endPointIndex, crossSectionAreaArray->GetValue(beforeLastPointIndex));
-            ceDiameterArray->SetValue(endPointIndex, ceDiameterArray->GetValue(beforeLastPointIndex));
-            mtx.unlock();
+        const unsigned int beforeLastPointIndex = endPointIndex - 1;
+        bufferArray->SetTuple3(endPointIndex,
+                                bufferArray->GetTuple3(beforeLastPointIndex)[0],
+                                bufferArray->GetTuple3(beforeLastPointIndex)[1],
+                                bufferArray->GetTuple3(beforeLastPointIndex)[2]);
     }
   }
 
+  worker->inputCenterlineNode->Delete();
   delete worker;
 #if DEVTIME != 0
   double endTime = worker->GetTimeOfDay();;
@@ -227,8 +227,9 @@ void vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
   unsigned int numberOfValuesPerBlock = (numberOfValues - residual) / numberOfThreads;
   
   std::vector<std::thread> threads;
+  std::vector<vtkSmartPointer<vtkDoubleArray>> bufferArrays;
   
-  for (int i = 0; i < numberOfThreads; i++)
+  for (unsigned int i = 0; i < numberOfThreads; i++)
   {
     unsigned int startPointIndex = i * numberOfValuesPerBlock;
     unsigned int endPointIndex = ((i + 1) * numberOfValuesPerBlock) - 1;
@@ -241,7 +242,7 @@ void vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
      * Give each thread a copy of the closed surface.
      * This avoids crashes. VTK does not seem thread safe everywhere.
      */
-    vtkSmartPointer<vtkPolyData> closedSurfacePolyDataCopy = vtkPolyData::New();
+    vtkSmartPointer<vtkPolyData> closedSurfacePolyDataCopy = vtkSmartPointer<vtkPolyData>::New();
     closedSurfacePolyDataCopy->DeepCopy(closedSurfacePolyData);
     
     // A new instance of this class passed in to each thread.
@@ -254,7 +255,7 @@ void vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
     {
         // Give each thread a copy of each centerline.
         vtkMRMLModelNode * inputModel = vtkMRMLModelNode::SafeDownCast(inputCenterlineNode);
-        vtkSmartPointer<vtkMRMLModelNode> inputModelCopy = vtkMRMLModelNode::New();
+        vtkMRMLModelNode * inputModelCopy = vtkMRMLModelNode::New();
         inputModelCopy->Copy(inputModel);
         worker->SetInputCenterlineNode(inputModelCopy);
     }
@@ -262,7 +263,7 @@ void vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
     {
         vtkMRMLMarkupsCurveNode * inputCurve = vtkMRMLMarkupsCurveNode::SafeDownCast(inputCenterlineNode);
         // Program dies here too.
-        vtkSmartPointer<vtkMRMLMarkupsCurveNode> inputCurveCopy = vtkMRMLMarkupsCurveNode::New();
+        vtkMRMLMarkupsCurveNode * inputCurveCopy = vtkMRMLMarkupsCurveNode::New();
         inputCurveCopy->Copy(inputCurve);
         worker->SetInputCenterlineNode(inputCurveCopy);
     }
@@ -271,6 +272,10 @@ void vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
         std::cout << "Invalid centerline." << std::endl;
         return;
     }
+    
+    vtkSmartPointer<vtkDoubleArray> bufferArray = vtkSmartPointer<vtkDoubleArray>::New();
+    bufferArray->SetNumberOfComponents(3);
+    bufferArrays.push_back(bufferArray);
     
     /*
         * Notes for me :
@@ -284,14 +289,28 @@ void vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
         * https://thispointer.com/c11-multithreading-part-2-joining-and-detaching-threads/
         * Create thread directly in the container; it never lived here.
     */
-    threads.push_back(std::thread(DoCompute, crossSectionAreaArray, ceDiameterArray, startPointIndex, endPointIndex, worker));
+    threads.push_back(std::thread(worker->DoCompute, bufferArrays[i], startPointIndex, endPointIndex, worker));
   }
   for (unsigned int i = 0; i < threads.size(); i++)
   {
       //std::cout << threads[i].get_id() << std::endl;
       threads[i].join();
   }
-  
+  mtx.lock();
+  for (unsigned int i = 0; i < numberOfThreads; i++)
+  {
+      vtkDoubleArray * bufferArray = (bufferArrays[i].Get());
+      for (unsigned int r = 0; r < bufferArray->GetNumberOfTuples(); r++)
+      {
+          double tupleValues[3];
+          tupleValues[0] = bufferArray->GetTuple3(r)[0]; // Output table row index
+          tupleValues[1] = bufferArray->GetTuple3(r)[1]; // Cross-section area
+          tupleValues[2] = bufferArray->GetTuple3(r)[2]; // CE diameter
+          crossSectionAreaArray->SetValue(tupleValues[0], tupleValues[1]);
+          ceDiameterArray->SetValue(tupleValues[0], tupleValues[2]);
+      }
+  }
+  mtx.unlock();
 }
 
 
