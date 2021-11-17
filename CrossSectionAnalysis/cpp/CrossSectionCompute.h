@@ -47,13 +47,6 @@ public:
    * A member closed surface polydata is derived from the input.
   */
   bool SetInputSurfaceNode(vtkMRMLNode * inputSurface, const std::string& inputSegmentId);
-
-  /**
-   * Generates the cross-section polydata as closest contour
-   * around the input centerline point.
-   * May be called directly from Python.
-   */
-  vtkPolyData * ComputeCrossSectionPolydata(unsigned int pointIndex);
   
   /**
    * This is the main purpose of this class.
@@ -69,39 +62,44 @@ private:
   // Created by ::SetInputSurfaceNode.
   vtkSmartPointer<vtkPolyData> closedSurfacePolyData;
   std::string inputSegmentID;
+  
+};
 
-  /*
-   * This function runs in a thread.
-   * It takes ownership of worker, a new instance of this class,
-   * and deletes it on completion.
-   * Each thread receives a range of centerline points.
-   */
-  static void DoCompute(vtkDoubleArray * bufferArray,
-			unsigned int startPointIndex,
-			unsigned int endPointIndex,
-			vtkCrossSectionCompute * worker);
-  
-  /*
-   * This function expects a copy of closedSurfacePolyData.
-   * It is called for every worker instance, such that
-   * each instance does not need to calculate that polydata again.
-   */
-  void SetClosedSurfacePolyData(vtkPolyData * inputClosedSurfacePolyData)
-  {
-    closedSurfacePolyData = inputClosedSurfacePolyData;
-  }
-  
-  /*
-   * To calculate execution duration.
-   */
-#if DEVTIME != 0
-  double GetTimeOfDay()
-  {
-      struct timeval atime;
-      gettimeofday(&atime, NULL);
-      return ((atime.tv_sec * 1000000) + atime.tv_usec);
-  }
-#endif
+class CROSSSECTION_COMPUTE_EXPORT vtkCrossSectionComputeWorker
+{
+public:
+    
+    vtkCrossSectionComputeWorker();
+    
+    void operator () (vtkMRMLNode * inputCenterlineNode,
+                                 vtkPolyData * closedSurfacePolyData,
+                                 vtkDoubleArray * bufferArray,
+                                 unsigned int startPointIndex,
+                                 unsigned int endPointIndex);
+    virtual ~vtkCrossSectionComputeWorker();
+    
+private:
+    /**
+     * Generates the cross-section polydata as closest contour
+     * around the input centerline point.
+     * May be called directly from Python.
+     */
+    vtkPolyData * ComputeCrossSectionPolydata(vtkMRMLNode * inputCenterlineNode,
+                                              vtkPolyData * closedSurfacePolyData,
+                                              unsigned int pointIndex);
+    
+private:
+    /*
+     * To calculate execution duration.
+     */
+    #if DEVTIME != 0
+    double GetTimeOfDay()
+    {
+        struct timeval atime;
+        gettimeofday(&atime, NULL);
+        return ((atime.tv_sec * 1000000) + atime.tv_usec);
+    }
+    #endif
 };
 
 #endif
