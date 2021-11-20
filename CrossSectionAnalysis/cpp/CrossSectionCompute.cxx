@@ -148,12 +148,12 @@ void vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
       vtkDoubleArray * bufferArray = (bufferArrays[i].Get());
       for (unsigned int r = 0; r < bufferArray->GetNumberOfTuples(); r++)
       {
-          double tupleValues[3];
+          double tupleValues[3] = {0.0, 0.0, 0.0};
           tupleValues[0] = bufferArray->GetTuple3(r)[0]; // Output table row index
           tupleValues[1] = bufferArray->GetTuple3(r)[1]; // Cross-section area
           tupleValues[2] = bufferArray->GetTuple3(r)[2]; // CE diameter
-          crossSectionAreaArray->SetValue(tupleValues[0], tupleValues[1]);
-          ceDiameterArray->SetValue(tupleValues[0], tupleValues[2]);
+          crossSectionAreaArray->SetValue((int) tupleValues[0], tupleValues[1]);
+          ceDiameterArray->SetValue((int) tupleValues[0], tupleValues[2]);
       }
   }
   mtx.unlock();
@@ -189,7 +189,7 @@ void vtkCrossSectionComputeWorker::operator () (vtkMRMLNode * inputCenterlineNod
             const double crossSectionSurfaceArea = crossSectionProperties->GetSurfaceArea();
             const double ceDiameter = (sqrt(crossSectionSurfaceArea / vtkMath::Pi())) * 2;
             
-            bufferArray->InsertNextTuple3(i, crossSectionSurfaceArea, ceDiameter);
+            bufferArray->InsertNextTuple3((double) i, crossSectionSurfaceArea, ceDiameter);
         }
         polydata->Delete();
     }
