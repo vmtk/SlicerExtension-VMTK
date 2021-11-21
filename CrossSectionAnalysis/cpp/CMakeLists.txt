@@ -2,7 +2,7 @@
 # of https://github.com/lassoan/SlicerSegmentEditorExtraEffects/
 
 # Notes for me
-# Must vtkSlicer${MODULE_NAME}ModuleLogic be to have 
+# Must be vtkSlicer${MODULE_NAME}ModuleLogic to have 
 # slicer.vtkCrossSectionCompute() in Python
 project(vtkSlicer${MODULE_NAME}ModuleLogic)
 

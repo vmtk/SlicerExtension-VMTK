@@ -21,7 +21,9 @@
 
 std::mutex mtx;
 
-#define WORKER_MESSAGE(msg) mtx.lock(); std::cout << msg << std::endl; mtx.unlock();
+#define WORKER_MESSAGE(msg) mtx.lock();\
+                            std::cout << msg << std::endl;\
+                            mtx.unlock();
 
 vtkStandardNewMacro(vtkCrossSectionCompute);
 
@@ -198,7 +200,7 @@ void vtkCrossSectionComputeWorker::operator () (vtkMRMLNode * inputCenterlineNod
     // Manage last point for an input centerline model
     if (inputCenterlineNode->IsA("vtkMRMLModelNode"))
     {
-        // Cross-section area cannot be calculated at last point for a model.
+        // Cross-section area is not calculated at last point for a model.
         vtkMRMLModelNode * inputModel = vtkMRMLModelNode::SafeDownCast(inputCenterlineNode);
         vtkPoints * modelPoints = inputModel->GetMesh()->GetPoints();
         const unsigned int numberOfPoints = modelPoints->GetNumberOfPoints();
@@ -213,6 +215,7 @@ void vtkCrossSectionComputeWorker::operator () (vtkMRMLNode * inputCenterlineNod
         }
     }
     
+    // The centerline copy is not needed anymore.
     inputCenterlineNode->Delete();
     
     #if DEVTIME != 0
@@ -251,6 +254,7 @@ vtkPolyData * vtkCrossSectionComputeWorker::ComputeCrossSectionPolydata(
         double centerLocal[3] = {0.0, 0.0, 0.0};
         modelPoints->GetPoint(pointIndex, centerLocal);
         inputModel->TransformPointToWorld(centerLocal, center);
+        // Exclude the last centerline point
         if (pointIndex < (numberOfPoints - 1))
         {
             double centerInc[3] = {0.0, 0.0, 0.0};
@@ -262,6 +266,7 @@ vtkPolyData * vtkCrossSectionComputeWorker::ComputeCrossSectionPolydata(
                 normal[i] = centerInc[i] - center[i];
         }
         else
+        // Return an empty polydata at the last centerline point
         {
             return vtkPolyData::New();
             /*
