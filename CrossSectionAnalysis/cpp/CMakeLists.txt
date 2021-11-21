@@ -1,12 +1,14 @@
 # This work is templated on commit 88673aa16b5
 # of https://github.com/lassoan/SlicerSegmentEditorExtraEffects/
 
-# Should we keep the same naming scheme ?
+# Notes for me
+# Must vtkSlicer${MODULE_NAME}ModuleLogic be to have 
+# slicer.vtkCrossSectionCompute() in Python
 project(vtkSlicer${MODULE_NAME}ModuleLogic)
 
 set(KIT ${PROJECT_NAME})
 
-set(${KIT}_EXPORT_DIRECTIVE "CROSSSECTION_COMPUTE_EXPORT")
+set(${KIT}_EXPORT_DIRECTIVE "VTK_SLICER_CROSSSECTION_COMPUTE_EXPORT")
 
 set(${KIT}_INCLUDE_DIRECTORIES
   )

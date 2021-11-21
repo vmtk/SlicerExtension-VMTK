@@ -18,6 +18,7 @@
 #include <vtkMRMLNode.h>
 #include <vtkPolyData.h>
 #include <vtkSmartPointer.h>
+#include <vtkObjectFactory.h>
 #include <sys/time.h>
 
 #define DEVTIME 1
@@ -26,12 +27,14 @@
  * This class computes cross-section areas along a centerline
  * in joinable threads running in parallel.
 */
-class CROSSSECTION_COMPUTE_EXPORT vtkCrossSectionCompute
+class VTK_SLICER_CROSSSECTION_COMPUTE_EXPORT vtkCrossSectionCompute
+: public vtkObject
 {
 public:
 
-  vtkCrossSectionCompute();
-  virtual ~vtkCrossSectionCompute();
+  static vtkCrossSectionCompute *New();
+  vtkTypeMacro(vtkCrossSectionCompute, vtkObject);
+  void PrintSelf(ostream& os, vtkIndent indent) override;
 
   void SetNumberOfThreads(unsigned int number)
   {
@@ -56,16 +59,16 @@ public:
   void UpdateTable(vtkDoubleArray * crossSectionAreaArray, vtkDoubleArray * ceDiameterArray);
   
 private:
-  unsigned int numberOfThreads;
-  vtkMRMLNode * inputCenterlineNode;
-  vtkMRMLNode * inputSurfaceNode;
+  unsigned int numberOfThreads = 1;
+  vtkMRMLNode * inputCenterlineNode = NULL;
+  vtkMRMLNode * inputSurfaceNode = NULL;
   // Created by ::SetInputSurfaceNode.
-  vtkSmartPointer<vtkPolyData> closedSurfacePolyData;
-  std::string inputSegmentID;
+  vtkSmartPointer<vtkPolyData> closedSurfacePolyData = vtkSmartPointer<vtkPolyData>::New();
+  std::string inputSegmentID = "";
   
 };
 
-class CROSSSECTION_COMPUTE_EXPORT vtkCrossSectionComputeWorker
+class vtkCrossSectionComputeWorker
 {
 public:
     

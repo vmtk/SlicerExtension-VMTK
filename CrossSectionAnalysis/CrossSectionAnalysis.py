@@ -5,7 +5,6 @@ import vtk, qt, ctk, slicer
 import numpy as np
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
-import vtkSlicerCrossSectionAnalysisModuleLogicPython as LibCrossSectionCompute
 
 """
   CrossSectionAnalysis : renamed from CenterlineMetrics, and merged with former deprecated CrossSectionAnalysis module.
@@ -862,7 +861,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     N.B. : polydata caching is not concerned here.
     """
     self.showStatusMessage(("Waiting for background jobs...", ))
-    crossSectionCompute = LibCrossSectionCompute.vtkCrossSectionCompute()
+    crossSectionCompute = slicer.vtkCrossSectionCompute()
     crossSectionCompute.SetNumberOfThreads(os.cpu_count())
     crossSectionCompute.SetInputCenterlineNode(inputCenterline)
     crossSectionCompute.SetInputSurfaceNode(self.lumenSurfaceNode, self.currentSegmentID)

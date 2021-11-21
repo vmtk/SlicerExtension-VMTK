@@ -23,17 +23,16 @@ std::mutex mtx;
 
 #define WORKER_MESSAGE(msg) mtx.lock(); std::cout << msg << std::endl; mtx.unlock();
 
-vtkCrossSectionCompute::vtkCrossSectionCompute()
-{
-  numberOfThreads = 1;
-  inputCenterlineNode = NULL;
-  inputSurfaceNode = NULL;
-  inputSegmentID = "";
-  closedSurfacePolyData = vtkSmartPointer<vtkPolyData>::New();
-}
+vtkStandardNewMacro(vtkCrossSectionCompute);
 
-vtkCrossSectionCompute::~vtkCrossSectionCompute()
+void vtkCrossSectionCompute::PrintSelf(ostream& os, vtkIndent indent)
 {
+    vtkObject::PrintSelf(os,indent);
+    
+    os << indent << "numberOfThreads: " << this->numberOfThreads << "\n";
+    os << indent << "inputCenterlineNode: " << this->inputCenterlineNode << "\n";
+    os << indent << "inputSurfaceNode: " << this->inputSurfaceNode << "\n";
+    os << indent << "inputSegmentID: " << this->inputSegmentID << "\n";
 }
 
 // The surface polydata is constant. Create it once only.
