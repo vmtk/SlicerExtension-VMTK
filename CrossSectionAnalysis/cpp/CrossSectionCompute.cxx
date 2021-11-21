@@ -21,6 +21,8 @@
 
 std::mutex mtx;
 
+#define WORKER_MESSAGE(msg) mtx.lock(); std::cout << msg << std::endl; mtx.unlock();
+
 vtkCrossSectionCompute::vtkCrossSectionCompute()
 {
   numberOfThreads = 1;
@@ -203,20 +205,23 @@ void vtkCrossSectionComputeWorker::operator () (vtkMRMLNode * inputCenterlineNod
         const unsigned int numberOfPoints = modelPoints->GetNumberOfPoints();
         if (endPointIndex == (numberOfPoints - 1))
         {
-            const unsigned int beforeLastPointIndex = endPointIndex - 1;
-            bufferArray->SetTuple3(endPointIndex,
-                                   bufferArray->GetTuple3(beforeLastPointIndex)[0],
-                                   bufferArray->GetTuple3(beforeLastPointIndex)[1],
-                                   bufferArray->GetTuple3(beforeLastPointIndex)[2]);
+            const unsigned int blockLastPointIndex = bufferArray->GetNumberOfTuples() - 1;
+            const unsigned int blockBeforeLastPointIndex = bufferArray->GetNumberOfTuples() - 1 - 1;
+            bufferArray->SetTuple3(blockLastPointIndex,
+                                   bufferArray->GetTuple3(blockLastPointIndex)[0],
+                                   bufferArray->GetTuple3(blockBeforeLastPointIndex)[1],
+                                   bufferArray->GetTuple3(blockBeforeLastPointIndex)[2]);
         }
     }
     
     inputCenterlineNode->Delete();
     
     #if DEVTIME != 0
+    mtx.lock();
     double endTime = GetTimeOfDay();;
     cout << "This thread : " << std::this_thread::get_id() << " "
         << (endTime - startTime) / 1000000 << " seconds" << endl;
+    mtx.unlock();
     #endif
 }
 
@@ -228,12 +233,12 @@ vtkPolyData * vtkCrossSectionComputeWorker::ComputeCrossSectionPolydata(
 {
     if (inputCenterlineNode == NULL)
     {
-        std::cout << "Input centerline is NULL." << std::endl;
+        WORKER_MESSAGE("Input centerline is NULL.");
         return NULL;
     }
     if (closedSurfacePolyData == NULL)
     {
-        std::cout << "Closed  surface polydata is NULL." << std::endl;
+        WORKER_MESSAGE("Closed  surface polydata is NULL.");
         return NULL;
     }
     
@@ -243,16 +248,33 @@ vtkPolyData * vtkCrossSectionComputeWorker::ComputeCrossSectionPolydata(
     {
         vtkMRMLModelNode * inputModel = vtkMRMLModelNode::SafeDownCast(inputCenterlineNode);
         vtkPoints * modelPoints = inputModel->GetMesh()->GetPoints();
+        const unsigned int numberOfPoints = modelPoints->GetNumberOfPoints();
         double centerLocal[3] = {0.0, 0.0, 0.0};
         modelPoints->GetPoint(pointIndex, centerLocal);
         inputModel->TransformPointToWorld(centerLocal, center);
-        double centerInc[3] = {0.0, 0.0, 0.0};
-        // note that this +1 does not work for the last point
-        double centerLocalInc[3] = {0.0, 0.0, 0.0};
-        modelPoints->GetPoint(pointIndex + 1, centerLocalInc);
-        inputModel->TransformPointToWorld(centerLocalInc, centerInc);
-        for (unsigned int i = 0; i < 3; i++)
-            normal[i] = centerInc[i] - center[i];
+        if (pointIndex < (numberOfPoints - 1))
+        {
+            double centerInc[3] = {0.0, 0.0, 0.0};
+            // note that this +1 does not work for the last point
+            double centerLocalInc[3] = {0.0, 0.0, 0.0};
+            modelPoints->GetPoint(pointIndex + 1, centerLocalInc);
+            inputModel->TransformPointToWorld(centerLocalInc, centerInc);
+            for (unsigned int i = 0; i < 3; i++)
+                normal[i] = centerInc[i] - center[i];
+        }
+        else
+        {
+            return vtkPolyData::New();
+            /*
+             * Sample output at last point
+             * 337 : pointIndex
+             * centerInc    center      normal
+             * 4.49817e-43  -10.7484    10.7484337
+             * 0            17.932     -17.932337
+             * 7.21367e+25  -84.3496    7.21367e+25
+             * 
+             */
+        }
     }
     else if (inputCenterlineNode->IsA("vtkMRMLMarkupsCurveNode"))
     {
@@ -269,7 +291,7 @@ vtkPolyData * vtkCrossSectionComputeWorker::ComputeCrossSectionPolydata(
     }
     else
     {
-        std::cout << "Wrong input centerline node." << std::endl;
+        WORKER_MESSAGE("Wrong input centerline node.");
         return NULL;
     }
     
@@ -286,12 +308,12 @@ vtkPolyData * vtkCrossSectionComputeWorker::ComputeCrossSectionPolydata(
     vtkPoints * planePoints = planeCut->GetOutput()->GetPoints();
     if (planePoints == NULL)
     {
-        std::cout << "Could not cut segment. Is it visible in 3D view?" << std::endl;
+        WORKER_MESSAGE("Could not cut segment. Is it visible in 3D view?");
         return NULL;
     }
     if (planePoints->GetNumberOfPoints() < 3)
     {
-        std::cout << "Not enough points to create surface" << std::endl;
+        WORKER_MESSAGE("Not enough points to create surface");
         return NULL;
     }
     
