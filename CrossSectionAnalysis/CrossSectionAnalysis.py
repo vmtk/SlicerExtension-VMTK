@@ -860,12 +860,16 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     Fill in cross-section areas in C++ threads.
     N.B. : polydata caching is not concerned here.
     """
-    self.showStatusMessage(("Waiting for background jobs...", ))
-    crossSectionCompute = slicer.vtkCrossSectionCompute()
-    crossSectionCompute.SetNumberOfThreads(os.cpu_count())
-    crossSectionCompute.SetInputCenterlineNode(inputCenterline)
-    crossSectionCompute.SetInputSurfaceNode(self.lumenSurfaceNode, self.currentSegmentID)
-    crossSectionCompute.UpdateTable(crossSectionAreaArray, ceDiameterArray)
+    if inputCenterline and self.lumenSurfaceNode:
+        self.showStatusMessage(("Waiting for background jobs...", ))
+        if inputCenterline.IsA("vtkMRMLModelNode"):
+            crossSectionCompute = slicer.vtkModelCrossSectionCompute()
+        else:
+            crossSectionCompute = slicer.vtkCurveCrossSectionCompute()
+        crossSectionCompute.SetNumberOfThreads(os.cpu_count())
+        crossSectionCompute.SetInputCenterlineNode(inputCenterline)
+        crossSectionCompute.SetInputSurfaceNode(self.lumenSurfaceNode, self.currentSegmentID)
+        crossSectionCompute.UpdateTable(crossSectionAreaArray, ceDiameterArray)
 
     for i, radius in enumerate(radii):
         """ Show progress anyway, even though we no longer compute
