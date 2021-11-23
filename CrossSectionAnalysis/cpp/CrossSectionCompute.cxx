@@ -157,7 +157,6 @@ void vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
       threads[i].join();
   }
   // Update the output table columns.
-  mtx.lock();
   for (unsigned int i = 0; i < this->NumberOfThreads; i++)
   {
       vtkDoubleArray * bufferArray = (bufferArrays[i].Get());
@@ -171,7 +170,6 @@ void vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
           ceDiameterArray->SetValue((int) tupleValues[0], tupleValues[2]);
       }
   }
-  mtx.unlock();
 }
 
 /////////////////////////////////////////////////////////////////////////
