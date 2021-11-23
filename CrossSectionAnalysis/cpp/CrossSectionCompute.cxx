@@ -30,8 +30,8 @@ vtkStandardNewMacro(vtkCrossSectionCompute);
 vtkCrossSectionCompute::vtkCrossSectionCompute()
 {
   NumberOfThreads = 1;
-  InputCenterlineNode = NULL;
-  InputSurfaceNode = NULL;
+  InputCenterlineNode = nullptr;
+  InputSurfaceNode = nullptr;
   ClosedSurfacePolyData = vtkSmartPointer<vtkPolyData>::New();
 }
 

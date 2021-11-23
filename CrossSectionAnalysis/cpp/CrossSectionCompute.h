@@ -63,8 +63,8 @@ protected:
   virtual ~vtkCrossSectionCompute();
 private:
   unsigned int NumberOfThreads;
-  vtkMRMLNode * InputCenterlineNode;
-  vtkMRMLNode * InputSurfaceNode;
+  vtkSmartPointer<vtkMRMLNode> InputCenterlineNode;
+  vtkSmartPointer<vtkMRMLNode> InputSurfaceNode;
   // Created by ::SetInputSurfaceNode.
   vtkSmartPointer<vtkPolyData> ClosedSurfacePolyData;
   std::string InputSegmentID;
