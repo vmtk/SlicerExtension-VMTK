@@ -57,14 +57,17 @@ public:
    * columns of the output table are updated in parallel.
    */
   void UpdateTable(vtkDoubleArray * crossSectionAreaArray, vtkDoubleArray * ceDiameterArray);
-  
+
+protected:
+  vtkCrossSectionCompute();
+  virtual ~vtkCrossSectionCompute();
 private:
-  unsigned int NumberOfThreads = 1;
-  vtkMRMLNode * InputCenterlineNode = NULL;
-  vtkMRMLNode * InputSurfaceNode = NULL;
+  unsigned int NumberOfThreads;
+  vtkMRMLNode * InputCenterlineNode;
+  vtkMRMLNode * InputSurfaceNode;
   // Created by ::SetInputSurfaceNode.
-  vtkSmartPointer<vtkPolyData> ClosedSurfacePolyData = vtkSmartPointer<vtkPolyData>::New();
-  std::string InputSegmentID = "";
+  vtkSmartPointer<vtkPolyData> ClosedSurfacePolyData;
+  std::string InputSegmentID;
   
 };
 

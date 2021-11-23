@@ -27,6 +27,18 @@ std::mutex mtx;
 
 vtkStandardNewMacro(vtkCrossSectionCompute);
 
+vtkCrossSectionCompute::vtkCrossSectionCompute()
+{
+  NumberOfThreads = 1;
+  InputCenterlineNode = NULL;
+  InputSurfaceNode = NULL;
+  ClosedSurfacePolyData = vtkSmartPointer<vtkPolyData>::New();
+}
+
+vtkCrossSectionCompute::~vtkCrossSectionCompute()
+{
+}
+
 void vtkCrossSectionCompute::PrintSelf(ostream& os, vtkIndent indent)
 {
     vtkObject::PrintSelf(os,indent);
