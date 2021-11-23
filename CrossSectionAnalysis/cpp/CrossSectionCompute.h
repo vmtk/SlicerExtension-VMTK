@@ -38,11 +38,11 @@ public:
 
   void SetNumberOfThreads(unsigned int number)
   {
-    numberOfThreads = number;
+    this->numberOfThreads = number;
   }
   void SetInputCenterlineNode(vtkMRMLNode * inputCenterline)
   {
-    inputCenterlineNode = inputCenterline;
+    this->inputCenterlineNode = inputCenterline;
   }
   /**
    * inputSurface may be a segmentation or a model.
