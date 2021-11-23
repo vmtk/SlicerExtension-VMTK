@@ -38,11 +38,11 @@ public:
 
   void SetNumberOfThreads(unsigned int number)
   {
-    this->numberOfThreads = number;
+    this->NumberOfThreads = number;
   }
   void SetInputCenterlineNode(vtkMRMLNode * inputCenterline)
   {
-    this->inputCenterlineNode = inputCenterline;
+    this->InputCenterlineNode = inputCenterline;
   }
   /**
    * inputSurface may be a segmentation or a model.
@@ -59,12 +59,12 @@ public:
   void UpdateTable(vtkDoubleArray * crossSectionAreaArray, vtkDoubleArray * ceDiameterArray);
   
 private:
-  unsigned int numberOfThreads = 1;
-  vtkMRMLNode * inputCenterlineNode = NULL;
-  vtkMRMLNode * inputSurfaceNode = NULL;
+  unsigned int NumberOfThreads = 1;
+  vtkMRMLNode * InputCenterlineNode = NULL;
+  vtkMRMLNode * InputSurfaceNode = NULL;
   // Created by ::SetInputSurfaceNode.
-  vtkSmartPointer<vtkPolyData> closedSurfacePolyData = vtkSmartPointer<vtkPolyData>::New();
-  std::string inputSegmentID = "";
+  vtkSmartPointer<vtkPolyData> ClosedSurfacePolyData = vtkSmartPointer<vtkPolyData>::New();
+  std::string InputSegmentID = "";
   
 };
 

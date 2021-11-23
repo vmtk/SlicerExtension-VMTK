@@ -31,27 +31,27 @@ void vtkCrossSectionCompute::PrintSelf(ostream& os, vtkIndent indent)
 {
     vtkObject::PrintSelf(os,indent);
     
-    os << indent << "numberOfThreads: " << this->numberOfThreads << "\n";
-    os << indent << "inputCenterlineNode: " << this->inputCenterlineNode << "\n";
-    os << indent << "inputSurfaceNode: " << this->inputSurfaceNode << "\n";
-    os << indent << "inputSegmentID: " << this->inputSegmentID << "\n";
+    os << indent << "numberOfThreads: " << this->NumberOfThreads << "\n";
+    os << indent << "inputCenterlineNode: " << this->InputCenterlineNode << "\n";
+    os << indent << "inputSurfaceNode: " << this->InputSurfaceNode << "\n";
+    os << indent << "inputSegmentID: " << this->InputSegmentID << "\n";
 }
 
 // The surface polydata is constant. Create it once only.
 bool vtkCrossSectionCompute::SetInputSurfaceNode(vtkMRMLNode * inputSurface, const std::string& inputSegmentId)
 {
-  this->inputSurfaceNode = inputSurface;
-  this->inputSegmentID = inputSegmentId;
-  if (this->inputSurfaceNode->IsA("vtkMRMLSegmentationNode"))
+  this->InputSurfaceNode = inputSurface;
+  this->InputSegmentID = inputSegmentId;
+  if (this->InputSurfaceNode->IsA("vtkMRMLSegmentationNode"))
   {
-    vtkMRMLSegmentationNode * inputSegmentationNode = vtkMRMLSegmentationNode::SafeDownCast(this->inputSurfaceNode);
+    vtkMRMLSegmentationNode * inputSegmentationNode = vtkMRMLSegmentationNode::SafeDownCast(this->InputSurfaceNode);
     inputSegmentationNode->CreateClosedSurfaceRepresentation();
-    inputSegmentationNode->GetClosedSurfaceRepresentation(this->inputSegmentID, this->closedSurfacePolyData);
+    inputSegmentationNode->GetClosedSurfaceRepresentation(this->InputSegmentID, this->ClosedSurfacePolyData);
   }
-  else if (this->inputSurfaceNode->IsA("vtkMRMLModelNode"))
+  else if (this->InputSurfaceNode->IsA("vtkMRMLModelNode"))
   {
-    vtkMRMLModelNode * inputModelNode = vtkMRMLModelNode::SafeDownCast(this->inputSurfaceNode);
-    this->closedSurfacePolyData->DeepCopy(inputModelNode->GetPolyData());
+    vtkMRMLModelNode * inputModelNode = vtkMRMLModelNode::SafeDownCast(this->InputSurfaceNode);
+    this->ClosedSurfacePolyData->DeepCopy(inputModelNode->GetPolyData());
   }
   else
   {
@@ -63,17 +63,17 @@ bool vtkCrossSectionCompute::SetInputSurfaceNode(vtkMRMLNode * inputSurface, con
 
 void vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray, vtkDoubleArray * ceDiameterArray)
 {
-  if (this->inputCenterlineNode == NULL)
+  if (this->InputCenterlineNode == NULL)
   {     
     std::cout << "Input centerline is NULL." << std::endl;
     return;
   }
-  if (this->inputSurfaceNode == NULL)
+  if (this->InputSurfaceNode == NULL)
   {     
     std::cout << "Input surface is NULL." << std::endl;
     return;
   }
-  if (this->inputSegmentID.empty())
+  if (this->InputSegmentID.empty())
   {     
     std::cout << "Input segment ID is unknown." << std::endl;
     return;
@@ -83,17 +83,17 @@ void vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
    * The last block will include the residual points also.
    */
   const unsigned int numberOfValues = crossSectionAreaArray->GetNumberOfValues();
-  unsigned int residual = numberOfValues % this->numberOfThreads;
-  unsigned int numberOfValuesPerBlock = (numberOfValues - residual) / this->numberOfThreads;
+  unsigned int residual = numberOfValues % this->NumberOfThreads;
+  unsigned int numberOfValuesPerBlock = (numberOfValues - residual) / this->NumberOfThreads;
   
   std::vector<std::thread> threads;
   std::vector<vtkSmartPointer<vtkDoubleArray>> bufferArrays;
   
-  for (unsigned int i = 0; i < this->numberOfThreads; i++)
+  for (unsigned int i = 0; i < this->NumberOfThreads; i++)
   {
     unsigned int startPointIndex = i * numberOfValuesPerBlock;
     unsigned int endPointIndex = ((i + 1) * numberOfValuesPerBlock) - 1;
-    if (i == (this->numberOfThreads -1))
+    if (i == (this->NumberOfThreads -1))
     {
         endPointIndex += residual;
     }
@@ -102,23 +102,23 @@ void vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
      * Give each thread a copy of the closed surface.
      */
     vtkSmartPointer<vtkPolyData> closedSurfacePolyDataCopy = vtkSmartPointer<vtkPolyData>::New();
-    closedSurfacePolyDataCopy->DeepCopy(this->closedSurfacePolyData.Get());
+    closedSurfacePolyDataCopy->DeepCopy(this->ClosedSurfacePolyData.Get());
     
     /* 
      * Give each thread a copy of the centerline.
      */
     vtkMRMLNode * inputCenterlineNodeCopy;
     
-    if (this->inputCenterlineNode->IsA("vtkMRMLModelNode"))
+    if (this->InputCenterlineNode->IsA("vtkMRMLModelNode"))
     {
         // Give each thread a copy of each centerline.
-        vtkMRMLModelNode * inputModel = vtkMRMLModelNode::SafeDownCast(this->inputCenterlineNode);
+        vtkMRMLModelNode * inputModel = vtkMRMLModelNode::SafeDownCast(this->InputCenterlineNode);
         inputCenterlineNodeCopy = vtkMRMLModelNode::New();
         inputCenterlineNodeCopy->Copy(inputModel);
     }
-    else if (this->inputCenterlineNode->IsA("vtkMRMLMarkupsCurveNode"))
+    else if (this->InputCenterlineNode->IsA("vtkMRMLMarkupsCurveNode"))
     {
-        vtkMRMLMarkupsCurveNode * inputCurve = vtkMRMLMarkupsCurveNode::SafeDownCast(this->inputCenterlineNode);
+        vtkMRMLMarkupsCurveNode * inputCurve = vtkMRMLMarkupsCurveNode::SafeDownCast(this->InputCenterlineNode);
         // Program dies here too.
         inputCenterlineNodeCopy = vtkMRMLMarkupsCurveNode::New();
         inputCenterlineNodeCopy->Copy(inputCurve);
@@ -146,7 +146,7 @@ void vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
   }
   // Update the output table columns.
   mtx.lock();
-  for (unsigned int i = 0; i < this->numberOfThreads; i++)
+  for (unsigned int i = 0; i < this->NumberOfThreads; i++)
   {
       vtkDoubleArray * bufferArray = (bufferArrays[i].Get());
       for (unsigned int r = 0; r < bufferArray->GetNumberOfTuples(); r++)
