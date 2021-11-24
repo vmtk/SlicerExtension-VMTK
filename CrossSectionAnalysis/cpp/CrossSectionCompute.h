@@ -104,8 +104,8 @@ public:
     void operator () (vtkMRMLModelNode * inputCenterlineNode,
                     vtkPolyData * closedSurfacePolyData,
                     vtkDoubleArray * bufferArray,
-                    unsigned int startPointIndex,
-                    unsigned int endPointIndex);
+                    vtkIdType startPointIndex,
+                    vtkIdType endPointIndex);
     
 private:
     /**
@@ -115,7 +115,7 @@ private:
      */
     void ComputeCrossSectionPolydata(vtkMRMLModelNode * inputCenterlineNode,
                                     vtkPolyData * closedSurfacePolyData,
-                                    unsigned int pointIndex,
+                                    vtkIdType pointIndex,
                                     vtkPolyData * contourPolyData);
     /*
      * To calculate execution duration.
@@ -171,8 +171,8 @@ public:
     void operator () (vtkMRMLMarkupsCurveNode * inputCenterlineNode,
                       vtkPolyData * closedSurfacePolyData,
                       vtkDoubleArray * bufferArray,
-                      unsigned int startPointIndex,
-                      unsigned int endPointIndex);
+                      vtkIdType startPointIndex,
+                      vtkIdType endPointIndex);
     
 private:
     /**
@@ -182,7 +182,7 @@ private:
      */
     void ComputeCrossSectionPolydata(vtkMRMLMarkupsCurveNode * inputCenterlineNode,
                                     vtkPolyData * closedSurfacePolyData,
-                                    unsigned int pointIndex,
+                                    vtkIdType pointIndex,
                                     vtkPolyData * contourPolyData);
     /*
      * To calculate execution duration.

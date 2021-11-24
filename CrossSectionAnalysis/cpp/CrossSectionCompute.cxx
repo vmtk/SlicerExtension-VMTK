@@ -195,8 +195,8 @@ vtkModelCrossSectionComputeWorker::~vtkModelCrossSectionComputeWorker()
 void vtkModelCrossSectionComputeWorker::operator () (vtkMRMLModelNode * inputCenterlineNode,
                              vtkPolyData * closedSurfacePolyData,
                              vtkDoubleArray * bufferArray,
-                             unsigned int startPointIndex,
-                             unsigned int endPointIndex)
+                             vtkIdType startPointIndex,
+                             vtkIdType endPointIndex)
 {
 #if DEVTIME != 0
     double startTime = GetTimeOfDay();
@@ -205,7 +205,7 @@ void vtkModelCrossSectionComputeWorker::operator () (vtkMRMLModelNode * inputCen
      * i <= endPointIndex : the last point of any block must be included.
      * Values at the last point of the last block will be irrelevent.
      */
-    for (unsigned int i = startPointIndex; i <= endPointIndex; i++)
+    for (vtkIdType i = startPointIndex; i <= endPointIndex; i++)
     {
         // Get the contout polydata
         vtkNew<vtkPolyData> contourPolyData;
@@ -254,7 +254,7 @@ void vtkModelCrossSectionComputeWorker::operator () (vtkMRMLModelNode * inputCen
 void vtkModelCrossSectionComputeWorker::ComputeCrossSectionPolydata(
                                 vtkMRMLModelNode * inputCenterlineNode,
                                 vtkPolyData * closedSurfacePolyData,
-                                unsigned int pointIndex,
+                                vtkIdType pointIndex,
                                 vtkPolyData * contourPolyData)
 {
     if (inputCenterlineNode == nullptr)
@@ -448,13 +448,13 @@ vtkCurveCrossSectionComputeWorker::~vtkCurveCrossSectionComputeWorker()
 void vtkCurveCrossSectionComputeWorker::operator () (vtkMRMLMarkupsCurveNode * inputCenterlineNode,
                                                      vtkPolyData * closedSurfacePolyData,
                                                      vtkDoubleArray * bufferArray,
-                                                     unsigned int startPointIndex,
-                                                     unsigned int endPointIndex)
+                                                     vtkIdType startPointIndex,
+                                                     vtkIdType endPointIndex)
 {
     #if DEVTIME != 0
     double startTime = GetTimeOfDay();
     #endif
-    for (unsigned int i = startPointIndex; i <= endPointIndex; i++)
+    for (vtkIdType i = startPointIndex; i <= endPointIndex; i++)
     {
         // Get the contout polydata
         vtkNew<vtkPolyData> contourPolyData;
@@ -483,7 +483,7 @@ void vtkCurveCrossSectionComputeWorker::operator () (vtkMRMLMarkupsCurveNode * i
 void vtkCurveCrossSectionComputeWorker::ComputeCrossSectionPolydata(
     vtkMRMLMarkupsCurveNode * inputCenterlineNode,
     vtkPolyData * closedSurfacePolyData,
-    unsigned int pointIndex,
+    vtkIdType pointIndex,
     vtkPolyData * contourPolyData)
 {
     if (inputCenterlineNode == nullptr)
