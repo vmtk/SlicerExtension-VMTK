@@ -133,7 +133,7 @@ private:
 // -------------------------- vtkCurveCrossSectionCompute ------------------
 
 /**
- * This class works with centerline modecurvesls.
+ * This class works with centerline curves.
  */
 class VTK_SLICER_CROSSSECTION_COMPUTE_EXPORT vtkCurveCrossSectionCompute
 : public vtkCrossSectionCompute
