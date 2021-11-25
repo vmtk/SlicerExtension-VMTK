@@ -414,9 +414,6 @@ The input centerline is expected to be inside the lumen surface.</string>
         </item>
         <item row="0" column="3">
          <widget class="QToolButton" name="jumpCentredInSliceNodeCheckBox">
-          <property name="enabled">
-           <bool>false</bool>
-          </property>
           <property name="toolTip">
            <string>Center the selected point in the slice view</string>
           </property>
