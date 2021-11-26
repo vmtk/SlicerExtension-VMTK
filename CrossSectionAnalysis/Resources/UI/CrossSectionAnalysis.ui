@@ -387,9 +387,9 @@ The input centerline is expected to be inside the lumen surface.</string>
        </widget>
       </item>
       <item row="1" column="1">
-       <layout class="QHBoxLayout" name="horizontalLayout_3">
-        <item>
-         <widget class="qMRMLNodeComboBox" name="sliceViewSelector">
+       <layout class="QGridLayout" name="gridLayout">
+        <item row="0" column="1">
+         <widget class="qMRMLNodeComboBox" name="axialSliceViewSelector">
           <property name="toolTip">
            <string>Move this slice view to a point along the centerline</string>
           </property>
@@ -412,7 +412,7 @@ The input centerline is expected to be inside the lumen surface.</string>
           </property>
          </widget>
         </item>
-        <item>
+        <item row="0" column="3">
          <widget class="QToolButton" name="jumpCentredInSliceNodeCheckBox">
           <property name="toolTip">
            <string>Center the selected point in the slice view</string>
@@ -428,7 +428,7 @@ The input centerline is expected to be inside the lumen surface.</string>
           </property>
          </widget>
         </item>
-        <item>
+        <item row="0" column="4">
          <widget class="QToolButton" name="orthogonalReformatInSliceNodeCheckBox">
           <property name="toolTip">
            <string>Orient the slice view orthogonal to the centerline</string>
@@ -444,9 +444,88 @@ The input centerline is expected to be inside the lumen surface.</string>
           </property>
          </widget>
         </item>
+        <item row="1" column="1">
+         <widget class="qMRMLNodeComboBox" name="longitudinalSliceViewSelector">
+          <property name="toolTip">
+           <string>Move this slice view to a point along the centerline</string>
+          </property>
+          <property name="locale">
+           <locale language="English" country="UnitedStates"/>
+          </property>
+          <property name="nodeTypes">
+           <stringlist>
+            <string>vtkMRMLSliceNode</string>
+           </stringlist>
+          </property>
+          <property name="noneEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="addEnabled">
+           <bool>false</bool>
+          </property>
+          <property name="removeEnabled">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="label_4">
+          <property name="toolTip">
+           <string>Longitudinal</string>
+          </property>
+          <property name="text">
+           <string>Long.:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="0">
+         <widget class="QLabel" name="label_3">
+          <property name="text">
+           <string>Axial:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="ctkSliderWidget" name="rotationSliderWidget">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Rotate slice view around its Z-axis to restore anatomic orientation</string>
+          </property>
+          <property name="statusTip">
+           <string/>
+          </property>
+          <property name="locale">
+           <locale language="English" country="UnitedStates"/>
+          </property>
+          <property name="decimals">
+           <number>0</number>
+          </property>
+          <property name="minimum">
+           <double>-180.000000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>180.000000000000000</double>
+          </property>
+          <property name="suffix">
+           <string> deg</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="label_5">
+          <property name="toolTip">
+           <string>Rotation angle for longitudinal slice view</string>
+          </property>
+          <property name="text">
+           <string>Rotate:</string>
+          </property>
+         </widget>
+        </item>
        </layout>
       </item>
-      <item row="2" column="1">
+      <item row="3" column="1">
        <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox_2">
         <property name="title">
          <string>Spin</string>
@@ -457,7 +536,7 @@ The input centerline is expected to be inside the lumen surface.</string>
         <property name="collapsedHeight">
          <number>6</number>
         </property>
-        <layout class="QHBoxLayout" name="horizontalLayout_6">
+        <layout class="QFormLayout" name="formLayout_2">
          <property name="leftMargin">
           <number>3</number>
          </property>
@@ -470,8 +549,18 @@ The input centerline is expected to be inside the lumen surface.</string>
          <property name="bottomMargin">
           <number>3</number>
          </property>
-         <item>
-          <widget class="ctkSliderWidget" name="torsionSliderWidget">
+         <item row="0" column="0">
+          <widget class="QLabel" name="label">
+           <property name="text">
+            <string>Axial:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="ctkSliderWidget" name="axialSpinSliderWidget">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
            <property name="toolTip">
             <string>Rotate slice view around its Z-axis to restore anatomic orientation</string>
            </property>
@@ -495,10 +584,45 @@ The input centerline is expected to be inside the lumen surface.</string>
            </property>
           </widget>
          </item>
+         <item row="1" column="1">
+          <widget class="ctkSliderWidget" name="longitudinalSpinSliderWidget">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="toolTip">
+            <string>Rotate slice view around its Z-axis to restore anatomic orientation</string>
+           </property>
+           <property name="statusTip">
+            <string/>
+           </property>
+           <property name="locale">
+            <locale language="English" country="UnitedStates"/>
+           </property>
+           <property name="decimals">
+            <number>0</number>
+           </property>
+           <property name="minimum">
+            <double>-180.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>180.000000000000000</double>
+           </property>
+           <property name="suffix">
+            <string> deg</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="label_2">
+           <property name="text">
+            <string>Long.:</string>
+           </property>
+          </widget>
+         </item>
         </layout>
        </widget>
       </item>
-      <item row="3" column="0">
+      <item row="4" column="0">
        <widget class="QLabel" name="distanceLabel">
         <property name="locale">
          <locale language="English" country="UnitedStates"/>
@@ -508,7 +632,7 @@ The input centerline is expected to be inside the lumen surface.</string>
         </property>
        </widget>
       </item>
-      <item row="3" column="1">
+      <item row="4" column="1">
        <layout class="QHBoxLayout" name="horizontalLayout_4">
         <item>
          <widget class="QLabel" name="distanceValueLabel">
@@ -551,7 +675,7 @@ The input centerline is expected to be inside the lumen surface.</string>
         </item>
        </layout>
       </item>
-      <item row="4" column="0">
+      <item row="5" column="0">
        <widget class="QLabel" name="coordinatesLabel">
         <property name="locale">
          <locale language="English" country="UnitedStates"/>
@@ -561,7 +685,7 @@ The input centerline is expected to be inside the lumen surface.</string>
         </property>
        </widget>
       </item>
-      <item row="4" column="1">
+      <item row="5" column="1">
        <widget class="QLabel" name="coordinatesValueLabel">
         <property name="toolTip">
          <string>RAS coordinate of selected point</string>
@@ -580,7 +704,7 @@ The input centerline is expected to be inside the lumen surface.</string>
         </property>
        </widget>
       </item>
-      <item row="5" column="0">
+      <item row="6" column="0">
        <widget class="QLabel" name="diameterLabel">
         <property name="locale">
          <locale language="English" country="UnitedStates"/>
@@ -590,7 +714,7 @@ The input centerline is expected to be inside the lumen surface.</string>
         </property>
        </widget>
       </item>
-      <item row="5" column="1">
+      <item row="6" column="1">
        <layout class="QHBoxLayout" name="horizontalLayout_2">
         <item>
          <widget class="QLabel" name="diameterValueLabel">
@@ -640,14 +764,14 @@ The input centerline is expected to be inside the lumen surface.</string>
         </item>
        </layout>
       </item>
-      <item row="6" column="0">
+      <item row="7" column="0">
        <widget class="QLabel" name="surfaceAreaLabel">
         <property name="text">
          <string>Cross-sectional area:</string>
         </property>
        </widget>
       </item>
-      <item row="6" column="1">
+      <item row="7" column="1">
        <layout class="QHBoxLayout" name="horizontalLayout">
         <item>
          <widget class="QLabel" name="surfaceAreaValueLabel">
@@ -703,14 +827,14 @@ The input centerline is expected to be inside the lumen surface.</string>
         </item>
        </layout>
       </item>
-      <item row="7" column="0">
+      <item row="8" column="0">
        <widget class="QLabel" name="derivedDiameterLabel">
         <property name="text">
          <string>Diameter (CE):</string>
         </property>
        </widget>
       </item>
-      <item row="7" column="1">
+      <item row="8" column="1">
        <widget class="QLabel" name="derivedDiameterValueLabel">
         <property name="toolTip">
          <string>Circular equivalent (CE) diameter: that of a circle having the  surface area of the cross-section.
@@ -724,7 +848,7 @@ Caution: values at bifurcations may not have clinical meaning.</string>
         </property>
        </widget>
       </item>
-      <item row="8" column="0">
+      <item row="9" column="0">
        <widget class="QLabel" name="orientationLabel">
         <property name="toolTip">
          <string/>
@@ -734,7 +858,7 @@ Caution: values at bifurcations may not have clinical meaning.</string>
         </property>
        </widget>
       </item>
-      <item row="8" column="1">
+      <item row="9" column="1">
        <widget class="QLabel" name="orientationValueLabel">
         <property name="toolTip">
          <string>Angles are in Slicer's coordinate system</string>
@@ -842,15 +966,15 @@ Caution: values at bifurcations may not have clinical meaning.</string>
      <y>184</y>
     </hint>
     <hint type="destinationlabel">
-     <x>360</x>
-     <y>162</y>
+     <x>423</x>
+     <y>170</y>
     </hint>
    </hints>
   </connection>
   <connection>
    <sender>CrossSectionAnalysis</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
-   <receiver>sliceViewSelector</receiver>
+   <receiver>axialSliceViewSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -858,8 +982,8 @@ Caution: values at bifurcations may not have clinical meaning.</string>
      <y>308</y>
     </hint>
     <hint type="destinationlabel">
-     <x>348</x>
-     <y>257</y>
+     <x>298</x>
+     <y>322</y>
     </hint>
    </hints>
   </connection>
@@ -908,6 +1032,22 @@ Caution: values at bifurcations may not have clinical meaning.</string>
     <hint type="destinationlabel">
      <x>348</x>
      <y>108</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>CrossSectionAnalysis</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>longitudinalSliceViewSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>494</x>
+     <y>3</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>317</x>
+     <y>345</y>
     </hint>
    </hints>
   </connection>
