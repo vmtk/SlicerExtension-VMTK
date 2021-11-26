@@ -26,7 +26,7 @@ class CrossSectionAnalysis(ScriptedLoadableModule):
     self.parent.helpText = """
 This module describes cross-sections along a VMTK centerline model, a VMTK centerline markups curve or an arbitrary markups curve. Documentation is available
     <a href="https://github.com/vmtk/SlicerExtension-VMTK/tree/master/CrossSectionAnalysis">here</a>.
-"""  
+"""
     self.parent.acknowledgementText = """
 This file was originally developed by SET. Many thanks to Andras Lasso for sanitizing the code and UI, and for guidance throughout.
 """  # TODO: replace with organization, grant and thanks.
@@ -60,9 +60,9 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     uiWidget = slicer.util.loadUI(self.resourcePath('UI/CrossSectionAnalysis.ui'))
     self.layout.addWidget(uiWidget)
     self.ui = slicer.util.childWidgetVariables(uiWidget)
-    
+
     # Add vertical spacer
-    self.layout.addStretch(1) 
+    self.layout.addStretch(1)
 
     # Set scene in MRML widgets. Make sure that in Qt designer
     # "mrmlSceneChanged(vtkMRMLScene*)" signal in is connected to each MRML widget's.
@@ -70,6 +70,9 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     uiWidget.setMRMLScene(slicer.mrmlScene)
 
     self.logic = CrossSectionAnalysisLogic()
+
+    self.initializeParameterNode()
+
     self.resetMoveToPointSliderWidget()
 
     # TODO: a module must not change the application-wide unit format
@@ -99,34 +102,34 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     # These connections ensure that we update parameter node when scene is closed
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
-    
-    # These connections ensure that whenever user changes some settings on the GUI, that is saved in the MRML scene
-    # (in the selected parameter node).
-    self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
-    self.ui.segmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
-    self.ui.segmentSelector.connect("currentSegmentChanged(QString)", self.updateParameterNodeFromGUI)
-    self.ui.outputTableSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
-    self.ui.outputPlotSeriesSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
-    self.ui.sliceViewSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
-    self.ui.moveToPointSliderWidget.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
-    self.ui.radioRAS.connect("clicked()", self.updateParameterNodeFromGUI)
-    self.ui.radioLPS.connect("clicked()", self.updateParameterNodeFromGUI)
-    self.ui.distinctColumnsCheckBox.connect("clicked()", self.updateParameterNodeFromGUI)
-    self.ui.jumpCentredInSliceNodeCheckBox.connect("clicked()", self.updateParameterNodeFromGUI)
-    self.ui.orthogonalReformatInSliceNodeCheckBox.connect("clicked()", self.updateParameterNodeFromGUI)
-    self.ui.outputPlotSeriesTypeComboBox.connect("currentIndexChanged(int)", self.updateParameterNodeFromGUI)
-    
+
+    # Update parameter node if the user interacts with the widgets
+    self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.setNodeReferenceInParameterNode("InputCenterline", node))
+    self.ui.segmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.setNodeReferenceInParameterNode("InputSegmentation", node))
+    self.ui.outputTableSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.setNodeReferenceInParameterNode("OutputTable", node))
+    self.ui.outputPlotSeriesSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.setNodeReferenceInParameterNode("OutputPlotSeries", node))
+    self.ui.axialSliceViewSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.setNodeReferenceInParameterNode("AxialSliceNode", node))
+    self.ui.longitudinalSliceViewSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.setNodeReferenceInParameterNode("LongitudinalSliceNode", node))
+    self.ui.segmentSelector.connect("currentSegmentChanged(QString)", lambda value: self.setValueInParameterNode("InputSegment", value))
+    self.ui.radioRAS.connect("clicked()", lambda: self.setValueInParameterNode("UseLPS", False))
+    self.ui.radioLPS.connect("clicked()", lambda: self.setValueInParameterNode("UseLPS", True))
+    self.ui.distinctColumnsCheckBox.connect("toggled(bool)", lambda value: self.setValueInParameterNode("DistinctColumns", "True" if value else "False"))
+    self.ui.jumpCentredInSliceNodeCheckBox.connect("toggled(bool)", lambda value: self.setValueInParameterNode("CentreInSliceView", "True" if value else "False"))
+    self.ui.orthogonalReformatInSliceNodeCheckBox.connect("toggled(bool)", lambda value: self.setValueInParameterNode("OrthogonalReformat", "True" if value else "False"))
+    self.ui.rotationSliderWidget.connect("valueChanged(double)", lambda value: self.setValueInParameterNode("RotationAngleDeg", value))
+    self.ui.axialSpinSliderWidget.connect("valueChanged(double)", lambda value: self.setValueInParameterNode("AxialSpinAngleDeg", value))
+    self.ui.longitudinalSpinSliderWidget.connect("valueChanged(double)", lambda value: self.setValueInParameterNode("LongitudinalSpinAngleDeg", value))
+    self.ui.showMISDiameterPushButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode("ShowMISModel", "True" if value else "False"))
+    self.ui.showCrossSectionButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode("ShowCrossSection", "True" if value else "False"))
+
     # connections
     self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
-    self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectNode)
-    self.ui.outputPlotSeriesSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectNode)
-    self.ui.outputTableSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectNode)
-    self.ui.radioLPS.connect("clicked()", self.onRadioLPS)
-    self.ui.radioRAS.connect("clicked()", self.onRadioRAS)
-    self.ui.distinctColumnsCheckBox.connect("clicked()", self.onDistinctCoordinatesCheckBox)
+
+    self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.resetOutput)
+    self.ui.outputPlotSeriesSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.resetOutput)
+    self.ui.outputTableSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.resetOutput)
+
     self.ui.moveToPointSliderWidget.connect("valueChanged(double)", self.setCurrentPointIndex)
-    self.ui.jumpCentredInSliceNodeCheckBox.connect("clicked()", self.onJumpCentredInSliceNodeCheckBox)
-    self.ui.orthogonalReformatInSliceNodeCheckBox.connect("clicked()", self.onOrthogonalReformatInSliceNodeCheckBox)
     self.ui.useCurrentPointAsOriginButton.connect("clicked()", self.onUseCurrentPointAsOrigin)
     self.ui.goToOriginButton.connect("clicked()", self.onGoToOriginPoint)
     self.ui.moveToMinimumMISDiameterPushButton.connect("clicked()", self.moveSliceViewToMinimumMISDiameter)
@@ -135,23 +138,18 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.moveToMaximumAreaPushButton.connect("clicked()", self.moveSliceViewToMaximumArea)
     self.ui.toggleTableLayoutButton.connect("clicked()", self.toggleTableLayout)
     self.ui.togglePlotLayoutButton.connect("clicked()", self.togglePlotLayout)
-    self.ui.segmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSegmentationNodes)
-    self.ui.segmentSelector.connect("currentSegmentChanged(QString)", self.onSelectSegmentationNodes)
-    self.ui.showCrossSectionButton.connect("clicked()", self.onShowCrossSection)
-    self.ui.showMISDiameterPushButton.connect("clicked()", self.onShowMaximumInscribedSphere)
-    self.ui.sliceViewSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSelectSliceNode)
-    self.ui.torsionSliderWidget.connect("valueChanged(double)", self.onTorsionSliderWidget)
+
     self.ui.outputPlotSeriesTypeComboBox.connect("currentIndexChanged(int)", self.setPlotSeriesType)
 
     # Refresh Apply button state
-    self.onSelectNode()
-    
+    self.updateGUIFromParameterNode()
+
   def cleanup(self):
     """
     Called when the application closes and the module widget is destroyed.
     """
     self.removeObservers()
-  
+
   def enter(self):
     # Make sure parameter node exists and observed
     self.initializeParameterNode()
@@ -160,7 +158,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     """
     Called each time the user opens a different module.
     """
-    # Do not react to parameter node changes (GUI wlil be updated when the user enters into the module)
+    # Do not react to parameter node changes (GUI will be updated when the user enters into the module)
     self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
 
   def onSceneStartClose(self, caller, event):
@@ -179,7 +177,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       self.initializeParameterNode()
     # Clean up logic variables too.
     self.logic.initMemberVariables()
-      
+
   def initializeParameterNode(self):
     """
     Ensure parameter node exists and observed.
@@ -209,7 +207,12 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
     # Initial GUI update
     self.updateGUIFromParameterNode()
-    
+
+  def resetOutput(self):
+    self.ui.moveToPointSliderWidget.setValue(0)
+    self.resetMoveToPointSliderWidget()
+    self.clearMetrics()
+
   def updateGUIFromParameterNode(self, caller=None, event=None):
     """
     This method is called whenever parameter node is changed.
@@ -222,67 +225,78 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     # Make sure GUI changes do not call updateParameterNodeFromGUI (it could cause infinite loop)
     self._updatingGUIFromParameterNode = True
 
+    # Update the logic
+
+    self.logic.setInputCenterlineNode(self._parameterNode.GetNodeReference("InputCenterline"))
+    self.logic.setLumenSurface(self._parameterNode.GetNodeReference("InputSegmentation"), self._parameterNode.GetParameter("InputSegment"))
+    self.logic.setOutputTableNode(self._parameterNode.GetNodeReference("OutputTable"))
+    self.logic.setOutputPlotSeriesNode(self._parameterNode.GetNodeReference("OutputPlotSeries"))
+    self.logic.coordinateSystemColumnSingle = self._parameterNode.GetParameter("DistinctColumns") != "True"
+    self.logic.coordinateSystemColumnRAS = self._parameterNode.GetParameter("UseLPS") != "True"
+    self.logic.jumpCentredInSliceNode = self._parameterNode.GetParameter("CentreInSliceView") == "True"
+    self.logic.orthogonalReformatInSliceNode = self._parameterNode.GetParameter("OrthogonalReformat") == "True"
+    self.logic.axialSliceNode = self._parameterNode.GetNodeReference("AxialSliceNode")
+    self.logic.longitudinalSliceNode = self._parameterNode.GetNodeReference("LongitudinalSliceNode")
+    self.logic.rotationAngleDeg = float(self._parameterNode.GetParameter("RotationAngleDeg")) if self._parameterNode.GetParameter("RotationAngleDeg") else 0.0
+    self.logic.axialSpinAngleDeg = float(self._parameterNode.GetParameter("AxialSpinAngleDeg")) if self._parameterNode.GetParameter("AxialSpinAngleDeg") else 0.0
+    self.logic.longitudinalSpinAngleDeg = float(self._parameterNode.GetParameter("LongitudinalSpinAngleDeg")) if self._parameterNode.GetParameter("LongitudinalSpinAngleDeg") else 0.0
+    self.logic.setShowMaximumInscribedSphereDiameter(self._parameterNode.GetParameter("ShowMISModel") == "True")
+    self.logic.setShowCrossSection(self._parameterNode.GetParameter("ShowCrossSection") == "True")
+
     # Update node selectors and sliders
+
     self.ui.inputCenterlineSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputCenterline"))
     self.ui.segmentationSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputSegmentation"))
     self.ui.segmentSelector.setCurrentSegmentID(self._parameterNode.GetParameter("InputSegment"))
     self.ui.outputTableSelector.setCurrentNode(self._parameterNode.GetNodeReference("OutputTable"))
     self.ui.outputPlotSeriesSelector.setCurrentNode(self._parameterNode.GetNodeReference("OutputPlotSeries"))
-    self.ui.sliceViewSelector.setCurrentNode(self._parameterNode.GetNodeReference("SliceNode"))
+    self.ui.axialSliceViewSelector.setCurrentNode(self._parameterNode.GetNodeReference("AxialSliceNode"))
+    self.ui.longitudinalSliceViewSelector.setCurrentNode(self._parameterNode.GetNodeReference("LongitudinalSliceNode"))
     if self._parameterNode.GetParameter("UseLPS") == "True":
         self.ui.radioLPS.setChecked(True)
-        self.onRadioLPS()
     else:
         self.ui.radioRAS.setChecked(True)
-        self.onRadioRAS()
-    self.ui.distinctColumnsCheckBox.setChecked (self._parameterNode.GetParameter("DistinctColumns") == "True")
-    self.ui.jumpCentredInSliceNodeCheckBox.setChecked (self._parameterNode.GetParameter("CentreInSliceView") == "True")
-    self.ui.orthogonalReformatInSliceNodeCheckBox.setChecked (self._parameterNode.GetParameter("OrthogonalReformat") == "True")
-    self.ui.showMISDiameterPushButton.setChecked (self._parameterNode.GetParameter("ShowMISModel") == "True")
-    itemIndex = self.ui.outputPlotSeriesTypeComboBox.findData(int(self._parameterNode.GetParameter("OutputPlotSeriesType")))
+    self.ui.distinctColumnsCheckBox.setChecked(not self.logic.coordinateSystemColumnSingle)
+    self.ui.jumpCentredInSliceNodeCheckBox.setChecked(self.logic.jumpCentredInSliceNode)
+    self.ui.orthogonalReformatInSliceNodeCheckBox.setChecked(self.logic.orthogonalReformatInSliceNode)
+    self.ui.rotationSliderWidget.setValue(self.logic.rotationAngleDeg)
+    self.ui.axialSpinSliderWidget.setValue(self.logic.axialSpinAngleDeg)
+    self.ui.longitudinalSpinSliderWidget.setValue(self.logic.longitudinalSpinAngleDeg)
+    self.ui.showMISDiameterPushButton.setChecked(self.logic.showMaximumInscribedSphere)
+    self.ui.showCrossSectionButton.setChecked(self.logic.showCrossSection)
+
+    itemIndex = self.ui.outputPlotSeriesTypeComboBox.findData(self._parameterNode.GetParameter("OutputPlotSeriesType"))
     self.ui.outputPlotSeriesTypeComboBox.setCurrentIndex(itemIndex)
-    
-    # The check events are not triggered by above.
-    self.onDistinctCoordinatesCheckBox()
-    self.onJumpCentredInSliceNodeCheckBox()
-    self.onOrthogonalReformatInSliceNodeCheckBox()
-    
+
+    # Update button states
+
+    self.ui.segmentSelector.setVisible(self.logic.lumenSurfaceNode is not None
+      and self.logic.lumenSurfaceNode.IsTypeOf("vtkMRMLSegmentationNode"))
+
+    self.ui.applyButton.enabled = self.logic.isInputCenterlineValid()
+
+    reformatEnabled = self.ui.orthogonalReformatInSliceNodeCheckBox.isChecked()
+    self.ui.axialSpinSliderWidget.setEnabled(reformatEnabled and self.ui.axialSliceViewSelector.currentNodeID)
+    self.ui.rotationSliderWidget.setEnabled(reformatEnabled and self.ui.longitudinalSliceViewSelector.currentNodeID)
+    self.ui.longitudinalSpinSliderWidget.setEnabled(reformatEnabled and self.ui.longitudinalSliceViewSelector.currentNodeID)
+
+    self.ui.moveToMinimumAreaPushButton.enabled = self.logic.lumenSurfaceNode is not None
+    self.ui.moveToMaximumAreaPushButton.enabled = self.logic.lumenSurfaceNode is not None
+    self.ui.showCrossSectionButton.enabled = self.logic.lumenSurfaceNode is not None
+
+    # Update outputs
+    self.updateMeasurements()
+
     # All the GUI updates are done
     self._updatingGUIFromParameterNode = False
 
-  def updateParameterNodeFromGUI(self, caller=None, event=None):
-    """
-    This method is called when the user makes any change in the GUI.
-    The changes are saved into the parameter node (so that they are restored when the scene is saved and loaded).
-    """
-    if self._parameterNode is None or self._updatingGUIFromParameterNode:
-      return
+  def setNodeReferenceInParameterNode(self, referenceRole, referencedNode):
+    if self._parameterNode:
+      self._parameterNode.SetNodeReferenceID(referenceRole, referencedNode.GetID() if referencedNode else None)
 
-    wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
-    
-    self._parameterNode.SetNodeReferenceID("InputCenterline", self.ui.inputCenterlineSelector.currentNodeID)
-    self._parameterNode.SetNodeReferenceID("InputSegmentation", self.ui.segmentationSelector.currentNodeID)
-    self._parameterNode.SetParameter("InputSegment", self.ui.segmentSelector.currentSegmentID())
-    self._parameterNode.SetNodeReferenceID("OutputTable", self.ui.outputTableSelector.currentNodeID)
-    self._parameterNode.SetNodeReferenceID("OutputPlotSeries", self.ui.outputPlotSeriesSelector.currentNodeID)
-    self._parameterNode.SetNodeReferenceID("SliceNode", self.ui.sliceViewSelector.currentNodeID)
-    self._parameterNode.SetParameter("UseLPS", "True" if (self.ui.radioLPS.isChecked()) else "False")
-    self._parameterNode.SetParameter("DistinctColumns", "True" if (self.ui.distinctColumnsCheckBox.isChecked()) else "False")
-    self._parameterNode.SetParameter("CentreInSliceView", "True" if (self.ui.jumpCentredInSliceNodeCheckBox.isChecked()) else "False")
-    self._parameterNode.SetParameter("OrthogonalReformat", "True" if (self.ui.orthogonalReformatInSliceNodeCheckBox.isChecked()) else "False")
-    self._parameterNode.SetParameter("ShowMISModel", "True" if (self.ui.showMISDiameterPushButton.isChecked()) else "False")
-    self._parameterNode.SetParameter("OutputPlotSeriesType", str(self.ui.outputPlotSeriesTypeComboBox.currentData))
-    
-    self._parameterNode.EndModify(wasModified)
-    
-  def onSelectNode(self):
-    self.logic.setInputCenterlineNode(self.ui.inputCenterlineSelector.currentNode())
-    self.ui.applyButton.enabled = self.logic.isInputCenterlineValid()
-    self.logic.setOutputTableNode(self.ui.outputTableSelector.currentNode())
-    self.logic.setOutputPlotSeriesNode(self.ui.outputPlotSeriesSelector.currentNode())
-    self.ui.moveToPointSliderWidget.setValue(0)
-    self.resetMoveToPointSliderWidget()
-    self.clearMetrics()
+  def setValueInParameterNode(self, parameterName, value):
+    if self._parameterNode:
+      self._parameterNode.SetParameter(parameterName, str(value))
 
   def createOutputNodes(self):
     if self.logic.isCenterlineRadiusAvailable(False):
@@ -300,68 +314,43 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         logging.info(msg)
         return # Just don't do anything
 
-    slicer.app.setOverrideCursor(qt.Qt.WaitCursor)
-    self.previousLayoutId = slicer.app.layoutManager().layout
-    self.clearMetrics()
-    self.createOutputNodes()
-    self.logic.run()
+    try:
 
-    self.ui.browseCollapsibleButton.collapsed = False
+      slicer.app.setOverrideCursor(qt.Qt.WaitCursor)
+      self.previousLayoutId = slicer.app.layoutManager().layout
+      self.clearMetrics()
+      self.createOutputNodes()
+      self.logic.run()
 
-    isCenterlineRadiusAvailable = self.logic.isCenterlineRadiusAvailable(False)
-    isCenterlineRadiusAvailableInTable = self.logic.isCenterlineRadiusAvailable(True)
-    self.ui.toggleTableLayoutButton.visible = isCenterlineRadiusAvailableInTable and (self.logic.outputTableNode is not None)
-    self.ui.togglePlotLayoutButton.visible = isCenterlineRadiusAvailableInTable and (self.logic.outputPlotSeriesNode is not None)
-    self.ui.moveToMinimumMISDiameterPushButton.enabled = isCenterlineRadiusAvailable
-    self.ui.moveToMaximumMISDiameterPushButton.enabled = isCenterlineRadiusAvailable
-    self.ui.showMISDiameterPushButton.enabled = isCenterlineRadiusAvailable
+      self.ui.browseCollapsibleButton.collapsed = False
 
-    self.ui.moveToMinimumAreaPushButton.enabled = self.logic.lumenSurfaceNode is not None
-    self.ui.moveToMaximumAreaPushButton.enabled = self.logic.lumenSurfaceNode is not None
-    self.ui.showCrossSectionButton.enabled = self.logic.lumenSurfaceNode is not None
+      isCenterlineRadiusAvailable = self.logic.isCenterlineRadiusAvailable(False)
+      isCenterlineRadiusAvailableInTable = self.logic.isCenterlineRadiusAvailable(True)
+      self.ui.toggleTableLayoutButton.visible = isCenterlineRadiusAvailableInTable and (self.logic.outputTableNode is not None)
+      self.ui.togglePlotLayoutButton.visible = isCenterlineRadiusAvailableInTable and (self.logic.outputPlotSeriesNode is not None)
+      self.ui.moveToMinimumMISDiameterPushButton.enabled = isCenterlineRadiusAvailable
+      self.ui.moveToMaximumMISDiameterPushButton.enabled = isCenterlineRadiusAvailable
+      self.ui.showMISDiameterPushButton.enabled = isCenterlineRadiusAvailable
 
-    numberOfPoints = self.logic.getNumberOfPoints()
-    # Prevent going to the endpoint (direction computation is only implemented for models with forward difference)
-    numberOfPoints -= 1
+      self.ui.moveToMinimumAreaPushButton.enabled = self.logic.lumenSurfaceNode is not None
+      self.ui.moveToMaximumAreaPushButton.enabled = self.logic.lumenSurfaceNode is not None
+      self.ui.showCrossSectionButton.enabled = self.logic.lumenSurfaceNode is not None
 
-    self.ui.moveToPointSliderWidget.maximum = numberOfPoints - 1
-    self.updateMeasurements()
-    self.ui.torsionSliderWidget.value = 0.0
-    sliceNode = self.ui.sliceViewSelector.currentNode()
-    if sliceNode:
-        sliceNode.SetAttribute("currentTilt", "0.0")
-    slicer.app.restoreOverrideCursor()
+      numberOfPoints = self.logic.getNumberOfPoints()
+      ## Prevent going to the endpoint (direction computation is only implemented for models with forward difference)
+      #numberOfPoints -= 1
 
-  def onRadioLPS(self):
-    self.logic.coordinateSystemColumnRAS = False
-  
-  def onRadioRAS(self):
-    self.logic.coordinateSystemColumnRAS = True
-    
-  def onDistinctCoordinatesCheckBox(self):
-    self.logic.coordinateSystemColumnSingle = not self.ui.distinctColumnsCheckBox.checked
-  
-  def onJumpCentredInSliceNodeCheckBox(self):
-    self.logic.jumpCentredInSliceNode = self.ui.jumpCentredInSliceNodeCheckBox.checked
-    if self.ui.sliceViewSelector.currentNode():
-        self.setCurrentPointIndex(self.ui.moveToPointSliderWidget.value)
-        self.updateSliceViewOrientationMetrics()
-  
-  def onOrthogonalReformatInSliceNodeCheckBox(self):
-    self.logic.orthogonalReformatInSliceNode = self.ui.orthogonalReformatInSliceNodeCheckBox.checked
-    self.ui.torsionSliderWidget.value = 0.0
-    sliceNode = self.ui.sliceViewSelector.currentNode()
-    if sliceNode:
-        self.setCurrentPointIndex(self.ui.moveToPointSliderWidget.value)
-        self.updateSliceViewOrientationMetrics()
-        if not self.ui.orthogonalReformatInSliceNodeCheckBox.checked:
-            sliceNode.SetAttribute("currentTilt", "0.0")
+      self.ui.moveToPointSliderWidget.maximum = numberOfPoints - 1
+      self.updateMeasurements()
+
+    finally:
+      slicer.app.restoreOverrideCursor()
 
   def onUseCurrentPointAsOrigin(self):
     slicer.app.setOverrideCursor(qt.Qt.WaitCursor)
     self.logic.relativeOriginPointIndex = int(self.ui.moveToPointSliderWidget.value)
     self.updateMeasurements()
-    
+
     # Update table, to show distances relative to new origin.
     if self.logic.outputTableNode:
         self.logic.updateOutputTable(self.logic.inputCenterlineNode, self.logic.outputTableNode)
@@ -372,15 +361,6 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
   def onGoToOriginPoint(self):
     self.ui.moveToPointSliderWidget.value = self.logic.relativeOriginPointIndex
 
-  def onSelectSliceNode(self, sliceNode):
-    self.logic.selectSliceNode(sliceNode)
-    self.updateSliceViewOrientationMetrics()
-    if sliceNode is None:
-        self.ui.orientationValueLabel.setText("")
-    else:
-        sliceNode.SetAttribute("currentTilt", "0.0")
-    self.ui.torsionSliderWidget.value = 0.0
-    
   def updateUIWithMetrics(self, value):
     pointIndex = int(value)
 
@@ -414,7 +394,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         distanceStr = self.logic.getUnitNodeDisplayString(distanceFromOrigin, "length").strip()
     self.ui.distanceValueLabel.setText(distanceStr)
     self.ui.diameterValueLabel.setText(diameterStr)
-    
+
     # Cross-section area metrics
 
     surfaceArea = self.logic.getCrossSectionArea(pointIndex)
@@ -426,7 +406,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     if surfaceArea > 0.0:
       derivedDiameter = (np.sqrt(surfaceArea / np.pi)) * 2
       derivedDiameterStr = self.logic.getUnitNodeDisplayString(derivedDiameter, "length").strip()
-  
+
       if misDiameter > 0.0:
         diameterDifference = (derivedDiameter - misDiameter)
         """
@@ -449,14 +429,16 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       self.ui.derivedDiameterValueLabel.setText("")
     # Orientation
     self.updateSliceViewOrientationMetrics()
-    
+
   def updateSliceViewOrientationMetrics(self):
-    if self.ui.sliceViewSelector.currentNode():
-        orient = self.logic.getSliceOrientation(self.ui.sliceViewSelector.currentNode())
+    if self.ui.axialSliceViewSelector.currentNode():
+        orient = self.logic.getSliceOrientation(self.ui.axialSliceViewSelector.currentNode())
         orientation = "R " + str(round(orient[0], 1)) + chr(0xb0) + ","
         orientation += " A " + str(round(orient[1], 1)) + chr(0xb0) + ","
         orientation += " S " + str(round(orient[2], 1)) + chr(0xb0)
         self.ui.orientationValueLabel.setText(orientation)
+    else:
+        self.ui.orientationValueLabel.setText("")
 
   def showRelativeDistance(self):
     if not self.logic.outputTableNode:
@@ -478,14 +460,13 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     slider.minimum = 0
     slider.maximum = 0
     slider.setValue(0)
-    self.ui.torsionSliderWidget.setValue(0.0)
 
   def moveSliceViewToMinimumMISDiameter(self):
     point = self.logic.getExtremeMetricPoint(MIS_DIAMETER_ARRAY_NAME, False)
     if point == -1:
         return
     self.ui.moveToPointSliderWidget.setValue(point)
-  
+
   def moveSliceViewToMaximumMISDiameter(self):
     point = self.logic.getExtremeMetricPoint(MIS_DIAMETER_ARRAY_NAME, True)
     if point == -1:
@@ -503,7 +484,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     if point == -1:
         return
     self.ui.moveToPointSliderWidget.setValue(point)
-    
+
   def toggleTableLayout(self):
     """Useful UI enhancement. Get back to the previous layout that would most certainly
     have a 3D view before we plot the diameter distribution chart. And back to the plot layout.
@@ -526,31 +507,6 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     else:
       self.logic.showPlot()
 
-  # Every time we select a segmentation or a segment.
-  def onSelectSegmentationNodes(self):
-    self.logic.setLumenSurface(self.ui.segmentationSelector.currentNode(), self.ui.segmentSelector.currentSegmentID())
-    self.ui.segmentSelector.setVisible(self.ui.segmentationSelector.currentNode() is not None
-      and self.ui.segmentationSelector.currentNode().IsTypeOf("vtkMRMLSegmentationNode"))
-    # Update measurements (surface can be changed dynamically, after Apply)
-    self.ui.moveToMinimumAreaPushButton.enabled = self.logic.lumenSurfaceNode is not None
-    self.ui.moveToMaximumAreaPushButton.enabled = self.logic.lumenSurfaceNode is not None
-    self.ui.showCrossSectionButton.enabled = self.logic.lumenSurfaceNode is not None
-    self.updateMeasurements()
-    
-  def onShowCrossSection(self):
-    show = self.ui.showCrossSectionButton.checked
-    self.logic.setShowCrossSection(show)
-    if not show:
-      self.logic.deleteCrossSection()
-    self.updateMeasurements()
-
-  def onShowMaximumInscribedSphere(self):
-    show = self.ui.showMISDiameterPushButton.checked
-    self.logic.setShowMaximumInscribedSphereDiameter(show)
-    if not show:
-      self.logic.deleteMaximumInscribedSphere()
-    self.updateMeasurements()
-
   def updateMeasurements(self):
     self.setCurrentPointIndex(self.ui.moveToPointSliderWidget.value)
 
@@ -560,8 +516,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     pointIndex = int(value)
 
     # Update slice view position
-    if self.ui.sliceViewSelector.currentNode():
-      self.logic.updateSliceView(self.ui.sliceViewSelector.currentNode(), pointIndex)
+    self.logic.updateSliceView(pointIndex)
 
     # Update maximum inscribed radius sphere model
     if self.logic.isCenterlineRadiusAvailable():
@@ -577,14 +532,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
     self.updateUIWithMetrics(value)
 
-  def onTorsionSliderWidget(self):
-    sliceNode = self.ui.sliceViewSelector.currentNode()
-    if sliceNode is None:
-        return
-    angle = self.ui.torsionSliderWidget.value
-    self.logic.rotateAroundZ(sliceNode, angle)
-
   def setPlotSeriesType(self, type):
+    self.setValueInParameterNode("OutputPlotSeriesType", str(self.ui.outputPlotSeriesTypeComboBox.currentData))
     self.logic.setPlotSeriesType(self.ui.outputPlotSeriesTypeComboBox.currentData)
 
 #
@@ -611,7 +560,6 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.plotChartNode = None
     self.coordinateSystemColumnSingle = True
     self.coordinateSystemColumnRAS = True  # LPS or RAS
-    self.jumpCentredInSliceNode = True
     self.lumenSurfaceNode = None
     self.currentSegmentID = ""
     self.crossSectionPolyDataCache = {}
@@ -628,16 +576,23 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.maximumInscribedSphereModelNode = None
     self.showMaximumInscribedSphere = False
     self.maximumInscribedSphereColor = [0.2, 1.0, 0.4]
-    self.orthogonalReformatInSliceNode = True
     self.relativeOriginPointIndex = 0
     self.outputPlotSeriesType = 0
+    # Slice browsing
+    self.axialSliceNode = None
+    self.longitudinalSliceNode = None
+    self.jumpCentredInSliceNode = True
+    self.orthogonalReformatInSliceNode = True
+    self.axialSpinAngleDeg = 0.0
+    self.longitudinalSpinAngleDeg = 0.0
+    self.rotationAngleDeg = 0.0
 
   def showStatusMessage(self, messages):
     separator = " "
     msg = separator.join(messages)
     slicer.util.showStatusMessage(msg, 3000)
     slicer.app.processEvents()
-    
+
   @property
   def relativeOriginPointIndex(self):
     originPointIndexStr = self.getParameterNode().GetParameter("originPointIndex")
@@ -657,8 +612,9 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     parameterNode.SetParameter("CentreInSliceView", "True")
     parameterNode.SetParameter("OrthogonalReformat", "True")
     parameterNode.SetParameter("ShowMISModel", "False")
+    parameterNode.SetParameter("ShowCrossSectionModel", "False")
     parameterNode.SetParameter("OutputPlotSeriesType", "0")
-    
+
   def resetCrossSections(self):
     self.crossSectionPolyDataCache = {}
 
@@ -670,11 +626,20 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.relativeOriginPointIndex = 0
 
   def setLumenSurface(self, lumenSurfaceNode, currentSegmentID):
-    if (self.lumenSurfaceNode == lumenSurfaceNode) and (self.currentSegmentID == currentSegmentID):
+    # We may get an invalid (obsolete, empty, ...) segment ID.
+    # In this case, use the first segment.
+    verifiedSegmentID = ""
+    if lumenSurfaceNode:
+      if lumenSurfaceNode.GetSegmentation().GetSegment(currentSegmentID):
+        verifiedSegmentID = currentSegmentID
+      else:
+        verifiedSegmentID = lumenSurfaceNode.GetSegmentation().GetNthSegmentID(0)
+
+    if (self.lumenSurfaceNode == lumenSurfaceNode) and (self.currentSegmentID == verifiedSegmentID):
       return
     self.resetCrossSections()
     self.lumenSurfaceNode = lumenSurfaceNode
-    self.currentSegmentID = currentSegmentID
+    self.currentSegmentID = verifiedSegmentID
 
   def setOutputTableNode(self, tableNode):
     if self.outputTableNode == tableNode:
@@ -686,32 +651,20 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       return
     self.outputPlotSeriesNode = plotSeriesNode
 
-  def selectSliceNode(self, sliceNode):
-    # Don't modify Reformat module if we don't plan to use it.
-    if sliceNode is None:
-        return
-    slicer.modules.reformat.widgetRepresentation().setEditedNode(sliceNode)
-
   def setShowCrossSection(self, checked):
     self.showCrossSection = checked
     if self.crossSectionModelNode is not None:
         self.crossSectionModelNode.GetDisplayNode().SetVisibility(self.showCrossSection)
-  
+    if not checked:
+      self.deleteCrossSection()
+
   # type is item data of QComboBox, not item index
   def setPlotSeriesType(self, type):
     self.outputPlotSeriesType = type
     if self.outputPlotSeriesNode and self.outputTableNode and self.inputCenterlineNode:
         self.updatePlot(self.outputPlotSeriesNode, self.outputTableNode, self.inputCenterlineNode.GetName())
     if self.isPlotVisible():
-        lengthUnit = self.getUnitNodeUnitDisplayString(0.0, "length")
-        areaUnit = self.getUnitNodeUnitDisplayString(0.0, "area")
-        self.plotChartNode.SetXAxisTitle(f"{DISTANCE_ARRAY_NAME} ({ lengthUnit})")
-        if self.outputPlotSeriesType == 2:
-            self.plotChartNode.SetYAxisTitle(f"Area ({areaUnit})")
-        else:
-            self.plotChartNode.SetYAxisTitle(f"Diameter ({lengthUnit})")
-        
-        slicer.app.layoutManager().plotWidget(0).plotView().fitToContent()
+        self.showPlot()
 
   def deleteCrossSection(self):
     if self.crossSectionModelNode is not None:
@@ -722,6 +675,8 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.showMaximumInscribedSphere = checked
     if self.maximumInscribedSphereModelNode is not None:
         self.maximumInscribedSphereModelNode.GetDisplayNode().SetVisibility(self.showMaximumInscribedSphere)
+    if not checked:
+      self.deleteMaximumInscribedSphere()
 
   def deleteMaximumInscribedSphere(self):
     if self.maximumInscribedSphereModelNode is not None:
@@ -763,27 +718,20 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
         slicer.util.showStatusMessage(msg, 3000)
         raise ValueError(msg)
 
-    import time
-    startTime = time.time()
     logging.info('Processing started')
-    
     if self.outputTableNode:
       self.emptyOutputTableNode()
       self.updateOutputTable(self.inputCenterlineNode, self.outputTableNode)
     if self.outputPlotSeriesNode:
       self.updatePlot(self.outputPlotSeriesNode, self.outputTableNode, self.inputCenterlineNode.GetName())
-      
-    stopTime = time.time()
-    message = f'Processing completed in {stopTime-startTime:.2f} seconds'
-    logging.info(message)
-    slicer.util.showStatusMessage(message, 5000) 
+    logging.info('Processing completed')
 
   def emptyOutputTableNode(self):
     # Clears the plot also.
     while self.outputTableNode.GetTable().GetNumberOfColumns():
         self.outputTableNode.GetTable().RemoveColumn(0)
     self.outputTableNode.GetTable().Modified()
-    
+
   def getArrayFromTable(self, outputTable, arrayName):
     columnArray = outputTable.GetTable().GetColumnByName(arrayName)
     if columnArray:
@@ -855,31 +803,32 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.cumulateDistances(points, cumArray)
     relArray = vtk.vtkDoubleArray()
     self.updateCumulativeDistancesToRelativeOrigin(cumArray, relArray)
-
-    """
-    Fill in cross-section areas in C++ threads.
-    N.B. : polydata caching is not concerned here.
-    """
-    if inputCenterline and self.lumenSurfaceNode:
-        self.showStatusMessage(("Waiting for background jobs...", ))
-        if inputCenterline.IsA("vtkMRMLModelNode"):
-            crossSectionCompute = slicer.vtkModelCrossSectionCompute()
-        else:
-            crossSectionCompute = slicer.vtkCurveCrossSectionCompute()
-        crossSectionCompute.SetNumberOfThreads(os.cpu_count())
-        crossSectionCompute.SetInputCenterlineNode(inputCenterline)
-        crossSectionCompute.SetInputSurfaceNode(self.lumenSurfaceNode, self.currentSegmentID)
-        crossSectionCompute.UpdateTable(crossSectionAreaArray, ceDiameterArray)
-
     for i, radius in enumerate(radii):
-        """ Show progress anyway, even though we no longer compute
-        cross-section area sequentially."""
+        # Since we compute cross-section area sequentially, this step may be long.
         if (((i + 1) % 25) == 0):
             self.showStatusMessage(("Updating table :", str(i + 1), "/", str(numberOfPoints)))
-
         distanceArray.SetValue(i, relArray.GetValue(i))
         misDiameterArray.SetValue(i, radius * 2)
-        
+
+        if (inputCenterline.IsTypeOf("vtkMRMLModelNode")):
+            # Exclude last point where area cannot be computed
+            if i < (len(radii) - 1):
+                crossSectionArea = self.getCrossSectionArea(i)
+                ceDiameter = (np.sqrt(crossSectionArea / np.pi)) * 2
+                crossSectionAreaArray.SetValue(i, crossSectionArea)
+                ceDiameterArray.SetValue(i, ceDiameter)
+            else:
+                # Don't use 0.0 as it would always be the minimum ! Arbitrarily choosing the previous point is not fundamentally harmful.
+                crossSectionArea = self.getCrossSectionArea(i - 1)
+                ceDiameter = (np.sqrt(crossSectionArea / np.pi)) * 2
+                crossSectionAreaArray.SetValue(i, crossSectionArea)
+                ceDiameterArray.SetValue(i, ceDiameter)
+        else:
+            crossSectionArea = self.getCrossSectionArea(i)
+            ceDiameter = (np.sqrt(crossSectionArea / np.pi)) * 2
+            crossSectionAreaArray.SetValue(i, crossSectionArea)
+            ceDiameterArray.SetValue(i, ceDiameter)
+
         # Convert each point coordinate
         if self.coordinateSystemColumnRAS:
           coordinateValues = points[i]
@@ -893,11 +842,11 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
             coordinatesArray[2].SetValue(i, coordinateValues[2])
     distanceArray.Modified()
     misDiameterArray.Modified()
-    #crossSectionAreaArray.Modified()
-    #ceDiameterArray.Modified()
+    crossSectionAreaArray.Modified()
+    ceDiameterArray.Modified()
     outputTable.GetTable().Modified()
     self.showStatusMessage(("Updating table :", "finished", str(numberOfPoints), "points"))
-    
+
   def updatePlot(self, outputPlotSeries, outputTable, name=None):
 
     # Create plot
@@ -905,9 +854,9 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       outputPlotSeries.SetName(name)
     outputPlotSeries.SetAndObserveTableNodeID(outputTable.GetID())
     outputPlotSeries.SetXColumnName(DISTANCE_ARRAY_NAME)
-    if self.outputPlotSeriesType == 0:
+    if self.outputPlotSeriesType == MIS_DIAMETER:
         outputPlotSeries.SetYColumnName(MIS_DIAMETER_ARRAY_NAME)
-    elif self.outputPlotSeriesType == 1:
+    elif self.outputPlotSeriesType == CE_DIAMETER:
         outputPlotSeries.SetYColumnName(CE_DIAMETER_ARRAY_NAME)
     else:
         outputPlotSeries.SetYColumnName(CROSS_SECTION_AREA_ARRAY_NAME)
@@ -944,11 +893,11 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     if not self.plotChartNode:
       plotChartNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLPlotChartNode")
       self.plotChartNode = plotChartNode
-      
+
     lengthUnit = self.getUnitNodeUnitDisplayString(0.0, "length")
     areaUnit = self.getUnitNodeUnitDisplayString(0.0, "area")
     self.plotChartNode.SetXAxisTitle(f"{DISTANCE_ARRAY_NAME} ( {lengthUnit})")
-    if self.outputPlotSeriesType == 2:
+    if self.outputPlotSeriesType == CROSS_SECTION_AREA:
         self.plotChartNode.SetYAxisTitle(f"Area ({areaUnit})")
     else:
         self.plotChartNode.SetYAxisTitle(f"Diameter ({lengthUnit})")
@@ -970,6 +919,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
         continue
       if plotViewNode.GetPlotChartNode().HasPlotSeriesNodeID(self.outputPlotSeriesNode.GetID()):
         # found this series in a displayed chart
+        self.plotChartNode = plotViewNode.GetPlotChartNode()
         return True
     # Plot series is not visible
     return False
@@ -983,13 +933,13 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       dist += np.linalg.norm(point - previous)
       cumArray.SetValue(i, dist)
       previous = point
-  
+
   def updateCumulativeDistancesToRelativeOrigin(self, cumArray, relArray):
     distanceAtRelativeOrigin = cumArray.GetValue(self.relativeOriginPointIndex)
     numberOfValues = cumArray.GetNumberOfValues()
     relArray.SetNumberOfValues(numberOfValues)
     for i in range(numberOfValues):
-      relArray.SetValue(i, cumArray.GetValue(i) - distanceAtRelativeOrigin)  
+      relArray.SetValue(i, cumArray.GetValue(i) - distanceAtRelativeOrigin)
 
   def getCurvePointPositionAtIndex(self, value):
     """Get the coordinates of a point of the centerline as RAS. value is index of point.
@@ -1003,23 +953,47 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
         self.inputCenterlineNode.GetCurvePointsWorld().GetPoint(pointIndex, position)
     return position
 
-  def updateSliceView(self, sliceNode, value):
+  def updateSliceView(self, pointIndex):
     """Move the selected slice view to a point of the centerline, optionally centering on the point, and with optional orthogonal reformat.
     """
-    position = self.getCurvePointPositionAtIndex(value)
-    
-    if self.jumpCentredInSliceNode:
-        slicer.vtkMRMLSliceNode.JumpSliceByCentering(sliceNode, *position)
-    else:
-        slicer.vtkMRMLSliceNode.JumpSlice(sliceNode, *position)
-    
+    curvePointToWorld = self.getCurvePointToWorldTransformAtPointIndex(pointIndex)
+
     if self.orthogonalReformatInSliceNode:
-        reformatLogic = slicer.modules.reformat.logic()
-        direction = self.getCurvePointPositionAtIndex(value + 1) - position
-        reformatLogic.SetSliceOrigin(sliceNode, position[0], position[1], position[2])
-        reformatLogic.SetSliceNormal(sliceNode, direction[0], direction[1], direction[2])
+
+      if self.axialSliceNode:
+        rotationTransform = vtk.vtkTransform()
+        rotationTransform.SetMatrix(curvePointToWorld)
+        rotationTransform.RotateZ(self.axialSpinAngleDeg)
+        rotationMatrix = rotationTransform.GetMatrix()
+        self.axialSliceNode.SetSliceToRASByNTP(
+          rotationMatrix.GetElement(0, 2), rotationMatrix.GetElement(1, 2), rotationMatrix.GetElement(2, 2),
+          rotationMatrix.GetElement(0, 0), rotationMatrix.GetElement(1, 0), rotationMatrix.GetElement(2, 0),
+          rotationMatrix.GetElement(0, 3), rotationMatrix.GetElement(1, 3), rotationMatrix.GetElement(2, 3), 0)
+        if self.jumpCentredInSliceNode:
+          self.axialSliceNode.SetXYZOrigin(0, 0, 0)
+
+      if self.longitudinalSliceNode:
+        rotationTransform = vtk.vtkTransform()
+        rotationTransform.SetMatrix(curvePointToWorld)
+        rotationTransform.RotateZ(self.rotationAngleDeg)
+        rotationTransform.RotateX(self.longitudinalSpinAngleDeg)
+        rotationMatrix = rotationTransform.GetMatrix()
+        self.longitudinalSliceNode.SetSliceToRASByNTP(
+          rotationMatrix.GetElement(0, 2), rotationMatrix.GetElement(1, 2), rotationMatrix.GetElement(2, 2),
+          rotationMatrix.GetElement(0, 0), rotationMatrix.GetElement(1, 0), rotationMatrix.GetElement(2, 0),
+          rotationMatrix.GetElement(0, 3), rotationMatrix.GetElement(1, 3), rotationMatrix.GetElement(2, 3), 1)
+        if self.jumpCentredInSliceNode:
+          self.longitudinalSliceNode.SetXYZOrigin(0, 0, 0)
+
     else:
-        sliceNode.SetOrientationToDefault()
+      center = [curvePointToWorld.GetElement(i, 3) for i in range(3)]
+      for sliceNode in [self.axialSliceNode, self.longitudinalSliceNode]:
+        if not sliceNode:
+          continue
+        if self.jumpCentredInSliceNode:
+          slicer.vtkMRMLSliceNode.JumpSliceByCentering(sliceNode, *center)
+        else:
+          slicer.vtkMRMLSliceNode.JumpSlice(sliceNode, *center)
 
   def getExtremeMetricPoint(self, arrayName, boolMaximum):
     """Convenience function to get the point of minimum or maximum diameter.
@@ -1051,25 +1025,41 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     splitString = displayString.split()
     return splitString[len(splitString) - 1]
 
-  def computeCrossSectionPolydata(self, pointIndex):
-    center = np.zeros(3)
+  def getCurvePointToWorldTransformAtPointIndex(self, pointIndex):
+
+    curvePointToWorld = vtk.vtkMatrix4x4()
     if self.inputCenterlineNode.IsTypeOf("vtkMRMLModelNode"):
-        centerLocal = slicer.util.arrayFromModelPoints(self.inputCenterlineNode)[pointIndex]
-        self.inputCenterlineNode.TransformPointToWorld(centerLocal, center)
-        centerInc = np.zeros(3)
-        centerLocalInc = slicer.util.arrayFromModelPoints(self.inputCenterlineNode)[pointIndex+1] # note that this +1 does not work for the last point
-        self.inputCenterlineNode.TransformPointToWorld(centerLocalInc, centerInc)
-        normal = centerInc - center
+      modelPoints = slicer.util.arrayFromModelPoints(self.inputCenterlineNode)
+      curveCoordinateSystemGenerator = slicer.vtkParallelTransportFrame()
+      curveCoordinateSystemGenerator.SetInputData(self.inputCenterlineNode.GetPolyData())
+      curveCoordinateSystemGenerator.Update()
+      curvePoly = curveCoordinateSystemGenerator.GetOutput()
+      pointData = curvePoly.GetPointData()
+      normals = pointData.GetAbstractArray(curveCoordinateSystemGenerator.GetNormalsArrayName())
+      binormals = pointData.GetAbstractArray(curveCoordinateSystemGenerator.GetBinormalsArrayName())
+      tangents = pointData.GetAbstractArray(curveCoordinateSystemGenerator.GetTangentsArrayName())
+      normal = normals.GetTuple3(pointIndex)
+      binormal = binormals.GetTuple3(pointIndex)
+      tangent = tangents.GetTuple3(pointIndex)
+      position = curvePoly.GetPoint(pointIndex)
+      for row in range(3):
+        curvePointToWorld.SetElement(row, 0, normal[row])
+        curvePointToWorld.SetElement(row, 1, binormal[row])
+        curvePointToWorld.SetElement(row, 2, tangent[row])
+        curvePointToWorld.SetElement(row, 3, position[row])
+      # TODO: transform from local to world
     else:
-        normal = np.zeros(3)
-        self.inputCenterlineNode.GetCurvePointsWorld().GetPoint(pointIndex, center)
-        # There is a bug in GetCurveDirectionAtPointIndexWorld therefore for now
-        # we use GetCurvePointToWorldTransformAtPointIndex instead.
-        # self.inputCenterlineNode.GetCurveDirectionAtPointIndexWorld(pointIndex, normal)
-        curvePointToWorld = vtk.vtkMatrix4x4()
-        self.inputCenterlineNode.GetCurvePointToWorldTransformAtPointIndex(pointIndex, curvePointToWorld)
-        for i in range(3):
-          normal[i] = curvePointToWorld.GetElement(i, 2)
+      self.inputCenterlineNode.GetCurvePointToWorldTransformAtPointIndex(pointIndex, curvePointToWorld)
+
+    return curvePointToWorld
+
+  def computeCrossSectionPolydata(self, pointIndex):
+    curvePointToWorld = self.getCurvePointToWorldTransformAtPointIndex(pointIndex)
+    center = np.zeros(3)
+    normal = np.zeros(3)
+    for i in range(3):
+      center[i] = curvePointToWorld.GetElement(i, 3)
+      normal[i] = curvePointToWorld.GetElement(i, 2)
 
     # Place a plane perpendicular to the centerline
     plane = vtk.vtkPlane()
@@ -1079,8 +1069,8 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     # Work on the segment's closed surface
     closedSurfacePolyData = vtk.vtkPolyData()
     if self.lumenSurfaceNode.GetClassName() == "vtkMRMLSegmentationNode":
-        self.lumenSurfaceNode.CreateClosedSurfaceRepresentation()
-        self.lumenSurfaceNode.GetClosedSurfaceRepresentation(self.currentSegmentID, closedSurfacePolyData)
+      self.lumenSurfaceNode.CreateClosedSurfaceRepresentation()
+      self.lumenSurfaceNode.GetClosedSurfaceRepresentation(self.currentSegmentID, closedSurfacePolyData)
     else:
       closedSurfacePolyData = self.lumenSurfaceNode.GetPolyData()
 
@@ -1109,7 +1099,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     if planePoints.GetNumberOfPoints() < 3:
         logging.info("Not enough points to create surface")
         return None
-    
+
     # Keep the closed surface around the centerline
     vCenter = [center[0], center[1], center[2]]
     connectivityFilter = vtk.vtkConnectivityFilter()
@@ -1163,8 +1153,12 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       crossSectionPolyData = self.crossSectionPolyDataCache[pointIndex]
     else:
       # cross-section is not found in the cache, compute it now and store in cache
-      crossSectionPolyData = self.computeCrossSectionPolydata(pointIndex)
-      self.crossSectionPolyDataCache[pointIndex] = crossSectionPolyData
+      try:
+        crossSectionPolyData = self.computeCrossSectionPolydata(pointIndex)
+        self.crossSectionPolyDataCache[pointIndex] = crossSectionPolyData
+      except ValueError as e:
+        logging.warning(str(e))
+        return 0.0
 
     crossSectionProperties = vtk.vtkMassProperties()
     crossSectionProperties.SetInputData(crossSectionPolyData)
@@ -1212,7 +1206,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     # for i in range(self.crossSectionsPointIndices.GetNumberOfValues()):
     #     if self.crossSectionsPointIndices.GetValue(i) == pointIndex:
     #         return
-    
+
     # # Work on a copy of the input polydata for the stack model
     # islandPolyDataCopy = vtk.vtkPolyData()
     # islandPolyDataCopy.DeepCopy(islandPolyData)
@@ -1223,13 +1217,13 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     #     intArray.InsertNextValue(int(pointIndex))
     # islandPolyDataCopy.GetPointData().SetScalars(intArray)
     # islandPolyDataCopy.Modified()
-    
+
     # self.appendedPolyData.AddInputData(islandPolyDataCopy)
     # self.appendedPolyData.Update()
-    
+
     # # Remember where it's already done
     # self.crossSectionsPointIndices.InsertNextValue(int(pointIndex))
-    
+
     # # Remove stack model and observation
     # if self.allCrossSectionsModelNode is not None:
     #     # Don't react if we remove it from scene on our own
@@ -1271,12 +1265,20 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       name = "Maximum inscribed sphere"
       if self.lumenSurfaceNode:
         if (self.lumenSurfaceNode.GetClassName() == "vtkMRMLSegmentationNode"):
-            name += " for " + self.lumenSurfaceNode.GetSegmentation().GetSegment(self.currentSegmentID).GetName()
+            if self.lumenSurfaceNode.GetSegmentation().GetSegment(self.currentSegmentID):
+              name += " for " + self.lumenSurfaceNode.GetSegmentation().GetSegment(self.currentSegmentID).GetName()
         else:
             name += " for " + self.lumenSurfaceNode.GetName()
       self.maximumInscribedSphereModelNode.SetName(name)
       # Set sphere color
       sphereModelDisplayNode.SetColor(self.maximumInscribedSphereColor[0], self.maximumInscribedSphereColor[1], self.maximumInscribedSphereColor[2])
+
+  def getCurrentSegmentID(self):
+    """Get current segment ID. If invalid (not found) then the first segment of the segmentation will be used."""
+    if self.lumenSurfaceNode.GetSegmentation().GetSegment(self.currentSegmentID):
+      return self.currentSegmentID
+    else:
+      return self.lumenSurfaceNode.GetSegmentation().GetNthSegmentID(0)
 
   # This information is added because it is easily available.
   # How useful is it ?
@@ -1303,26 +1305,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     distanceFromStart = distanceArray.GetValue(int(pointIndex))
     return distanceFromStart - relativeOriginDistance
 
-  """
-  Rotate slice view around it's Z-axis.
-  It is relative to the previous rotation, stored as a slice node attribute.
-  The view is tilted by the difference between the requested angle from the slider and the buffered angle.
-  The buffered angle may not always start at 0.0.
-  """
-  def rotateAroundZ(self, sliceNode, angle):
-    if sliceNode is None:
-        return;
-    currentTilt = 0.0
-    if sliceNode.GetAttribute("currentTilt"):
-        currentTilt = float(sliceNode.GetAttribute("currentTilt"))
-    finalAngle = angle - currentTilt
-    SliceToRAS = sliceNode.GetSliceToRAS()
-    transform=vtk.vtkTransform()
-    transform.SetMatrix(SliceToRAS)
-    transform.RotateZ(finalAngle)
-    SliceToRAS.DeepCopy(transform.GetMatrix())
-    sliceNode.UpdateMatrices()
-    sliceNode.SetAttribute("currentTilt", str(angle))
+
 #
 # CrossSectionAnalysisTest
 #
@@ -1351,7 +1334,7 @@ DISTANCE_ARRAY_NAME = "Distance"
 MIS_DIAMETER_ARRAY_NAME = "Diameter (MIS)"
 CE_DIAMETER_ARRAY_NAME = "Diameter (CE)"
 CROSS_SECTION_AREA_ARRAY_NAME = "Cross-section area"
-MIS_DIAMETER = 0
-CE_DIAMETER = 1
-CROSS_SECTION_AREA = 2
+MIS_DIAMETER = "MIS_DIAMETER"
+CE_DIAMETER = "CE_DIAMETER"
+CROSS_SECTION_AREA = "CROSS_SECTION_AREA"
 
