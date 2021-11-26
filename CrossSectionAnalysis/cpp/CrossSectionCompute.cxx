@@ -16,6 +16,8 @@
 #include <vtkMatrix4x4.h> // Should not be required.
 #include <vtkMassProperties.h>
 #include <vtkMath.h> // Pi()
+#include <vtkParallelTransportFrame.h>
+#include <vtkPointData.h>
 
 std::mutex mtx;
 
@@ -350,6 +352,29 @@ vtkCurveCrossSectionCompute::~vtkCurveCrossSectionCompute()
 {
 }
 
+/*
+ * Sources of inspiration :
+ * https://github.com/Slicer/Slicer/blob/19d2cbe4cfb5cd3d651f7cdfee1958d1f159d941/Modules/Loadable/Markups/MRML/vtkMRMLMarkupsCurveNode.cxx#L915
+ * https://github.com/vmtk/SlicerExtension-VMTK/blob/81255c23d77e1549b82f4f21c2af7939282b020a/CrossSectionAnalysis/CrossSectionAnalysis.py#L1028
+ * 
+ */
+void vtkCurveCrossSectionCompute::SetInputCenterlineNode(vtkMRMLMarkupsCurveNode * centerline)
+{
+    this->InputCenterlineNode = centerline;
+    
+    vtkSmartPointer<vtkPolyData> inputCurvePolyData = this->InputCenterlineNode->GetCurveWorld();
+    
+    vtkSmartPointer<vtkParallelTransportFrame> curveCoordinateSystemGenerator = vtkSmartPointer<vtkParallelTransportFrame>::New();
+    curveCoordinateSystemGenerator->SetInputData(inputCurvePolyData);
+    curveCoordinateSystemGenerator->Update();
+    
+    this->CurvePolyData = curveCoordinateSystemGenerator->GetOutput();
+    
+    vtkPointData* pointData = this->CurvePolyData->GetPointData();
+    this->CurveTangents = vtkDoubleArray::SafeDownCast(
+        pointData->GetAbstractArray(curveCoordinateSystemGenerator->GetTangentsArrayName()));
+}
+
 void vtkCurveCrossSectionCompute::PrintSelf(ostream& os, vtkIndent indent)
 {
     vtkObject::PrintSelf(os,indent);
@@ -401,17 +426,14 @@ void vtkCurveCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaA
         vtkSmartPointer<vtkPolyData> closedSurfacePolyDataCopy = vtkSmartPointer<vtkPolyData>::New();
         closedSurfacePolyDataCopy->DeepCopy(this->ClosedSurfacePolyData.Get());
         
-        // Give each thread a copy of the centerline.
-        vtkSmartPointer<vtkMRMLMarkupsCurveNode> inputCenterlineNodeCopy = vtkSmartPointer<vtkMRMLMarkupsCurveNode>::New();
-        inputCenterlineNodeCopy->Copy(this->InputCenterlineNode);
-        
         // Each thread stores the results in this array.
         vtkSmartPointer<vtkDoubleArray> bufferArray = vtkSmartPointer<vtkDoubleArray>::New();
         bufferArray->SetNumberOfComponents(3);
         bufferArrays.push_back(bufferArray);
         
         threads.push_back(std::thread(vtkCurveCrossSectionComputeWorker(),
-                                      inputCenterlineNodeCopy,
+                                      this->CurvePolyData,
+                                      this->CurveTangents,
                                       closedSurfacePolyDataCopy,
                                       bufferArrays[i],
                                       startPointIndex, endPointIndex));
@@ -445,7 +467,8 @@ vtkCurveCrossSectionComputeWorker::~vtkCurveCrossSectionComputeWorker()
 {
 }
 
-void vtkCurveCrossSectionComputeWorker::operator () (vtkMRMLMarkupsCurveNode * inputCenterlineNode,
+void vtkCurveCrossSectionComputeWorker::operator () (vtkPolyData * curvePolyData,
+                                                     vtkDoubleArray * curveTangents,
                                                      vtkPolyData * closedSurfacePolyData,
                                                      vtkDoubleArray * bufferArray,
                                                      vtkIdType startPointIndex,
@@ -458,7 +481,8 @@ void vtkCurveCrossSectionComputeWorker::operator () (vtkMRMLMarkupsCurveNode * i
     {
         // Get the contout polydata
         vtkNew<vtkPolyData> contourPolyData;
-        ComputeCrossSectionPolydata(inputCenterlineNode, closedSurfacePolyData, i, contourPolyData);
+        ComputeCrossSectionPolydata(curvePolyData, curveTangents,
+                                    closedSurfacePolyData, i, contourPolyData);
         {
             // Get the surface area and circular equivalent diameter
             vtkNew<vtkMassProperties> crossSectionProperties;
@@ -481,14 +505,20 @@ void vtkCurveCrossSectionComputeWorker::operator () (vtkMRMLMarkupsCurveNode * i
 
 // Translated and adapted from the Python implementation.
 void vtkCurveCrossSectionComputeWorker::ComputeCrossSectionPolydata(
-    vtkMRMLMarkupsCurveNode * inputCenterlineNode,
+    vtkPolyData * curvePolyData,
+    vtkDoubleArray * curveTangents,
     vtkPolyData * closedSurfacePolyData,
     vtkIdType pointIndex,
     vtkPolyData * contourPolyData)
 {
-    if (inputCenterlineNode == nullptr)
+    if (curvePolyData == nullptr)
     {
-        WORKER_MESSAGE("Input centerline is NULL.");
+        WORKER_MESSAGE("Input curve polydata is NULL.");
+        return;
+    }
+    if (curvePolyData == nullptr)
+    {
+        WORKER_MESSAGE("Input curve tangents is NULL.");
         return;
     }
     if (closedSurfacePolyData == nullptr)
@@ -497,18 +527,12 @@ void vtkCurveCrossSectionComputeWorker::ComputeCrossSectionPolydata(
         return;
     }
     
-    double center[3] = {0.0, 0.0, 0.0};
+    double center[3];
+    curvePolyData->GetPoint(pointIndex, center);
     double normal[3] = {0.0, 0.0, 0.0};
-
-    // Calls to *any* function of markups curve always crash Slicer
-    vtkPoints * curvePoints = inputCenterlineNode->GetCurvePointsWorld();
-    curvePoints->GetPoint(pointIndex, center);
-    // This seems to have been fixed of a previous bug.
-    inputCenterlineNode->GetCurveDirectionAtPointIndexWorld(pointIndex, normal);
-    /*vtkNew<vtkMatrix4x4> curvePointToWorld;
-    inputCenterlineNode->GetCurvePointToWorldTransformAtPointIndex(pointIndex, curvePointToWorld);
+    
     for (unsigned int i = 0; i < 3; i++)
-            normal[i] = curvePointToWorld->GetElement(i, 2);*/
+        normal[i] = curveTangents->GetTuple3(pointIndex)[i];
 
     // Place a plane perpendicular to the centerline
     vtkNew<vtkPlane> plane;

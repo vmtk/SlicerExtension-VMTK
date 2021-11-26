@@ -144,10 +144,10 @@ public:
     vtkTypeMacro(vtkCurveCrossSectionCompute, vtkCrossSectionCompute);
     void PrintSelf(ostream& os, vtkIndent indent) override;
     
-    void SetInputCenterlineNode(vtkMRMLMarkupsCurveNode * centerline)
-    {
-        this->InputCenterlineNode = centerline;
-    }
+    /**
+     * Also computes CurvePolyData and CurvePolyData once only.
+     */ 
+    void SetInputCenterlineNode(vtkMRMLMarkupsCurveNode * centerline);
     
     virtual void UpdateTable(vtkDoubleArray * crossSectionAreaArray, vtkDoubleArray * ceDiameterArray) override;
 protected:
@@ -156,6 +156,12 @@ protected:
     
 private:
     vtkSmartPointer<vtkMRMLMarkupsCurveNode> InputCenterlineNode;
+    /**
+     * We don't need normals and binormals.
+     * And we don't want to recompute teh 4x4 matrix at each point.
+     */ 
+    vtkSmartPointer<vtkPolyData> CurvePolyData;
+    vtkSmartPointer<vtkDoubleArray> CurveTangents;
 };
 
 /**
@@ -168,7 +174,8 @@ public:
     vtkCurveCrossSectionComputeWorker();
     virtual ~vtkCurveCrossSectionComputeWorker();
     
-    void operator () (vtkMRMLMarkupsCurveNode * inputCenterlineNode,
+    void operator () (vtkPolyData * curvePolyData,
+                      vtkDoubleArray * curveTangents,
                       vtkPolyData * closedSurfacePolyData,
                       vtkDoubleArray * bufferArray,
                       vtkIdType startPointIndex,
@@ -180,7 +187,8 @@ private:
      * around the input centerline point.
      * The result is returned in contourPolyData.
      */
-    void ComputeCrossSectionPolydata(vtkMRMLMarkupsCurveNode * inputCenterlineNode,
+    void ComputeCrossSectionPolydata(vtkPolyData * curvePolyData,
+                                    vtkDoubleArray * curveTangents,
                                     vtkPolyData * closedSurfacePolyData,
                                     vtkIdType pointIndex,
                                     vtkPolyData * contourPolyData);
