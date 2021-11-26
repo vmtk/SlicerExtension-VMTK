@@ -799,6 +799,21 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
 
     outputTable.GetTable().SetNumberOfRows(radii.size)
 
+    """
+    Fill in cross-section areas in C++ threads.
+    N.B. : polydata caching is not concerned here.
+    """
+    if inputCenterline and self.lumenSurfaceNode:
+        self.showStatusMessage(("Waiting for background jobs...", ))
+        if inputCenterline.IsA("vtkMRMLModelNode"):
+            crossSectionCompute = slicer.vtkModelCrossSectionCompute()
+        else:
+            crossSectionCompute = slicer.vtkCurveCrossSectionCompute()
+        crossSectionCompute.SetNumberOfThreads(os.cpu_count())
+        crossSectionCompute.SetInputCenterlineNode(inputCenterline)
+        crossSectionCompute.SetInputSurfaceNode(self.lumenSurfaceNode, self.currentSegmentID)
+        crossSectionCompute.UpdateTable(crossSectionAreaArray, ceDiameterArray)
+
     cumArray = vtk.vtkDoubleArray()
     self.cumulateDistances(points, cumArray)
     relArray = vtk.vtkDoubleArray()
@@ -809,25 +824,6 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
             self.showStatusMessage(("Updating table :", str(i + 1), "/", str(numberOfPoints)))
         distanceArray.SetValue(i, relArray.GetValue(i))
         misDiameterArray.SetValue(i, radius * 2)
-
-        if (inputCenterline.IsTypeOf("vtkMRMLModelNode")):
-            # Exclude last point where area cannot be computed
-            if i < (len(radii) - 1):
-                crossSectionArea = self.getCrossSectionArea(i)
-                ceDiameter = (np.sqrt(crossSectionArea / np.pi)) * 2
-                crossSectionAreaArray.SetValue(i, crossSectionArea)
-                ceDiameterArray.SetValue(i, ceDiameter)
-            else:
-                # Don't use 0.0 as it would always be the minimum ! Arbitrarily choosing the previous point is not fundamentally harmful.
-                crossSectionArea = self.getCrossSectionArea(i - 1)
-                ceDiameter = (np.sqrt(crossSectionArea / np.pi)) * 2
-                crossSectionAreaArray.SetValue(i, crossSectionArea)
-                ceDiameterArray.SetValue(i, ceDiameter)
-        else:
-            crossSectionArea = self.getCrossSectionArea(i)
-            ceDiameter = (np.sqrt(crossSectionArea / np.pi)) * 2
-            crossSectionAreaArray.SetValue(i, crossSectionArea)
-            ceDiameterArray.SetValue(i, ceDiameter)
 
         # Convert each point coordinate
         if self.coordinateSystemColumnRAS:
