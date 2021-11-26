@@ -25,7 +25,7 @@ class CrossSectionAnalysis(ScriptedLoadableModule):
     self.parent.contributors = ["SET (Surgeon) (Hobbyist developer)", "Andras Lasso (PerkLab)"]
     self.parent.helpText = """
 This module describes cross-sections along a VMTK centerline model, a VMTK centerline markups curve or an arbitrary markups curve. Documentation is available
-    <a href="https://github.com/vmtk/SlicerExtension-VMTK/tree/master/CrossSectionAnalysis">here</a>.
+    <a href="https://github.com/vmtk/SlicerExtension-VMTK/">here</a>.
 """
     self.parent.acknowledgementText = """
 This file was originally developed by SET. Many thanks to Andras Lasso for sanitizing the code and UI, and for guidance throughout.
