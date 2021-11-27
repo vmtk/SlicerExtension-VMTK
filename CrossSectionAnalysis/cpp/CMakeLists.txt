@@ -1,9 +1,6 @@
 # This work is templated on commit 88673aa16b5
 # of https://github.com/lassoan/SlicerSegmentEditorExtraEffects/
 
-# Notes for me
-# Must be vtkSlicer${MODULE_NAME}ModuleLogic to have 
-# slicer.vtkCrossSectionCompute() in Python
 project(vtkSlicer${MODULE_NAME}ModuleLogic)
 
 set(KIT ${PROJECT_NAME})
