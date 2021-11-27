@@ -21,7 +21,7 @@
 #define DEVTIME 1
 
 /**
- * Abstract class to compute cross-section areas
+ * This class computes cross-section areas
  * of a surface along a centerline.
 */
 class VTK_SLICER_CROSSSECTION_COMPUTE_EXPORT vtkCrossSectionCompute
@@ -45,137 +45,49 @@ public:
   bool SetInputSurfaceNode(vtkMRMLNode * inputSurface, const std::string& inputSegmentId);
   
   /**
+   * Also computes GeneratedPolyData and GeneratedTangents once only.
+   */ 
+  void SetInputCenterlinePolyData(vtkPolyData * inputCenterlinePolyData);
+  
+  /**
    * This is the main purpose of this class.
    * The cross-section area and circular equivalent diameter
    * columns of the output table are updated in parallel.
-   * Implement in derived classes.
    */
-  virtual void UpdateTable(vtkDoubleArray * crossSectionAreaArray, vtkDoubleArray * ceDiameterArray) = 0;
+  void UpdateTable(vtkDoubleArray * crossSectionAreaArray, vtkDoubleArray * ceDiameterArray);
 
 protected:
   vtkCrossSectionCompute();
   virtual ~vtkCrossSectionCompute();
 
+private:
   unsigned int NumberOfThreads;
   vtkSmartPointer<vtkMRMLNode> InputSurfaceNode;
   // Created by ::SetInputSurfaceNode.
   vtkSmartPointer<vtkPolyData> ClosedSurfacePolyData;
   std::string InputSegmentID;
   
-};
-
-// -------------------------- vtkModelCrossSectionCompute ------------------
-/**
- * This class works with centerline models.
- */
-class VTK_SLICER_CROSSSECTION_COMPUTE_EXPORT vtkModelCrossSectionCompute
-: public vtkCrossSectionCompute
-{
-public:
-    
-    static vtkModelCrossSectionCompute *New();
-    vtkTypeMacro(vtkModelCrossSectionCompute, vtkCrossSectionCompute);
-    void PrintSelf(ostream& os, vtkIndent indent) override;
-    
-    void SetInputCenterlineNode(vtkMRMLModelNode * centerline)
-    {
-        this->InputCenterlineNode = centerline;
-    }
-    
-    virtual void UpdateTable(vtkDoubleArray * crossSectionAreaArray, vtkDoubleArray * ceDiameterArray) override;
-protected:
-    vtkModelCrossSectionCompute();
-    virtual ~vtkModelCrossSectionCompute();
-    
-private:
-    vtkSmartPointer<vtkMRMLModelNode> InputCenterlineNode;
+  /**
+   * We don't need normals and binormals.
+   * And we don't want to recompute teh 4x4 matrix at each point.
+   */ 
+  vtkSmartPointer<vtkPolyData> GeneratedPolyData;
+  vtkSmartPointer<vtkDoubleArray> GeneratedTangents;
+  
 };
 
 /**
- * This class works with centerline models. Each thread has one instance of this class running.
+ * This class works with generated centerline polydata. Each thread has one instance of this class running.
  */
-class vtkModelCrossSectionComputeWorker
+class vtkCrossSectionComputeWorker
 {
 public:
     
-    vtkModelCrossSectionComputeWorker();
-    virtual ~vtkModelCrossSectionComputeWorker();
+    vtkCrossSectionComputeWorker();
+    virtual ~vtkCrossSectionComputeWorker();
     
-    void operator () (vtkMRMLModelNode * inputCenterlineNode,
-                    vtkPolyData * closedSurfacePolyData,
-                    vtkDoubleArray * bufferArray,
-                    vtkIdType startPointIndex,
-                    vtkIdType endPointIndex);
-    
-private:
-    /**
-     * Generates the cross-section polydata as closest contour
-     * around the input centerline point.
-     * The result is returned in contourPolyData.
-     */
-    void ComputeCrossSectionPolydata(vtkMRMLModelNode * inputCenterlineNode,
-                                    vtkPolyData * closedSurfacePolyData,
-                                    vtkIdType pointIndex,
-                                    vtkPolyData * contourPolyData);
-    /*
-     * To calculate execution duration.
-     */
-    #if DEVTIME != 0
-    double GetTimeOfDay()
-    {
-        struct timeval atime;
-        gettimeofday(&atime, NULL);
-        return ((atime.tv_sec * 1000000) + atime.tv_usec);
-    }
-    #endif
-};
-
-// -------------------------- vtkCurveCrossSectionCompute ------------------
-
-/**
- * This class works with centerline curves.
- */
-class VTK_SLICER_CROSSSECTION_COMPUTE_EXPORT vtkCurveCrossSectionCompute
-: public vtkCrossSectionCompute
-{
-public:
-    
-    static vtkCurveCrossSectionCompute *New();
-    vtkTypeMacro(vtkCurveCrossSectionCompute, vtkCrossSectionCompute);
-    void PrintSelf(ostream& os, vtkIndent indent) override;
-    
-    /**
-     * Also computes CurvePolyData and CurvePolyData once only.
-     */ 
-    void SetInputCenterlineNode(vtkMRMLMarkupsCurveNode * centerline);
-    
-    virtual void UpdateTable(vtkDoubleArray * crossSectionAreaArray, vtkDoubleArray * ceDiameterArray) override;
-protected:
-    vtkCurveCrossSectionCompute();
-    virtual ~vtkCurveCrossSectionCompute();
-    
-private:
-    vtkSmartPointer<vtkMRMLMarkupsCurveNode> InputCenterlineNode;
-    /**
-     * We don't need normals and binormals.
-     * And we don't want to recompute teh 4x4 matrix at each point.
-     */ 
-    vtkSmartPointer<vtkPolyData> CurvePolyData;
-    vtkSmartPointer<vtkDoubleArray> CurveTangents;
-};
-
-/**
- * This class works with centerline curves. Each thread has one instance of this class running.
- */
-class vtkCurveCrossSectionComputeWorker
-{
-public:
-    
-    vtkCurveCrossSectionComputeWorker();
-    virtual ~vtkCurveCrossSectionComputeWorker();
-    
-    void operator () (vtkPolyData * curvePolyData,
-                      vtkDoubleArray * curveTangents,
+    void operator () (vtkPolyData * generatedPolyData,
+                      vtkDoubleArray * generatedTangents,
                       vtkPolyData * closedSurfacePolyData,
                       vtkDoubleArray * bufferArray,
                       vtkIdType startPointIndex,
@@ -184,11 +96,11 @@ public:
 private:
     /**
      * Generates the cross-section polydata as closest contour
-     * around the input centerline point.
+     * around the generated centerline point.
      * The result is returned in contourPolyData.
      */
-    void ComputeCrossSectionPolydata(vtkPolyData * curvePolyData,
-                                    vtkDoubleArray * curveTangents,
+    void ComputeCrossSectionPolydata(vtkPolyData * generatedPolyData,
+                                    vtkDoubleArray * generatedTangents,
                                     vtkPolyData * closedSurfacePolyData,
                                     vtkIdType pointIndex,
                                     vtkPolyData * contourPolyData);

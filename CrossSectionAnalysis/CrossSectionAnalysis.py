@@ -811,12 +811,12 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     """
     if inputCenterline and self.lumenSurfaceNode:
         self.showStatusMessage(("Waiting for background jobs...", ))
+        crossSectionCompute = slicer.vtkCrossSectionCompute()
         if inputCenterline.IsA("vtkMRMLModelNode"):
-            crossSectionCompute = slicer.vtkModelCrossSectionCompute()
+            crossSectionCompute.SetInputCenterlinePolyData(inputCenterline.GetPolyData())
         else:
-            crossSectionCompute = slicer.vtkCurveCrossSectionCompute()
+            crossSectionCompute.SetInputCenterlinePolyData(inputCenterline.GetCurveWorld())
         crossSectionCompute.SetNumberOfThreads(os.cpu_count())
-        crossSectionCompute.SetInputCenterlineNode(inputCenterline)
         crossSectionCompute.SetInputSurfaceNode(self.lumenSurfaceNode, self.currentSegmentID)
         crossSectionCompute.UpdateTable(crossSectionAreaArray, ceDiameterArray)
 
