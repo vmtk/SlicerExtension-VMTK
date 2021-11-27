@@ -750,6 +750,8 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     return columnArray
 
   def updateOutputTable(self, inputCenterline, outputTable):
+    import time
+    startTime = time.time()
     # Create arrays of data
     distanceArray = self.getArrayFromTable(outputTable, DISTANCE_ARRAY_NAME)
     misDiameterArray = self.getArrayFromTable(outputTable, MIS_DIAMETER_ARRAY_NAME)
@@ -847,7 +849,11 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     crossSectionAreaArray.Modified()
     ceDiameterArray.Modified()
     outputTable.GetTable().Modified()
-    self.showStatusMessage(("Updating table :", "finished", str(numberOfPoints), "points"))
+    
+    stopTime = time.time()
+    message = f'Processing completed in {stopTime-startTime:.2f} seconds - {numberOfPoints} points'
+    logging.info(message)
+    slicer.util.showStatusMessage(message, 5000)
 
   def updatePlot(self, outputPlotSeries, outputTable, name=None):
 
