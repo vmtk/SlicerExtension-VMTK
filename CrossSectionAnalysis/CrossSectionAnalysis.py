@@ -266,6 +266,12 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.showCrossSectionButton.setChecked(self.logic.showCrossSection)
 
     itemIndex = self.ui.outputPlotSeriesTypeComboBox.findData(self._parameterNode.GetParameter("OutputPlotSeriesType"))
+    """
+    This value is never rightly restored.
+    Prefer a default value rather than unknown.
+    """
+    if itemIndex < 0:
+        itemIndex = 0;
     self.ui.outputPlotSeriesTypeComboBox.setCurrentIndex(itemIndex)
 
     # Update button states
