@@ -172,11 +172,11 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     """
     Called just after the scene is closed.
     """
+    # Clean up logic variables first. Avoids some Python console errors.
+    self.logic.initMemberVariables()
     # If this module is shown while the scene is closed then recreate a new parameter node immediately
     if self.parent.isEntered:
       self.initializeParameterNode()
-    # Clean up logic variables too.
-    self.logic.initMemberVariables()
 
   def initializeParameterNode(self):
     """
