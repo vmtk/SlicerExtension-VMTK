@@ -583,7 +583,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.showMaximumInscribedSphere = False
     self.maximumInscribedSphereColor = [0.2, 1.0, 0.4]
     self.relativeOriginPointIndex = 0
-    self.outputPlotSeriesType = 0
+    self.outputPlotSeriesType = MIS_DIAMETER 
     # Slice browsing
     self.axialSliceNode = None
     self.longitudinalSliceNode = None
