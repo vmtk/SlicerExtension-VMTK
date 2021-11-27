@@ -69,7 +69,7 @@ private:
   
   /**
    * We don't need normals and binormals.
-   * And we don't want to recompute teh 4x4 matrix at each point.
+   * And we don't want to recompute the 4x4 matrix at each point.
    */ 
   vtkSmartPointer<vtkPolyData> GeneratedPolyData;
   vtkSmartPointer<vtkDoubleArray> GeneratedTangents;
