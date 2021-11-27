@@ -44,13 +44,13 @@ if(NOT DEFINED ${proj}_DIR AND NOT ${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
 
   ExternalProject_SetIfNotDefined(
     ${CMAKE_PROJECT_NAME}_${proj}_GIT_REPOSITORY
-    "${EP_GIT_PROTOCOL}://github.com/jcfr/vmtk.git"
+    "${EP_GIT_PROTOCOL}://github.com/vmtk/vmtk.git"
     QUIET
     )
 
   ExternalProject_SetIfNotDefined(
     ${CMAKE_PROJECT_NAME}_${proj}_GIT_TAG
-    "ca83ce1575e9da328efaa2f52114122869594280"
+    "b5e8d0a86c63b629fc0199ee30114efd72fcb183"
     QUIET
     )
 

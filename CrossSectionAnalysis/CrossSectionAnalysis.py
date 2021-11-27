@@ -125,7 +125,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     # connections
     self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
 
-    self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.resetOutput)
+    self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.logic.setInputCenterlineNode)
     self.ui.outputPlotSeriesSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.resetOutput)
     self.ui.outputTableSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.resetOutput)
 
@@ -172,11 +172,11 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     """
     Called just after the scene is closed.
     """
+    # Clean up logic variables first. Avoids some Python console errors.
+    self.logic.initMemberVariables()
     # If this module is shown while the scene is closed then recreate a new parameter node immediately
     if self.parent.isEntered:
       self.initializeParameterNode()
-    # Clean up logic variables too.
-    self.logic.initMemberVariables()
 
   def initializeParameterNode(self):
     """
@@ -266,6 +266,12 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.showCrossSectionButton.setChecked(self.logic.showCrossSection)
 
     itemIndex = self.ui.outputPlotSeriesTypeComboBox.findData(self._parameterNode.GetParameter("OutputPlotSeriesType"))
+    """
+    This value is never rightly restored.
+    Prefer a default value rather than unknown.
+    """
+    if itemIndex < 0:
+        itemIndex = 0;
     self.ui.outputPlotSeriesTypeComboBox.setCurrentIndex(itemIndex)
 
     # Update button states
@@ -1178,7 +1184,16 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       # Get curve point radius by interpolating control point measurements
       # Need to compute manually until this method becomes available:
       #  radius = self.inputCenterlineNode.GetMeasurement('Radius').GetCurvePointValue(pointIndex)
-      controlPointFloatIndex = self.inputCenterlineNode.GetCurveWorld().GetPointData().GetArray('PedigreeIDs').GetValue(pointIndex)
+      if pointIndex < (self.getNumberOfPoints() - 1):
+        controlPointFloatIndex = self.inputCenterlineNode.GetCurveWorld().GetPointData().GetArray('PedigreeIDs').GetValue(pointIndex)
+      else:
+        """
+        Don't go beyond the last point with controlPointIndexB
+        Else,
+            radiusB = controlPointRadiusValues.GetValue(controlPointIndexB)
+        will fail.
+        """
+        controlPointFloatIndex = self.inputCenterlineNode.GetCurveWorld().GetPointData().GetArray('PedigreeIDs').GetValue(pointIndex - 1)
       controlPointIndexA = int(controlPointFloatIndex)
       controlPointIndexB = controlPointIndexA + 1
       controlPointRadiusValues = self.inputCenterlineNode.GetMeasurement('Radius').GetControlPointValues()
