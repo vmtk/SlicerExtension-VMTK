@@ -209,7 +209,7 @@ void vtkModelCrossSectionComputeWorker::operator () (vtkMRMLModelNode * inputCen
      */
     for (vtkIdType i = startPointIndex; i <= endPointIndex; i++)
     {
-        // Get the contout polydata
+        // Get the contour polydata
         vtkNew<vtkPolyData> contourPolyData;
         ComputeCrossSectionPolydata(inputCenterlineNode, closedSurfacePolyData, i, contourPolyData);
         {
