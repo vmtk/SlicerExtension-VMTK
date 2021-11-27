@@ -125,7 +125,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     # connections
     self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
 
-    self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.resetOutput)
+    self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.logic.setInputCenterlineNode)
     self.ui.outputPlotSeriesSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.resetOutput)
     self.ui.outputTableSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.resetOutput)
 
