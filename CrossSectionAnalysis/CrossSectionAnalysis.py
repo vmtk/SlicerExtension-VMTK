@@ -1182,7 +1182,16 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       # Get curve point radius by interpolating control point measurements
       # Need to compute manually until this method becomes available:
       #  radius = self.inputCenterlineNode.GetMeasurement('Radius').GetCurvePointValue(pointIndex)
-      controlPointFloatIndex = self.inputCenterlineNode.GetCurveWorld().GetPointData().GetArray('PedigreeIDs').GetValue(pointIndex)
+      if pointIndex < (self.getNumberOfPoints() - 1):
+        controlPointFloatIndex = self.inputCenterlineNode.GetCurveWorld().GetPointData().GetArray('PedigreeIDs').GetValue(pointIndex)
+      else:
+        """
+        Don't go beyond the last point with controlPointIndexB
+        Else,
+            radiusB = controlPointRadiusValues.GetValue(controlPointIndexB)
+        will fail.
+        """
+        controlPointFloatIndex = self.inputCenterlineNode.GetCurveWorld().GetPointData().GetArray('PedigreeIDs').GetValue(pointIndex - 1)
       controlPointIndexA = int(controlPointFloatIndex)
       controlPointIndexB = controlPointIndexA + 1
       controlPointRadiusValues = self.inputCenterlineNode.GetMeasurement('Radius').GetControlPointValues()
