@@ -1,5 +1,6 @@
 /*
  * This file was created by SET [Surgeon] [Hobbyist developer].
+ * Valuable input comes from Andras Lasso (Perklab) in many areas.
  */
 #include "CrossSectionCompute.h"
 #include <iostream>
