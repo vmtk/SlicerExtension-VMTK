@@ -22,7 +22,7 @@ class FiducialCenterlineExtraction(ScriptedLoadableModule):
     self.parent.dependencies = ["SegmentEditorFloodFilling", "ExtractCenterline"]
     self.parent.contributors = ["SET [Surgeon] [Hobbyist developer]"]
     self.parent.helpText = """
-This <a href="https://github.com/vmtk/SlicerExtension-VMTK/tree/master/FiducialCenterlineExtraction/">module</a> is intended to create a segmentation from a contrast enhanced CT angioscan, and to finally extract centerlines from the surface model.
+This <a href="https://github.com/vmtk/SlicerExtension-VMTK/">module</a> is intended to create a segmentation from a contrast enhanced CT angioscan, and to finally extract centerlines from the surface model.
 <br><br>It assumes that data acquisition of the input volume is nearly perfect, and that fiducial points are placed in the contrasted lumen.
 <br><br>The 'Flood filling' effect of the '<a href="https://github.com/lassoan/SlicerSegmentEditorExtraEffects">Segment editor extra effects</a>' is used for segmentation.
 <br><br>The '<a href="https://github.com/vmtk/SlicerExtension-VMTK/tree/master/ExtractCenterline/">SlicerExtension-VMTK Extract centerline</a>' module is required.

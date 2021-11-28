@@ -21,7 +21,7 @@ class CurveCenterlineExtraction(ScriptedLoadableModule):
     self.parent.dependencies = ["SegmentEditorDrawTube", "SegmentEditorFloodFilling", "ExtractCenterline"]
     self.parent.contributors = ["SET [Surgeon] [Hobbyist developer]"]
     self.parent.helpText = """
-This <a href="https://github.com/vmtk/SlicerExtension-VMTK/tree/master/CurveCenterlineExtraction/">module</a> is intended to create a segmentation from a contrast enhanced CT angioscan, and to finally extract centerlines from the surface model.
+This <a href="https://github.com/vmtk/SlicerExtension-VMTK/">module</a> is intended to create a segmentation from a contrast enhanced CT angioscan, and to finally extract centerlines from the surface model.
 <br><br>It assumes that curve control points are placed in the contrasted lumen.
 <br><br>The 'Flood filling' and 'Split volume' effects of the '<a href="https://github.com/lassoan/SlicerSegmentEditorExtraEffects">Segment editor extra effects</a>' are used.
 <br><br>The '<a href="https://github.com/vmtk/SlicerExtension-VMTK/tree/master/ExtractCenterline/">SlicerExtension-VMTK Extract centerline</a>' module is required.

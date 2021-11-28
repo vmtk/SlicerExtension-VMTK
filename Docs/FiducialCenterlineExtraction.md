@@ -2,7 +2,7 @@
 
 This module is intended to create targeted (small) segmentations from a contrast enhanced CT angioscan using fiducial points, and to finally extract centerlines from the surface model. Overall, it's a small wrapper for common arterial segmentation tasks.
 
-![Texte alternatif](Screenshot_0.png)
+![Texte alternatif](FiducialCenterlineExtractionScreenshot_1.png)
 
 It assumes that data acquisition of the input volume is nearly perfect, and that fiducial points are placed in the contrasted lumen.
 
