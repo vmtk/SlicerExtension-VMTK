@@ -10,11 +10,11 @@
 #include <vector>
 
 #include <vtkMRMLSegmentationNode.h>
+#include <vtkMRMLModelNode.h>
 #include <vtkPlane.h>
 #include <vtkCutter.h>
 #include <vtkConnectivityFilter.h>
 #include <vtkContourTriangulator.h>
-#include <vtkMatrix4x4.h> // Should not be required.
 #include <vtkMassProperties.h>
 #include <vtkMath.h> // Pi()
 #include <vtkParallelTransportFrame.h>

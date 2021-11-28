@@ -15,8 +15,6 @@
 #include <vtkPolyData.h>
 #include <vtkSmartPointer.h>
 #include <vtkObjectFactory.h>
-#include <vtkMRMLModelNode.h>
-#include <vtkMRMLMarkupsCurveNode.h>
 #include <sys/time.h>
 
 #define DEVTIME 1
