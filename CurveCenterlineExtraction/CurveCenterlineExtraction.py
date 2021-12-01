@@ -541,11 +541,8 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     slicer.app.processEvents()
     seWidgetEditor.setActiveEffectByName("Split volume")
     svEffect = seWidgetEditor.activeEffect()
-    svWidgets = svEffect.optionsFrame().children()
-    svFillValueQSpinBox = svWidgets[6]
-    svSegmentEditorEffectApply = svEffect.optionsFrame().findChild(qt.QPushButton, "SegmentEditorEffectApply")
-    svFillValueQSpinBox.value = -1000
-    svSegmentEditorEffectApply.click()
+    svEffect.setParameter("FillValue", -1000)
+    svEffect.self().onApply()
     seWidgetEditor.setActiveEffectByName(None)
     
     # Get output split volume
