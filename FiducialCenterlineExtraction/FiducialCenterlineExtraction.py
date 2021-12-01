@@ -579,10 +579,7 @@ class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     ffEffect = seWidgetEditor.activeEffect()
     ffEffect.setParameter("IntensityTolerance", self.intensityTolerance)
     ffEffect.setParameter("NeighborhoodSizeMm", self.neighbourhoodSize)
-    # ffEffect.optionsFrame().children()
-    # ROI combobox in 'Flood filling' UI does not have a name.
-    roiComboBox = ffEffect.optionsFrame().children()[5]
-    roiComboBox.setCurrentNode(self.inputROINode)
+    ffEffect.setParameter("ROINodeID", self.inputROINode.GetID() if self.inputROINode else "")
     # Reset segment editor masking widgets. Values set by previous work must not interfere here.
     self.segmentEditorWidgets.resetMaskingWidgets()
     
