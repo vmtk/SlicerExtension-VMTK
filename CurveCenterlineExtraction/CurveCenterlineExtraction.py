@@ -595,10 +595,8 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     ffEffect = seWidgetEditor.activeEffect()
     ffEffect.setParameter("IntensityTolerance", self.intensityTolerance)
     ffEffect.setParameter("NeighborhoodSizeMm", self.neighbourhoodSize)
-    # ROI combobox in 'Flood filling' UI does not have a name.
-    roiComboBox = ffEffect.optionsFrame().children()[5]
     # +++ If an alien ROI is set, segmentation may fail and take an infinite time.
-    roiComboBox.setCurrentNode(None)
+    ffEffect.setParameter("ROINodeID", "")
 
     # Get input curve control points
     curveControlPoints = vtk.vtkPoints()
@@ -616,8 +614,8 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
         slicer.vtkMRMLSliceNode.JumpSlice(sliceWidget.sliceLogic().GetSliceNode(), *rasPoint)
         point3D = qt.QVector3D(rasPoint[0], rasPoint[1], rasPoint[2])
         point2D = ffEffect.rasToXy(point3D, sliceWidget)
-        xySliceViewCoord = (point2D.x(), point2D.y())
-        slicer.util.clickAndDrag(sliceWidget, start = xySliceViewCoord, end = xySliceViewCoord, steps = 1)
+        qIjkPoint = ffEffect.xyToIjk(point2D, sliceWidget, ffEffect.self().getClippedMasterImageData())
+        ffEffect.self().floodFillFromPoint((int(qIjkPoint.x()), int(qIjkPoint.y()), int(qIjkPoint.z())))
     
     # Switch off active effect
     seWidgetEditor.setActiveEffect(None)
