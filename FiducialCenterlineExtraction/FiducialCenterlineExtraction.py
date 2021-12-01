@@ -583,7 +583,7 @@ class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     # Reset segment editor masking widgets. Values set by previous work must not interfere here.
     self.segmentEditorWidgets.resetMaskingWidgets()
     
-    # For each fiducial point, simulate a mouse click.
+    # Apply flood filling at each fiducial point.
     points=vtk.vtkPoints()
     self.inputFiducialNode.GetControlPointPositionsWorld(points)
     numberOfFiducialControlPoints = points.GetNumberOfPoints()
@@ -597,11 +597,8 @@ class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
         slicer.vtkMRMLSliceNode.JumpSlice(sliceWidget.sliceLogic().GetSliceNode(), *rasPoint)
         point3D = qt.QVector3D(rasPoint[0], rasPoint[1], rasPoint[2])
         point2D = ffEffect.rasToXy(point3D, sliceWidget)
-        xySliceViewCoord = (point2D.x(), point2D.y())
-        """
-        https://discourse.slicer.org/t/how-to-call-the-islands-function-of-the-segment-editor-from-a-python-script-with-keep-selected-island/14763
-        """
-        slicer.util.clickAndDrag(sliceWidget, start = xySliceViewCoord, end = xySliceViewCoord, steps = 1)
+        qIjkPoint = ffEffect.xyToIjk(point2D, sliceWidget, ffEffect.self().getClippedMasterImageData())
+        ffEffect.self().floodFillFromPoint((int(qIjkPoint.x()), int(qIjkPoint.y()), int(qIjkPoint.z())))
     
     # Switch off active effect
     seWidgetEditor.setActiveEffect(None)
