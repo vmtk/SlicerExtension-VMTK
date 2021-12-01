@@ -808,9 +808,9 @@ class SegmentEditorWidgets(ScriptedLoadableModule):
     Must be called when the first used effect is activated.
     """
     def resetMaskingWidgets(self):
-        self.maskModeComboBox.setCurrentIndex(0)
-        self.masterVolumeIntensityMaskCheckBox.checked = False
-        self.overwriteModeComboBox.setCurrentIndex(0)
+        self.widgetEditor.mrmlSegmentEditorNode().SetMaskMode(self.widgetEditor.mrmlSegmentEditorNode().PaintAllowedEverywhere)
+        self.widgetEditor.mrmlSegmentEditorNode().MasterVolumeIntensityMaskOff()
+        self.widgetEditor.mrmlSegmentEditorNode().SetOverwriteMode(self.widgetEditor.mrmlSegmentEditorNode().OverwriteAllSegments)
 
 class ExtractCenterlineWidgets(ScriptedLoadableModule):
     def __init__(self):
