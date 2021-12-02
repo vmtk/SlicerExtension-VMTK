@@ -596,14 +596,15 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     ffEffect.setParameter("IntensityTolerance", self.intensityTolerance)
     ffEffect.setParameter("NeighborhoodSizeMm", self.neighbourhoodSize)
     # +++ If an alien ROI is set, segmentation may fail and take an infinite time.
-    ffEffect.setParameter("ROINodeID", "")
+    ffEffect.parameterSetNode().SetNodeReferenceID("ROINodeID", None)
+    ffEffect.updateGUIFromMRML()
 
     # Get input curve control points
     curveControlPoints = vtk.vtkPoints()
     self.inputCurveNode.GetControlPointPositionsWorld(curveControlPoints)
     numberOfCurveControlPoints = curveControlPoints.GetNumberOfPoints()
 
-    # Simulate a mouse click at curve control points. Ignore first and last point as the resulting segment would be a big lump. The voxels of split volume at -1000 would be included in the segment.
+    # Apply flood filling at curve control points. Ignore first and last point as the resulting segment would be a big lump. The voxels of split volume at -1000 would be included in the segment.
     for i in range(1, numberOfCurveControlPoints - 1):
         # Show progress in status bar. Helpful to wait.
         t = time.time()
