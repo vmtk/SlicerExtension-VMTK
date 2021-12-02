@@ -580,6 +580,7 @@ class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     ffEffect.setParameter("IntensityTolerance", self.intensityTolerance)
     ffEffect.setParameter("NeighborhoodSizeMm", self.neighbourhoodSize)
     ffEffect.parameterSetNode().SetNodeReferenceID("ROINodeID", self.inputROINode.GetID() if self.inputROINode else None)
+    ffEffect.updateGUIFromMRML()
     # Reset segment editor masking widgets. Values set by previous work must not interfere here.
     self.segmentEditorWidgets.resetMaskingWidgets()
     
