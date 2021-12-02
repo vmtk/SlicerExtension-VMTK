@@ -579,7 +579,7 @@ class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     ffEffect = seWidgetEditor.activeEffect()
     ffEffect.setParameter("IntensityTolerance", self.intensityTolerance)
     ffEffect.setParameter("NeighborhoodSizeMm", self.neighbourhoodSize)
-    ffEffect.setParameter("ROINodeID", self.inputROINode.GetID() if self.inputROINode else "")
+    ffEffect.parameterSetNode().SetNodeReferenceID("ROINodeID", self.inputROINode.GetID() if self.inputROINode else None)
     # Reset segment editor masking widgets. Values set by previous work must not interfere here.
     self.segmentEditorWidgets.resetMaskingWidgets()
     
