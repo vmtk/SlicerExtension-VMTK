@@ -535,6 +535,7 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     tube.CappingOn()
     tube.Update()
     segmentation.AddSegmentFromClosedSurfaceRepresentation(tube.GetOutput(), "TubeMask")
+    seWidgetEditor.setCurrentSegmentID("TubeMask")
     
     #---------------------- Split volume ---------------------
     slicer.util.showStatusMessage("Split volume")
@@ -542,6 +543,7 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     seWidgetEditor.setActiveEffectByName("Split volume")
     svEffect = seWidgetEditor.activeEffect()
     svEffect.setParameter("FillValue", -1000)
+    svEffect.setParameter("AllSegments", False)
     svEffect.self().onApply()
     seWidgetEditor.setActiveEffectByName(None)
     
@@ -626,12 +628,9 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     # Remove no longer needed split volume.
     slicer.mrmlScene.RemoveNode(outputSplitVolumeNode)
     """
-    WORKAROUND : remove stray nodes
-    - "$VOLUME_NAME split" : a folder created by 'Split volume'
-    - "$VOLUME_NAME Segment_$CURVENAME{_$INDEX}" : don't know where it comes
-    from. It appears on second run and next, with same input curve in same
-    segmentation. The segmentation item is a child of that folder.
-    It becomes really messy. We remove them with thorough checking.
+    Remove folder created by Split Volume.
+    Since ce can create a Split Volume on the selected segment only,
+    there are no stray volume nodes to remove, just the folder.
     """
     # First, reparent the segmentation item to scene item.
     shNode.SetItemParent(shSegmentationId, shSceneId)
@@ -639,22 +638,6 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     if shNode.GetNumberOfItemChildren(shSplitVolumeParentId) == 0:
         if shNode.GetItemLevel(shSplitVolumeParentId) == "Folder":
             shNode.RemoveItem(shSplitVolumeParentId)
-    else:
-        """
-        Iterate through each child item of the folder. Each one must be scalar
-        volume node (observational).
-        Flag for removal if there are only scalar volume nodes.
-        """
-        canRemove = True
-        for i in range(shNode.GetNumberOfItemChildren(shSplitVolumeParentId)):
-            shWeirdId = shNode.GetItemByPositionUnderParent(shSplitVolumeParentId, i)
-            weirdNode = shNode.GetItemDataNode(shWeirdId)
-            if not weirdNode.IsA("vtkMRMLScalarVolumeNode"):
-                canRemove = False
-                break
-        if canRemove:
-            if shNode.GetItemLevel(shSplitVolumeParentId) == "Folder":
-                shNode.RemoveItem(shSplitVolumeParentId)
     
     if not self.extractCenterlines:
         stopTime = time.time()
