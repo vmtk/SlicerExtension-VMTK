@@ -818,7 +818,12 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
             crossSectionCompute.SetInputCenterlinePolyData(inputCenterline.GetPolyData())
         else:
             crossSectionCompute.SetInputCenterlinePolyData(inputCenterline.GetCurveWorld())
-        crossSectionCompute.SetNumberOfThreads(os.cpu_count())
+        """
+        If numberOfThreads > number of cores,
+        excessive threads would be in infinite loop.
+        """
+        numberOfThreads = os.cpu_count() if (numberOfPoints >= os.cpu_count()) else numberOfPoints
+        crossSectionCompute.SetNumberOfThreads(numberOfThreads)
         crossSectionCompute.SetInputSurfaceNode(self.lumenSurfaceNode, self.currentSegmentID)
         crossSectionCompute.UpdateTable(crossSectionAreaArray, ceDiameterArray)
 
