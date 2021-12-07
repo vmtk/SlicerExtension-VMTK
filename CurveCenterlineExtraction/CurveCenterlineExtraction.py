@@ -536,6 +536,11 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     tube.Update()
     segmentation.AddSegmentFromClosedSurfaceRepresentation(tube.GetOutput(), "TubeMask")
     seWidgetEditor.setCurrentSegmentID("TubeMask")
+    """
+    Split volume expects TubeMask to be visible.
+    Make it visible; a newly added segment is visible by default though.
+    """
+    segmentation.GetDisplayNode().SetSegmentVisibility("TubeMask", True)
     
     #---------------------- Split volume ---------------------
     slicer.util.showStatusMessage("Split volume")
@@ -543,7 +548,7 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     seWidgetEditor.setActiveEffectByName("Split volume")
     svEffect = seWidgetEditor.activeEffect()
     svEffect.setParameter("FillValue", -1000)
-    svEffect.setParameter("AllSegments", False)
+    svEffect.setParameter("ApplyToAllVisibleSegments", 0)
     svEffect.self().onApply()
     seWidgetEditor.setActiveEffectByName(None)
     
@@ -598,7 +603,7 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     ffEffect.setParameter("IntensityTolerance", self.intensityTolerance)
     ffEffect.setParameter("NeighborhoodSizeMm", self.neighbourhoodSize)
     # +++ If an alien ROI is set, segmentation may fail and take an infinite time.
-    ffEffect.parameterSetNode().SetNodeReferenceID("ROINodeID", None)
+    ffEffect.parameterSetNode().SetNodeReferenceID("FloodFilling.ROI", None)
     ffEffect.updateGUIFromMRML()
 
     # Get input curve control points
