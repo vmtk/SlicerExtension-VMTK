@@ -542,7 +542,7 @@ class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     seWidgetEditor.setSegmentationNode(segmentation)
     seWidgetEditor.setMasterVolumeNode(volumeNode)
     
-    # If Segment Editor is not shown once, click() fails.
+    # Go to Segment Editor.
     mainWindow = slicer.util.mainWindow()
     mainWindow.moduleSelector().selectModule('SegmentEditor')
     
