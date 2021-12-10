@@ -535,6 +535,7 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     tube.CappingOn()
     tube.Update()
     segmentation.AddSegmentFromClosedSurfaceRepresentation(tube.GetOutput(), "TubeMask")
+    # Select it so that Split Volume can work on this specific segment only.
     seWidgetEditor.setCurrentSegmentID("TubeMask")
     
     #---------------------- Split volume ---------------------
@@ -543,6 +544,7 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     seWidgetEditor.setActiveEffectByName("Split volume")
     svEffect = seWidgetEditor.activeEffect()
     svEffect.setParameter("FillValue", -1000)
+    # Work on the TubeMask segment only.
     svEffect.setParameter("ApplyToAllVisibleSegments", 0)
     svEffect.self().onApply()
     seWidgetEditor.setActiveEffectByName(None)
@@ -557,8 +559,14 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     seWidgetEditor.setMasterVolumeNode(outputSplitVolumeNode)
     segmentation.SetReferenceImageGeometryParameterFromVolumeNode(outputSplitVolumeNode)
     
-    #---------------------- Workaround ------------------------
-    # See below
+    """
+    Split Volume creates a folder that contains the segmentation node,
+    and the split volume(s) it creates.
+    Here, we need to get rid of the split volume. There is no reason to keep
+    around the created folder, that takes owneship of the segmentation node.
+    So we'll later move the segmentation node to the Scene node and remove the
+    residual empty folder.
+    """
     shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
     shSplitVolumeId = shNode.GetItemByDataNode(outputSplitVolumeNode)
     shSplitVolumeParentId = shNode.GetItemParent(shSplitVolumeId)
@@ -627,14 +635,14 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     segmentation.SetReferenceImageGeometryParameterFromVolumeNode(volumeNode)
     # Remove no longer needed split volume.
     slicer.mrmlScene.RemoveNode(outputSplitVolumeNode)
-    """
-    Remove folder created by Split Volume.
-    Since ce can create a Split Volume on the selected segment only,
-    there are no stray volume nodes to remove, just the folder.
-    """
+    
+    # Remove folder created by Split Volume.
     # First, reparent the segmentation item to scene item.
     shNode.SetItemParent(shSegmentationId, shSceneId)
-    # Remove an empty folder directly
+    """
+    Remove an empty folder directly. Keep it if there are volumes from other
+    work.
+    """
     if shNode.GetNumberOfItemChildren(shSplitVolumeParentId) == 0:
         if shNode.GetItemLevel(shSplitVolumeParentId) == "Folder":
             shNode.RemoveItem(shSplitVolumeParentId)
