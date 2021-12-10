@@ -536,11 +536,6 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     tube.Update()
     segmentation.AddSegmentFromClosedSurfaceRepresentation(tube.GetOutput(), "TubeMask")
     seWidgetEditor.setCurrentSegmentID("TubeMask")
-    """
-    Split volume expects TubeMask to be visible.
-    Make it visible; a newly added segment is visible by default though.
-    """
-    segmentation.GetDisplayNode().SetSegmentVisibility("TubeMask", True)
     
     #---------------------- Split volume ---------------------
     slicer.util.showStatusMessage("Split volume")
