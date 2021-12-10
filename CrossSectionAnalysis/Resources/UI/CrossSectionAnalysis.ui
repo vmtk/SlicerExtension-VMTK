@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>558</width>
-    <height>818</height>
+    <width>676</width>
+    <height>910</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -15,6 +15,9 @@
     <horstretch>0</horstretch>
     <verstretch>0</verstretch>
    </sizepolicy>
+  </property>
+  <property name="toolTip">
+   <string/>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
@@ -528,7 +531,7 @@ The input centerline is expected to be inside the lumen surface.</string>
       <item row="3" column="1">
        <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox_2">
         <property name="title">
-         <string>Spin</string>
+         <string>Spin / Flip</string>
         </property>
         <property name="collapsed">
          <bool>true</bool>
@@ -584,6 +587,13 @@ The input centerline is expected to be inside the lumen surface.</string>
            </property>
           </widget>
          </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="label_2">
+           <property name="text">
+            <string>Long.:</string>
+           </property>
+          </widget>
+         </item>
          <item row="1" column="1">
           <widget class="ctkSliderWidget" name="longitudinalSpinSliderWidget">
            <property name="enabled">
@@ -612,12 +622,40 @@ The input centerline is expected to be inside the lumen surface.</string>
            </property>
           </widget>
          </item>
-         <item row="1" column="0">
-          <widget class="QLabel" name="label_2">
+         <item row="2" column="0">
+          <widget class="QLabel" name="flipLabel">
            <property name="text">
-            <string>Long.:</string>
+            <string>Flip:</string>
            </property>
           </widget>
+         </item>
+         <item row="2" column="1">
+          <layout class="QHBoxLayout" name="mirrorHorizontalLayout">
+           <item>
+            <widget class="QCheckBox" name="axialSliceHorizontalFlipCheckBox">
+             <property name="toolTip">
+              <string>Flip the slice view horizontally.
+
+Concerns orthogonal reformat in axial navigation.</string>
+             </property>
+             <property name="text">
+              <string>Horizontal</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="axialSliceVerticalFlipCheckBox">
+             <property name="toolTip">
+              <string>Flip the slice view vertically.
+
+Concerns orthogonal reformat in axial navigation.</string>
+             </property>
+             <property name="text">
+              <string>Vertical</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </item>
         </layout>
        </widget>
