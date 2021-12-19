@@ -517,7 +517,7 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     """
     segmentation.SetReferenceImageGeometryParameterFromVolumeNode(volumeNode)
     
-    # If Segment Editor is not shown once, click() fails.
+    # Go to Segment Editor.
     mainWindow = slicer.util.mainWindow()
     mainWindow.moduleSelector().selectModule('SegmentEditor')
     
@@ -535,17 +535,18 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     tube.CappingOn()
     tube.Update()
     segmentation.AddSegmentFromClosedSurfaceRepresentation(tube.GetOutput(), "TubeMask")
+    # Select it so that Split Volume can work on this specific segment only.
+    seWidgetEditor.setCurrentSegmentID("TubeMask")
     
     #---------------------- Split volume ---------------------
     slicer.util.showStatusMessage("Split volume")
     slicer.app.processEvents()
     seWidgetEditor.setActiveEffectByName("Split volume")
     svEffect = seWidgetEditor.activeEffect()
-    svWidgets = svEffect.optionsFrame().children()
-    svFillValueQSpinBox = svWidgets[6]
-    svSegmentEditorEffectApply = svEffect.optionsFrame().findChild(qt.QPushButton, "SegmentEditorEffectApply")
-    svFillValueQSpinBox.value = -1000
-    svSegmentEditorEffectApply.click()
+    svEffect.setParameter("FillValue", -1000)
+    # Work on the TubeMask segment only.
+    svEffect.setParameter("ApplyToAllVisibleSegments", 0)
+    svEffect.self().onApply()
     seWidgetEditor.setActiveEffectByName(None)
     
     # Get output split volume
@@ -558,8 +559,14 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     seWidgetEditor.setMasterVolumeNode(outputSplitVolumeNode)
     segmentation.SetReferenceImageGeometryParameterFromVolumeNode(outputSplitVolumeNode)
     
-    #---------------------- Workaround ------------------------
-    # See below
+    """
+    Split Volume creates a folder that contains the segmentation node,
+    and the split volume(s) it creates.
+    Here, we need to get rid of the split volume. There is no reason to keep
+    around the created folder, that takes owneship of the segmentation node.
+    So we'll later move the segmentation node to the Scene node and remove the
+    residual empty folder.
+    """
     shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
     shSplitVolumeId = shNode.GetItemByDataNode(outputSplitVolumeNode)
     shSplitVolumeParentId = shNode.GetItemParent(shSplitVolumeId)
@@ -598,17 +605,16 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     ffEffect = seWidgetEditor.activeEffect()
     ffEffect.setParameter("IntensityTolerance", self.intensityTolerance)
     ffEffect.setParameter("NeighborhoodSizeMm", self.neighbourhoodSize)
-    # ROI combobox in 'Flood filling' UI does not have a name.
-    roiComboBox = ffEffect.optionsFrame().children()[5]
     # +++ If an alien ROI is set, segmentation may fail and take an infinite time.
-    roiComboBox.setCurrentNode(None)
+    ffEffect.parameterSetNode().SetNodeReferenceID("FloodFilling.ROI", None)
+    ffEffect.updateGUIFromMRML()
 
     # Get input curve control points
     curveControlPoints = vtk.vtkPoints()
     self.inputCurveNode.GetControlPointPositionsWorld(curveControlPoints)
     numberOfCurveControlPoints = curveControlPoints.GetNumberOfPoints()
 
-    # Simulate a mouse click at curve control points. Ignore first and last point as the resulting segment would be a big lump. The voxels of split volume at -1000 would be included in the segment.
+    # Apply flood filling at curve control points. Ignore first and last point as the resulting segment would be a big lump. The voxels of split volume at -1000 would be included in the segment.
     for i in range(1, numberOfCurveControlPoints - 1):
         # Show progress in status bar. Helpful to wait.
         t = time.time()
@@ -619,8 +625,8 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
         slicer.vtkMRMLSliceNode.JumpSlice(sliceWidget.sliceLogic().GetSliceNode(), *rasPoint)
         point3D = qt.QVector3D(rasPoint[0], rasPoint[1], rasPoint[2])
         point2D = ffEffect.rasToXy(point3D, sliceWidget)
-        xySliceViewCoord = (point2D.x(), point2D.y())
-        slicer.util.clickAndDrag(sliceWidget, start = xySliceViewCoord, end = xySliceViewCoord, steps = 1)
+        qIjkPoint = ffEffect.xyToIjk(point2D, sliceWidget, ffEffect.self().getClippedMasterImageData())
+        ffEffect.self().floodFillFromPoint((int(qIjkPoint.x()), int(qIjkPoint.y()), int(qIjkPoint.z())))
     
     # Switch off active effect
     seWidgetEditor.setActiveEffect(None)
@@ -629,36 +635,17 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     segmentation.SetReferenceImageGeometryParameterFromVolumeNode(volumeNode)
     # Remove no longer needed split volume.
     slicer.mrmlScene.RemoveNode(outputSplitVolumeNode)
-    """
-    WORKAROUND : remove stray nodes
-    - "$VOLUME_NAME split" : a folder created by 'Split volume'
-    - "$VOLUME_NAME Segment_$CURVENAME{_$INDEX}" : don't know where it comes
-    from. It appears on second run and next, with same input curve in same
-    segmentation. The segmentation item is a child of that folder.
-    It becomes really messy. We remove them with thorough checking.
-    """
+    
+    # Remove folder created by Split Volume.
     # First, reparent the segmentation item to scene item.
     shNode.SetItemParent(shSegmentationId, shSceneId)
-    # Remove an empty folder directly
+    """
+    Remove an empty folder directly. Keep it if there are volumes from other
+    work.
+    """
     if shNode.GetNumberOfItemChildren(shSplitVolumeParentId) == 0:
         if shNode.GetItemLevel(shSplitVolumeParentId) == "Folder":
             shNode.RemoveItem(shSplitVolumeParentId)
-    else:
-        """
-        Iterate through each child item of the folder. Each one must be scalar
-        volume node (observational).
-        Flag for removal if there are only scalar volume nodes.
-        """
-        canRemove = True
-        for i in range(shNode.GetNumberOfItemChildren(shSplitVolumeParentId)):
-            shWeirdId = shNode.GetItemByPositionUnderParent(shSplitVolumeParentId, i)
-            weirdNode = shNode.GetItemDataNode(shWeirdId)
-            if not weirdNode.IsA("vtkMRMLScalarVolumeNode"):
-                canRemove = False
-                break
-        if canRemove:
-            if shNode.GetItemLevel(shSplitVolumeParentId) == "Folder":
-                shNode.RemoveItem(shSplitVolumeParentId)
     
     if not self.extractCenterlines:
         stopTime = time.time()
@@ -813,9 +800,9 @@ class SegmentEditorWidgets(ScriptedLoadableModule):
     Must be called when the first used effect is activated.
     """
     def resetMaskingWidgets(self):
-        self.maskModeComboBox.setCurrentIndex(0)
-        self.masterVolumeIntensityMaskCheckBox.checked = False
-        self.overwriteModeComboBox.setCurrentIndex(0)
+        self.widgetEditor.mrmlSegmentEditorNode().SetMaskMode(self.widgetEditor.mrmlSegmentEditorNode().PaintAllowedEverywhere)
+        self.widgetEditor.mrmlSegmentEditorNode().MasterVolumeIntensityMaskOff()
+        self.widgetEditor.mrmlSegmentEditorNode().SetOverwriteMode(self.widgetEditor.mrmlSegmentEditorNode().OverwriteAllSegments)
 
 class ExtractCenterlineWidgets(ScriptedLoadableModule):
     def __init__(self):
