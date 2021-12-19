@@ -542,7 +542,7 @@ class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     seWidgetEditor.setSegmentationNode(segmentation)
     seWidgetEditor.setMasterVolumeNode(volumeNode)
     
-    # If Segment Editor is not shown once, click() fails.
+    # Go to Segment Editor.
     mainWindow = slicer.util.mainWindow()
     mainWindow.moduleSelector().selectModule('SegmentEditor')
     
@@ -579,14 +579,12 @@ class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     ffEffect = seWidgetEditor.activeEffect()
     ffEffect.setParameter("IntensityTolerance", self.intensityTolerance)
     ffEffect.setParameter("NeighborhoodSizeMm", self.neighbourhoodSize)
-    # ffEffect.optionsFrame().children()
-    # ROI combobox in 'Flood filling' UI does not have a name.
-    roiComboBox = ffEffect.optionsFrame().children()[5]
-    roiComboBox.setCurrentNode(self.inputROINode)
+    ffEffect.parameterSetNode().SetNodeReferenceID("FloodFilling.ROI", self.inputROINode.GetID() if self.inputROINode else None)
+    ffEffect.updateGUIFromMRML()
     # Reset segment editor masking widgets. Values set by previous work must not interfere here.
     self.segmentEditorWidgets.resetMaskingWidgets()
     
-    # For each fiducial point, simulate a mouse click.
+    # Apply flood filling at each fiducial point.
     points=vtk.vtkPoints()
     self.inputFiducialNode.GetControlPointPositionsWorld(points)
     numberOfFiducialControlPoints = points.GetNumberOfPoints()
@@ -600,11 +598,8 @@ class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
         slicer.vtkMRMLSliceNode.JumpSlice(sliceWidget.sliceLogic().GetSliceNode(), *rasPoint)
         point3D = qt.QVector3D(rasPoint[0], rasPoint[1], rasPoint[2])
         point2D = ffEffect.rasToXy(point3D, sliceWidget)
-        xySliceViewCoord = (point2D.x(), point2D.y())
-        """
-        https://discourse.slicer.org/t/how-to-call-the-islands-function-of-the-segment-editor-from-a-python-script-with-keep-selected-island/14763
-        """
-        slicer.util.clickAndDrag(sliceWidget, start = xySliceViewCoord, end = xySliceViewCoord, steps = 1)
+        qIjkPoint = ffEffect.xyToIjk(point2D, sliceWidget, ffEffect.self().getClippedMasterImageData())
+        ffEffect.self().floodFillFromPoint((int(qIjkPoint.x()), int(qIjkPoint.y()), int(qIjkPoint.z())))
     
     # Switch off active effect
     seWidgetEditor.setActiveEffect(None)
@@ -758,9 +753,9 @@ class SegmentEditorWidgets(ScriptedLoadableModule):
     Must be called when the first used effect is activated.
     """
     def resetMaskingWidgets(self):
-        self.maskModeComboBox.setCurrentIndex(0)
-        self.masterVolumeIntensityMaskCheckBox.checked = False
-        self.overwriteModeComboBox.setCurrentIndex(0)
+        self.widgetEditor.mrmlSegmentEditorNode().SetMaskMode(self.widgetEditor.mrmlSegmentEditorNode().PaintAllowedEverywhere)
+        self.widgetEditor.mrmlSegmentEditorNode().MasterVolumeIntensityMaskOff()
+        self.widgetEditor.mrmlSegmentEditorNode().SetOverwriteMode(self.widgetEditor.mrmlSegmentEditorNode().OverwriteAllSegments)
 
 class ExtractCenterlineWidgets(ScriptedLoadableModule):
     def __init__(self):
