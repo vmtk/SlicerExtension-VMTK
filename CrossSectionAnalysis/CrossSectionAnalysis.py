@@ -361,7 +361,13 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     if self.logic.outputTableNode:
         self.logic.updateOutputTable(self.logic.inputCenterlineNode, self.logic.outputTableNode)
         # Update plot view. Else X-axis always starts at 0, truncating the graph.
-        slicer.app.layoutManager().plotWidget(0).plotView().fitToContent()
+        firstPlotWidget = slicer.app.layoutManager().plotWidget(0)
+        # The plot widget may be None if no plot has ever been shown.
+        # The wait cursor would persist, even if we show a plot and set
+        # a new origin.
+        if firstPlotWidget:
+            firstPlotWidget.plotView().fitToContent()
+
     slicer.app.restoreOverrideCursor()
 
   def onGoToOriginPoint(self):
