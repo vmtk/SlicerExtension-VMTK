@@ -17,13 +17,15 @@ SlicerVMTK extension provides the following modules:
   - Vesselness Filtering: Image processing operation that increases brightness of tubular structures and suppresses other shapes (plates and blobs). This module can be used to pre-process image data to make vessel segmentation easier.
   - Level Set Segmentation: This module can segment a *single vessel branch* of a vessel tree from an image (either unprocessed or vesselness-filtered can be used). Place "Seeds" points inside vessels and place "Stoppers" points in areas to avoid (where segmentation leaked out to). To segment multiple branches, you can use Segment Editor module.
 - Analysis:
-  - [Extract Centerline](Docs/ExtractCenterline.md): Determine centerlines in a vessel tree from an input segmentation or model node. It can either do quick network extraction or an accurate centerline computation and branch extraction between designated endpoints. The module can simplify the input to make computations fast (typically 5-20 seconds) without significant decrease in accuracy and can also detect and mark mesh errors (non-manifold edges).
+  - [Extract Centerline](Docs/ExtractCenterline.md): Determine centerlines in a vessel tree from an input segmentation or model. It can either do quick network extraction or an accurate centerline computation and branch extraction between designated endpoints. The module can simplify the input to make computations fast (typically 5-20 seconds) without significant decrease in accuracy and can also detect and mark mesh errors (non-manifold edges).
   - [Cross-Section Analysis](Docs/CrossSectionAnalysis.md): Reslice images, segmentations, or models along a centerline curve. It can measure cross-sectional area and various other metrics and displays it as a table or plot.
 - Workflows:
   - [Curve Centerline Extraction](Docs/CurveCenterlineExtraction.md): Create targeted segmentations from a contrast enhanced CT angio scan using a markups open curve, and to finally extract centerlines from the surface model. Overall, it's a small wrapper to create *short* arterial segments as *single* tubes, with subsequent centerline extraction.
   - [Fiducial Centerline Extraction](Docs/FiducialCenterlineExtraction.md): Create targeted (small) segmentations from a contrast enhanced CT angio scan using fiducial points, and to finally extract centerlines from the surface model. Overall, it's a small wrapper for common arterial segmentation tasks.
 - Legacy modules (replaced by other modules, not developed anymore):
   - [Centerline Computation](Docs/CenterlineComputation.md): This module determines centerlines in a vessel tree from an input model node. *This module is replaced by the much improved, faster and more robust "Extract Centerline" module in current Slicer versions (Slicer-4.11 and later).*
+
+![](Docs/CenterlineComputationOutput1.png)
 
 # Advanced analysis
 
