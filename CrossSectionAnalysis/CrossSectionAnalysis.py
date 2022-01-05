@@ -632,20 +632,24 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.relativeOriginPointIndex = 0
 
   def setLumenSurface(self, lumenSurfaceNode, currentSegmentID):
+    # Eliminate a None surface, whatever be its type.
+    if not lumenSurfaceNode:
+      self.lumenSurfaceNode = None
+      self.currentSegmentID = ""
+      self.resetCrossSections()
+      return
     # We may get an invalid (obsolete, empty, ...) segment ID.
     # In this case, use the first segment.
     verifiedSegmentID = ""
-    if lumenSurfaceNode:
+    if lumenSurfaceNode.GetClassName() == "vtkMRMLSegmentationNode":
       if lumenSurfaceNode.GetSegmentation().GetSegment(currentSegmentID):
         verifiedSegmentID = currentSegmentID
       else:
         verifiedSegmentID = lumenSurfaceNode.GetSegmentation().GetNthSegmentID(0)
-
-    if (self.lumenSurfaceNode == lumenSurfaceNode) and (self.currentSegmentID == verifiedSegmentID):
-      return
-    self.resetCrossSections()
     self.lumenSurfaceNode = lumenSurfaceNode
     self.currentSegmentID = verifiedSegmentID
+
+    self.resetCrossSections()
 
   def setOutputTableNode(self, tableNode):
     if self.outputTableNode == tableNode:
