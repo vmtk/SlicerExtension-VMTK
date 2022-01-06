@@ -361,7 +361,13 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     if self.logic.outputTableNode:
         self.logic.updateOutputTable(self.logic.inputCenterlineNode, self.logic.outputTableNode)
         # Update plot view. Else X-axis always starts at 0, truncating the graph.
-        slicer.app.layoutManager().plotWidget(0).plotView().fitToContent()
+        firstPlotWidget = slicer.app.layoutManager().plotWidget(0)
+        # The plot widget may be None if no plot has ever been shown.
+        # The wait cursor would persist, even if we show a plot and set
+        # a new origin.
+        if firstPlotWidget:
+            firstPlotWidget.plotView().fitToContent()
+
     slicer.app.restoreOverrideCursor()
 
   def onGoToOriginPoint(self):
@@ -632,20 +638,24 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.relativeOriginPointIndex = 0
 
   def setLumenSurface(self, lumenSurfaceNode, currentSegmentID):
+    # Eliminate a None surface, whatever be its type.
+    if not lumenSurfaceNode:
+      self.lumenSurfaceNode = None
+      self.currentSegmentID = ""
+      self.resetCrossSections()
+      return
     # We may get an invalid (obsolete, empty, ...) segment ID.
     # In this case, use the first segment.
     verifiedSegmentID = ""
-    if lumenSurfaceNode:
+    if lumenSurfaceNode.GetClassName() == "vtkMRMLSegmentationNode":
       if lumenSurfaceNode.GetSegmentation().GetSegment(currentSegmentID):
         verifiedSegmentID = currentSegmentID
       else:
         verifiedSegmentID = lumenSurfaceNode.GetSegmentation().GetNthSegmentID(0)
-
-    if (self.lumenSurfaceNode == lumenSurfaceNode) and (self.currentSegmentID == verifiedSegmentID):
-      return
-    self.resetCrossSections()
     self.lumenSurfaceNode = lumenSurfaceNode
     self.currentSegmentID = verifiedSegmentID
+
+    self.resetCrossSections()
 
   def setOutputTableNode(self, tableNode):
     if self.outputTableNode == tableNode:
