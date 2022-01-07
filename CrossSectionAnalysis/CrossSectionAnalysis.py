@@ -121,6 +121,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.longitudinalSpinSliderWidget.connect("valueChanged(double)", lambda value: self.setValueInParameterNode("LongitudinalSpinAngleDeg", value))
     self.ui.showMISDiameterPushButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode("ShowMISModel", "True" if value else "False"))
     self.ui.showCrossSectionButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode("ShowCrossSection", "True" if value else "False"))
+    self.ui.axialSliceHorizontalFlipCheckBox.connect("clicked()", lambda: self.setValueInParameterNode("AxialSliceHorizontalFlip", str(self.ui.axialSliceHorizontalFlipCheckBox.isChecked())))
+    self.ui.axialSliceVerticalFlipCheckBox.connect("clicked()", lambda : self.setValueInParameterNode("AxialSliceVerticalFlip", str(self.ui.axialSliceVerticalFlipCheckBox.isChecked())))
 
     # connections
     self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
@@ -140,6 +142,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.togglePlotLayoutButton.connect("clicked()", self.togglePlotLayout)
 
     self.ui.outputPlotSeriesTypeComboBox.connect("currentIndexChanged(int)", self.setPlotSeriesType)
+    self.ui.axialSliceHorizontalFlipCheckBox.connect("clicked()", self.setHorizontalFlip)
+    self.ui.axialSliceVerticalFlipCheckBox.connect("clicked()", self.setVerticalFlip)
 
     # Refresh Apply button state
     self.updateGUIFromParameterNode()
@@ -242,6 +246,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.logic.longitudinalSpinAngleDeg = float(self._parameterNode.GetParameter("LongitudinalSpinAngleDeg")) if self._parameterNode.GetParameter("LongitudinalSpinAngleDeg") else 0.0
     self.logic.setShowMaximumInscribedSphereDiameter(self._parameterNode.GetParameter("ShowMISModel") == "True")
     self.logic.setShowCrossSection(self._parameterNode.GetParameter("ShowCrossSection") == "True")
+    self.logic.axialSliceHorizontalFlip = (self._parameterNode.GetParameter("AxialSliceHorizontalFlip") == "True") if self._parameterNode.GetParameter("AxialSliceHorizontalFlip") else False
+    self.logic.axialSliceVerticalFlip = (self._parameterNode.GetParameter("AxialSliceVerticalFlip") == "True") if self._parameterNode.GetParameter("AxialSliceVerticalFlip") else False
 
     # Update node selectors and sliders
 
@@ -264,6 +270,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.longitudinalSpinSliderWidget.setValue(self.logic.longitudinalSpinAngleDeg)
     self.ui.showMISDiameterPushButton.setChecked(self.logic.showMaximumInscribedSphere)
     self.ui.showCrossSectionButton.setChecked(self.logic.showCrossSection)
+    self.ui.axialSliceHorizontalFlipCheckBox.setChecked(self.logic.axialSliceHorizontalFlip)
+    self.ui.axialSliceVerticalFlipCheckBox.setChecked(self.logic.axialSliceVerticalFlip)
 
     itemIndex = self.ui.outputPlotSeriesTypeComboBox.findData(self._parameterNode.GetParameter("OutputPlotSeriesType"))
     """
@@ -548,6 +556,14 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.setValueInParameterNode("OutputPlotSeriesType", str(self.ui.outputPlotSeriesTypeComboBox.currentData))
     self.logic.setPlotSeriesType(self.ui.outputPlotSeriesTypeComboBox.currentData)
 
+  def setHorizontalFlip(self):
+    pointIndex = int(self.ui.moveToPointSliderWidget.value)
+    self.logic.updateSliceView(pointIndex)
+
+  def setVerticalFlip(self):
+    pointIndex = int(self.ui.moveToPointSliderWidget.value)
+    self.logic.updateSliceView(pointIndex)
+
 #
 # CrossSectionAnalysisLogic
 #
@@ -598,6 +614,8 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.axialSpinAngleDeg = 0.0
     self.longitudinalSpinAngleDeg = 0.0
     self.rotationAngleDeg = 0.0
+    self.axialSliceHorizontalFlip = False
+    self.axialSliceVerticalFlip = False
 
   def showStatusMessage(self, messages):
     separator = " "
@@ -980,6 +998,10 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
         rotationTransform = vtk.vtkTransform()
         rotationTransform.SetMatrix(curvePointToWorld)
         rotationTransform.RotateZ(self.axialSpinAngleDeg)
+        if self.axialSliceHorizontalFlip:
+            rotationTransform.RotateX(180.0)
+        if self.axialSliceVerticalFlip:
+            rotationTransform.RotateY(180.0)
         rotationMatrix = rotationTransform.GetMatrix()
         self.axialSliceNode.SetSliceToRASByNTP(
           rotationMatrix.GetElement(0, 2), rotationMatrix.GetElement(1, 2), rotationMatrix.GetElement(2, 2),
