@@ -50,6 +50,7 @@ add_subdirectory(CrossSectionAnalysis)
 add_subdirectory(FiducialCenterlineExtraction)
 add_subdirectory(CurveCenterlineExtraction)
 add_subdirectory(StenosisMeasurement1D)
+add_subdirectory(StenosisMeasurement2D)
 
 #-----------------------------------------------------------------------------
 set(EXTENSION_CPACK_INSTALL_CMAKE_PROJECTS)

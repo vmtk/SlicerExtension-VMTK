@@ -23,6 +23,7 @@ SlicerVMTK extension provides the following modules:
   - [Curve Centerline Extraction](Docs/CurveCenterlineExtraction.md): Create targeted segmentations from a contrast enhanced CT angio scan using a markups open curve, and to finally extract centerlines from the surface model. Overall, it's a small wrapper to create *short* arterial segments as *single* tubes, with subsequent centerline extraction.
   - [Fiducial Centerline Extraction](Docs/FiducialCenterlineExtraction.md): Create targeted (small) segmentations from a contrast enhanced CT angio scan using fiducial points, and to finally extract centerlines from the surface model. Overall, it's a small wrapper for common arterial segmentation tasks.
   - [Stenosis measurement 1D](Docs/StenosisMeasurement1D.md): use distances between control points of a straightened open curve to evaluate a stenosis.
+  - [Stenosis measurement 2D](Docs/StenosisMeasurement2D.md): use segment surface areas to evaluate a stenosis.
 - Legacy modules (replaced by other modules, not developed anymore):
   - [Centerline Computation](Docs/CenterlineComputation.md): This module determines centerlines in a vessel tree from an input model node. *This module is replaced by the much improved, faster and more robust "Extract Centerline" module in current Slicer versions (Slicer-4.11 and later).*
 
