@@ -83,7 +83,7 @@ class StenosisMeasurement1DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
     self.ui.inputMarkupsSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
     
     # Application connections
-    self.ui.inputMarkupsSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.logic.setInputCurve(node))
+    self.ui.inputMarkupsSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.setInputCurve(node))
     
     # Update logic from parameter node
     self.logic.setInputCurve(self._parameterNode.GetNodeReference("InputCurve"))
@@ -189,6 +189,11 @@ class StenosisMeasurement1DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
     self._parameterNode.SetNodeReferenceID("InputCurve", self.ui.inputMarkupsSelector.currentNodeID)
 
     self._parameterNode.EndModify(wasModified)
+
+  def setInputCurve(self, curveNode):
+    self.logic.setInputCurve(curveNode)
+    self.populateTable()
+    self.logic.widgetCallback = self.populateTable
 
   def populateTable(self):
     inputCurve = self.ui.inputMarkupsSelector.currentNode()
