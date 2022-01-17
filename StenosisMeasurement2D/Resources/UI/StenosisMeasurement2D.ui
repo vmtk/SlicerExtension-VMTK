@@ -1,0 +1,364 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ObliqueSegmentSurfaceArea</class>
+ <widget class="qMRMLWidget" name="ObliqueSegmentSurfaceArea">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>532</width>
+    <height>840</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="ctkCollapsibleButton" name="inputsCollapsibleButton">
+     <property name="text">
+      <string>Inputs</string>
+     </property>
+     <layout class="QVBoxLayout" name="inputsVerticalLayout">
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayout_3" stretch="0">
+        <property name="sizeConstraint">
+         <enum>QLayout::SetDefaultConstraint</enum>
+        </property>
+        <item>
+         <layout class="QFormLayout" name="formLayout">
+          <property name="sizeConstraint">
+           <enum>QLayout::SetDefaultConstraint</enum>
+          </property>
+          <property name="fieldGrowthPolicy">
+           <enum>QFormLayout::ExpandingFieldsGrow</enum>
+          </property>
+          <item row="0" column="0">
+           <widget class="QLabel" name="inputSliceNodeLabel">
+            <property name="text">
+             <string>Slice node:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="qMRMLNodeComboBox" name="inputSliceNodeSelector">
+            <property name="toolTip">
+             <string>Select an input slice view.</string>
+            </property>
+            <property name="nodeTypes">
+             <stringlist>
+              <string>vtkMRMLSliceNode</string>
+             </stringlist>
+            </property>
+            <property name="noneEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="addEnabled">
+             <bool>false</bool>
+            </property>
+            <property name="removeEnabled">
+             <bool>false</bool>
+            </property>
+            <property name="selectNodeUponCreation">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="inputFiducialLabel">
+            <property name="text">
+             <string>Fiducial:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="qMRMLNodeComboBox" name="inputFiducialSelector">
+            <property name="toolTip">
+             <string>Select an input markups fiducial list.
+
+Clicking at a control point allows to track the slice orientation in the selected slice node, on top of the usual jump behaviour. This tracking is scene-wide only, it is not saved with the scene.</string>
+            </property>
+            <property name="nodeTypes">
+             <stringlist>
+              <string>vtkMRMLMarkupsFiducialNode</string>
+             </stringlist>
+            </property>
+            <property name="noneEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="addEnabled">
+             <bool>false</bool>
+            </property>
+            <property name="removeEnabled">
+             <bool>false</bool>
+            </property>
+            <property name="editEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="renameEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="selectNodeUponCreation">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="inputSegmentLabel">
+            <property name="text">
+             <string>Segmentation:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="qMRMLSegmentSelectorWidget" name="inputSegmentSelector">
+            <property name="toolTip">
+             <string>Select an input segmentation.</string>
+            </property>
+            <property name="noneEnabled">
+             <bool>false</bool>
+            </property>
+            <property name="editEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="selectNodeUponCreation">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="ctkCollapsibleButton" name="optionsCollapsibleButton">
+        <property name="toolTip">
+         <string>Right click for more.</string>
+        </property>
+        <property name="text">
+         <string>Options</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+        <property name="flat">
+         <bool>true</bool>
+        </property>
+        <layout class="QVBoxLayout" name="optionsVerticalLayout">
+         <item>
+          <layout class="QHBoxLayout" name="optionsHorizontalLayout">
+           <item>
+            <widget class="QCheckBox" name="applyToAllSegmentsCheckBox">
+             <property name="toolTip">
+              <string>If unchecked, only the selected segment will be processed.</string>
+             </property>
+             <property name="text">
+              <string>Apply to all segments</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="limitToClosestIslandCheckBox">
+             <property name="toolTip">
+              <string>Calculate the surface area of the island closest to the ficucial control point only.</string>
+             </property>
+             <property name="text">
+              <string>Limit to closest island(s)</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QVBoxLayout" name="verticalLayout_2">
+           <item>
+            <widget class="ctkCollapsibleGroupBox" name="moreOptionsCollapsibleGroupBox">
+             <property name="title">
+              <string>More</string>
+             </property>
+             <property name="flat">
+              <bool>true</bool>
+             </property>
+             <property name="collapsed">
+              <bool>false</bool>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_4">
+              <item>
+               <layout class="QHBoxLayout" name="moreOptionsHLayout">
+                <item>
+                 <widget class="QCheckBox" name="createModelCheckBox">
+                  <property name="toolTip">
+                   <string>Create a model for each cut segment. This allows to view the source object from which the surface area is calculated.
+
+The result is influenced by :
+ - holes in the segments and point placement, if  'Closest island' option is selected,
+ - smoothing level in the 'Segment editor'.</string>
+                  </property>
+                  <property name="text">
+                   <string>Create output model</string>
+                  </property>
+                  <property name="checked">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="resetOrientationCheckBox">
+                  <property name="toolTip">
+                   <string>Click on a control point to reset its recorded slice orientation.
+
+The slice orientation in the selected view will be set to the known previous one. After defining a new orientation, click again on the same fiducial point to record the new orientation, while leaving this check box disabled.</string>
+                  </property>
+                  <property name="text">
+                   <string>Reset control point orientation</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QPushButton" name="resetSliceViewsPushButton">
+                <property name="toolTip">
+                 <string>... to their default orientation.</string>
+                </property>
+                <property name="text">
+                 <string>Restore orientation of all slice views</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="applyButton">
+     <property name="enabled">
+      <bool>true</bool>
+     </property>
+     <property name="toolTip">
+      <string>Run the algorithm.</string>
+     </property>
+     <property name="text">
+      <string>Apply</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QTableWidget" name="outputTableWidget">
+     <property name="toolTip">
+      <string>Result table.
+
+Right click for more.</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <spacer name="verticalSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeType">
+      <enum>QSizePolicy::Preferred</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>ctkCollapsibleButton</class>
+   <extends>QWidget</extends>
+   <header>ctkCollapsibleButton.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ctkCollapsibleGroupBox</class>
+   <extends>QGroupBox</extends>
+   <header>ctkCollapsibleGroupBox.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>qMRMLNodeComboBox</class>
+   <extends>QWidget</extends>
+   <header>qMRMLNodeComboBox.h</header>
+  </customwidget>
+  <customwidget>
+   <class>qMRMLWidget</class>
+   <extends>QWidget</extends>
+   <header>qMRMLWidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>qMRMLSegmentSelectorWidget</class>
+   <extends>qMRMLWidget</extends>
+   <header>qMRMLSegmentSelectorWidget.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>ObliqueSegmentSurfaceArea</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>inputSliceNodeSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>176</x>
+     <y>201</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>222</x>
+     <y>70</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>ObliqueSegmentSurfaceArea</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>inputFiducialSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>176</x>
+     <y>201</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>222</x>
+     <y>158</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>ObliqueSegmentSurfaceArea</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>inputSegmentSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>176</x>
+     <y>201</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>238</x>
+     <y>215</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>
