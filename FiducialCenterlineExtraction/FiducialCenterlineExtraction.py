@@ -19,7 +19,15 @@ class FiducialCenterlineExtraction(ScriptedLoadableModule):
     ScriptedLoadableModule.__init__(self, parent)
     self.parent.title = "Fiducial centerline extraction" 
     self.parent.categories = ["Vascular Modeling Toolkit"]
-    self.parent.dependencies = ["SegmentEditorFloodFilling", "ExtractCenterline"]
+    # NOTE: This is a workaround. DrawTube and FloodFilling are not part of
+    # Slicer, but are hosted in an external repository. During testing they are
+    # not going to be preseent in the environment, so we don't consider them as
+    # dependencies when called by testing. Generic tests are called with no main
+    # window; a fingerprint for this is the absence of layout manager.
+    if slicer.app.layoutManager() is None:
+      self.parent.dependencies = ["ExtractCenterline"]
+    else:
+      self.parent.dependencies = ["SegmentEditorFloodFilling","ExtractCenterline"]
     self.parent.contributors = ["SET [Surgeon] [Hobbyist developer]"]
     self.parent.helpText = """
 This <a href="https://github.com/vmtk/SlicerExtension-VMTK/">module</a> is intended to create a segmentation from a contrast enhanced CT angioscan, and to finally extract centerlines from the surface model.
