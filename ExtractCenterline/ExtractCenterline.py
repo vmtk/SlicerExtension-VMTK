@@ -536,6 +536,8 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
                         edgeCenterPositions.append([(p1[0]+p2[0])/2.0, (p1[1]+p2[1])/2.0, (p1[2]+p2[2])/2.0])
 
         if nonManifoldEdgesPolyData:
+            if not polyData.GetPoints():
+                raise ValueError("Failed to get non-manifold edges (neighborhood filter output was empty)")
             pointsCopy = vtk.vtkPoints()
             pointsCopy.DeepCopy(polyData.GetPoints())
             nonManifoldEdgesPolyData.SetPoints(pointsCopy)
@@ -713,9 +715,13 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
         centerlineFilter.SetResamplingStepLength(curveSamplingDistance)
         centerlineFilter.Update()
 
+        if not centerlineFilter.GetOutput():
+            raise ValueError("Failed to compute centerline (no output was generated)")
         centerlinePolyData = vtk.vtkPolyData()
         centerlinePolyData.DeepCopy(centerlineFilter.GetOutput())
 
+        if not centerlineFilter.GetVoronoiDiagram():
+            raise ValueError("Failed to compute centerline (no Voronoi diagram was generated)")
         voronoiDiagramPolyData = vtk.vtkPolyData()
         voronoiDiagramPolyData.DeepCopy(centerlineFilter.GetVoronoiDiagram())
 
