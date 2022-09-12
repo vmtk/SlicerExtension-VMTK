@@ -24,7 +24,7 @@ std::mutex mtx;
 
 #define WORKER_MESSAGE(msg) mtx.lock();\
                             std::cout << msg << std::endl;\
-                            mtx.unlock();
+                            mtx.unlock(); // vtkErrorMacro : build fails.
 
 vtkStandardNewMacro(vtkCrossSectionCompute);
 
@@ -58,7 +58,7 @@ bool vtkCrossSectionCompute::SetInputSurfaceNode(vtkMRMLNode * inputSurface, con
     vtkMRMLSegmentationNode * inputSegmentationNode = vtkMRMLSegmentationNode::SafeDownCast(this->InputSurfaceNode);
     if (inputSegmentationNode == NULL)
     {
-        std::cout << "Invalid surface segmentation node." << std::endl;
+        vtkErrorMacro("Invalid surface segmentation node.");
         this->ClosedSurfacePolyData = nullptr;
         return false;
     }
@@ -70,7 +70,7 @@ bool vtkCrossSectionCompute::SetInputSurfaceNode(vtkMRMLNode * inputSurface, con
     vtkMRMLModelNode * inputModelNode = vtkMRMLModelNode::SafeDownCast(this->InputSurfaceNode);
     if (inputModelNode == NULL)
     {
-        std::cout << "Invalid surface model node." << std::endl;
+        vtkErrorMacro("Invalid surface model node.");
         this->ClosedSurfacePolyData = nullptr;
         return false;
     }
@@ -78,7 +78,7 @@ bool vtkCrossSectionCompute::SetInputSurfaceNode(vtkMRMLNode * inputSurface, con
   }
   else
   {
-    std::cout << "Invalid closed surface." << std::endl;
+    vtkErrorMacro("Invalid closed surface.");
     this->ClosedSurfacePolyData = nullptr;
     return false;
   }
@@ -108,12 +108,12 @@ void vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
 {
     if (this->InputSurfaceNode == nullptr)
     {     
-        std::cout << "Input surface is NULL." << std::endl;
+        vtkErrorMacro("Input surface is NULL.");
         return;
     }
     if (this->InputSegmentID.empty())
     {     
-        std::cout << "Input segment ID is unknown." << std::endl;
+        vtkErrorMacro("Input segment ID is unknown.");
         return;
     }
     /*
