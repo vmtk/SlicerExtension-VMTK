@@ -18,9 +18,9 @@ Computation requires `Surface` input and an optional starting point. If no start
 
 ## Centerline tree extraction
 
-Accurate, Voronoi model based centerline tree extraction can be performed by specifying an input `Surface` and `Endpoints`.
+Accurate, Voronoi model based centerline tree extraction can be performed by specifying an input `Surface` (model or segmentation) and `Endpoints` (markup point list).
 
-`Endpoints` are a list of branch endpoints that will be connected by centerlines. An endpoint can be inlet or outlet type by making the corresponding markup point "unselected" or "selected", respectively. Typically one inlet point is enough, but if the network consists of several independent trees then an inlet point should be defined in each tree. If no inlet point is designated then the first endpoint will be used as inlet. If an endpoint is not reachable then it may be connected to other points via a straight line. Remove or reposition these endpoints to create a complete, valid centerline network.
+`Endpoints` are a list of branch endpoints that will be connected by centerlines. Shape of the centerline at branching points depends on the flow direction, therefore the method always must know the flow direction. Flow direction is specified by designating some endpoints as "inlet" (by making the markup control point "unselected") or outlet (by making the markup control point "selected"). Typically designating one inlet point is enough, but if the network consists of several independent trees then an inlet point should be defined in each tree. If no inlet point is designated then the first endpoint will be used as inlet. If an endpoint is not reachable then it may be connected to other points via a straight line. Remove or reposition these endpoints to create a complete, valid centerline network. To extract a network with circular topology, the circle must be interrupted somewhere by placing two outlet points close to each other (there will be a small gap in the centerline between these two points).
 
 Extracted centerlines are saved into a model node if a model node is selected as `Centerline model`.
 
