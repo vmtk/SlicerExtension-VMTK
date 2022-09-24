@@ -509,7 +509,7 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     
     # Set segment editor controls
     seWidgetEditor.setSegmentationNode(segmentation)
-    seWidgetEditor.setMasterVolumeNode(volumeNode)
+    seWidgetEditor.setSourceVolumeNode(volumeNode)
     """
     This geometry update does the speed-up magic ! No need to crop the master volume.
     We don't strictly need it right here because it is the first master volume of the segmentation. It's however required below each time the master volume node is changed.
@@ -556,7 +556,7 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     segment = segmentation.GetSegmentation().GetSegment("TubeMask")
     segmentation.GetSegmentation().RemoveSegment(segment)
     # Replace master volume of segmentation
-    seWidgetEditor.setMasterVolumeNode(outputSplitVolumeNode)
+    seWidgetEditor.setSourceVolumeNode(outputSplitVolumeNode)
     segmentation.SetReferenceImageGeometryParameterFromVolumeNode(outputSplitVolumeNode)
     
     """
@@ -625,13 +625,13 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
         slicer.vtkMRMLSliceNode.JumpSlice(sliceWidget.sliceLogic().GetSliceNode(), *rasPoint)
         point3D = qt.QVector3D(rasPoint[0], rasPoint[1], rasPoint[2])
         point2D = ffEffect.rasToXy(point3D, sliceWidget)
-        qIjkPoint = ffEffect.xyToIjk(point2D, sliceWidget, ffEffect.self().getClippedMasterImageData())
+        qIjkPoint = ffEffect.xyToIjk(point2D, sliceWidget, ffEffect.self().getClippedSourceImageData())
         ffEffect.self().floodFillFromPoint((int(qIjkPoint.x()), int(qIjkPoint.y()), int(qIjkPoint.z())))
     
     # Switch off active effect
     seWidgetEditor.setActiveEffect(None)
     # Replace master volume of segmentation
-    seWidgetEditor.setMasterVolumeNode(volumeNode)
+    seWidgetEditor.setSourceVolumeNode(volumeNode)
     segmentation.SetReferenceImageGeometryParameterFromVolumeNode(volumeNode)
     # Remove no longer needed split volume.
     slicer.mrmlScene.RemoveNode(outputSplitVolumeNode)
@@ -764,14 +764,14 @@ class SegmentEditorWidgets(ScriptedLoadableModule):
     def __init__(self):
         self.widgetEditor = None
         self.segmentationNodeComboBox = None
-        self.masterVolumeNodeComboBox = None
+        self.sourceVolumeNodeComboBox = None
         self.newSegmentQPushButton = None
         self.removeSegmentQPushButton = None
         self.show3DctkMenuButton = None
         self.maskingGroupBox = None
         self.maskModeComboBox = None
-        self.masterVolumeIntensityMaskCheckBox = None
-        self.masterVolumeIntensityMaskRangeWidget = None
+        self.sourceVolumeIntensityMaskCheckBox = None
+        self.sourceVolumeIntensityMaskRangeWidget = None
         self.overwriteModeComboBox = None
     
     # Find widgets we are using only
@@ -783,7 +783,7 @@ class SegmentEditorWidgets(ScriptedLoadableModule):
         # widgetEditor.children()
         # Get segment editor controls
         self.segmentationNodeComboBox = self.widgetEditor.findChild(slicer.qMRMLNodeComboBox, "SegmentationNodeComboBox")
-        self.masterVolumeNodeComboBox = self.widgetEditor.findChild(slicer.qMRMLNodeComboBox, "MasterVolumeNodeComboBox")
+        self.sourceVolumeNodeComboBox = self.widgetEditor.findChild(slicer.qMRMLNodeComboBox, "SourceVolumeNodeComboBox")
         self.newSegmentQPushButton = self.widgetEditor.findChild(qt.QPushButton, "AddSegmentButton")
         self.removeSegmentQPushButton = self.widgetEditor.findChild(qt.QPushButton, "RemoveSegmentButton")
         self.show3DctkMenuButton = self.widgetEditor.findChild(ctk.ctkMenuButton, "Show3DButton")
@@ -791,8 +791,8 @@ class SegmentEditorWidgets(ScriptedLoadableModule):
         # Get segment editor masking groupbox and its widgets
         self.maskingGroupBox = self.widgetEditor.findChild(qt.QGroupBox, "MaskingGroupBox")
         self.maskModeComboBox = self.maskingGroupBox.findChild(qt.QComboBox, "MaskModeComboBox")
-        self.masterVolumeIntensityMaskCheckBox = self.maskingGroupBox.findChild(ctk.ctkCheckBox, "MasterVolumeIntensityMaskCheckBox")
-        self.masterVolumeIntensityMaskRangeWidget = self.maskingGroupBox.findChild(ctk.ctkRangeWidget, "masterVolumeIntensityMaskRangeWidget")
+        self.sourceVolumeIntensityMaskCheckBox = self.maskingGroupBox.findChild(ctk.ctkCheckBox, "SourceVolumeIntensityMaskCheckBox")
+        self.sourceVolumeIntensityMaskRangeWidget = self.maskingGroupBox.findChild(ctk.ctkRangeWidget, "SourceVolumeIntensityMaskRangeWidget")
         self.overwriteModeComboBox = self.maskingGroupBox.findChild(qt.QComboBox, "OverwriteModeComboBox")
 
     """
@@ -801,7 +801,7 @@ class SegmentEditorWidgets(ScriptedLoadableModule):
     """
     def resetMaskingWidgets(self):
         self.widgetEditor.mrmlSegmentEditorNode().SetMaskMode(slicer.vtkMRMLSegmentationNode.EditAllowedEverywhere)
-        self.widgetEditor.mrmlSegmentEditorNode().MasterVolumeIntensityMaskOff()
+        self.widgetEditor.mrmlSegmentEditorNode().SourceVolumeIntensityMaskOff()
         self.widgetEditor.mrmlSegmentEditorNode().SetOverwriteMode(self.widgetEditor.mrmlSegmentEditorNode().OverwriteAllSegments)
 
 class ExtractCenterlineWidgets(ScriptedLoadableModule):
