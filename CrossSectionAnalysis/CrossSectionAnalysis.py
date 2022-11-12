@@ -90,7 +90,10 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.toggleTableLayoutButton.setIcon(qt.QIcon(':/Icons/Medium/SlicerVisibleInvisible.png'))
     self.ui.togglePlotLayoutButton.visible = False
     self.ui.togglePlotLayoutButton.setIcon(qt.QIcon(':/Icons/Medium/SlicerVisibleInvisible.png'))
-    self.previousLayoutId = slicer.app.layoutManager().layout
+
+    layoutManager = slicer.app.layoutManager()
+    if layoutManager is not None: # NOTE: We need the check because some tests can run without main window
+      self.previousLayoutId = slicer.app.layoutManager().layout
 
     self.ui.jumpCentredInSliceNodeCheckBox.setIcon(qt.QIcon(':/Icons/ViewCenter.png'))
     self.ui.orthogonalReformatInSliceNodeCheckBox.setIcon(qt.QIcon(':/Icons/MouseRotateMode.png'))
