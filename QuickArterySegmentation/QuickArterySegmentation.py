@@ -4,19 +4,20 @@ import logging
 import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
+import numpy as np
 
 #
-# CurveCenterlineExtraction
+# QuickArterySegmentation
 #
 
-class CurveCenterlineExtraction(ScriptedLoadableModule):
+class QuickArterySegmentation(ScriptedLoadableModule):
   """Uses ScriptedLoadableModule base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
 
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
-    self.parent.title = "Curve centerline extraction"
+    self.parent.title = "Quick artery segmentation" 
     self.parent.categories = ["Vascular Modeling Toolkit"]
     # NOTE: This is a workaround. DrawTube and FloodFilling are not part of
     # Slicer, but are hosted in an external repository. During testing they are
@@ -26,12 +27,12 @@ class CurveCenterlineExtraction(ScriptedLoadableModule):
     if slicer.app.layoutManager() is None:
       self.parent.dependencies = ["ExtractCenterline"]
     else:
-      self.parent.dependencies = ["SegmentEditorDrawTube","SegmentEditorFloodFilling","ExtractCenterline"]
+      self.parent.dependencies = ["SegmentEditorFloodFilling","ExtractCenterline"]
     self.parent.contributors = ["SET [Surgeon] [Hobbyist developer]"]
     self.parent.helpText = """
 This <a href="https://github.com/vmtk/SlicerExtension-VMTK/">module</a> is intended to create a segmentation from a contrast enhanced CT angioscan, and to finally extract centerlines from the surface model.
-<br><br>It assumes that curve control points are placed in the contrasted lumen.
-<br><br>The 'Flood filling' and 'Split volume' effects of the '<a href="https://github.com/lassoan/SlicerSegmentEditorExtraEffects">Segment editor extra effects</a>' are used.
+<br><br>It assumes that data acquisition of the input volume is nearly perfect, and that fiducial points are placed in the contrasted lumen.
+<br><br>The 'Flood filling' effect of the '<a href="https://github.com/lassoan/SlicerSegmentEditorExtraEffects">Segment editor extra effects</a>' is used for segmentation.
 <br><br>The '<a href="https://github.com/vmtk/SlicerExtension-VMTK/tree/master/ExtractCenterline/">SlicerExtension-VMTK Extract centerline</a>' module is required.
 """
     # TODO: replace with organization, grant and thanks
@@ -41,10 +42,10 @@ and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR0132
 """
 
 #
-# CurveCenterlineExtractionWidget
+# QuickArterySegmentationWidget
 #
 
-class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
+class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
   """Uses ScriptedLoadableModuleWidget base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
@@ -67,7 +68,7 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
 
     # Load widget from .ui file (created by Qt Designer).
     # Additional widgets can be instantiated manually and added to self.layout.
-    uiWidget = slicer.util.loadUI(self.resourcePath('UI/CurveCenterlineExtraction.ui'))
+    uiWidget = slicer.util.loadUI(self.resourcePath('UI/QuickArterySegmentation.ui'))
     self.layout.addWidget(uiWidget)
     self.ui = slicer.util.childWidgetVariables(uiWidget)
 
@@ -78,10 +79,10 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
 
     # Create logic class. Logic implements all computations that should be possible to run
     # in batch mode, without a graphical user interface.
-    self.logic = CurveCenterlineExtractionLogic()
-
-    self.ui.floodFillingCollapsibleGroupBox.checked = False
+    self.logic = QuickArterySegmentationLogic()
     
+    self.ui.floodFillingCollapsibleGroupBox.checked = False
+
     # Connections
 
     # These connections ensure that we update parameter node when scene is closed
@@ -90,20 +91,21 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
 
     # These connections ensure that whenever user changes some settings on the GUI, that is saved in the MRML scene
     # (in the selected parameter node).
-    self.ui.inputCurveSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+    self.ui.inputFiducialSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
     self.ui.inputSliceNodeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
-    self.ui.tubeDiameterSpinBox.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
+    self.ui.inputROISelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
     self.ui.intensityToleranceSpinBox.connect("valueChanged(int)", self.updateParameterNodeFromGUI)
     self.ui.neighbourhoodSizeDoubleSpinBox.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
     self.ui.extractCenterlinesCheckBox.connect("toggled(bool)", self.updateParameterNodeFromGUI)
-    
+
     # Application connections
-    self.ui.inputCurveSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onCurveNode)
+    self.ui.inputFiducialSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onFiducialNode)
     self.ui.inputSliceNodeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSliceNode)
-    self.ui.tubeDiameterSpinBox.connect("valueChanged(double)", self.logic.setTubeDiameter)
+    self.ui.inputROISelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onROINode)
     self.ui.intensityToleranceSpinBox.connect("valueChanged(int)", self.logic.setIntensityTolerance)
     self.ui.neighbourhoodSizeDoubleSpinBox.connect("valueChanged(double)", self.logic.setNeighbourhoodSize)
     self.ui.extractCenterlinesCheckBox.connect("toggled(bool)", self.logic.setExtractCenterlines)
+    self.ui.preFitROIToolButton.connect("clicked()", self.preFitROI)
     self.ui.restoreSliceViewToolButton.connect("clicked()", self.onRestoreSliceViews)
 
     # Buttons
@@ -112,8 +114,8 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
     # Make sure parameter node is initialized (needed for module reload)
     self.initializeParameterNode()
     
-    # A hidden one for the curious !
-    shortcut = qt.QShortcut(self.ui.CurveCenterlineExtraction)
+    # A hidden one for the curious ! For developers.
+    shortcut = qt.QShortcut(self.ui.QuickArterySegmentation)
     shortcut.setKey(qt.QKeySequence('Meta+d'))
     shortcut.connect( 'activated()', lambda: self.removeOutputNodes())
 
@@ -121,21 +123,21 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
     slicer.util.showStatusMessage(message, 3000)
     logging.info(message)
 
-  def onCurveNode(self, node):
+  def onFiducialNode(self, node):
     if node is None:
-        self.logic.setInputCurveNode(None)
+        self.logic.setInputFiducialNode(None)
         return
     numberOfControlPoints = node.GetNumberOfControlPoints()
-    if numberOfControlPoints < 2: # Possible ?
-        self.inform("Curve node must have at least 2 points.")
-        self.ui.inputCurveSelector.setCurrentNode(None)
-        self.logic.setInputCurveNode(None)
+    if numberOfControlPoints < 2:
+        self.inform("Fiducial node must have at least 2 points.")
+        self.ui.inputFiducialSelector.setCurrentNode(None)
+        self.logic.setInputFiducialNode(None)
         return
-    self.logic.setInputCurveNode(node)
+    self.logic.setInputFiducialNode(node)
     # Update UI with previous referenced segmentation. May be changed before logic.process().
     referencedSegmentationNode = node.GetNodeReference("OutputSegmentation")
     if referencedSegmentationNode:
-        self.ui.outputSegmentationSelector.setCurrentNode(referencedSegmentationNode)
+        self.ui.outputSegmentationSelector.setCurrentNode(node.GetNodeReference("OutputSegmentation"))
     # Show last known volume used for segmentation.
     referencedInputVolume = node.GetNodeReference("InputVolumeNode")
     self.updateSliceViews(referencedInputVolume)
@@ -147,37 +149,62 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
         self.logic.setInputSliceNode(None)
         return
     self.logic.setInputSliceNode(node)
+    
+  def onROINode(self, node):
+    if node is None:
+        self.logic.setInputROINode(None)
+        return
+    self.logic.setInputROINode(node)
+    node.SetDisplayVisibility(True)
 
-  def updateSliceViews(self, node):
+  # The ROI will have to be manually adjusted.
+  def preFitROI(self):
+    inputFiducialNode = self.ui.inputFiducialSelector.currentNode()
+    inputROINode = self.ui.inputROISelector.currentNode()
+    if (inputFiducialNode is None) or (inputROINode is None):
+        return
+    fiducialBounds = np.zeros(6)
+    inputFiducialNode.GetBounds(fiducialBounds)
+    vFiducialBounds=vtk.vtkBoundingBox()
+    vFiducialBounds.SetBounds(fiducialBounds)
+    center = np.zeros(3)
+    vFiducialBounds.GetCenter(center)
+    inputROINode.SetCenter(center)
+    lengths = np.zeros(3)
+    vFiducialBounds.GetLengths(lengths)
+    inputROINode.SetRadiusXYZ((lengths[0] / 2, lengths[1] / 2, lengths[2] / 2))
+    inputROINode.SetDisplayVisibility(True)
+
+  def updateSliceViews(self, volumeNode):
     # Don't allow None node, is very annoying.
-    if not node:
+    if not volumeNode:
         return
     sliceNode = self.logic.inputSliceNode
     if not sliceNode:
         return
     # Don't upset UI if we have the right volume node
     sliceWidget = slicer.app.layoutManager().sliceWidget(sliceNode.GetName())
-    volumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
-    if node == volumeNode:
+    backgroudVolumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
+    if volumeNode == backgroudVolumeNode:
         return
     views = slicer.app.layoutManager().sliceViewNames()
     for view in views:
         sliceWidget = slicer.app.layoutManager().sliceWidget(view)
         sliceCompositeNode = sliceWidget.sliceLogic().GetSliceCompositeNode()
-        if node is not None:
-            sliceCompositeNode.SetBackgroundVolumeID(node.GetID())
+        if volumeNode is not None:
+            sliceCompositeNode.SetBackgroundVolumeID(volumeNode.GetID())
             sliceWidget.sliceLogic().FitSliceToAll()
         else:
             sliceCompositeNode.SetBackgroundVolumeID(None)
 
   def onRestoreSliceViews(self):
     # Show last known volume used for segmentation.
-    inputCurveNode = self.ui.inputCurveSelector.currentNode()
-    if not inputCurveNode:
+    inputFiducialNode = self.ui.inputFiducialSelector.currentNode()
+    if not inputFiducialNode:
         return
-    referencedInputVolume = inputCurveNode.GetNodeReference("InputVolumeNode")
+    referencedInputVolume = inputFiducialNode.GetNodeReference("InputVolumeNode")
     self.updateSliceViews(referencedInputVolume)
-    
+  
   def cleanup(self):
     """
     Called when the application closes and the module widget is destroyed.
@@ -257,12 +284,14 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
     self._updatingGUIFromParameterNode = True
 
     # Update node selectors and sliders
-    self.ui.inputCurveSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputCurveNode"))
+    self.ui.inputFiducialSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputFiducialNode"))
     self.ui.inputSliceNodeSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputSliceNode"))
-    self.ui.tubeDiameterSpinBox.value = float(self._parameterNode.GetParameter("TubeDiameter"))
+    self.ui.inputROISelector.setCurrentNode(self._parameterNode.GetNodeReference("InputROINode"))
     self.ui.intensityToleranceSpinBox.value = int(self._parameterNode.GetParameter("IntensityTolerance"))
     self.ui.neighbourhoodSizeDoubleSpinBox.value = float(self._parameterNode.GetParameter("NeighbourhoodSize"))
     self.ui.extractCenterlinesCheckBox.setChecked (self._parameterNode.GetParameter("ExtractCenterlines") == "True")
+
+    # Update buttons states and tooltips
 
     # All the GUI updates are done
     self._updatingGUIFromParameterNode = False
@@ -278,9 +307,9 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
 
     wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
 
-    self._parameterNode.SetNodeReferenceID("InputCurveNode", self.ui.inputCurveSelector.currentNodeID)
+    self._parameterNode.SetNodeReferenceID("InputFiducialNode", self.ui.inputFiducialSelector.currentNodeID)
     self._parameterNode.SetNodeReferenceID("InputSliceNode", self.ui.inputSliceNodeSelector.currentNodeID)
-    self._parameterNode.SetParameter("TubeDiameter", str(self.ui.tubeDiameterSpinBox.value))
+    self._parameterNode.SetNodeReferenceID("InputROINode", self.ui.inputROISelector.currentNodeID)
     self._parameterNode.SetParameter("IntensityTolerance", str(self.ui.intensityToleranceSpinBox.value))
     self._parameterNode.SetParameter("NeighbourhoodSize", str(self.ui.neighbourhoodSizeDoubleSpinBox.value))
     self._parameterNode.SetParameter("ExtractCenterlines", str(self.ui.extractCenterlinesCheckBox.isChecked()))
@@ -289,73 +318,67 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
 
   """
   Let each one trace last used parameter values and output nodes.
-  These can be restored when an input curve is selected again.
+  These can be restored when an input fiducial is selected again.
   """
   def UpdateInputNodeWithThisOutputNode(self, outputNode, referenceID):
     outputNodeID = ""
     if outputNode:
         outputNodeID = outputNode.GetID()
-    self.logic.inputCurveNode.SetNodeReferenceID(referenceID, outputNodeID)
+    self.logic.inputFiducialNode.SetNodeReferenceID(referenceID, outputNodeID)
     
   def UpdateInputNodeWithOutputNodes(self):
-    if not self.logic.inputCurveNode:
+    if not self.logic.inputFiducialNode:
         return
-    wasModified = self.logic.inputCurveNode.StartModify()
-    self.UpdateInputNodeWithThisOutputNode(self.logic.outputFiducialNode, "OutputFiducialNode")
+    wasModified = self.logic.inputFiducialNode.StartModify()
     self.UpdateInputNodeWithThisOutputNode(self.logic.outputSegmentation, "OutputSegmentation")
     self.UpdateInputNodeWithThisOutputNode(self.logic.outputCenterlineModel, "OutputCenterlineModel")
     self.UpdateInputNodeWithThisOutputNode(self.logic.outputCenterlineCurve, "OutputCenterlineCurve")
-    self.logic.inputCurveNode.EndModify(wasModified)
+    self.logic.inputFiducialNode.EndModify(wasModified)
 
   def UpdateInputNodeWithParameters(self):
-    if not self.logic.inputCurveNode:
+    if not self.logic.inputFiducialNode:
         return
-    wasModified = self.logic.inputCurveNode.StartModify()
+    wasModified = self.logic.inputFiducialNode.StartModify()
     
     sliceNode = self.logic.inputSliceNode
     sliceWidget = slicer.app.layoutManager().sliceWidget(sliceNode.GetName())
     volumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
-    self.logic.inputCurveNode.SetNodeReferenceID("InputVolumeNode", volumeNode.GetID())
+    self.logic.inputFiducialNode.SetNodeReferenceID("InputVolumeNode", volumeNode.GetID())
     
-    self.logic.inputCurveNode.SetAttribute("TubeDiameter", str(self.ui.tubeDiameterSpinBox.value))
-    self.logic.inputCurveNode.SetAttribute("InputIntensityTolerance", str(self.ui.intensityToleranceSpinBox.value))
-    self.logic.inputCurveNode.SetAttribute("NeighbourhoodSize", str(self.ui.neighbourhoodSizeDoubleSpinBox.value))
-    self.logic.inputCurveNode.EndModify(wasModified)
+    inputROINodeID = self.logic.inputROINode.GetID()
+    self.logic.inputFiducialNode.SetNodeReferenceID("InputROINode", inputROINodeID)
+    self.logic.inputFiducialNode.SetAttribute("InputIntensityTolerance", str(self.ui.intensityToleranceSpinBox.value))
+    self.logic.inputFiducialNode.SetAttribute("NeighbourhoodSize", str(self.ui.neighbourhoodSizeDoubleSpinBox.value))
+    self.logic.inputFiducialNode.EndModify(wasModified)
 
-  # Restore parameters from input curve
+  # Restore parameters from input fiducial
   def updateGUIParametersFromInputNode(self):
-    if not self.logic.inputCurveNode:
+    if not self.logic.inputFiducialNode:
         return
-    tubeDiameter = self.logic.inputCurveNode.GetAttribute("TubeDiameter")
-    if tubeDiameter:
-        self.ui.tubeDiameterSpinBox.value = float(tubeDiameter)
-    intensityTolerance = self.logic.inputCurveNode.GetAttribute("InputIntensityTolerance")
+    self.ui.inputROISelector.setCurrentNode(self.logic.inputFiducialNode.GetNodeReference("InputROINode"))
+    intensityTolerance = self.logic.inputFiducialNode.GetAttribute("InputIntensityTolerance")
     if intensityTolerance:
         self.ui.intensityToleranceSpinBox.value = int(intensityTolerance)
-    neighbourhoodSize = self.logic.inputCurveNode.GetAttribute("NeighbourhoodSize")
+    neighbourhoodSize = self.logic.inputFiducialNode.GetAttribute("NeighbourhoodSize")
     if neighbourhoodSize:
         self.ui.neighbourhoodSizeDoubleSpinBox.value = float(neighbourhoodSize)
-
+  
   # Restore output nodes in logic
   def UpdateLogicWithOutputNodes(self):
-    if not self.logic.inputCurveNode:
+    if not self.logic.inputFiducialNode:
         return
-    self.logic.outputFiducialNode = self.logic.inputCurveNode.GetNodeReference("OutputFiducialNode")
     # Here we use a segmentation specified in UI, not the one referenced in the input fiducial.
     self.logic.outputSegmentation = self.ui.outputSegmentationSelector.currentNode()
-    self.logic.outputCenterlineModel = self.logic.inputCurveNode.GetNodeReference("OutputCenterlineModel")
-    self.logic.outputCenterlineCurve = self.logic.inputCurveNode.GetNodeReference("OutputCenterlineCurve")
-
+    self.logic.outputCenterlineModel = self.logic.inputFiducialNode.GetNodeReference("OutputCenterlineModel")
+    self.logic.outputCenterlineCurve = self.logic.inputFiducialNode.GetNodeReference("OutputCenterlineCurve")
+    
   def onApplyButton(self):
     """
     Run processing when user clicks "Apply" button.
     """
     try:
-        if self.logic.inputCurveNode is None:
-            self.inform("No input curve node specified.")
-            return
-        if self.logic.inputCurveNode.GetNumberOfControlPoints() < 3:
-            self.inform("Input curve node must have at least 3 control points.")
+        if self.logic.inputFiducialNode is None:
+            self.inform("No input fiducial node specified.")
             return
         if self.logic.inputSliceNode is None:
             self.inform("No input slice node specified.")
@@ -367,11 +390,15 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
         if volumeNode is None:
             self.inform("No volume node selected in input slice node.")
             return
-        # Restore logic output objects with referenced ones.
+        # We no longer preprocess input surface in 'Extract centerline', to avoid crashes. Force a ROI to reduce computation time.
+        if self.logic.inputROINode is None:
+            self.inform("No input ROI node specified.")
+            return
+        # Restore logic output objects relevant to the input fiducial.
         self.UpdateLogicWithOutputNodes()
         # Compute output
         self.logic.process()
-        # Update parameter node with references to new output nodes.
+        # Update input node with references to new output nodes.
         self.UpdateInputNodeWithOutputNodes()
         # Update input node with input parameters.
         self.UpdateInputNodeWithParameters()
@@ -379,35 +406,41 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
         self.ui.outputSegmentationSelector.setCurrentNode(self.logic.outputSegmentation)
 
     except Exception as e:
-      slicer.util.errorDisplay("Failed to compute results: "+str(e))
-      import traceback
-      traceback.print_exc()
+        slicer.util.errorDisplay("Failed to compute results: "+str(e))
+        import traceback
+        traceback.print_exc()
 
   # Handy during development
   def removeOutputNodes(self):
-    inputCurveNode = self.ui.inputCurveSelector.currentNode()
-    if not inputCurveNode:
+    inputFiducialNode = self.ui.inputFiducialSelector.currentNode()
+    if not inputFiducialNode:
         return
-    slicer.mrmlScene.RemoveNode(inputCurveNode.GetNodeReference("OutputFiducialNode"))
-    slicer.mrmlScene.RemoveNode(inputCurveNode.GetNodeReference("OutputCenterlineModel"))
-    slicer.mrmlScene.RemoveNode(inputCurveNode.GetNodeReference("OutputCenterlineCurve"))
-    self.logic.outputCurveNode = None
-    self.logic.outputCenterlineModel = None
-    self.logic.outputCenterlineCurve = None
-    
     # Remove segment, ID is controlled.
-    segmentation = inputCurveNode.GetNodeReference("OutputSegmentation")
-    segmentID = "Segment_" + inputCurveNode.GetID()
+    segmentID = "Segment_" + inputFiducialNode.GetID()
+    segmentation = self.logic.outputSegmentation
     segment = segmentation.GetSegmentation().GetSegment(segmentID)
     if segment:
         segmentation.GetSegmentation().RemoveSegment(segment)
-    # Remove node references to centerlines and enpoint fiducial
+    # Remove child centerline curves of self.outputCenterlineCurve
+    shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
+    outputCurveMainId = shNode.GetItemByDataNode(self.logic.outputCenterlineCurve)
+    if (outputCurveMainId > 0) and (outputCurveMainId != shNode.GetSceneItemID()):
+        while shNode.GetNumberOfItemChildren(outputCurveMainId):
+            outputCurveChildId = shNode.GetItemByPositionUnderParent(outputCurveMainId, 0)
+            outputCurveChild = shNode.GetItemDataNode(outputCurveChildId)
+            slicer.mrmlScene.RemoveNode(outputCurveChild)
+
+    slicer.mrmlScene.RemoveNode(self.logic.outputCenterlineModel)
+    slicer.mrmlScene.RemoveNode(self.logic.outputCenterlineCurve)
+    self.logic.outputCenterlineModel = None
+    self.logic.outputCenterlineCurve = None
+    # Remove node references to centerlines
     self.UpdateInputNodeWithOutputNodes()
 #
-# CurveCenterlineExtractionLogic
+# QuickArterySegmentationLogic
 #
 
-class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
+class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
   """This class should implement all the actual
   computation done by your module.  The interface
   should be such that other python code can import
@@ -425,31 +458,32 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     self.initMemberVariables()
     
   def initMemberVariables(self):
-    self.inputCurveNode = None
+    self.inputFiducialNode = None
     self.inputSliceNode = None
-    self.tubeDiameter = 8.0
+    self.inputROINode = None
     self.intensityTolerance = 100
     self.neighbourhoodSize = 2.0
     self.extractCenterlines = False
-    self.outputFiducialNode = None # 'Extract centerline' endpoints
     self.outputSegmentation = None
     self.outputCenterlineModel = None
     self.outputCenterlineCurve = None
     self.segmentEditorWidgets = None
     self.extractCenterlineWidgets = None
-
-  def setInputCurveNode(self, node):
-    if self.inputCurveNode == node:
+    
+  def setInputFiducialNode(self, node):
+    if self.inputFiducialNode == node:
         return
-    self.inputCurveNode = node
+    self.inputFiducialNode = node
     
   def setInputSliceNode(self, node):
     if self.inputSliceNode == node:
         return
     self.inputSliceNode = node
-
-  def setTubeDiameter(self, value):
-    self.tubeDiameter = value
+    
+  def setInputROINode(self, node):
+    if self.inputROINode == node:
+        return
+    self.inputROINode = node
     
   def setIntensityTolerance(self, value):
     self.intensityTolerance = value
@@ -459,18 +493,16 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
 
   def setExtractCenterlines(self, value):
     self.extractCenterlines = value
-
+  
   def setDefaultParameters(self, parameterNode):
     """
     Initialize parameter node with default settings.
     """
-    if not parameterNode.GetParameter("TubeDiameter"):
-      parameterNode.SetParameter("TubeDiameter", "8.0")
     if not parameterNode.GetParameter("IntensityTolerance"):
       parameterNode.SetParameter("IntensityTolerance", "100")
     if not parameterNode.GetParameter("NeighbourhoodSize"):
       parameterNode.SetParameter("NeighbourhoodSize", "2.0")
-      """
+    """
     Though we want to extract centerlines, we default this flag to False.
     Check that an accurate model is generated first.
     Else, it can be very lengthy and disappointing if there is too much leakage. Also, Slicer may crash during centerline extraction.
@@ -483,7 +515,7 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     msg = separator.join(messages)
     slicer.util.showStatusMessage(msg, 3000)
     slicer.app.processEvents()
-
+    
   def process(self):
     import time
     startTime = time.time()
@@ -499,7 +531,6 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     if not self.segmentEditorWidgets:
         self.segmentEditorWidgets = SegmentEditorWidgets()
         self.segmentEditorWidgets.findWidgets()
-
     # Create a new segmentation if none is specified.
     if not self.outputSegmentation:
         segmentation=slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode")
@@ -507,7 +538,7 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     else:
         # Prefer a local reference for readability
         segmentation = self.outputSegmentation
-
+        
     # Local direct reference to slicer.modules.SegmentEditorWidget.editor
     seWidgetEditor=self.segmentEditorWidgets.widgetEditor
 
@@ -518,68 +549,10 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     # Set segment editor controls
     seWidgetEditor.setSegmentationNode(segmentation)
     seWidgetEditor.setSourceVolumeNode(volumeNode)
-    """
-    This geometry update does the speed-up magic ! No need to crop the master volume.
-    We don't strictly need it right here because it is the first master volume of the segmentation. It's however required below each time the master volume node is changed.
-    https://discourse.slicer.org/t/resampled-segmentation-limited-by-a-bounding-box-not-the-whole-volume/18772/3
-    """
-    segmentation.SetReferenceImageGeometryParameterFromVolumeNode(volumeNode)
     
     # Go to Segment Editor.
     mainWindow = slicer.util.mainWindow()
     mainWindow.moduleSelector().selectModule('SegmentEditor')
-    
-    # Show the input curve. Colour of control points change on selection, helps to wait.
-    self.inputCurveNode.SetDisplayVisibility(True)
-    # Reset segment editor masking widgets. Values set by previous work must not interfere here.
-    self.segmentEditorWidgets.resetMaskingWidgets()
-    
-    #---------------------- Draw tube with VTK---------------------
-    # https://discourse.slicer.org/t/converting-markupscurve-to-markupsfiducial/20246/3
-    tube = vtk.vtkTubeFilter()
-    tube.SetInputData(self.inputCurveNode.GetCurveWorld())
-    tube.SetRadius(self.tubeDiameter / 2)
-    tube.SetNumberOfSides(30)
-    tube.CappingOn()
-    tube.Update()
-    segmentation.AddSegmentFromClosedSurfaceRepresentation(tube.GetOutput(), "TubeMask")
-    # Select it so that Split Volume can work on this specific segment only.
-    seWidgetEditor.setCurrentSegmentID("TubeMask")
-    
-    #---------------------- Split volume ---------------------
-    slicer.util.showStatusMessage("Split volume")
-    slicer.app.processEvents()
-    seWidgetEditor.setActiveEffectByName("Split volume")
-    svEffect = seWidgetEditor.activeEffect()
-    svEffect.setParameter("FillValue", -1000)
-    # Work on the TubeMask segment only.
-    svEffect.setParameter("ApplyToAllVisibleSegments", 0)
-    svEffect.self().onApply()
-    seWidgetEditor.setActiveEffectByName(None)
-    
-    # Get output split volume
-    allScalarVolumeNodes = slicer.mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
-    outputSplitVolumeNode = allScalarVolumeNodes.GetItemAsObject(allScalarVolumeNodes.GetNumberOfItems() - 1)
-    # Remove no longer needed drawn tube segment
-    segment = segmentation.GetSegmentation().GetSegment("TubeMask")
-    segmentation.GetSegmentation().RemoveSegment(segment)
-    # Replace master volume of segmentation
-    seWidgetEditor.setSourceVolumeNode(outputSplitVolumeNode)
-    segmentation.SetReferenceImageGeometryParameterFromVolumeNode(outputSplitVolumeNode)
-    
-    """
-    Split Volume creates a folder that contains the segmentation node,
-    and the split volume(s) it creates.
-    Here, we need to get rid of the split volume. There is no reason to keep
-    around the created folder, that takes owneship of the segmentation node.
-    So we'll later move the segmentation node to the Scene node and remove the
-    residual empty folder.
-    """
-    shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
-    shSplitVolumeId = shNode.GetItemByDataNode(outputSplitVolumeNode)
-    shSplitVolumeParentId = shNode.GetItemParent(shSplitVolumeId)
-    shSegmentationId = shNode.GetItemByDataNode(segmentation)
-    shSceneId = shNode.GetSceneItemID()
     
     #---------------------- Manage segment --------------------
     # Remove a segment node and keep its color
@@ -590,7 +563,7 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     It will be the same in all segmentations.
     We can reach it precisely.
     """
-    segmentID = "Segment_" + self.inputCurveNode.GetID()
+    segmentID = "Segment_" + self.inputFiducialNode.GetID()
     segment = segmentation.GetSegmentation().GetSegment(segmentID)
     if segment:
         segmentColor = segment.GetColor()
@@ -600,36 +573,36 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     object = segmentation.GetSegmentation().AddEmptySegment(segmentID)
     segment = segmentation.GetSegmentation().GetSegment(object)
     # Visually identify the segment by the input fiducial name
-    segmentName = "Segment_" + self.inputCurveNode.GetName()
+    segmentName = "Segment_" + self.inputFiducialNode.GetName()
     segment.SetName(segmentName)
     if len(segmentColor):
         segment.SetColor(segmentColor)
     # Select new segment
     seWidgetEditor.setCurrentSegmentID(segmentID)
     
-    #---------------------- Flood filling ---------------------
+    #---------------------- Flood filling --------------------
+    # Each fiducial point will be a user click.
     # Set parameters
     seWidgetEditor.setActiveEffectByName("Flood filling")
     ffEffect = seWidgetEditor.activeEffect()
     ffEffect.setParameter("IntensityTolerance", self.intensityTolerance)
     ffEffect.setParameter("NeighborhoodSizeMm", self.neighbourhoodSize)
-    # +++ If an alien ROI is set, segmentation may fail and take an infinite time.
-    ffEffect.parameterSetNode().SetNodeReferenceID("FloodFilling.ROI", None)
+    ffEffect.parameterSetNode().SetNodeReferenceID("FloodFilling.ROI", self.inputROINode.GetID() if self.inputROINode else None)
     ffEffect.updateGUIFromMRML()
-
-    # Get input curve control points
-    curveControlPoints = vtk.vtkPoints()
-    self.inputCurveNode.GetControlPointPositionsWorld(curveControlPoints)
-    numberOfCurveControlPoints = curveControlPoints.GetNumberOfPoints()
-
-    # Apply flood filling at curve control points. Ignore first and last point as the resulting segment would be a big lump. The voxels of split volume at -1000 would be included in the segment.
-    for i in range(1, numberOfCurveControlPoints - 1):
+    # Reset segment editor masking widgets. Values set by previous work must not interfere here.
+    self.segmentEditorWidgets.resetMaskingWidgets()
+    
+    # Apply flood filling at each fiducial point.
+    points=vtk.vtkPoints()
+    self.inputFiducialNode.GetControlPointPositionsWorld(points)
+    numberOfFiducialControlPoints = points.GetNumberOfPoints()
+    for i in range(numberOfFiducialControlPoints):
         # Show progress in status bar. Helpful to wait.
         t = time.time()
         msg = f'Flood filling : {t-startTime:.2f} seconds - '
-        self.showStatusMessage((msg, str(i + 1), "/", str(numberOfCurveControlPoints)))
+        self.showStatusMessage((msg, str(i + 1), "/", str(numberOfFiducialControlPoints)))
         
-        rasPoint = curveControlPoints.GetPoint(i)
+        rasPoint = points.GetPoint(i)
         slicer.vtkMRMLSliceNode.JumpSlice(sliceWidget.sliceLogic().GetSliceNode(), *rasPoint)
         point3D = qt.QVector3D(rasPoint[0], rasPoint[1], rasPoint[2])
         point2D = ffEffect.rasToXy(point3D, sliceWidget)
@@ -638,22 +611,13 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     
     # Switch off active effect
     seWidgetEditor.setActiveEffect(None)
-    # Replace master volume of segmentation
-    seWidgetEditor.setSourceVolumeNode(volumeNode)
-    segmentation.SetReferenceImageGeometryParameterFromVolumeNode(volumeNode)
-    # Remove no longer needed split volume.
-    slicer.mrmlScene.RemoveNode(outputSplitVolumeNode)
-    
-    # Remove folder created by Split Volume.
-    # First, reparent the segmentation item to scene item.
-    shNode.SetItemParent(shSegmentationId, shSceneId)
-    """
-    Remove an empty folder directly. Keep it if there are volumes from other
-    work.
-    """
-    if shNode.GetNumberOfItemChildren(shSplitVolumeParentId) == 0:
-        if shNode.GetItemLevel(shSplitVolumeParentId) == "Folder":
-            shNode.RemoveItem(shSplitVolumeParentId)
+    # Show segment
+    show3DctkMenuButton = self.segmentEditorWidgets.show3DctkMenuButton
+    # Don't use click() here, smoothing options make a mess.
+    show3DctkMenuButton.setChecked(True)
+    # Hide ROI
+    if self.inputROINode:
+        self.inputROINode.SetDisplayVisibility(False)
     
     if not self.extractCenterlines:
         stopTime = time.time()
@@ -678,34 +642,20 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     preprocessInputSurfaceModelCheckBox = self.extractCenterlineWidgets.preprocessInputSurfaceModelCheckBox
     applyButton = self.extractCenterlineWidgets.applyButton
     
-    # Set input segmentation
+    # Set input segmentation and endpoints
     inputSurfaceComboBox.setCurrentNode(segmentation)
     inputSegmentSelectorWidget.setCurrentSegmentID(segmentID)
-    # Create 2 fiducial endpoints, at start and end of input curve. We call it output because it is not user input.
-    outputFiducialNode = self.outputFiducialNode
-    if not outputFiducialNode:
-        outputFiducialNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode")
-        # Visually identify the segment by the input fiducial name
-        outputFiducialNode.SetName("Endpoints_" + self.inputCurveNode.GetName())
-        firstInputCurveControlPoint = self.inputCurveNode.GetNthControlPointPositionVector(0)
-        outputFiducialNode.AddControlPointWorld(firstInputCurveControlPoint)
-        endPointsMarkupsSelector.setCurrentNode(outputFiducialNode)
-        lastInputCurveControlPoint = self.inputCurveNode.GetNthControlPointPositionVector(curveControlPoints.GetNumberOfPoints() - 1)
-        outputFiducialNode.AddControlPointWorld(lastInputCurveControlPoint)
-        endPointsMarkupsSelector.setCurrentNode(outputFiducialNode)
-        self.outputFiducialNode = outputFiducialNode
-    # Account for rename. Control points are not remaned though.
-    outputFiducialNode.SetName("Endpoints_" + self.inputCurveNode.GetName())
+    endPointsMarkupsSelector.setCurrentNode(self.inputFiducialNode)
     
     # Output centerline model. A single node throughout.
     centerlineModel = self.outputCenterlineModel
     if not centerlineModel:
         centerlineModel = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode")
         # Visually identify the segment by the input fiducial name
-        centerlineModel.SetName("Centerline_model_" + self.inputCurveNode.GetName())
+        centerlineModel.SetName("Centerline_model_" + self.inputFiducialNode.GetName())
         self.outputCenterlineModel = centerlineModel
     # Account for rename
-    centerlineModel.SetName("Centerline_model_" + self.inputCurveNode.GetName())
+    centerlineModel.SetName("Centerline_model_" + self.inputFiducialNode.GetName())
     outputCenterlineModelSelector.setCurrentNode(centerlineModel)
     
     # Output centerline curve. A single node throughout.
@@ -713,33 +663,31 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     if not centerlineCurve:
         centerlineCurve = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsCurveNode")
         # Visually identify the segment by the input fiducial name
-        centerlineCurve.SetName("Centerline_curve_" + self.inputCurveNode.GetName())
+        centerlineCurve.SetName("Centerline_curve_" + self.inputFiducialNode.GetName())
         self.outputCenterlineCurve = centerlineCurve
     # Account for rename
-    centerlineCurve.SetName("Centerline_curve_" + self.inputCurveNode.GetName())
-    
+    centerlineCurve.SetName("Centerline_curve_" + self.inputFiducialNode.GetName())
     outputCenterlineCurveSelector.setCurrentNode(centerlineCurve)
+    
     """
     Don't preprocess input surface. Decimation error may crash Slicer. Quadric method for decimation is slower but more reliable.
     """
     preprocessInputSurfaceModelCheckBox.setChecked(False)
     # Apply
     applyButton.click()
-    # Hide the input curve to show the centerlines
-    self.inputCurveNode.SetDisplayVisibility(False)
     # Close network pane; we don't use this here.
     self.extractCenterlineWidgets.outputNetworkGroupBox.collapsed = True
-
+    
     stopTime = time.time()
     message = f'Processing completed in {stopTime-startTime:.2f} seconds'
     logging.info(message)
     slicer.util.showStatusMessage(message, 5000)
 
 #
-# CurveCenterlineExtractionTest
+# QuickArterySegmentationTest
 #
 
-class CurveCenterlineExtractionTest(ScriptedLoadableModuleTest):
+class QuickArterySegmentationTest(ScriptedLoadableModuleTest):
   """
   This is the test case for your scripted module.
   Uses ScriptedLoadableModuleTest base class, available at:
@@ -755,10 +703,15 @@ class CurveCenterlineExtractionTest(ScriptedLoadableModuleTest):
     """Run as few or as many tests as needed here.
     """
     self.setUp()
-    self.test_CurveCenterlineExtraction1()
+    self.test_QuickArterySegmentation1()
 
-  def test_CurveCenterlineExtraction1(self):
+  def test_QuickArterySegmentation1(self):
+
     self.delayDisplay("Starting the test")
+
+    # Test the module logic
+
+    logic = QuickArterySegmentationLogic()
 
     self.delayDisplay('Test passed')
 
@@ -789,7 +742,7 @@ class SegmentEditorWidgets(ScriptedLoadableModule):
         self.widgetEditor = slicer.modules.SegmentEditorWidget.editor
         
         # widgetEditor.children()
-        # Get segment editor controls
+        # Get segment editor controls and set values
         self.segmentationNodeComboBox = self.widgetEditor.findChild(slicer.qMRMLNodeComboBox, "SegmentationNodeComboBox")
         self.sourceVolumeNodeComboBox = self.widgetEditor.findChild(slicer.qMRMLNodeComboBox, "SourceVolumeNodeComboBox")
         self.newSegmentQPushButton = self.widgetEditor.findChild(qt.QPushButton, "AddSegmentButton")
@@ -851,4 +804,4 @@ class ExtractCenterlineWidgets(ScriptedLoadableModule):
         
         # Advanced widgets
         self.preprocessInputSurfaceModelCheckBox = self.advancedCollapsibleButton.findChild(qt.QCheckBox, "preprocessInputSurfaceModelCheckBox")
-
+        

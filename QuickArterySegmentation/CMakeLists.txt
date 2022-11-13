@@ -1,5 +1,5 @@
 #-----------------------------------------------------------------------------
-set(MODULE_NAME FiducialCenterlineExtraction)
+set(MODULE_NAME QuickArterySegmentation)
 
 #-----------------------------------------------------------------------------
 set(MODULE_PYTHON_SCRIPTS

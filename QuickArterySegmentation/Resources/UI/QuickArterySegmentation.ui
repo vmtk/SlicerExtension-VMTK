@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>FiducialCenterlineExtraction</class>
- <widget class="qMRMLWidget" name="FiducialCenterlineExtraction">
+ <class>QuickArterySegmentation</class>
+ <widget class="qMRMLWidget" name="QuickArterySegmentation">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -370,7 +370,7 @@ Output nodes from the last run will be removed.</string>
  <resources/>
  <connections>
   <connection>
-   <sender>FiducialCenterlineExtraction</sender>
+   <sender>QuickArterySegmentation</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>inputFiducialSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
@@ -386,7 +386,7 @@ Output nodes from the last run will be removed.</string>
    </hints>
   </connection>
   <connection>
-   <sender>FiducialCenterlineExtraction</sender>
+   <sender>QuickArterySegmentation</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>inputSliceNodeSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
@@ -402,7 +402,7 @@ Output nodes from the last run will be removed.</string>
    </hints>
   </connection>
   <connection>
-   <sender>FiducialCenterlineExtraction</sender>
+   <sender>QuickArterySegmentation</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>inputROISelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
@@ -418,7 +418,7 @@ Output nodes from the last run will be removed.</string>
    </hints>
   </connection>
   <connection>
-   <sender>FiducialCenterlineExtraction</sender>
+   <sender>QuickArterySegmentation</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>outputSegmentationSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
