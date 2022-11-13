@@ -960,7 +960,8 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
         thresholder = vtk.vtkThreshold()
         thresholder.SetInputConnection(assignAttribute.GetOutputPort())
         groupId = mergedCenterlines.GetCellData().GetArray(self.groupIdsArrayName).GetValue(cellId)
-        thresholder.ThresholdBetween(groupId - 0.5, groupId + 0.5)
+        thresholder.SetLowerThreshold(groupId - 0.5)
+        thresholder.SetUpperThreshold(groupId + 0.5)
         thresholder.Update()
 
         if replaceCurve:
