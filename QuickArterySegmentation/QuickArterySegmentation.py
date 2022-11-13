@@ -7,17 +7,17 @@ from slicer.util import VTKObservationMixin
 import numpy as np
 
 #
-# FiducialCenterlineExtraction
+# QuickArterySegmentation
 #
 
-class FiducialCenterlineExtraction(ScriptedLoadableModule):
+class QuickArterySegmentation(ScriptedLoadableModule):
   """Uses ScriptedLoadableModule base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
 
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
-    self.parent.title = "Fiducial centerline extraction" 
+    self.parent.title = "Quick artery segmentation" 
     self.parent.categories = ["Vascular Modeling Toolkit"]
     # NOTE: This is a workaround. DrawTube and FloodFilling are not part of
     # Slicer, but are hosted in an external repository. During testing they are
@@ -42,10 +42,10 @@ and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR0132
 """
 
 #
-# FiducialCenterlineExtractionWidget
+# QuickArterySegmentationWidget
 #
 
-class FiducialCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
+class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
   """Uses ScriptedLoadableModuleWidget base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
@@ -68,7 +68,7 @@ class FiducialCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObserv
 
     # Load widget from .ui file (created by Qt Designer).
     # Additional widgets can be instantiated manually and added to self.layout.
-    uiWidget = slicer.util.loadUI(self.resourcePath('UI/FiducialCenterlineExtraction.ui'))
+    uiWidget = slicer.util.loadUI(self.resourcePath('UI/QuickArterySegmentation.ui'))
     self.layout.addWidget(uiWidget)
     self.ui = slicer.util.childWidgetVariables(uiWidget)
 
@@ -79,7 +79,7 @@ class FiducialCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObserv
 
     # Create logic class. Logic implements all computations that should be possible to run
     # in batch mode, without a graphical user interface.
-    self.logic = FiducialCenterlineExtractionLogic()
+    self.logic = QuickArterySegmentationLogic()
     
     self.ui.floodFillingCollapsibleGroupBox.checked = False
 
@@ -115,7 +115,7 @@ class FiducialCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObserv
     self.initializeParameterNode()
     
     # A hidden one for the curious ! For developers.
-    shortcut = qt.QShortcut(self.ui.FiducialCenterlineExtraction)
+    shortcut = qt.QShortcut(self.ui.QuickArterySegmentation)
     shortcut.setKey(qt.QKeySequence('Meta+d'))
     shortcut.connect( 'activated()', lambda: self.removeOutputNodes())
 
@@ -437,10 +437,10 @@ class FiducialCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObserv
     # Remove node references to centerlines
     self.UpdateInputNodeWithOutputNodes()
 #
-# FiducialCenterlineExtractionLogic
+# QuickArterySegmentationLogic
 #
 
-class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
+class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
   """This class should implement all the actual
   computation done by your module.  The interface
   should be such that other python code can import
@@ -684,10 +684,10 @@ class FiducialCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     slicer.util.showStatusMessage(message, 5000)
 
 #
-# FiducialCenterlineExtractionTest
+# QuickArterySegmentationTest
 #
 
-class FiducialCenterlineExtractionTest(ScriptedLoadableModuleTest):
+class QuickArterySegmentationTest(ScriptedLoadableModuleTest):
   """
   This is the test case for your scripted module.
   Uses ScriptedLoadableModuleTest base class, available at:
@@ -703,15 +703,15 @@ class FiducialCenterlineExtractionTest(ScriptedLoadableModuleTest):
     """Run as few or as many tests as needed here.
     """
     self.setUp()
-    self.test_FiducialCenterlineExtraction1()
+    self.test_QuickArterySegmentation1()
 
-  def test_FiducialCenterlineExtraction1(self):
+  def test_QuickArterySegmentation1(self):
 
     self.delayDisplay("Starting the test")
 
     # Test the module logic
 
-    logic = FiducialCenterlineExtractionLogic()
+    logic = QuickArterySegmentationLogic()
 
     self.delayDisplay('Test passed')
 

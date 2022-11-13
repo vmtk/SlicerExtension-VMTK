@@ -21,7 +21,7 @@ SlicerVMTK extension provides the following modules:
   - [Cross-Section Analysis](Docs/CrossSectionAnalysis.md): Reslice images, segmentations, or models along a centerline curve. It can measure cross-sectional area and various other metrics and displays it as a table or plot.
 - Workflows:
   - [Curve Centerline Extraction](Docs/CurveCenterlineExtraction.md): Create targeted segmentations from a contrast enhanced CT angio scan using a markups open curve, and to finally extract centerlines from the surface model. Overall, it's a small wrapper to create *short* arterial segments as *single* tubes, with subsequent centerline extraction.
-  - [Fiducial Centerline Extraction](Docs/FiducialCenterlineExtraction.md): Create targeted (small) segmentations from a contrast enhanced CT angio scan using fiducial points, and to finally extract centerlines from the surface model. Overall, it's a small wrapper for common arterial segmentation tasks.
+  - [Quick Artery Segmentation](Docs/QuickArterySegmentation.md): Create targeted (small) segmentations from a contrast enhanced CT angio scan using fiducial points, and to finally extract centerlines from the surface model. Overall, it's a small wrapper for common arterial segmentation tasks.
   - [Stenosis measurement 1D](Docs/StenosisMeasurement1D.md): use distances between control points of a straightened open curve to evaluate a stenosis.
   - [Stenosis measurement 2D](Docs/StenosisMeasurement2D.md): use segment surface areas to evaluate a stenosis.
 - Legacy modules (replaced by other modules, not developed anymore):
