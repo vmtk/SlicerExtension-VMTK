@@ -48,7 +48,7 @@ else()
 endif()
 add_subdirectory(CrossSectionAnalysis)
 add_subdirectory(QuickArterySegmentation)
-add_subdirectory(CurveCenterlineExtraction)
+add_subdirectory(GuidedArterySegmentation)
 add_subdirectory(StenosisMeasurement1D)
 add_subdirectory(StenosisMeasurement2D)
 

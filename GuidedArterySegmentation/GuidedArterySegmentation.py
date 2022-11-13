@@ -6,17 +6,17 @@ from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
 
 #
-# CurveCenterlineExtraction
+# GuidedArterySegmentation
 #
 
-class CurveCenterlineExtraction(ScriptedLoadableModule):
+class GuidedArterySegmentation(ScriptedLoadableModule):
   """Uses ScriptedLoadableModule base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
 
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
-    self.parent.title = "Curve centerline extraction"
+    self.parent.title = "Guided artery segmentation"
     self.parent.categories = ["Vascular Modeling Toolkit"]
     # NOTE: This is a workaround. DrawTube and FloodFilling are not part of
     # Slicer, but are hosted in an external repository. During testing they are
@@ -41,10 +41,10 @@ and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR0132
 """
 
 #
-# CurveCenterlineExtractionWidget
+# GuidedArterySegmentationWidget
 #
 
-class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
+class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
   """Uses ScriptedLoadableModuleWidget base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
@@ -67,7 +67,7 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
 
     # Load widget from .ui file (created by Qt Designer).
     # Additional widgets can be instantiated manually and added to self.layout.
-    uiWidget = slicer.util.loadUI(self.resourcePath('UI/CurveCenterlineExtraction.ui'))
+    uiWidget = slicer.util.loadUI(self.resourcePath('UI/GuidedArterySegmentation.ui'))
     self.layout.addWidget(uiWidget)
     self.ui = slicer.util.childWidgetVariables(uiWidget)
 
@@ -78,7 +78,7 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
 
     # Create logic class. Logic implements all computations that should be possible to run
     # in batch mode, without a graphical user interface.
-    self.logic = CurveCenterlineExtractionLogic()
+    self.logic = GuidedArterySegmentationLogic()
 
     self.ui.floodFillingCollapsibleGroupBox.checked = False
     
@@ -113,7 +113,7 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
     self.initializeParameterNode()
     
     # A hidden one for the curious !
-    shortcut = qt.QShortcut(self.ui.CurveCenterlineExtraction)
+    shortcut = qt.QShortcut(self.ui.GuidedArterySegmentation)
     shortcut.setKey(qt.QKeySequence('Meta+d'))
     shortcut.connect( 'activated()', lambda: self.removeOutputNodes())
 
@@ -404,10 +404,10 @@ class CurveCenterlineExtractionWidget(ScriptedLoadableModuleWidget, VTKObservati
     # Remove node references to centerlines and enpoint fiducial
     self.UpdateInputNodeWithOutputNodes()
 #
-# CurveCenterlineExtractionLogic
+# GuidedArterySegmentationLogic
 #
 
-class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
+class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
   """This class should implement all the actual
   computation done by your module.  The interface
   should be such that other python code can import
@@ -736,10 +736,10 @@ class CurveCenterlineExtractionLogic(ScriptedLoadableModuleLogic):
     slicer.util.showStatusMessage(message, 5000)
 
 #
-# CurveCenterlineExtractionTest
+# GuidedArterySegmentationTest
 #
 
-class CurveCenterlineExtractionTest(ScriptedLoadableModuleTest):
+class GuidedArterySegmentationTest(ScriptedLoadableModuleTest):
   """
   This is the test case for your scripted module.
   Uses ScriptedLoadableModuleTest base class, available at:
@@ -755,9 +755,9 @@ class CurveCenterlineExtractionTest(ScriptedLoadableModuleTest):
     """Run as few or as many tests as needed here.
     """
     self.setUp()
-    self.test_CurveCenterlineExtraction1()
+    self.test_GuidedArterySegmentation1()
 
-  def test_CurveCenterlineExtraction1(self):
+  def test_GuidedArterySegmentation1(self):
     self.delayDisplay("Starting the test")
 
     self.delayDisplay('Test passed')

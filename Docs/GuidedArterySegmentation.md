@@ -1,8 +1,8 @@
-# Curve Centerline Extraction
+# Guided Artery Segmentation
 
 This module is intended to create targeted segmentations from a contrast enhanced CT angio scan using a markups open curve, and to finally extract centerlines from the surface model. Overall, it's a small wrapper to create *short* arterial segments as *single* tubes, with subsequent centerline extraction.
 
-![](CurveCenterlineExtractionScreenshot_1.png)
+![](GuidedArterySegmentationScreenshot_1.png)
 
 It assumes that a markups curve control points are placed in the contrasted lumen.
 
