@@ -118,6 +118,34 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
     shortcut = qt.QShortcut(self.ui.QuickArterySegmentation)
     shortcut.setKey(qt.QKeySequence('Meta+d'))
     shortcut.connect( 'activated()', lambda: self.removeOutputNodes())
+    
+    self.installExtensionFromServer("SegmentEditorExtraEffects")
+    
+  def installExtensionFromServer(self, extensionName):
+    # From Modules/Scripted/ExtensionWizard/ExtensionWizardLib/LoadModulesDialog.py
+    developerModeEnabled = slicer.util.settingsValue('Developer/DeveloperMode', False, converter=slicer.util.toBool)
+    # https://slicer.readthedocs.io/en/latest/developer_guide/script_repository.html#download-and-install-extension
+    em = slicer.app.extensionsManagerModel()
+    if not em.isExtensionInstalled(extensionName):
+      # Don't disturb the developers.
+      if developerModeEnabled:
+        raise ValueError(f"Aborting installation of {extensionName} in developer mode.")
+      
+      em.interactive = False
+      result = em.updateExtensionsMetadataFromServer(True, True)
+      if (not result):
+        raise ValueError(f"Could not update metadata from server to install {extensionName}.")
+      
+      reply = slicer.util.confirmYesNoDisplay(f"{extensionName} must be installed. Do you want to install it now ?")
+      if (not reply):
+        raise ValueError(f"This module cannot be used without {extensionName}.")
+      
+      if not em.downloadAndInstallExtensionByName(extensionName, True, True):
+        raise ValueError(f"Failed to install {extensionName} extension.")
+      
+      reply = slicer.util.confirmYesNoDisplay(f"{extensionName} has been installed from server.\n\nSlicer must be restarted. Do you want to restart now ?")
+      if reply:
+        slicer.util.restart()
 
   def inform(self, message):
     slicer.util.showStatusMessage(message, 3000)
