@@ -22,13 +22,14 @@ class CrossSectionAnalysis(ScriptedLoadableModule):
     self.parent.title = "Cross-section analysis"
     self.parent.categories = ["Vascular Modeling Toolkit"]
     self.parent.dependencies = []
-    self.parent.contributors = ["SET (Surgeon) (Hobbyist developer)", "Andras Lasso (PerkLab)"]
+    self.parent.contributors = ["Saleem Edah-Tally (Surgeon) (Hobbyist developer)", "Andras Lasso (PerkLab)"]
     self.parent.helpText = """
 This module describes cross-sections along a VMTK centerline model, a VMTK centerline markups curve or an arbitrary markups curve. Documentation is available
     <a href="https://github.com/vmtk/SlicerExtension-VMTK/">here</a>.
 """
     self.parent.acknowledgementText = """
-This file was originally developed by SET. Many thanks to Andras Lasso for sanitizing the code and UI, and for guidance throughout.
+This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc., Andras Lasso, PerkLab,
+and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
 """  # TODO: replace with organization, grant and thanks.
 
 #

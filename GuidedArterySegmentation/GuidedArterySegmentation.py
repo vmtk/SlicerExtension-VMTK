@@ -27,7 +27,7 @@ class GuidedArterySegmentation(ScriptedLoadableModule):
       self.parent.dependencies = ["ExtractCenterline"]
     else:
       self.parent.dependencies = ["SegmentEditorDrawTube","SegmentEditorFloodFilling","ExtractCenterline"]
-    self.parent.contributors = ["SET [Surgeon] [Hobbyist developer]"]
+    self.parent.contributors = ["Saleem Edah-Tally [Surgeon] [Hobbyist developer]"]
     self.parent.helpText = """
 This <a href="https://github.com/vmtk/SlicerExtension-VMTK/">module</a> is intended to create a segmentation from a contrast enhanced CT angioscan, and to finally extract centerlines from the surface model.
 <br><br>It assumes that curve control points are placed in the contrasted lumen.
