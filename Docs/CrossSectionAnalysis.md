@@ -56,4 +56,4 @@ A graphical plot of MIS diameter, CE diameter or cross-section area against dist
 
 ## Acknowledgement
 
-This module has been developed by SET (Surgeon, Hobbyist developer), matured with expert coaching by Slicer core developer Andras Lasso, co-author.
+This module has been initiated by Saleem Edah-Tally (Surgeon, Hobbyist developer), developed throughout with expert coaching by Slicer core developer Andras Lasso, co-author.

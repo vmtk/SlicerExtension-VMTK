@@ -12,6 +12,10 @@ Select a markup curve. Add, delete or move control points.
 
 In practice, orient a slice view perpendicular to an arterial axis by any means. Create a markups curve with control points at boundaries of plaque, thrombus, calcification, lumen and peripheral wall. When the curve is selected, it is straightened. Absolute and proportional distances between points next populate an output table. It is updated upon control point displacement.
 
+## Acknowledgement
+
+This module has been developed by Saleem Edah-Tally (Surgeon, hobbyist developer).
+
 
 
 

@@ -42,4 +42,4 @@ If the centerlines are not extracted though the segmentation is good, interactio
 
 ## Acknowledgement
 
-This module has been developed by SET (Surgeon, Hobbyist developer).
+This module has been developed by Saleem Edah-Tally (Surgeon, hobbyist developer).

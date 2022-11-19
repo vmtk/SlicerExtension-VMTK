@@ -19,7 +19,7 @@ class StenosisMeasurement2D(ScriptedLoadableModule):
     self.parent.title = "Stenosis measurement : 2D"
     self.parent.categories = ["Vascular Modeling Toolkit"]
     self.parent.dependencies = []
-    self.parent.contributors = ["SET [Surgeon] [Hobbyist developer]", "Andras Lasso, PerkLab"]
+    self.parent.contributors = ["Saleem Edah-Tally [Surgeon] [Hobbyist developer]", "Andras Lasso, PerkLab"]
     self.parent.helpText = """
 This <a href="https://github.com/vmtk/SlicerExtension-VMTK/">module</a> calculates the surface area of segments cut by a slice plane in its orientation. It is intended for quick two dimensional arterial stenosis evaluation, but is actually purpose agnostic.
 """

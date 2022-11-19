@@ -38,8 +38,9 @@ Check this to call the 'Extract centerline' module. It is optional by default be
 
 If the centerlines are not extracted though the segmentation is good, interaction is required. Smoothing with ‘Fill holes’ at minimal kernel size helps to create centerlines (smoothing may be faster using the 3D brush). Afterwards, work should be continued directly in ‘Extract centerline’ module obviously.
 
+## Acknowledgement
 
-
+This module has been developed by Saleem Edah-Tally (Surgeon, hobbyist developer).
 
 
 

@@ -41,3 +41,7 @@ Orient a slice view perpendicular to the axis of a diseased artery by any means.
 - The calculated area is influenced by the smoothing factor of the 3D representation of the segments. For accurate results, disable segment surface smoothing temporarily.
 - If a segment has a 'doughnut' shape, and 'Limit to closest island' is chosen, fiducial point placement is important. If it is close to the inner perimeter, the resulting surface will be the central hole only. If the control point is near to the outer perimeter, the resulting surface will include the central hole. Showing the created model helps to better understand what is being measured.
 
+## Acknowledgement
+
+This module has been developed by Saleem Edah-Tally (Surgeon, hobbyist developer), with the help of Andras Lasso (PerkLab).
+
