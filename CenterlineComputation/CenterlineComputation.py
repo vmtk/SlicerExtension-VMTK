@@ -428,7 +428,7 @@ class CenterlineComputationLogic(object):
             sourceIdList.InsertNextId(sourceId)
 
             currentEndPointsMarkupsNode.GetDisplayNode().SetTextScale(0)
-            currentEndPointsMarkupsNode.RemoveAllMarkups()
+            currentEndPointsMarkupsNode.RemoveAllControlPoints()
 
             currentEndPointsMarkupsNode.AddFiducialFromArray(sourcePoint)
 
@@ -897,7 +897,7 @@ class CenterlineComputationLogic(object):
         curveNode.SetAttribute("CellId", str(cellId))
         curveNode.SetAttribute("GroupId", str(groupId))
         curveNode.SetControlPointPositionsWorld(thresholder.GetOutput().GetPoints())
-        slicer.modules.markups.logic().SetAllMarkupsVisibility(curveNode, False)
+        slicer.modules.markups.logic().SetAllControlPointsVisibility(curveNode, False)
         slicer.app.processEvents()
         shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
         curveItem = shNode.GetItemByDataNode(curveNode)
