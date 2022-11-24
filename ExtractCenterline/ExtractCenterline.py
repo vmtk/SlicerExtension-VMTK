@@ -357,7 +357,7 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
             endpointPositions = self.logic.getEndPoints(networkPolyData, startPointPosition=startPointPosition)
 
             endPointsMarkupsNode.GetDisplayNode().PointLabelsVisibilityOff()
-            endPointsMarkupsNode.RemoveAllMarkups()
+            endPointsMarkupsNode.RemoveAllControlPoints()
             for position in endpointPositions:
                 endPointsMarkupsNode.AddControlPoint(vtk.vtkVector3d(position))
 
@@ -993,7 +993,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
 
         self._addCurveMeasurementArray(curveNode, thresholder.GetOutput().GetPointData().GetArray('Radius'))
 
-        slicer.modules.markups.logic().SetAllMarkupsVisibility(curveNode, False)
+        slicer.modules.markups.logic().SetAllControlPointsVisibility(curveNode, False)
         slicer.app.processEvents()
         shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
         curveItem = shNode.GetItemByDataNode(curveNode)
@@ -1118,7 +1118,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
 
                 self._addCurveMeasurementArray(curveNode, radiusMeasurementArray)
 
-                slicer.modules.markups.logic().SetAllMarkupsVisibility(curveNode, False)
+                slicer.modules.markups.logic().SetAllControlPointsVisibility(curveNode, False)
         finally:
             slicer.app.resumeRender()
 
