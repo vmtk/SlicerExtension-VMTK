@@ -51,6 +51,7 @@ add_subdirectory(QuickArterySegmentation)
 add_subdirectory(GuidedArterySegmentation)
 add_subdirectory(StenosisMeasurement1D)
 add_subdirectory(StenosisMeasurement2D)
+add_subdirectory(BranchClipper)
 
 #-----------------------------------------------------------------------------
 set(EXTENSION_CPACK_INSTALL_CMAKE_PROJECTS)
