@@ -36,6 +36,8 @@ if(${EXTENSION_NAME}_SUPERBUILD)
   return()
 endif()
 
+find_package(VMTK REQUIRED)
+
 #-----------------------------------------------------------------------------
 # Extension modules
 add_subdirectory(VesselnessFiltering)
