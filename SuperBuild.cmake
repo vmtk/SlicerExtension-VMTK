@@ -63,6 +63,8 @@ ExternalProject_Add(${proj}
     # Superbuild
     -D${EXTENSION_NAME}_SUPERBUILD:BOOL=OFF
     -DEXTENSION_SUPERBUILD_BINARY_DIR:PATH=${${EXTENSION_NAME}_BINARY_DIR}
+    # Libraries
+    -DVMTK_DIR:PATH=${VMTK_DIR}
   DEPENDS
     ${${proj}_DEPENDS}
   )

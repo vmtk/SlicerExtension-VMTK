@@ -36,6 +36,8 @@ if(${EXTENSION_NAME}_SUPERBUILD)
   return()
 endif()
 
+find_package(VMTK REQUIRED)
+
 #-----------------------------------------------------------------------------
 # Extension modules
 add_subdirectory(VesselnessFiltering)
@@ -51,6 +53,7 @@ add_subdirectory(QuickArterySegmentation)
 add_subdirectory(GuidedArterySegmentation)
 add_subdirectory(StenosisMeasurement1D)
 add_subdirectory(StenosisMeasurement2D)
+add_subdirectory(BranchClipper)
 
 #-----------------------------------------------------------------------------
 set(EXTENSION_CPACK_INSTALL_CMAKE_PROJECTS)
