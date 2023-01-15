@@ -12,11 +12,9 @@ The result will be one segment per branch, available in the segment editor.
 
 ### Acknowledgement
 
-This work is written by Saleem Edah-Tally (Surgeon) (Hobbyist developer).
+This work is written by Saleem Edah-Tally (Surgeon) (Hobbyist developer) and integrated in SlicerVMTK by Andras Lasso (PerkLab).
 
-### Disclaimer
 
-Use at your own risks.
 
 
 

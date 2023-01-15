@@ -56,7 +56,7 @@ qSlicerBranchClipperModule::~qSlicerBranchClipperModule()
 //-----------------------------------------------------------------------------
 QString qSlicerBranchClipperModule::helpText() const
 {
-  return "This module splits a bifurcated vascular segment into individual branches, given its centerline model. <a href=\"https://github.com/chir-set/ToolX/tree/master/BranchClipper/\">Homepage</a>.";
+  return "This module splits a bifurcated vascular segment into individual branches, given its centerline model. <a href=\"https://github.com/vmtk/SlicerExtension-VMTK/\">Homepage</a>.";
 }
 
 //-----------------------------------------------------------------------------
@@ -70,6 +70,7 @@ QStringList qSlicerBranchClipperModule::contributors() const
 {
   QStringList moduleContributors;
   moduleContributors << QString("Saleem Edah-Tally [Surgeon] [Hobbyist developer]");
+  moduleContributors << QString("Andras Lasso (PerkLab)");
   return moduleContributors;
 }
 
