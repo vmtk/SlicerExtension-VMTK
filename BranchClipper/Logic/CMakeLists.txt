@@ -5,6 +5,7 @@ set(KIT ${PROJECT_NAME})
 set(${KIT}_EXPORT_DIRECTIVE "VTK_SLICER_${MODULE_NAME_UPPER}_MODULE_LOGIC_EXPORT")
 
 set(${KIT}_INCLUDE_DIRECTORIES
+  ${VMTK_INCLUDE_DIRS}
   )
 
 set(${KIT}_SRCS
@@ -13,6 +14,7 @@ set(${KIT}_SRCS
   )
 
 set(${KIT}_TARGET_LIBRARIES
+  vtkvmtkComputationalGeometry
   )
 
 #-----------------------------------------------------------------------------
