@@ -82,6 +82,7 @@ public:
   vtkGetMacro(InsideOut,int);
   vtkBooleanMacro(InsideOut,int);
   vtkGetObjectMacro(Output, vtkPolyData);
+  vtkGetObjectMacro(OutputCenterlines, vtkPolyData);
   
   vtkIdType GetNumberOfBranches();
   void GetBranch(const vtkIdType index, vtkPolyData * surface);
@@ -116,7 +117,7 @@ protected:
   int InsideOut = 0;
   
   vtkSmartPointer<vtkPolyData> Output = nullptr;
-  //std::vector<vtkSmartPointer<vtkPolyData>> GroupSurfaces;
+  vtkSmartPointer<vtkPolyData> OutputCenterlines = nullptr;
   
 private:
 

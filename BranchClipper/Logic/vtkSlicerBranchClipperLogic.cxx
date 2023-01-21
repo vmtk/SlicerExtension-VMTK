@@ -106,10 +106,11 @@ void vtkSlicerBranchClipperLogic::Execute()
   extractor->SetCenterlineIdsArrayName(this->CenterlineIdsArrayName);
   extractor->SetTractIdsArrayName(this->TractIdsArrayName);
   extractor->Update();
+  this->OutputCenterlines = extractor->GetOutput();
   
   vtkSmartPointer<vtkvmtkPolyDataCenterlineGroupsClipper> clipper = vtkSmartPointer<vtkvmtkPolyDataCenterlineGroupsClipper>::New();
   clipper->SetInputData(this->Surface);
-  clipper->SetCenterlines(extractor->GetOutput());
+  clipper->SetCenterlines(this->OutputCenterlines);
   clipper->SetCenterlineRadiusArrayName(this->CenterlineRadiusArrayName);
   clipper->SetCenterlineGroupIdsArrayName(this->CenterlineGroupIdsArrayName);
   clipper->SetGroupIdsArrayName(this->GroupIdsArrayName);
