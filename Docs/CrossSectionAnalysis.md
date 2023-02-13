@@ -53,6 +53,7 @@ A graphical plot of MIS diameter, CE diameter or cross-section area against dist
 - The meaning of a surface area is subject to its requirement. For tubular surfaces for instance, orthogonal section is a requirement.
 - Reslicing can be performed along anatomic axes or the centerline curve's axes (adjusted with the 'Spin' slider).
 - Left and right sides may be inverted in a slice view with orthogonal reslicing. Use another slice view in such cases.
+- The quality of a segmented lumen is important. It must not contain holes. These may be misleading as the calculated surface area may concern a hole and not the segmented blood.
 
 ## Acknowledgement
 
