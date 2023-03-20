@@ -560,7 +560,7 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     # Show the input curve. Colour of control points change on selection, helps to wait.
     self.inputCurveNode.SetDisplayVisibility(True)
     # Reset segment editor masking widgets. Values set by previous work must not interfere here.
-    self.segmentEditorWidgets.setMaskingOptions()
+    self.segmentEditorWidgets.setMaskingOptionsToAllowOverlap()
     
     #---------------------- Draw tube with VTK---------------------
     # https://discourse.slicer.org/t/converting-markupscurve-to-markupsfiducial/20246/3
@@ -835,7 +835,7 @@ class SegmentEditorWidgets(ScriptedLoadableModule):
     findWidgets() must have been called first.
     Must be called when the first used effect is activated.
     """
-    def setMaskingOptions(self):
+    def setMaskingOptionsToAllowOverlap(self):
         self.widgetEditor.mrmlSegmentEditorNode().SetMaskMode(slicer.vtkMRMLSegmentationNode.EditAllowedEverywhere)
         self.widgetEditor.mrmlSegmentEditorNode().SourceVolumeIntensityMaskOff()
         self.widgetEditor.mrmlSegmentEditorNode().SetOverwriteMode(self.widgetEditor.mrmlSegmentEditorNode().OverwriteNone)
