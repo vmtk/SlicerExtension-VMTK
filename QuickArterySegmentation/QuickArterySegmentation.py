@@ -618,7 +618,7 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     ffEffect.parameterSetNode().SetNodeReferenceID("FloodFilling.ROI", self.inputROINode.GetID() if self.inputROINode else None)
     ffEffect.updateGUIFromMRML()
     # Reset segment editor masking widgets. Values set by previous work must not interfere here.
-    self.segmentEditorWidgets.setMaskingOptions()
+    self.segmentEditorWidgets.setMaskingOptionsToAllowOverlap()
     
     # Apply flood filling at each fiducial point.
     points=vtk.vtkPoints()
@@ -788,7 +788,7 @@ class SegmentEditorWidgets(ScriptedLoadableModule):
     findWidgets() must have been called first.
     Must be called when the first used effect is activated.
     """
-    def setMaskingOptions(self):
+    def setMaskingOptionsToAllowOverlap(self):
         self.widgetEditor.mrmlSegmentEditorNode().SetMaskMode(slicer.vtkMRMLSegmentationNode.EditAllowedEverywhere)
         self.widgetEditor.mrmlSegmentEditorNode().SourceVolumeIntensityMaskOff()
         self.widgetEditor.mrmlSegmentEditorNode().SetOverwriteMode(self.widgetEditor.mrmlSegmentEditorNode().OverwriteNone)
