@@ -1,6 +1,6 @@
 # Cross-section analysis
 
-This module displays and quantifies cross-sections along a curve (VMTK centerline model, VMTK centerline markups curve, or an arbitrary markups curve).
+This module displays and quantifies cross-sections along a curve (VMTK centerline model, VMTK centerline markups curve, an arbitrary markups curve or a [Shape](https://github.com/chir-set/SlicerExtraMarkups/tree/main/Shape/) markups node as a Tube).
 
 Main features:
 
@@ -22,6 +22,11 @@ Computed metrics:
 - cross-section area of a surface
 - circular equivalent (CE) diameter, derived from the cross-section area
 - orientation of a slice view
+
+If a Shape node (Tube) is used as input, its invisible axial spline is the centerline and the wall is the arterial bounds. It allows to :
+
+- determine the arterial cross-section surface area and diameter at each point
+- relate to the lumen's measurements at each point, i.e, calculate the stenosis distribution.
 
 ![CrossSectionAnalysis](CrossSectionAnalysisScreenshot_1.png)
 
@@ -53,8 +58,14 @@ A graphical plot of MIS diameter, CE diameter or cross-section area against dist
 - The meaning of a surface area is subject to its requirement. For tubular surfaces for instance, orthogonal section is a requirement.
 - Reslicing can be performed along anatomic axes or the centerline curve's axes (adjusted with the 'Spin' slider).
 - Left and right sides may be inverted in a slice view with orthogonal reslicing. Use another slice view in such cases.
+- When using a Shape node as a Tube :
+    - the Tube should be nicely drawn, avoid kinking in particular,
+    - the result at each end should be ignored, they may be void of meaning,
+    - the lumen should be cut to slightly exceed the ends of the Tube, remove all bifurcations and distant parts of the segment not enclosed in the Tube.
 - The quality of a segmented lumen is important. It must not contain holes. These may be misleading as the calculated surface area may concern a hole and not the segmented blood.
+
 
 ## Acknowledgement
 
 This module has been initiated by Saleem Edah-Tally (Surgeon, Hobbyist developer), developed throughout with expert coaching by Slicer core developer Andras Lasso, co-author.
+

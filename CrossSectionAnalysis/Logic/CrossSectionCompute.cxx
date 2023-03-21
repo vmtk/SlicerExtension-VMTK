@@ -19,6 +19,7 @@
 #include <vtkMath.h> // Pi()
 #include <vtkParallelTransportFrame.h>
 #include <vtkPointData.h>
+#include <vtkMRMLMarkupsShapeNode.h>
 
 std::mutex mtx;
 
@@ -72,6 +73,17 @@ bool vtkCrossSectionCompute::SetInputSurfaceNode(vtkMRMLNode * inputSurface, con
     }
     this->ClosedSurfacePolyData->DeepCopy(inputModelNode->GetPolyData());
   }
+  else if (std::string(this->InputSurfaceNode->GetClassName()) == std::string("vtkMRMLMarkupsShapeNode"))
+  {
+      vtkMRMLMarkupsShapeNode * inputShapeNode = vtkMRMLMarkupsShapeNode::SafeDownCast(this->InputSurfaceNode);
+      if (inputShapeNode == NULL)
+      {
+          std::cout << "Invalid surface model node." << std::endl;
+          this->ClosedSurfacePolyData = nullptr;
+          return false;
+      }
+      this->ClosedSurfacePolyData->DeepCopy(inputShapeNode->GetShapeWorld());
+  }
   else
   {
     vtkErrorMacro("Invalid closed surface.");
@@ -107,7 +119,8 @@ void vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
         vtkErrorMacro("Input surface is NULL.");
         return;
     }
-    if (this->InputSegmentID.empty())
+    if (std::string(this->InputSurfaceNode->GetClassName()) != std::string("vtkMRMLMarkupsShapeNode")
+        && this->InputSegmentID.empty())
     {     
         vtkErrorMacro("Input segment ID is unknown.");
         return;

@@ -98,10 +98,6 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
     self.ui.jumpCentredInSliceNodeCheckBox.setIcon(qt.QIcon(':/Icons/ViewCenter.png'))
     self.ui.orthogonalReformatInSliceNodeCheckBox.setIcon(qt.QIcon(':/Icons/MouseRotateMode.png'))
-    self.ui.outputPlotSeriesTypeComboBox.addItem("MIS diameter", MIS_DIAMETER)
-    self.ui.outputPlotSeriesTypeComboBox.addItem("CE diameter", CE_DIAMETER)
-    self.ui.outputPlotSeriesTypeComboBox.addItem("Cross-section area", CROSS_SECTION_AREA)
-    self.ui.outputPlotSeriesTypeComboBox.setCurrentIndex(self.ui.outputPlotSeriesTypeComboBox.findData(MIS_DIAMETER))
 
     # These connections ensure that we update parameter node when scene is closed
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
@@ -131,7 +127,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     # connections
     self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
 
-    self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.logic.setInputCenterlineNode)
+    self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.setInputCenterlineNode)
+    self.ui.segmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onInputSegmentationNode)
     self.ui.outputPlotSeriesSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.resetOutput)
     self.ui.outputTableSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.resetOutput)
 
@@ -148,9 +145,13 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.outputPlotSeriesTypeComboBox.connect("currentIndexChanged(int)", self.setPlotSeriesType)
     self.ui.axialSliceHorizontalFlipCheckBox.connect("clicked()", self.setHorizontalFlip)
     self.ui.axialSliceVerticalFlipCheckBox.connect("clicked()", self.setVerticalFlip)
+    self.ui.maxDiameterStenosisToolButton.connect("clicked()", self.moveSliceViewToMaximumDiameterStenosis)
+    self.ui.maxSurfaceAreaStenosisToolButton.connect("clicked()", self.moveSliceViewToMaximumSurfaceAreaStenosis)
 
     # Refresh Apply button state
     self.updateGUIFromParameterNode()
+    # Refresh wall result widgets
+    self.updateWallLabelsVisibility()
 
   def cleanup(self):
     """
@@ -317,7 +318,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       self._parameterNode.SetParameter(parameterName, str(value))
 
   def createOutputNodes(self):
-    if self.logic.isCenterlineRadiusAvailable(False):
+    #if self.logic.isCenterlineRadiusAvailable():
       if not self.ui.outputTableSelector.currentNode():
         outputTableNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode")
         self.ui.outputTableSelector.setCurrentNode(outputTableNode)
@@ -342,10 +343,9 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
       self.ui.browseCollapsibleButton.collapsed = False
 
-      isCenterlineRadiusAvailable = self.logic.isCenterlineRadiusAvailable(False)
-      isCenterlineRadiusAvailableInTable = self.logic.isCenterlineRadiusAvailable(True)
-      self.ui.toggleTableLayoutButton.visible = isCenterlineRadiusAvailableInTable and (self.logic.outputTableNode is not None)
-      self.ui.togglePlotLayoutButton.visible = isCenterlineRadiusAvailableInTable and (self.logic.outputPlotSeriesNode is not None)
+      isCenterlineRadiusAvailable = self.logic.isCenterlineRadiusAvailable()
+      self.ui.toggleTableLayoutButton.visible = self.logic.outputTableNode is not None
+      self.ui.togglePlotLayoutButton.visible = self.logic.outputPlotSeriesNode is not None
       self.ui.moveToMinimumMISDiameterPushButton.enabled = isCenterlineRadiusAvailable
       self.ui.moveToMaximumMISDiameterPushButton.enabled = isCenterlineRadiusAvailable
       self.ui.showMISDiameterPushButton.enabled = isCenterlineRadiusAvailable
@@ -360,6 +360,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
       self.ui.moveToPointSliderWidget.maximum = numberOfPoints - 1
       self.updateMeasurements()
+      self.updateWallLabelsVisibility()
 
     finally:
       slicer.app.restoreOverrideCursor()
@@ -393,43 +394,35 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
     tableNode = self.logic.outputTableNode
     if tableNode:
-      # Use precomputed values
-      distanceStr = self.logic.getUnitNodeDisplayString(self.logic.calculateRelativeDistance(value), "length").strip()
-      misDiameter = tableNode.GetTable().GetValue(int(value), 1).ToDouble()
-      diameterStr = self.logic.getUnitNodeDisplayString(misDiameter, "length").strip()
+      # Use precomputed values only.
+      relativeDistance = self.logic.calculateRelativeDistance(value)
+      distanceStr = self.logic.getUnitNodeDisplayString(relativeDistance, "length").strip()
+      misDiameterVariant = tableNode.GetTable().GetValueByName(int(value), MIS_DIAMETER_ARRAY_NAME)
+      misDiameter = misDiameterVariant.ToDouble() if misDiameterVariant.IsValid() else 0.0
+      diameterStr = self.logic.getUnitNodeDisplayString(misDiameter, "length").strip() if misDiameter else ""
     else:
-      # Compute values on-the-fly
-      # radius
-      if self.logic.isCenterlineRadiusAvailable():
-        position, misRadius = self.logic.getPositionMaximumInscribedSphereRadius(pointIndex)
-        misDiameter = misRadius * 2
-        diameterStr = self.logic.getUnitNodeDisplayString(misDiameter, "length")
-      else:
-        diameterStr = ""
-        misDiameter = 0.0
-      # distance
-      if self.logic.inputCenterlineNode.IsTypeOf("vtkMRMLModelNode"):
-        distanceStr = ""  # TODO: implement for models
-      else:
-        if self.logic.relativeOriginPointIndex <= pointIndex:
-            distanceFromOrigin = self.logic.inputCenterlineNode.GetCurveLengthBetweenStartEndPointsWorld(self.logic.relativeOriginPointIndex, pointIndex)
-        else:
-            distanceFromOrigin = -self.logic.inputCenterlineNode.GetCurveLengthBetweenStartEndPointsWorld(pointIndex, self.logic.relativeOriginPointIndex)
-        distanceStr = self.logic.getUnitNodeDisplayString(distanceFromOrigin, "length").strip()
+      relativeDistance = 0.0
+      distanceStr = ""
+      misDiameter = 0.0
+      diameterStr = ""
     self.ui.distanceValueLabel.setText(distanceStr)
+    self.ui.distanceValueLabel.setToolTip(str(relativeDistance))
     self.ui.diameterValueLabel.setText(diameterStr)
+    self.ui.diameterValueLabel.setToolTip(misDiameter)
 
     # Cross-section area metrics
 
     surfaceArea = self.logic.getCrossSectionArea(pointIndex)
     if surfaceArea > 0.0:
       self.ui.surfaceAreaValueLabel.setText(self.logic.getUnitNodeDisplayString(surfaceArea, "area").strip())
+      self.ui.surfaceAreaValueLabel.setToolTip(str(surfaceArea))
     else:
       self.ui.surfaceAreaValueLabel.setText("N/A (input lumen surface not specified)")
 
     if surfaceArea > 0.0:
-      derivedDiameter = (np.sqrt(surfaceArea / np.pi)) * 2
-      derivedDiameterStr = self.logic.getUnitNodeDisplayString(derivedDiameter, "length").strip()
+      derivedDiameterVariant = tableNode.GetTable().GetValueByName(int(value), CE_DIAMETER_ARRAY_NAME)
+      derivedDiameter = derivedDiameterVariant.ToDouble() if derivedDiameterVariant.IsValid() else 0.0
+      derivedDiameterStr = self.logic.getUnitNodeDisplayString(derivedDiameter, "length").strip() if derivedDiameter else ""
 
       if misDiameter > 0.0:
         diameterDifference = (derivedDiameter - misDiameter)
@@ -449,10 +442,35 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         derivedDiameterStr += f", {diameterDifferenceSign}{round(abs(diameterPercentDifference), 2)}%)"
 
       self.ui.derivedDiameterValueLabel.setText(derivedDiameterStr)
+      self.ui.derivedDiameterValueLabel.setToolTip(str(derivedDiameter))
     else:
       self.ui.derivedDiameterValueLabel.setText("")
     # Orientation
     self.updateSliceViewOrientationMetrics()
+    # Duplicated lumen metrics for single glance understanding.
+    self.showPreComputedDoubleData(value, CE_DIAMETER_ARRAY_NAME, self.ui.lumenDiameterValueLabel, "length")
+    self.showPreComputedDoubleData(value, CROSS_SECTION_AREA_ARRAY_NAME, self.ui.lumenSurfaceAreaValueLabel, "area")
+    # Wall metrics
+    self.showPreComputedDoubleData(value, WALL_DIAMETER_ARRAY_NAME, self.ui.wallDiameterValueLabel, "length")
+    self.showPreComputedDoubleData(value, WALL_CROSS_SECTION_AREA_ARRAY_NAME, self.ui.wallSurfaceAreaValueLabel, "area")
+    self.showPreComputedDoubleData(value, DIAMETER_STENOSIS_ARRAY_NAME, self.ui.diameterStenosisValueLabel, "%")
+    self.showPreComputedDoubleData(value, SURFACE_AREA_STENOSIS_ARRAY_NAME, self.ui.surfaceAreaStenosisValueLabel, "%")
+    
+  def showPreComputedDoubleData(self, pointIndex, columnArrayName, uiWidget, category):
+    if self.logic.outputTableNode is None:
+      uiWidget.setText("")
+      return
+    
+    dataVariant = self.logic.outputTableNode.GetTable().GetValueByName(int(pointIndex), columnArrayName)
+    data = dataVariant.ToDouble() if dataVariant.IsValid() else 0.0
+    if category == "length" or category == "area" or category == "volume":
+      dataStr = self.logic.getUnitNodeDisplayString(data, category).strip() if data else ""
+    elif category == "%":
+      dataStr = f"{round(data, 2)} %"
+    else:
+      dataStr = str(data)
+    uiWidget.setText(str(dataStr))
+    uiWidget.setToolTip(str(data))
 
   def updateSliceViewOrientationMetrics(self):
     if self.ui.axialSliceViewSelector.currentNode():
@@ -464,13 +482,6 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     else:
         self.ui.orientationValueLabel.setText("")
 
-  def showRelativeDistance(self):
-    if not self.logic.outputTableNode:
-        return
-    value = self.ui.moveToPointSliderWidget.value
-    distanceStr = self.logic.getUnitNodeDisplayString(self.logic.calculateRelativeDistance(value), "length").strip()
-    self.ui.distanceValueLabel.setText(distanceStr)
-
   def clearMetrics(self):
     self.ui.coordinatesValueLabel.setText("")
     self.ui.distanceValueLabel.setText("")
@@ -478,6 +489,10 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.surfaceAreaValueLabel.setText("")
     self.ui.derivedDiameterValueLabel.setText("")
     self.ui.orientationValueLabel.setText("")
+    self.ui.wallDiameterValueLabel.setText("")
+    self.ui.wallSurfaceAreaValueLabel.setText("")
+    self.ui.diameterStenosisValueLabel.setText("")
+    self.ui.surfaceAreaStenosisValueLabel.setText("")
 
   def resetMoveToPointSliderWidget(self):
     slider = self.ui.moveToPointSliderWidget
@@ -546,7 +561,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     if self.logic.isCenterlineRadiusAvailable():
       self.logic.updateMaximumInscribedSphereModel(pointIndex)
     else:
-      self.logic.deleteMaximumInscribedSphere()
+      self.logic.hideMaximumInscribedSphere()
 
     # Update cross-section model
     if self.ui.showCrossSectionButton.checked and self.logic.lumenSurfaceNode:
@@ -567,7 +582,81 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
   def setVerticalFlip(self):
     pointIndex = int(self.ui.moveToPointSliderWidget.value)
     self.logic.updateSliceView(pointIndex)
+    
+  def setInputCenterlineNode(self, centerlineNode):
+    if (centerlineNode is not None) and (centerlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode")):
+      if centerlineNode.GetShapeName() != slicer.vtkMRMLMarkupsShapeNode.Tube :
+        self.logic.showStatusMessage(("Selected Shape node is not a Tube.",))
+        self.ui.inputCenterlineSelector.setCurrentNode(None)
+        self.logic.setInputCenterlineNode(None)
+        return
+    if (centerlineNode is not None) and (centerlineNode.IsTypeOf("vtkMRMLModelNode")):
+      if not centerlineNode.HasPointScalarName("Radius"):
+        self.logic.showStatusMessage(("Selected model node does not have radius information.",))
+        self.ui.inputCenterlineSelector.setCurrentNode(None)
+        self.logic.setInputCenterlineNode(None)
+        return
+    # N.B :  updateGUIFromParameterNode() has already done this.
+    self.logic.setInputCenterlineNode(centerlineNode)
+    self.updatePlotOptions()
+    self.updateWallLabelsVisibility()
+  
+  def onInputSegmentationNode(self):
+    self.updatePlotOptions()
+    self.updateWallLabelsVisibility()
+  
+  # The output table columns vary according to the input types; this defines what can be plotted.
+  def updatePlotOptions(self):
+    comboBox = self.ui.outputPlotSeriesTypeComboBox
+    comboBox.clear()
+    
+    if self.logic.isCenterlineRadiusAvailable():
+        comboBox.addItem("MIS diameter", MIS_DIAMETER)
+    if self.logic.lumenSurfaceNode:
+      comboBox.addItem("CE diameter", CE_DIAMETER)
+      comboBox.addItem("Cross-section area", CROSS_SECTION_AREA)
+    if self.logic.inputCenterlineNode and self.logic.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode"):
+      comboBox.addItem("Wall diameter", WALL_CE_DIAMETER)
+      comboBox.addItem("Wall cross-section area", WALL_CROSS_SECTION_AREA)
+      if self.logic.lumenSurfaceNode:
+        comboBox.addItem("Stenosis by diameter (CE)", DIAMETER_STENOSIS)
+        comboBox.addItem("Stenosis by surface area", SURFACE_AREA_STENOSIS)
 
+    if (comboBox.count):
+      comboBox.setCurrentIndex(0)
+  
+  def updateWallLabelsVisibility(self):
+    visibility = self.logic.inputCenterlineNode and self.logic.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode")
+    self.ui.wallGroupBox.setVisible(visibility) # Always show or hide
+    # With or without a shape node as input centerline.
+    self.ui.wallRowLabel.setVisible(visibility)
+    self.ui.wallDiameterValueLabel.setVisible(visibility)
+    self.ui.wallSurfaceAreaValueLabel.setVisible(visibility)
+    
+    visibility = self.logic.inputCenterlineNode and self.logic.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode") and self.logic.lumenSurfaceNode
+    # With or without a segmentation or model node as input lumen.
+    self.ui.lumenRowLabel.setVisible(visibility)
+    self.ui.lumenDiameterValueLabel.setVisible(visibility)
+    self.ui.lumenSurfaceAreaValueLabel.setVisible(visibility)
+    self.ui.stenosisRowLabel.setVisible(visibility)
+    self.ui.diameterStenosisValueLabel.setVisible(visibility)
+    self.ui.maxDiameterStenosisToolButton.setVisible(visibility)
+    self.ui.surfaceAreaStenosisValueLabel.setVisible(visibility)
+    self.ui.maxSurfaceAreaStenosisToolButton.setVisible(visibility)
+  
+  # We would definitely want to go directly to the maximum stenosis.
+  def moveSliceViewToMaximumDiameterStenosis(self):
+    point = self.logic.getExtremeMetricPoint(DIAMETER_STENOSIS_ARRAY_NAME, True)
+    if point == -1:
+        return
+    self.ui.moveToPointSliderWidget.setValue(point)
+  
+  # A single function should probably do, as the diameters are derived from the surface areas.
+  def moveSliceViewToMaximumSurfaceAreaStenosis(self):
+    point = self.logic.getExtremeMetricPoint(SURFACE_AREA_STENOSIS_ARRAY_NAME, True)
+    if point == -1:
+        return
+    self.ui.moveToPointSliderWidget.setValue(point)
 #
 # CrossSectionAnalysisLogic
 #
@@ -586,6 +675,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.initMemberVariables()
 
   def initMemberVariables(self):
+    # For a Shape markups node, inputCenterlineNode is the node itself : wall + invisible spline as centerline.
     self.inputCenterlineNode = None
     self.outputPlotSeriesNode = None
     self.outputTableNode = None
@@ -714,18 +804,34 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     if self.maximumInscribedSphereModelNode is not None:
         self.maximumInscribedSphereModelNode.GetDisplayNode().SetVisibility(self.showMaximumInscribedSphere)
     if not checked:
-      self.deleteMaximumInscribedSphere()
+      self.hideMaximumInscribedSphere()
 
-  def deleteMaximumInscribedSphere(self):
+  def hideMaximumInscribedSphere(self):
     if self.maximumInscribedSphereModelNode is not None:
-        slicer.mrmlScene.RemoveNode(self.maximumInscribedSphereModelNode)
-        # Not calling onSceneNodeRemoved here
-        self.maximumInscribedSphereModelNode = None
+        displayNode = self.maximumInscribedSphereModelNode.GetDisplayNode()
+        if (displayNode): # ?
+          displayNode.SetVisibility(False)
 
   def isInputCenterlineValid(self):
-    return self.inputCenterlineNode is not None
+    if self.inputCenterlineNode is None:
+      return False
+    if self.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode"):
+      if self.inputCenterlineNode.GetShapeName() != slicer.vtkMRMLMarkupsShapeNode.Tube:
+        return False
+      if self.inputCenterlineNode.GetNumberOfControlPoints() < 4:
+        return False
+      if self.inputCenterlineNode.GetShapeWorld() is None:
+        return False
+      if self.inputCenterlineNode.GetSplineWorld() is None:
+        return False
+      """
+      If the Shape markups node has an odd number of points,
+      or if it has unplaced points,
+      it is sort of deactivated in UI, but there's still a spline and a wall.
+      """
+    return True
 
-  def isCenterlineRadiusAvailable(self, queryTable = True):
+  def isCenterlineRadiusAvailable(self):
     if not self.inputCenterlineNode:
       return False
     if self.inputCenterlineNode.IsTypeOf("vtkMRMLModelNode"):
@@ -733,19 +839,22 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     else:
         radiusMeasurement = self.inputCenterlineNode.GetMeasurement('Radius')
         if not radiusMeasurement:
-          forcedInRadius = None
-          if self.outputTableNode and queryTable:
-            forcedInRadius = self.outputTableNode.GetAttribute("forcedInZeroRadius")
-          return (forcedInRadius is not None)
+          return False
         if (not radiusMeasurement.GetControlPointValues()) or (radiusMeasurement.GetControlPointValues().GetNumberOfValues()<1):
           return False
         return True
 
   def getNumberOfPoints(self):
-    if not self.inputCenterlineNode:
+    if not self.isInputCenterlineValid(): # See remarks for Shape node.
       return 0
     if self.inputCenterlineNode.IsTypeOf("vtkMRMLModelNode"):
         return self.inputCenterlineNode.GetPolyData().GetNumberOfPoints()
+    elif self.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode"):
+      trimmedSpline = vtk.vtkPolyData()
+      if not self.inputCenterlineNode.GetTrimmedSplineWorld(trimmedSpline):
+        return self.inputCenterlineNode.GetSplineWorld().GetNumberOfPoints()
+      else:
+        return trimmedSpline.GetNumberOfPoints()
     else:
         return self.inputCenterlineNode.GetCurvePointsWorld().GetNumberOfPoints()
 
@@ -786,9 +895,30 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     startTime = time.time()
     # Create arrays of data
     distanceArray = self.getArrayFromTable(outputTable, DISTANCE_ARRAY_NAME)
-    misDiameterArray = self.getArrayFromTable(outputTable, MIS_DIAMETER_ARRAY_NAME)
-    ceDiameterArray = self.getArrayFromTable(outputTable, CE_DIAMETER_ARRAY_NAME)
-    crossSectionAreaArray = self.getArrayFromTable(outputTable, CROSS_SECTION_AREA_ARRAY_NAME)
+    if (not inputCenterline.IsTypeOf("vtkMRMLMarkupsShapeNode")):
+      if (inputCenterline.IsTypeOf("vtkMRMLModelNode")):
+        if (inputCenterline.HasPointScalarName("Radius")): # VMTK centerline model
+          misDiameterArray = self.getArrayFromTable(outputTable, MIS_DIAMETER_ARRAY_NAME)
+        else:
+          misDiameterArray = None
+      else:
+          radiusMeasurement = inputCenterline.GetMeasurement("Radius")
+          if radiusMeasurement: # VMTK centerline curve
+            misDiameterArray = self.getArrayFromTable(outputTable, MIS_DIAMETER_ARRAY_NAME)
+          else: # Arbitrary curve
+            misDiameterArray = None
+    else:
+      misDiameterArray = None
+      wallDiameterArray = self.getArrayFromTable(outputTable, WALL_DIAMETER_ARRAY_NAME)
+      wallCrossSectionAreaArray = self.getArrayFromTable(outputTable, WALL_CROSS_SECTION_AREA_ARRAY_NAME)
+      if self.lumenSurfaceNode:
+        diameterStenosisArray = self.getArrayFromTable(outputTable, DIAMETER_STENOSIS_ARRAY_NAME)
+        surfaceAreaStenosisArray = self.getArrayFromTable(outputTable, SURFACE_AREA_STENOSIS_ARRAY_NAME)
+    
+    if self.lumenSurfaceNode:
+        ceDiameterArray = self.getArrayFromTable(outputTable, CE_DIAMETER_ARRAY_NAME)
+        crossSectionAreaArray = self.getArrayFromTable(outputTable, CROSS_SECTION_AREA_ARRAY_NAME)
+    
     if self.coordinateSystemColumnSingle:
         coordinatesArray = self.getArrayFromTable(outputTable, "RAS" if self.coordinateSystemColumnRAS else "LPS")
         coordinatesArray.SetNumberOfComponents(3)
@@ -813,78 +943,136 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
         numberOfPoints = len(points)
         for pointIndex in range(len(pointsLocal)):
           inputCenterline.TransformPointToWorld(pointsLocal[pointIndex], points[pointIndex])
-        radii = slicer.util.arrayFromModelPointData(inputCenterline, 'Radius')
-    else:
-        points = slicer.util.arrayFromMarkupsCurvePoints(inputCenterline, world=True)
-        numberOfPoints = len(points)
+        if inputCenterline.HasPointScalarName("Radius"):
+          radii = slicer.util.arrayFromModelPointData(inputCenterline, 'Radius')
+        else:
+          radii = np.zeros(0)
+    else: # Shape, VMTK curve centerline or arbitrary curve centerline
+        if (inputCenterline.IsTypeOf("vtkMRMLMarkupsShapeNode")):
+          trimmedSpline = vtk.vtkPolyData()
+          trimmedSplineAvailable = False
+          if not inputCenterline.GetTrimmedSplineWorld(trimmedSpline):
+            numberOfPoints = inputCenterline.GetSplineWorld().GetNumberOfPoints()
+          else:
+            numberOfPoints = trimmedSpline.GetNumberOfPoints()
+            trimmedSplineAvailable = True
+          points = np.zeros([numberOfPoints, 3])
+          for p in range(numberOfPoints):
+            point = np.zeros(3)
+            if not trimmedSplineAvailable:
+              inputCenterline.GetSplineWorld().GetPoint(p, point)
+            else:
+              trimmedSpline.GetPoint(p, point)
+            points[p] = point
+        else: # VMTK curve centerline or arbitrary curve centerline
+          points = slicer.util.arrayFromMarkupsCurvePoints(inputCenterline, world=True)
+          controlPointFloatIndices = inputCenterline.GetCurveWorld().GetPointData().GetArray('PedigreeIDs')
+          numberOfPoints = len(points)
+          
         radii = np.zeros(numberOfPoints)
-        controlPointFloatIndices = inputCenterline.GetCurveWorld().GetPointData().GetArray('PedigreeIDs')
         radiusMeasurement = inputCenterline.GetMeasurement("Radius")
         controlPointRadiusValues = vtk.vtkDoubleArray()
-        if not radiusMeasurement:
-            controlPointRadiusValues.SetNumberOfValues(numberOfPoints)
-            controlPointRadiusValues.Fill(0.0)
-            outputTable.SetAttribute("forcedInZeroRadius", "True")
-        else :
+        if radiusMeasurement: # VMTK curve centerline
             controlPointRadiusValues = inputCenterline.GetMeasurement('Radius').GetControlPointValues()
-        for pointIndex in range(numberOfPoints-1):
-            controlPointFloatIndex = controlPointFloatIndices.GetValue(pointIndex)
-            controlPointIndexA = int(controlPointFloatIndex)
-            controlPointIndexB = controlPointIndexA + 1
-            radiusA = controlPointRadiusValues.GetValue(controlPointIndexA)
-            radiusB = controlPointRadiusValues.GetValue(controlPointIndexB)
-            radius = radiusA * (controlPointFloatIndex - controlPointIndexA) + radiusB * (controlPointIndexB - controlPointFloatIndex)
-            radii[pointIndex] = radius
-        radii[numberOfPoints-1] = controlPointRadiusValues.GetValue(controlPointRadiusValues.GetNumberOfValues()-1)
+            for pointIndex in range(numberOfPoints-1):
+                controlPointFloatIndex = controlPointFloatIndices.GetValue(pointIndex)
+                controlPointIndexA = int(controlPointFloatIndex)
+                controlPointIndexB = controlPointIndexA + 1
+                radiusA = controlPointRadiusValues.GetValue(controlPointIndexA)
+                radiusB = controlPointRadiusValues.GetValue(controlPointIndexB)
+                radius = radiusA * (controlPointFloatIndex - controlPointIndexA) + radiusB * (controlPointIndexB - controlPointFloatIndex)
+                radii[pointIndex] = radius
+            radii[numberOfPoints-1] = controlPointRadiusValues.GetValue(controlPointRadiusValues.GetNumberOfValues()-1)
+        else:
+          radii = np.zeros(0)
 
-    outputTable.GetTable().SetNumberOfRows(radii.size)
+    outputTable.GetTable().SetNumberOfRows(numberOfPoints)
 
     """
     Fill in cross-section areas in C++ threads.
     N.B. : polydata caching is not concerned here.
     """
-    if inputCenterline and self.lumenSurfaceNode:
-        self.showStatusMessage(("Waiting for background jobs...", ))
-        crossSectionCompute = slicer.vtkCrossSectionCompute()
-        if inputCenterline.IsA("vtkMRMLModelNode"):
+    crossSectionCompute = slicer.vtkCrossSectionCompute()
+    # If numberOfThreads > number of cores, excessive threads would be in infinite loop.
+    numberOfThreads = os.cpu_count() if (numberOfPoints >= os.cpu_count()) else numberOfPoints
+    crossSectionCompute.SetNumberOfThreads(numberOfThreads)
+    if self.isInputCenterlineValid():
+        if inputCenterline.IsTypeOf("vtkMRMLModelNode"):
             crossSectionCompute.SetInputCenterlinePolyData(inputCenterline.GetPolyData())
+        elif inputCenterline.IsTypeOf("vtkMRMLMarkupsShapeNode"):
+            trimmedSpline = vtk.vtkPolyData()
+            if not inputCenterline.GetTrimmedSplineWorld(trimmedSpline):
+              crossSectionCompute.SetInputCenterlinePolyData(inputCenterline.GetSplineWorld())
+            else:
+              crossSectionCompute.SetInputCenterlinePolyData(trimmedSpline)
         else:
             crossSectionCompute.SetInputCenterlinePolyData(inputCenterline.GetCurveWorld())
-        """
-        If numberOfThreads > number of cores,
-        excessive threads would be in infinite loop.
-        """
-        numberOfThreads = os.cpu_count() if (numberOfPoints >= os.cpu_count()) else numberOfPoints
-        crossSectionCompute.SetNumberOfThreads(numberOfThreads)
+    if self.lumenSurfaceNode:
         crossSectionCompute.SetInputSurfaceNode(self.lumenSurfaceNode, self.currentSegmentID)
+        self.showStatusMessage(("Waiting for background jobs...", ))
         crossSectionCompute.UpdateTable(crossSectionAreaArray, ceDiameterArray)
-
+    
+    """
+    We may also use the TubeRadius scalar array of the spline. This may prevent
+    weird measurements at both ends of the tube. Not tested.
+    We select to slice the wall so as to use the same method of slicing the lumen.
+    Good ? Bad ?
+    """
+    if inputCenterline.IsTypeOf("vtkMRMLMarkupsShapeNode"):
+      wallCrossSectionCompute = slicer.vtkCrossSectionCompute()
+      wallCrossSectionCompute.SetNumberOfThreads(numberOfThreads)
+      # Internally, the segment ID is not used; the axial spline is the centerline polydata.
+      wallCrossSectionCompute.SetInputSurfaceNode(inputCenterline, self.currentSegmentID)
+      trimmedSpline = vtk.vtkPolyData()
+      if not inputCenterline.GetTrimmedSplineWorld(trimmedSpline):
+        wallCrossSectionCompute.SetInputCenterlinePolyData(inputCenterline.GetSplineWorld())
+      else:
+        wallCrossSectionCompute.SetInputCenterlinePolyData(trimmedSpline)
+      self.showStatusMessage(("Waiting for background jobs...", ))
+      wallCrossSectionCompute.UpdateTable(wallCrossSectionAreaArray, wallDiameterArray)
+    
     cumArray = vtk.vtkDoubleArray()
     self.cumulateDistances(points, cumArray)
     relArray = vtk.vtkDoubleArray()
     self.updateCumulativeDistancesToRelativeOrigin(cumArray, relArray)
-    for i, radius in enumerate(radii):
-        # Since we compute cross-section area sequentially, this step may be long.
-        if (((i + 1) % 25) == 0):
-            self.showStatusMessage(("Updating table :", str(i + 1), "/", str(numberOfPoints)))
-        distanceArray.SetValue(i, relArray.GetValue(i))
-        misDiameterArray.SetValue(i, radius * 2)
+            
+    for i in range(numberOfPoints):
+      if (((i + 1) % 25) == 0):
+          self.showStatusMessage(("Updating table :", str(i + 1), "/", str(numberOfPoints)))
+      # Distance from relative origin
+      distanceArray.SetValue(i, relArray.GetValue(i))
+      # Radii
+      if radii.size and misDiameterArray:
+            misDiameterArray.SetValue(i, radii[i] * 2)
+      # Diameter and surface area stenosis
+      if (inputCenterline.IsTypeOf("vtkMRMLMarkupsShapeNode")) and self.lumenSurfaceNode:
+        diameterStenosis = ((wallDiameterArray.GetValue(i) - ceDiameterArray.GetValue(i)) / wallDiameterArray.GetValue(i)) * 100
+        surfaceAreaStenosis = ((wallCrossSectionAreaArray.GetValue(i) - crossSectionAreaArray.GetValue(i)) / wallCrossSectionAreaArray.GetValue(i)) * 100
+        surfaceAreaStenosisArray.SetValue(i, surfaceAreaStenosis)
+        diameterStenosisArray.SetValue(i, diameterStenosis)
+      # Convert each point coordinate
+      if self.coordinateSystemColumnRAS:
+        coordinateValues = points[i]
+      else:
+        coordinateValues = [-points[i][0], -points[i][1], points[i][2]]
+      if self.coordinateSystemColumnSingle:
+          coordinatesArray.SetTuple3(i, coordinateValues[0], coordinateValues[1], coordinateValues[2])
+      else:
+          coordinatesArray[0].SetValue(i, coordinateValues[0])
+          coordinatesArray[1].SetValue(i, coordinateValues[1])
+          coordinatesArray[2].SetValue(i, coordinateValues[2])
 
-        # Convert each point coordinate
-        if self.coordinateSystemColumnRAS:
-          coordinateValues = points[i]
-        else:
-          coordinateValues = [-points[i][0], -points[i][1], points[i][2]]
-        if self.coordinateSystemColumnSingle:
-            coordinatesArray.SetTuple3(i, coordinateValues[0], coordinateValues[1], coordinateValues[2])
-        else:
-            coordinatesArray[0].SetValue(i, coordinateValues[0])
-            coordinatesArray[1].SetValue(i, coordinateValues[1])
-            coordinatesArray[2].SetValue(i, coordinateValues[2])
     distanceArray.Modified()
-    misDiameterArray.Modified()
-    crossSectionAreaArray.Modified()
-    ceDiameterArray.Modified()
+    if misDiameterArray:
+      misDiameterArray.Modified()
+    if (inputCenterline.IsTypeOf("vtkMRMLMarkupsShapeNode")):
+      wallDiameterArray.Modified()
+      wallCrossSectionAreaArray.Modified()
+      if self.lumenSurfaceNode:
+        surfaceAreaStenosisArray.Modified()
+    if self.lumenSurfaceNode:
+      crossSectionAreaArray.Modified()
+      ceDiameterArray.Modified()
     outputTable.GetTable().Modified()
     
     stopTime = time.time()
@@ -903,8 +1091,18 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
         outputPlotSeries.SetYColumnName(MIS_DIAMETER_ARRAY_NAME)
     elif self.outputPlotSeriesType == CE_DIAMETER:
         outputPlotSeries.SetYColumnName(CE_DIAMETER_ARRAY_NAME)
-    else:
+    elif self.outputPlotSeriesType == CROSS_SECTION_AREA:
         outputPlotSeries.SetYColumnName(CROSS_SECTION_AREA_ARRAY_NAME)
+    elif self.outputPlotSeriesType == WALL_CE_DIAMETER:
+        outputPlotSeries.SetYColumnName(WALL_DIAMETER_ARRAY_NAME)
+    elif self.outputPlotSeriesType == WALL_CROSS_SECTION_AREA:
+        outputPlotSeries.SetYColumnName(WALL_CROSS_SECTION_AREA_ARRAY_NAME)
+    elif self.outputPlotSeriesType == DIAMETER_STENOSIS:
+        outputPlotSeries.SetYColumnName(DIAMETER_STENOSIS_ARRAY_NAME)
+    elif self.outputPlotSeriesType == SURFACE_AREA_STENOSIS:
+        outputPlotSeries.SetYColumnName(SURFACE_AREA_STENOSIS_ARRAY_NAME)
+    else:
+      pass
     outputPlotSeries.SetPlotType(slicer.vtkMRMLPlotSeriesNode.PlotTypeScatter)
     outputPlotSeries.SetMarkerStyle(slicer.vtkMRMLPlotSeriesNode.MarkerStyleNone)
     outputPlotSeries.SetColor(0, 0.6, 1.0)
@@ -942,10 +1140,22 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     lengthUnit = self.getUnitNodeUnitDisplayString(0.0, "length")
     areaUnit = self.getUnitNodeUnitDisplayString(0.0, "area")
     self.plotChartNode.SetXAxisTitle(f"{DISTANCE_ARRAY_NAME} ( {lengthUnit})")
-    if self.outputPlotSeriesType == CROSS_SECTION_AREA:
-        self.plotChartNode.SetYAxisTitle(f"Area ({areaUnit})")
-    else:
+    if self.outputPlotSeriesType == MIS_DIAMETER:
         self.plotChartNode.SetYAxisTitle(f"Diameter ({lengthUnit})")
+    if self.outputPlotSeriesType == CE_DIAMETER:
+        self.plotChartNode.SetYAxisTitle(f"Diameter ({lengthUnit})")
+    elif self.outputPlotSeriesType == CROSS_SECTION_AREA:
+        self.plotChartNode.SetYAxisTitle(f"Area ({areaUnit})")
+    elif self.outputPlotSeriesType == WALL_CE_DIAMETER:
+        self.plotChartNode.SetYAxisTitle(f"Diameter ({lengthUnit})")
+    elif self.outputPlotSeriesType == WALL_CROSS_SECTION_AREA:
+        self.plotChartNode.SetYAxisTitle(f"Area ({areaUnit})")
+    elif self.outputPlotSeriesType == DIAMETER_STENOSIS:
+        self.plotChartNode.SetYAxisTitle(f"Stenosis (%)")
+    elif self.outputPlotSeriesType == SURFACE_AREA_STENOSIS:
+        self.plotChartNode.SetYAxisTitle(f"Stenosis (%)")
+    else:
+      pass
     # Make sure the plot is in the chart
     if not self.plotChartNode.HasPlotSeriesNodeID(self.outputPlotSeriesNode.GetID()):
       self.plotChartNode.AddAndObservePlotSeriesNodeID(self.outputPlotSeriesNode.GetID())
@@ -970,7 +1180,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     return False
 
   def cumulateDistances(self, arrPoints, cumArray):
-    cumArray.SetNumberOfValues(arrPoints.size)
+    cumArray.SetNumberOfValues(len(arrPoints))
     previous = arrPoints[0]
     dist = 0
     for i, point in enumerate(arrPoints):
@@ -991,9 +1201,17 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     """
     pointIndex = int(value)
     position = np.zeros(3)
+    if not self.isInputCenterlineValid():
+      return position
     if (self.inputCenterlineNode.IsTypeOf("vtkMRMLModelNode")):
         positionLocal = slicer.util.arrayFromModelPoints(self.inputCenterlineNode)[pointIndex]
         self.inputCenterlineNode.TransformPointToWorld(positionLocal, position)
+    elif (self.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode")):
+        trimmedSpline = vtk.vtkPolyData()
+        if not self.inputCenterlineNode.GetTrimmedSplineWorld(trimmedSpline):
+          self.inputCenterlineNode.GetSplineWorld().GetPoint(pointIndex, position)
+        else:
+          trimmedSpline.GetPoint(pointIndex, position)
     else:
         self.inputCenterlineNode.GetCurvePointsWorld().GetPoint(pointIndex, position)
     return position
@@ -1051,6 +1269,8 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     if self.outputTableNode is None:
         return -1
     metricArray = self.outputTableNode.GetTable().GetColumnByName(arrayName)
+    if metricArray is None:
+        return -1
     # GetRange or GetValueRange ?
     metricRange = metricArray.GetRange()
     target = -1
@@ -1077,10 +1297,18 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
   def getCurvePointToWorldTransformAtPointIndex(self, pointIndex):
 
     curvePointToWorld = vtk.vtkMatrix4x4()
-    if self.inputCenterlineNode.IsTypeOf("vtkMRMLModelNode"):
-      modelPoints = slicer.util.arrayFromModelPoints(self.inputCenterlineNode)
+    if self.inputCenterlineNode.IsTypeOf("vtkMRMLModelNode") or self.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode"):
       curveCoordinateSystemGenerator = slicer.vtkParallelTransportFrame()
-      curveCoordinateSystemGenerator.SetInputData(self.inputCenterlineNode.GetPolyData())
+      if self.inputCenterlineNode.IsTypeOf("vtkMRMLModelNode"):
+        curveCoordinateSystemGenerator.SetInputData(self.inputCenterlineNode.GetPolyData())
+      else:
+        if not self.isInputCenterlineValid():
+          return
+        trimmedSpline = vtk.vtkPolyData()
+        if not self.inputCenterlineNode.GetTrimmedSplineWorld(trimmedSpline):
+          curveCoordinateSystemGenerator.SetInputData(self.inputCenterlineNode.GetSplineWorld())
+        else:
+          curveCoordinateSystemGenerator.SetInputData(trimmedSpline)
       curveCoordinateSystemGenerator.Update()
       curvePoly = curveCoordinateSystemGenerator.GetOutput()
       pointData = curvePoly.GetPointData()
@@ -1192,37 +1420,30 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       self.crossSectionModelNode.SetAndObservePolyData(crossSectionPolyData)
 
   def getCrossSectionArea(self, pointIndex):
-    """Get the cross-section surface area"""
-
-    if self.lumenSurfaceNode is None:
+    """Get the pre-computed cross-section surface area"""
+    if self.outputTableNode is None or self.lumenSurfaceNode is None:
       return 0.0
 
-    if pointIndex in self.crossSectionPolyDataCache:
-      # found polydata cached
-      crossSectionPolyData = self.crossSectionPolyDataCache[pointIndex]
-    else:
-      # cross-section is not found in the cache, compute it now and store in cache
-      try:
-        crossSectionPolyData = self.computeCrossSectionPolydata(pointIndex)
-        self.crossSectionPolyDataCache[pointIndex] = crossSectionPolyData
-      except ValueError as e:
-        logging.warning(str(e))
-        return 0.0
-
-    crossSectionProperties = vtk.vtkMassProperties()
-    crossSectionProperties.SetInputData(crossSectionPolyData)
-    currentSurfaceArea = crossSectionProperties.GetSurfaceArea()
-
+    currentSurfaceAreaVariant = self.outputTableNode.GetTable().GetValueByName(int(pointIndex), CROSS_SECTION_AREA_ARRAY_NAME)
+    currentSurfaceArea = currentSurfaceAreaVariant.ToDouble() if currentSurfaceAreaVariant.IsValid() else 0.0
     return currentSurfaceArea
 
   def getPositionMaximumInscribedSphereRadius(self, pointIndex):
-    if not self.isCenterlineRadiusAvailable:
+    if not self.isCenterlineRadiusAvailable():
       raise ValueError("Maximum inscribed sphere radius is not available")
     position = np.zeros(3)
     if self.inputCenterlineNode.IsTypeOf("vtkMRMLModelNode"):
       positionLocal = slicer.util.arrayFromModelPoints(self.inputCenterlineNode)[pointIndex]
       self.inputCenterlineNode.TransformPointToWorld(positionLocal, position)
       radius = slicer.util.arrayFromModelPointData(self.inputCenterlineNode, 'Radius')[pointIndex]
+    elif self.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode"):
+      # Maximum inscribed sphere is not concerned here.
+      trimmedSpline = vtk.vtkPolyData()
+      if not self.inputCenterlineNode.GetTrimmedSplineWorld(trimmedSpline):
+        self.inputCenterlineNode.GetSplineWorld().GetPoint(pointIndex, position)
+      else:
+        trimmedSpline.GetPoint(pointIndex, position)
+      return position, 0.0
     else:
       self.inputCenterlineNode.GetCurveWorld().GetPoints().GetPoint(pointIndex, position)
       radiusMeasurement = self.inputCenterlineNode.GetMeasurement('Radius')
@@ -1298,6 +1519,9 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     # self.sceneNodeRemovedObservation = slicer.mrmlScene.AddObserver(slicer.vtkMRMLScene.NodeRemovedEvent, self.onSceneNodeRemoved)
 
   def updateMaximumInscribedSphereModel(self, value):
+    if self.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode"):
+      # 'Centerline' is an invisible spline of a Tube, not a lumen centerline.
+      return
     pointIndex = int(value)
 
     position, radius = self.getPositionMaximumInscribedSphereRadius(pointIndex)
@@ -1392,7 +1616,16 @@ DISTANCE_ARRAY_NAME = "Distance"
 MIS_DIAMETER_ARRAY_NAME = "Diameter (MIS)"
 CE_DIAMETER_ARRAY_NAME = "Diameter (CE)"
 CROSS_SECTION_AREA_ARRAY_NAME = "Cross-section area"
+WALL_DIAMETER_ARRAY_NAME = "Wall diameter"
+WALL_CROSS_SECTION_AREA_ARRAY_NAME = "Wall cross-section area"
+SURFACE_AREA_STENOSIS_ARRAY_NAME = "Stenosis by surface area"
+DIAMETER_STENOSIS_ARRAY_NAME = "Stenosis by diameter (CE)"
+
 MIS_DIAMETER = "MIS_DIAMETER"
 CE_DIAMETER = "CE_DIAMETER"
 CROSS_SECTION_AREA = "CROSS_SECTION_AREA"
+WALL_CE_DIAMETER = "WALL_CE_DIAMETER"
+WALL_CROSS_SECTION_AREA = "WALL_CROSS_SECTION_AREA"
+DIAMETER_STENOSIS = "DIAMETER_STENOSIS"
+SURFACE_AREA_STENOSIS = "SURFACE_AREA_STENOSIS"
 
