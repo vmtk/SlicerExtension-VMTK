@@ -26,7 +26,7 @@ class GuidedArterySegmentation(ScriptedLoadableModule):
     if slicer.app.layoutManager() is None:
       self.parent.dependencies = ["ExtractCenterline"]
     else:
-      self.parent.dependencies = ["SegmentEditorDrawTube","SegmentEditorFloodFilling","ExtractCenterline"]
+      self.parent.dependencies = ["SegmentEditorFloodFilling","ExtractCenterline"]
     self.parent.contributors = ["Saleem Edah-Tally [Surgeon] [Hobbyist developer]", "Andras Lasso (PerkLab)"]
     self.parent.helpText = """
 This <a href="https://github.com/vmtk/SlicerExtension-VMTK/">module</a> is intended to create a segmentation from a contrast enhanced CT angioscan, and to finally extract centerlines from the surface model.
@@ -81,6 +81,7 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     self.logic = GuidedArterySegmentationLogic()
 
     self.ui.floodFillingCollapsibleGroupBox.checked = False
+    self.ui.extentCollapsibleGroupBox.checked = False
     
     # Connections
 
@@ -91,6 +92,7 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     # These connections ensure that whenever user changes some settings on the GUI, that is saved in the MRML scene
     # (in the selected parameter node).
     self.ui.inputCurveSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+    self.ui.inputShapeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
     self.ui.inputSliceNodeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
     self.ui.tubeDiameterSpinBox.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
     self.ui.intensityToleranceSpinBox.connect("valueChanged(int)", self.updateParameterNodeFromGUI)
@@ -99,6 +101,7 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     
     # Application connections
     self.ui.inputCurveSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onCurveNode)
+    self.ui.inputShapeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onShapeNode)
     self.ui.inputSliceNodeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSliceNode)
     self.ui.tubeDiameterSpinBox.connect("valueChanged(double)", self.logic.setTubeDiameter)
     self.ui.intensityToleranceSpinBox.connect("valueChanged(int)", self.logic.setIntensityTolerance)
@@ -117,14 +120,19 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     shortcut.setKey(qt.QKeySequence('Meta+d'))
     shortcut.connect( 'activated()', lambda: self.removeOutputNodes())
     
-    self.installExtensionFromServer("SegmentEditorExtraEffects")
+    self.installExtensionFromServer(("SegmentEditorExtraEffects"))
     
-  def installExtensionFromServer(self, extensionName):
+  def installExtensionFromServer(self, extensions):
     # From Modules/Scripted/ExtensionWizard/ExtensionWizardLib/LoadModulesDialog.py
     developerModeEnabled = slicer.util.settingsValue('Developer/DeveloperMode', False, converter=slicer.util.toBool)
     # https://slicer.readthedocs.io/en/latest/developer_guide/script_repository.html#download-and-install-extension
     em = slicer.app.extensionsManagerModel()
-    if not em.isExtensionInstalled(extensionName):
+    extensionMissing = False
+    for extensionName in extensions:
+      if not em.isExtensionInstalled(extensionName):
+        extensionMissing = True
+        
+    if extensionMissing:
       # Don't disturb the developers.
       if developerModeEnabled:
         raise ValueError(f"Aborting installation of {extensionName} in developer mode.")
@@ -134,14 +142,16 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
       if (not result):
         raise ValueError(f"Could not update metadata from server to install {extensionName}.")
       
-      reply = slicer.util.confirmYesNoDisplay(f"{extensionName} must be installed. Do you want to install it now ?")
-      if (not reply):
-        raise ValueError(f"This module cannot be used without {extensionName}.")
+      for extensionName in extensions:
+        if not em.isExtensionInstalled(extensionName):
+          reply = slicer.util.confirmYesNoDisplay(f"{extensionName} must be installed. Do you want to install it now ?")
+          if (not reply):
+            raise ValueError(f"This module cannot be used without {extensionName}.")
+          
+          if not em.downloadAndInstallExtensionByName(extensionName, True, True):
+            raise ValueError(f"Failed to install {extensionName} extension.")
       
-      if not em.downloadAndInstallExtensionByName(extensionName, True, True):
-        raise ValueError(f"Failed to install {extensionName} extension.")
-      
-      reply = slicer.util.confirmYesNoDisplay(f"{extensionName} has been installed from server.\n\nSlicer must be restarted. Do you want to restart now ?")
+      reply = slicer.util.confirmYesNoDisplay("An extension has been installed from server.\n\nSlicer must be restarted. Do you want to restart now ?")
       if reply:
         slicer.util.restart()
 
@@ -170,6 +180,31 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     # Reuse last known parameters
     self.updateGUIParametersFromInputNode()
   
+  def onShapeNode(self, node):
+    if node is None:
+        self.logic.setInputShapeNode(None)
+        self.ui.tubeDiameterSpinBoxLabel.setVisible(True)
+        self.ui.tubeDiameterSpinBox.setVisible(True)
+        return
+    if node.GetShapeName() != slicer.vtkMRMLMarkupsShapeNode().Tube:
+        self.inform("Shape node is not a Tube.")
+        self.ui.inputShapeSelector.setCurrentNode(None)
+        self.logic.setInputShapeNode(None)
+        self.ui.tubeDiameterSpinBoxLabel.setVisible(True)
+        self.ui.tubeDiameterSpinBox.setVisible(True)
+        return
+    numberOfControlPoints = node.GetNumberOfControlPoints()
+    if numberOfControlPoints < 4:
+        self.inform("Shape node must have at least 4 points.")
+        self.ui.inputShapeSelector.setCurrentNode(None)
+        self.logic.setInputShapeNode(None)
+        self.ui.tubeDiameterSpinBoxLabel.setVisible(True)
+        self.ui.tubeDiameterSpinBox.setVisible(True)
+        return
+    self.logic.setInputShapeNode(node)
+    self.ui.tubeDiameterSpinBoxLabel.setVisible(False)
+    self.ui.tubeDiameterSpinBox.setVisible(False)
+    
   def onSliceNode(self, node):
     if node is None:
         self.logic.setInputSliceNode(None)
@@ -286,6 +321,7 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
 
     # Update node selectors and sliders
     self.ui.inputCurveSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputCurveNode"))
+    self.ui.inputShapeSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputShapeNode"))
     self.ui.inputSliceNodeSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputSliceNode"))
     self.ui.tubeDiameterSpinBox.value = float(self._parameterNode.GetParameter("TubeDiameter"))
     self.ui.intensityToleranceSpinBox.value = int(self._parameterNode.GetParameter("IntensityTolerance"))
@@ -307,6 +343,7 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
 
     self._parameterNode.SetNodeReferenceID("InputCurveNode", self.ui.inputCurveSelector.currentNodeID)
+    self._parameterNode.SetNodeReferenceID("InputShapeNode", self.ui.inputShapeSelector.currentNodeID)
     self._parameterNode.SetNodeReferenceID("InputSliceNode", self.ui.inputSliceNodeSelector.currentNodeID)
     self._parameterNode.SetParameter("TubeDiameter", str(self.ui.tubeDiameterSpinBox.value))
     self._parameterNode.SetParameter("IntensityTolerance", str(self.ui.intensityToleranceSpinBox.value))
@@ -345,6 +382,10 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     volumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
     self.logic.inputCurveNode.SetNodeReferenceID("InputVolumeNode", volumeNode.GetID())
     
+    shapeNode = self.ui.inputShapeSelector.currentNode()
+    shapeNodeID = shapeNode.GetID() if shapeNode is not None else ""
+    self.logic.inputCurveNode.SetNodeReferenceID("InputShapeNode", shapeNodeID)
+    
     self.logic.inputCurveNode.SetAttribute("TubeDiameter", str(self.ui.tubeDiameterSpinBox.value))
     self.logic.inputCurveNode.SetAttribute("InputIntensityTolerance", str(self.ui.intensityToleranceSpinBox.value))
     self.logic.inputCurveNode.SetAttribute("NeighbourhoodSize", str(self.ui.neighbourhoodSizeDoubleSpinBox.value))
@@ -363,6 +404,8 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     neighbourhoodSize = self.logic.inputCurveNode.GetAttribute("NeighbourhoodSize")
     if neighbourhoodSize:
         self.ui.neighbourhoodSizeDoubleSpinBox.value = float(neighbourhoodSize)
+    shapeNode = self.logic.inputCurveNode.GetNodeReference("InputShapeNode")
+    self.ui.inputShapeSelector.setCurrentNode(shapeNode)
 
   # Restore output nodes in logic
   def UpdateLogicWithOutputNodes(self):
@@ -454,6 +497,7 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     
   def initMemberVariables(self):
     self.inputCurveNode = None
+    self.inputShapeNode = None
     self.inputSliceNode = None
     self.tubeDiameter = 8.0
     self.intensityTolerance = 100
@@ -470,6 +514,11 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     if self.inputCurveNode == node:
         return
     self.inputCurveNode = node
+  
+  def setInputShapeNode(self, node):
+    if self.inputShapeNode == node:
+        return
+    self.inputShapeNode = node
     
   def setInputSliceNode(self, node):
     if self.inputSliceNode == node:
@@ -562,15 +611,19 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     # Reset segment editor masking widgets. Values set by previous work must not interfere here.
     self.segmentEditorWidgets.setMaskingOptionsToAllowOverlap()
     
-    #---------------------- Draw tube with VTK---------------------
-    # https://discourse.slicer.org/t/converting-markupscurve-to-markupsfiducial/20246/3
-    tube = vtk.vtkTubeFilter()
-    tube.SetInputData(self.inputCurveNode.GetCurveWorld())
-    tube.SetRadius(self.tubeDiameter / 2)
-    tube.SetNumberOfSides(30)
-    tube.CappingOn()
-    tube.Update()
-    segmentation.AddSegmentFromClosedSurfaceRepresentation(tube.GetOutput(), "TubeMask")
+    if self.inputShapeNode is None:
+      #---------------------- Draw tube with VTK---------------------
+      # https://discourse.slicer.org/t/converting-markupscurve-to-markupsfiducial/20246/3
+      tube = vtk.vtkTubeFilter()
+      tube.SetInputData(self.inputCurveNode.GetCurveWorld())
+      tube.SetRadius(self.tubeDiameter / 2)
+      tube.SetNumberOfSides(30)
+      tube.CappingOn()
+      tube.Update()
+      segmentation.AddSegmentFromClosedSurfaceRepresentation(tube.GetOutput(), "TubeMask")
+    else:
+      #---------------------- Draw tube from Shape node ---------------------
+      segmentation.AddSegmentFromClosedSurfaceRepresentation(self.inputShapeNode.GetCappedTubeWorld(), "TubeMask")
     # Select it so that Split Volume can work on this specific segment only.
     seWidgetEditor.setCurrentSegmentID("TubeMask")
     
