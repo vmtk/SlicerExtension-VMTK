@@ -11,7 +11,7 @@ set(EXTENSION_DESCRIPTION "Vascular Modeling Toolkit for vessel tree segmentatio
 set(EXTENSION_STATUS "Beta")
 set(EXTENSION_ICONURL "http://www.nitrc.org/project/screenshot.php?group_id=196&screenshot_id=269")
 set(EXTENSION_SCREENSHOTURLS "http://www.nitrc.org/project/screenshot.php?group_id=196&screenshot_id=126 http://www.nitrc.org/project/screenshot.php?group_id=196&screenshot_id=227 http://www.nitrc.org/project/screenshot.php?group_id=196&screenshot_id=228 http://www.nitrc.org/project/screenshot.php?group_id=196&screenshot_id=229")
-set(EXTENSION_DEPENDS "NA")
+set(EXTENSION_DEPENDS "ExtraMarkups")
 set(EXTENSION_LICENSE_FILE ${Slicer_LICENSE_FILE})
 set(EXTENSION_README_FILE ${Slicer_README_FILE})
 set(EXTENSION_BUILD_SUBDIRECTORY inner-build)
@@ -26,6 +26,9 @@ mark_as_superbuild(Slicer_DIR)
 
 find_package(Git REQUIRED)
 mark_as_superbuild(GIT_EXECUTABLE)
+
+find_package(ExtraMarkups REQUIRED)
+mark_as_superbuild(ExtraMarkups_DIR)
 
 #-----------------------------------------------------------------------------
 # SuperBuild setup
@@ -53,6 +56,7 @@ add_subdirectory(QuickArterySegmentation)
 add_subdirectory(GuidedArterySegmentation)
 add_subdirectory(StenosisMeasurement1D)
 add_subdirectory(StenosisMeasurement2D)
+add_subdirectory(StenosisMeasurement3D)
 add_subdirectory(BranchClipper)
 
 #-----------------------------------------------------------------------------
