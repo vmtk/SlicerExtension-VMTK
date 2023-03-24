@@ -18,12 +18,8 @@ class GuidedArterySegmentation(ScriptedLoadableModule):
     ScriptedLoadableModule.__init__(self, parent)
     self.parent.title = "Guided artery segmentation"
     self.parent.categories = ["Vascular Modeling Toolkit"]
-    # NOTE: This is a workaround. DrawTube and FloodFilling are not part of
-    # Slicer, but are hosted in an external repository. During testing they are
-    # not going to be preseent in the environment, so we don't consider them as
-    # dependencies when called by testing. Generic tests are called with no main
-    # window; a fingerprint for this is the absence of layout manager.
-    if slicer.app.layoutManager() is None:
+    # https://github.com/vmtk/SlicerExtension-VMTK/pull/80#discussion_r1149483382
+    if slicer.app.testingEnabled():
       self.parent.dependencies = ["ExtractCenterline"]
     else:
       self.parent.dependencies = ["SegmentEditorFloodFilling","ExtractCenterline"]
@@ -120,38 +116,33 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     shortcut.setKey(qt.QKeySequence('Meta+d'))
     shortcut.connect( 'activated()', lambda: self.removeOutputNodes())
     
-    self.installExtensionFromServer(("SegmentEditorExtraEffects"))
+    # Avoid cdash test failure.
+    if not slicer.app.testingEnabled():
+      try:
+        self.installExtensionFromServer("SegmentEditorExtraEffects")
+      except Exception as e:
+        slicer.util.errorDisplay("Failed to install extension: "+str(e))
+        import traceback
+        traceback.print_exc()
+      
     
-  def installExtensionFromServer(self, extensions):
-    # From Modules/Scripted/ExtensionWizard/ExtensionWizardLib/LoadModulesDialog.py
-    developerModeEnabled = slicer.util.settingsValue('Developer/DeveloperMode', False, converter=slicer.util.toBool)
+  def installExtensionFromServer(self, extensionName):
     # https://slicer.readthedocs.io/en/latest/developer_guide/script_repository.html#download-and-install-extension
     em = slicer.app.extensionsManagerModel()
-    extensionMissing = False
-    for extensionName in extensions:
-      if not em.isExtensionInstalled(extensionName):
-        extensionMissing = True
-        
-    if extensionMissing:
-      # Don't disturb the developers.
-      if developerModeEnabled:
-        raise ValueError(f"Aborting installation of {extensionName} in developer mode.")
-      
+    if not em.isExtensionInstalled(extensionName):
       em.interactive = False
       result = em.updateExtensionsMetadataFromServer(True, True)
       if (not result):
         raise ValueError(f"Could not update metadata from server to install {extensionName}.")
       
-      for extensionName in extensions:
-        if not em.isExtensionInstalled(extensionName):
-          reply = slicer.util.confirmYesNoDisplay(f"{extensionName} must be installed. Do you want to install it now ?")
-          if (not reply):
-            raise ValueError(f"This module cannot be used without {extensionName}.")
-          
-          if not em.downloadAndInstallExtensionByName(extensionName, True, True):
-            raise ValueError(f"Failed to install {extensionName} extension.")
+      reply = slicer.util.confirmYesNoDisplay(f"{extensionName} must be installed. Do you want to install it now ?")
+      if (not reply):
+        raise ValueError(f"This module cannot be used without {extensionName}.")
       
-      reply = slicer.util.confirmYesNoDisplay("An extension has been installed from server.\n\nSlicer must be restarted. Do you want to restart now ?")
+      if not em.downloadAndInstallExtensionByName(extensionName, True, True):
+        raise ValueError(f"Failed to install {extensionName} extension.")
+      
+      reply = slicer.util.confirmYesNoDisplay(f"{extensionName} has been installed from server.\n\nSlicer must be restarted. Do you want to restart now ?")
       if reply:
         slicer.util.restart()
 
