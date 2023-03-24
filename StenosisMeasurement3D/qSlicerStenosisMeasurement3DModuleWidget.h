@@ -70,8 +70,6 @@ protected:
   vtkWeakPointer<vtkMRMLNode> currentFiducialNode;
   vtkSmartPointer<vtkSlicerStenosisMeasurement3DLogic> logic;
   
-  void installExtensionFromServer(const QString& extensionName);
-  
 private:
   Q_DECLARE_PRIVATE(qSlicerStenosisMeasurement3DModuleWidget);
   Q_DISABLE_COPY(qSlicerStenosisMeasurement3DModuleWidget);

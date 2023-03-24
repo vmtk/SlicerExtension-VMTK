@@ -97,9 +97,6 @@ void qSlicerStenosisMeasurement3DModuleWidget::setup()
   this->tubeObservation = vtkSmartPointer<vtkCallbackCommand>::New();
   this->tubeObservation->SetClientData( reinterpret_cast<void *>(this) );
   this->tubeObservation->SetCallback(qSlicerStenosisMeasurement3DModuleWidget::onTubePointEndInteraction);
-  
-  // Check and install ExtraMarkups extension for Shape::Tube node.
-  this->installExtensionFromServer("ExtraMarkups");
 }
 
 //-----------------------------------------------------------------------------
@@ -411,56 +408,3 @@ void qSlicerStenosisMeasurement3DModuleWidget::onShapeNodeChanged(vtkMRMLNode * 
   }
 }
 
-
-//-----------------------------------------------------------------------------
-void qSlicerStenosisMeasurement3DModuleWidget::installExtensionFromServer(const QString& extensionName)
-{
-  bool developerModeEnabled = QSettings().value("Developer/DeveloperMode").toBool();
-  
-  qSlicerExtensionsManagerModel * em = qSlicerCoreApplication::application()->extensionsManagerModel();
-  if (!em || em->isExtensionInstalled(extensionName))
-  {
-    return;
-  }
-  if (developerModeEnabled)
-  {
-    QString message("Aborting installation of ");
-    message += extensionName;
-    message += QString(" in developer mode.");
-    this->showStatusMessage(message, 5000);
-    std::cout << message.toStdString() << std::endl;
-    return;
-  }
-  bool result = em->updateExtensionsMetadataFromServer(true, true);
-  if (!result)
-  {
-    QString message("Could not update metadata from server to install ");
-    message += extensionName + QString(".");
-    this->showStatusMessage(message, 5000);
-    std::cout << message.toStdString() << std::endl;
-    return;
-  }
-  QString message = extensionName + QString(" must be installed. Do you want to install it now ?");
-  QMessageBox::StandardButton reply = QMessageBox::question(nullptr, "Install extension ?",message);
-  if (reply != QMessageBox::StandardButton::Yes)
-  {
-    message = QString("This module cannot be used without ") + extensionName + QString(".");
-    this->showStatusMessage(message, 5000);
-    std::cout << message.toStdString() << std::endl;
-    return;
-  }
-  if (!em->downloadAndInstallExtensionByName(extensionName, true, true))
-  {
-    message = QString("Failed to install ") + extensionName + QString(" extension.");
-    this->showStatusMessage(message, 5000);
-    std::cout << message.toStdString() << std::endl;
-    return;
-  }
-  message = extensionName + QString(" has been installed from server.");
-  message += QString("\n\nSlicer must be restarted. Do you want to restart now ?");
-  reply = QMessageBox::question(nullptr, "Restart slicer ?",message);
-  if (reply == QMessageBox::StandardButton::Yes)
-  {
-    qSlicerCoreApplication::application()->restart();
-  }
-}
