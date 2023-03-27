@@ -78,13 +78,13 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
         <item>
          <widget class="QToolButton" name="preFitROIToolButton">
           <property name="toolTip">
-           <string>Set the bounds of the ROI to that of the fiducial node. It must  nearly always be manually adjusted to enclose the target region of interest.</string>
+           <string>Set the bounds of the ROI accounting for that of the fiducial node. It must  further be manually adjusted to enclose the target region of interest.</string>
           </property>
           <property name="locale">
            <locale language="English" country="UnitedStates"/>
           </property>
           <property name="text">
-           <string>Fit</string>
+           <string>Pre-fit</string>
           </property>
          </widget>
         </item>
@@ -217,7 +217,7 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
        <rect>
         <x>20</x>
         <y>40</y>
-        <width>247</width>
+        <width>262</width>
         <height>84</height>
        </rect>
       </property>
@@ -235,7 +235,7 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
        <item row="0" column="1">
         <widget class="QSpinBox" name="intensityToleranceSpinBox">
          <property name="toolTip">
-          <string>Tolerance</string>
+          <string>Select connected voxels with intensity range between the one at a control point's position +/- this tolerance.</string>
          </property>
          <property name="locale">
           <locale language="English" country="UnitedStates"/>
@@ -244,7 +244,7 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
           <number>1</number>
          </property>
          <property name="maximum">
-          <number>250</number>
+          <number>9999</number>
          </property>
          <property name="singleStep">
           <number>5</number>
