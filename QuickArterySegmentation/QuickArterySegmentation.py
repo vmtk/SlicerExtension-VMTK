@@ -4,7 +4,6 @@ import logging
 import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
-import numpy as np
 
 #
 # QuickArterySegmentation
@@ -19,16 +18,12 @@ class QuickArterySegmentation(ScriptedLoadableModule):
     ScriptedLoadableModule.__init__(self, parent)
     self.parent.title = "Quick artery segmentation" 
     self.parent.categories = ["Vascular Modeling Toolkit"]
-    # NOTE: This is a workaround. DrawTube and FloodFilling are not part of
-    # Slicer, but are hosted in an external repository. During testing they are
-    # not going to be preseent in the environment, so we don't consider them as
-    # dependencies when called by testing. Generic tests are called with no main
-    # window; a fingerprint for this is the absence of layout manager.
-    if slicer.app.layoutManager() is None:
+    # https://github.com/vmtk/SlicerExtension-VMTK/pull/80#discussion_r1149483382
+    if slicer.app.testingEnabled():
       self.parent.dependencies = ["ExtractCenterline"]
     else:
       self.parent.dependencies = ["SegmentEditorFloodFilling","ExtractCenterline"]
-    self.parent.contributors = ["Saleem Edah-Tally [Surgeon] [Hobbyist developer]"]
+    self.parent.contributors = ["Saleem Edah-Tally [Surgeon] [Hobbyist developer]", "Andras Lasso (PerkLab)"]
     self.parent.helpText = """
 This <a href="https://github.com/vmtk/SlicerExtension-VMTK/">module</a> is intended to create a segmentation from a contrast enhanced CT angioscan, and to finally extract centerlines from the surface model.
 <br><br>It assumes that data acquisition of the input volume is nearly perfect, and that fiducial points are placed in the contrasted lumen.
@@ -119,18 +114,19 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
     shortcut.setKey(qt.QKeySequence('Meta+d'))
     shortcut.connect( 'activated()', lambda: self.removeOutputNodes())
     
-    self.installExtensionFromServer("SegmentEditorExtraEffects")
+    # Avoid cdash test failure.
+    if not slicer.app.testingEnabled():
+        try:
+          self.installExtensionFromServer("SegmentEditorExtraEffects")
+        except Exception as e:
+          slicer.util.errorDisplay("Failed to install extension: "+str(e))
+          import traceback
+          traceback.print_exc()
     
   def installExtensionFromServer(self, extensionName):
-    # From Modules/Scripted/ExtensionWizard/ExtensionWizardLib/LoadModulesDialog.py
-    developerModeEnabled = slicer.util.settingsValue('Developer/DeveloperMode', False, converter=slicer.util.toBool)
     # https://slicer.readthedocs.io/en/latest/developer_guide/script_repository.html#download-and-install-extension
     em = slicer.app.extensionsManagerModel()
     if not em.isExtensionInstalled(extensionName):
-      # Don't disturb the developers.
-      if developerModeEnabled:
-        raise ValueError(f"Aborting installation of {extensionName} in developer mode.")
-      
       em.interactive = False
       result = em.updateExtensionsMetadataFromServer(True, True)
       if (not result):
@@ -191,14 +187,24 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
     inputROINode = self.ui.inputROISelector.currentNode()
     if (inputFiducialNode is None) or (inputROINode is None):
         return
-    fiducialBounds = np.zeros(6)
+    fiducialBounds = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     inputFiducialNode.GetBounds(fiducialBounds)
+    """
+    Very often, 2 fiducial points are placed in the same slice view.
+    The bounds will then be the same on one axis, and resizing the ROI on this
+    axis is not possible.
+    Improve ROI resizing by slightly altering the bounds on such an axis.
+    """
+    for axis in range(0, 6, 2):
+      if fiducialBounds[axis] == fiducialBounds[axis + 1]:
+        fiducialBounds[axis] -= 5.0
+        fiducialBounds[axis + 1] += 5.0
     vFiducialBounds=vtk.vtkBoundingBox()
     vFiducialBounds.SetBounds(fiducialBounds)
-    center = np.zeros(3)
+    center = [0.0, 0.0, 0.0]
     vFiducialBounds.GetCenter(center)
     inputROINode.SetCenter(center)
-    lengths = np.zeros(3)
+    lengths = [0.0, 0.0, 0.0]
     vFiducialBounds.GetLengths(lengths)
     inputROINode.SetRadiusXYZ((lengths[0] / 2, lengths[1] / 2, lengths[2] / 2))
     inputROINode.SetDisplayVisibility(True)

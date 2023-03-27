@@ -212,7 +212,7 @@ This value is passed to 'Draw tube' segment editor effect.</string>
        <rect>
         <x>20</x>
         <y>40</y>
-        <width>247</width>
+        <width>252</width>
         <height>84</height>
        </rect>
       </property>
@@ -230,7 +230,7 @@ This value is passed to 'Draw tube' segment editor effect.</string>
        <item row="0" column="1">
         <widget class="QSpinBox" name="intensityToleranceSpinBox">
          <property name="toolTip">
-          <string>Tolerance</string>
+          <string>Select connected voxels with intensity range between the one at a control point's position +/- this tolerance.</string>
          </property>
          <property name="locale">
           <locale language="English" country="UnitedStates"/>
@@ -239,7 +239,7 @@ This value is passed to 'Draw tube' segment editor effect.</string>
           <number>1</number>
          </property>
          <property name="maximum">
-          <number>250</number>
+          <number>9999</number>
          </property>
          <property name="singleStep">
           <number>5</number>

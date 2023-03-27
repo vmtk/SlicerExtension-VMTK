@@ -56,7 +56,7 @@ qSlicerStenosisMeasurement3DModule::~qSlicerStenosisMeasurement3DModule()
 //-----------------------------------------------------------------------------
 QString qSlicerStenosisMeasurement3DModule::helpText() const
 {
-  return "<a href=\"https://github.com/chir-set/ExtraMarkups/tree/main/StenosisMeasurement3D/\">Homepage</a>.";
+  return "This <a href=\"https://github.com/vmtk/SlicerExtension-VMTK/\">module</a> evaluates an arterial stenosis by relating the lumen and wall volumes.";
 }
 
 //-----------------------------------------------------------------------------
@@ -70,6 +70,7 @@ QStringList qSlicerStenosisMeasurement3DModule::contributors() const
 {
   QStringList moduleContributors;
   moduleContributors << QString("Saleem Edah-Tally [Surgeon] [Hobbyist developer]");
+  moduleContributors << QString("Andras Lasso, PerkLab");
   return moduleContributors;
 }
 
