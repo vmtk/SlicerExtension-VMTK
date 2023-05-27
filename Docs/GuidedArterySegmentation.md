@@ -16,6 +16,10 @@ The '[Extract centerline](https://github.com/vmtk/SlicerExtension-VMTK/tree/mast
 
 At least 3 control points are required. All control points must lie in the contrasted lumen, simulating the arterial axis. The first and last points will be endpoints to ‘Extract centerline’ module, and are not used for segmentation. It is therefore helpful that the second control point be reasonably close to the first point, and that the before last one be close to the last point. The input curve will be hidden if centerlines are requested.
 
+### Input markups shape node
+
+A Shape::Tube node can be used as region of interest. It can be drawn to represent the arterial wall. Lumen segmentation is then carried out inside this tube. If a Shape::Tube node is used, the tube diameter parameter below is ignored. This node is available in [ExtraMarkups](https://github.com/chir-set/SlicerExtraMarkups) extension.
+
 ### Input slice node
 
 The 'Flood filling' effect will be applied at each point in this slice view. The current offset will be changed consequently.
