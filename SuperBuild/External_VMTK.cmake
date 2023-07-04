@@ -51,7 +51,7 @@ if(NOT DEFINED ${proj}_DIR AND NOT ${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
   if(${Slicer_VERSION_MAJOR}.${Slicer_VERSION_MINOR} VERSION_GREATER_EQUAL 5.1)
     # Slicer >= 5.1 uses recent ITK-5.3RC version, which has BooleanStdVectorType
     # (see https://github.com/InsightSoftwareConsortium/ITK/commit/bc9ba8540f96c0fa4e9100b25b05eb812074a64e)
-    set(DEFAULT_VMTK_TAG a0ed7931c458bf43795b895370fbe16f729e24f4)
+    set(DEFAULT_VMTK_TAG c46de512701a072a8f453a045ce575b94cd3ba19)
   else()
     # Slicer < 5.1 uses older ITK-5.3RC version, which does not yet have BooleanStdVectorType
     set(DEFAULT_VMTK_TAG 30b0fdad5674d6f134e8a8b601bcef7917671b0a)
