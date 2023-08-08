@@ -15,7 +15,6 @@
 #include <vtkPolyData.h>
 #include <vtkSmartPointer.h>
 #include <vtkObjectFactory.h>
-#include <sys/time.h>
 
 /**
  * This class computes cross-section areas
