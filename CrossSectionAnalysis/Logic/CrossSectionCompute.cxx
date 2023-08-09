@@ -25,6 +25,38 @@ std::mutex mtx;
 
 vtkStandardNewMacro(vtkCrossSectionCompute);
 
+//------------------------------------------------------------------------------
+/**
+ * This class works with generated centerline polydata. Each thread has one instance of this class running.
+ */
+class CrossSectionComputeWorker
+{
+public:
+
+  CrossSectionComputeWorker();
+  virtual ~CrossSectionComputeWorker();
+
+  void operator () (vtkPolyData* generatedPolyData,
+    vtkDoubleArray* generatedTangents,
+    vtkPolyData* closedSurfacePolyData,
+    vtkDoubleArray* bufferArray,
+    vtkIdType startPointIndex,
+    vtkIdType endPointIndex);
+
+private:
+  /**
+   * Generates the cross-section polydata as closest contour
+   * around the generated centerline point.
+   * The result is returned in contourPolyData.
+   */
+  void ComputeCrossSectionPolydata(vtkPolyData* generatedPolyData,
+    vtkDoubleArray* generatedTangents,
+    vtkPolyData* closedSurfacePolyData,
+    vtkIdType pointIndex,
+    vtkPolyData* contourPolyData);
+};
+
+//------------------------------------------------------------------------------
 vtkCrossSectionCompute::vtkCrossSectionCompute()
 {
   this->NumberOfThreads = 1;
@@ -157,7 +189,7 @@ void vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
         bufferArray->SetNumberOfComponents(3);
         bufferArrays.push_back(bufferArray);
         
-        threads.push_back(std::thread(vtkCrossSectionComputeWorker(),
+        threads.push_back(std::thread(CrossSectionComputeWorker(),
                                       this->GeneratedPolyData,
                                       this->GeneratedTangents,
                                       closedSurfacePolyDataCopy,
@@ -185,15 +217,15 @@ void vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
 }
 
 /////////////////////////////////////////////////////////////////////////
-vtkCrossSectionComputeWorker::vtkCrossSectionComputeWorker()
+CrossSectionComputeWorker::CrossSectionComputeWorker()
 {
 }
 
-vtkCrossSectionComputeWorker::~vtkCrossSectionComputeWorker()
+CrossSectionComputeWorker::~CrossSectionComputeWorker()
 {
 }
 
-void vtkCrossSectionComputeWorker::operator () (vtkPolyData * generatedPolyData,
+void CrossSectionComputeWorker::operator () (vtkPolyData * generatedPolyData,
                                                 vtkDoubleArray * generatedTangents,
                                                 vtkPolyData * closedSurfacePolyData,
                                                 vtkDoubleArray * bufferArray,
@@ -219,7 +251,7 @@ void vtkCrossSectionComputeWorker::operator () (vtkPolyData * generatedPolyData,
 }
 
 // Translated and adapted from the Python implementation.
-void vtkCrossSectionComputeWorker::ComputeCrossSectionPolydata(
+void CrossSectionComputeWorker::ComputeCrossSectionPolydata(
     vtkPolyData * generatedPolyData,
     vtkDoubleArray * generatedTangents,
     vtkPolyData * closedSurfacePolyData,

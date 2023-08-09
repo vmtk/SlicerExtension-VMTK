@@ -71,36 +71,5 @@ private:
   vtkSmartPointer<vtkDoubleArray> GeneratedTangents;
   
 };
-
-/**
- * This class works with generated centerline polydata. Each thread has one instance of this class running.
- */
-class vtkCrossSectionComputeWorker
-{
-public:
-    
-    vtkCrossSectionComputeWorker();
-    virtual ~vtkCrossSectionComputeWorker();
-    
-    void operator () (vtkPolyData * generatedPolyData,
-                      vtkDoubleArray * generatedTangents,
-                      vtkPolyData * closedSurfacePolyData,
-                      vtkDoubleArray * bufferArray,
-                      vtkIdType startPointIndex,
-                      vtkIdType endPointIndex);
-    
-private:
-    /**
-     * Generates the cross-section polydata as closest contour
-     * around the generated centerline point.
-     * The result is returned in contourPolyData.
-     */
-    void ComputeCrossSectionPolydata(vtkPolyData * generatedPolyData,
-                                    vtkDoubleArray * generatedTangents,
-                                    vtkPolyData * closedSurfacePolyData,
-                                    vtkIdType pointIndex,
-                                    vtkPolyData * contourPolyData);
-};
-
 #endif
 
