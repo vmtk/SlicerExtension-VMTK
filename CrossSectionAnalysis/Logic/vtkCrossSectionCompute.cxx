@@ -2,7 +2,7 @@
  * This file was created by SET [Surgeon] [Hobbyist developer].
  * Valuable input comes from Andras Lasso (Perklab) in many areas.
  */
-#include "CrossSectionCompute.h"
+#include "vtkCrossSectionCompute.h"
 #include <iostream>
 #include <thread>
 #include <mutex>

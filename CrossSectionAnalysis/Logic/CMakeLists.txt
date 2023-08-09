@@ -12,8 +12,8 @@ set(${KIT}_INCLUDE_DIRECTORIES
   )
 
 set(${KIT}_SRCS
-  CrossSectionCompute.cxx
-  CrossSectionCompute.h
+  vtkCrossSectionCompute.cxx
+  vtkCrossSectionCompute.h
   )
 
 set(${KIT}_TARGET_LIBRARIES

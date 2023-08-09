@@ -3,8 +3,8 @@
  * Valuable input comes from Andras Lasso (Perklab) in many areas.
  */
 
-#ifndef __CrossSectionCompute_h
-#define __CrossSectionCompute_h
+#ifndef __vtkCrossSectionCompute_h
+#define __vtkCrossSectionCompute_h
 
 // Created by cmake
 #include "vtkSlicerCrossSectionAnalysisModuleLogicExport.h"
@@ -71,5 +71,5 @@ private:
   vtkSmartPointer<vtkDoubleArray> GeneratedTangents;
   
 };
-#endif
 
+#endif // __vtkCrossSectionCompute_h
