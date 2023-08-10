@@ -992,7 +992,8 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     Fill in cross-section areas in C++ threads.
     N.B. : polydata caching is not concerned here.
     """
-    crossSectionCompute = slicer.vtkCrossSectionCompute()
+    import vtkSlicerCrossSectionAnalysisModuleLogicPython as vtkSlicerCrossSectionAnalysisModuleLogic
+    crossSectionCompute = vtkSlicerCrossSectionAnalysisModuleLogic.vtkCrossSectionCompute()
     # If numberOfThreads > number of cores, excessive threads would be in infinite loop.
     numberOfThreads = os.cpu_count() if (numberOfPoints >= os.cpu_count()) else numberOfPoints
     crossSectionCompute.SetNumberOfThreads(numberOfThreads)
@@ -1019,7 +1020,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     Good ? Bad ?
     """
     if inputCenterline.IsTypeOf("vtkMRMLMarkupsShapeNode"):
-      wallCrossSectionCompute = slicer.vtkCrossSectionCompute()
+      wallCrossSectionCompute = vtkSlicerCrossSectionAnalysisModuleLogic.vtkCrossSectionCompute()
       wallCrossSectionCompute.SetNumberOfThreads(numberOfThreads)
       # Internally, the segment ID is not used; the axial spline is the centerline polydata.
       wallCrossSectionCompute.SetInputSurfaceNode(inputCenterline, self.currentSegmentID)
