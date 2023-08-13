@@ -27,6 +27,7 @@ SlicerVMTK extension provides the following modules:
   - [Stenosis measurement 3D](Docs/StenosisMeasurement3D.md): use lumen and wall volumes to evaluate a stenosis.
   - [Branch clipper](Docs/BranchClipper.md) : This module splits a bifurcated vascular segment into individual branches, given its centerline model.
   - [Guided Vein Segmentation](Docs/GuidedVeinSegmentation.md): Segment *major* veins using an open markups curve leveraging the segment editor effects.
+  - [Arterial calcification pre-processor](Docs/ArterialCalcificationPreProcessor.md) : Segment arterial calcifications within a specified distance around a lumen.
 - Legacy modules (replaced by other modules, not developed anymore):
   - [Centerline Computation](Docs/CenterlineComputation.md): This module determines centerlines in a vessel tree from an input model node. *This module is replaced by the much improved, faster and more robust "Extract Centerline" module in current Slicer versions (Slicer-4.11 and later).*
 
