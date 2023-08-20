@@ -35,6 +35,7 @@ These images illustrate the limitations of this approach.
 
 - From the surgical perspective, this module gives a comprehensive global and focused view of what the surgeon will be dealing with.
 - Targeted portions of a global segmented lumen and calcifications can be further defined using the 'Segment editor' effects, and passed to the 'Segment statistics' module for quantification.
+- The quality of a segmented lumen is important. It must not contain holes.
 
 ### Disclaimer
 

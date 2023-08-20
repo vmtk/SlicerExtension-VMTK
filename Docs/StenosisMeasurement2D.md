@@ -34,7 +34,7 @@ To reset the recorded slice orientation of a fiducial point, check the 'Reset' w
 
 **In practice**
 
-Orient a slice view perpendicular to the axis of a diseased artery by any means. If the lumen has not been segmented yet, draw a lumen segment using 'Scissors', with 'Fill inside', 'Symmetric' and 2 mm thickness. Likewise, draw a second segment using the arterial wall as perimeter. Then continue with a fidicial point as described above.
+Orient a slice view perpendicular to the axis of a diseased artery by any means. If the lumen has not been segmented yet, draw a lumen segment using 'Scissors', with 'Fill inside', 'Symmetric' and 2 mm thickness. Likewise, draw a second segment using the arterial wall as perimeter. Then continue with a fiducial point as described above.
 
 **Notes**
 

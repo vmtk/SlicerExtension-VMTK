@@ -126,7 +126,8 @@ double vtkSlicerStenosisMeasurement3DLogic::Process(vtkMRMLMarkupsShapeNode * wa
   boundary->GetNthControlPointPositionWorld(1, p2);
   
   // Get spline polydata from shape markups node.
-  vtkPolyData * spline = wall->GetSplineWorld();
+  vtkSmartPointer<vtkPolyData> spline = vtkSmartPointer<vtkPolyData>::New();
+  wall->GetTrimmedSplineWorld(spline);
   vtkPoints * splinePoints = spline->GetPoints();
   // Get boundaries where polydatas will be cut.
   const vtkIdType p1IdType = spline->FindPoint(p1);
@@ -212,7 +213,8 @@ bool vtkSlicerStenosisMeasurement3DLogic::UpdateBoundaryControlPointPosition
     vtkErrorMacro("Can't update control point position, invalid parameters.");
     return false;
   }
-  vtkPolyData * spline = shapeNode->GetSplineWorld();
+  vtkSmartPointer<vtkPolyData> spline = vtkSmartPointer<vtkPolyData>::New();
+  shapeNode->GetTrimmedSplineWorld(spline);
   double controlPointCoordinate[3] = { 0.0 };
   fiducialNode->GetNthControlPointPositionWorld(pointIndex, controlPointCoordinate);
   vtkIdType targetPointId = spline->FindPoint(controlPointCoordinate);
@@ -271,7 +273,8 @@ double vtkSlicerStenosisMeasurement3DLogic::CalculateClippedSplineLength(vtkMRML
     vtkErrorMacro("Can't compute the clipped spline length, invalid parameters.");
     return -1.0;
   }
-  vtkPolyData * spline = shapeNode->GetSplineWorld();
+  vtkSmartPointer<vtkPolyData> spline = vtkSmartPointer<vtkPolyData>::New();
+  shapeNode->GetTrimmedSplineWorld(spline);
   double p1Fiducial[3] = { 0.0 };
   fiducialNode->GetNthControlPointPositionWorld(0, p1Fiducial);
   vtkIdType p1SplineId = spline->FindPoint(p1Fiducial);
