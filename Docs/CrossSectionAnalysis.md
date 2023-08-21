@@ -48,7 +48,7 @@ An output table providing distance of points from relative centerline origin, MI
 
 ### Output plot
 
-A graphical plot of MIS diameter, CE diameter or cross-section area against distance from relative origin can also be shown the same way.
+A graphical plot of MIS diameter, CE diameter or cross-section area against distance from relative origin can also be viewed.
 
 ## Notes
 
@@ -56,12 +56,10 @@ A graphical plot of MIS diameter, CE diameter or cross-section area against dist
 - A markups curve may also lie outside a surface.
 - Providing a surface (segmentation or model) is optional. For example, a markups curve may be drawn on a vascular structure's boundary in slice views, to see the corresponding cross-sections only.
 - The meaning of a surface area is subject to its requirement. For tubular surfaces for instance, orthogonal section is a requirement.
-- Reslicing can be performed along anatomic axes or the centerline curve's axes (adjusted with the 'Spin' slider).
-- Left and right sides may be inverted in a slice view with orthogonal reslicing. Use another slice view in such cases.
+- Reslicing can be performed as cross-section along the centerline, or in orthogonal planes at each centerline point (adjusted with the 'Spin' slider).
 - When using a Shape node as a Tube :
     - the Tube should be nicely drawn, avoid kinking in particular,
-    - the result at each end should be ignored, they may be void of meaning,
-    - the lumen should be cut to slightly exceed the ends of the Tube, remove all bifurcations and distant parts of the segment not enclosed in the Tube.
+    - the lumen should be cut to slightly exceed the ends of the Tube, remove all bifurcations and distant parts of the segment that are not enclosed in the Tube.
 - The quality of a segmented lumen is important. It must not contain holes. These may be misleading as the calculated surface area may concern a hole and not the segmented blood.
 
 

@@ -2,7 +2,7 @@
 
 This module attempts to segment *major* veins from CT scans using the 'Segment editor' effects.
 
-![AbdomonalVeins](GuidedVeinSegmentation_0.png)
+![AbdominalVeins](GuidedVeinSegmentation_0.png)
 
 ![JugularVein](GuidedVeinSegmentation_1.png)
 
@@ -23,7 +23,7 @@ Secondary parameters should be rarely tuned :
 
 ### Notes
 
- - Create anatomical segments, with homogeneus diameters, rather than one very long segment. They can be later merged with the 'Logical operators' effect.
+ - Create anatomical segments, with homogeneous diameters, rather than one very long segment. They can be later merged with the 'Logical operators' effect.
  - Small veins may be beyond the scope of this work.
  - It is of interest to segment nearby structures like arteries and bones first. The vein segments may overlap these. If 'Remove overlaps' is in effect, the intersection between the vein segments and the segmented surroundings will be removed.
  - The vein is not segmented with 100% accuracy. Verification can be performed by removing 'Slice fill' for the segment, keeping the outline.

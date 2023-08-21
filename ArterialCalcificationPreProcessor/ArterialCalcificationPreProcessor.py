@@ -52,6 +52,7 @@ class ArterialCalcificationPreProcessorParameterNode:
     """
     inputVolume: slicer.vtkMRMLScalarVolumeNode
     marginSize: float = 4.0
+    show3D: bool = False
 
 #
 # ArterialCalcificationPreProcessorWidget
@@ -83,6 +84,8 @@ class ArterialCalcificationPreProcessorWidget(ScriptedLoadableModuleWidget, VTKO
         uiWidget = slicer.util.loadUI(self.resourcePath('UI/ArterialCalcificationPreProcessor.ui'))
         self.layout.addWidget(uiWidget)
         self.ui = slicer.util.childWidgetVariables(uiWidget)
+        
+        self.ui.optionsCollapsibleButton.collapsed = True
 
         # Set scene in MRML widgets. Make sure that in Qt designer the top-level qMRMLWidget's
         # "mrmlSceneChanged(vtkMRMLScene*)" signal in is connected to each MRML widget's.
@@ -167,13 +170,22 @@ class ArterialCalcificationPreProcessorWidget(ScriptedLoadableModuleWidget, VTKO
 
     def onApplyButton(self) -> None:
 
+        inputSegmentation = self.ui.segmentSelector.currentNode()
+        
         with slicer.util.tryWithErrorDisplay("Failed to compute results.", waitCursor=True):
             
             # Compute output
-            self.logic.process(self.ui.segmentSelector.currentNode(),
+            self.logic.process(inputSegmentation,
                                self._parameterNode.inputVolume,
                                self.ui.segmentSelector.currentSegmentID(),
                                self._parameterNode.marginSize)
+        
+        if (not self._parameterNode.show3D) or (not inputSegmentation):
+            return
+        
+        # Poked from qMRMLSegmentationShow3DButton.cxx
+        if inputSegmentation.GetSegmentation().CreateRepresentation(slicer.vtkSegmentationConverter.GetSegmentationClosedSurfaceRepresentationName()):
+            inputSegmentation.GetDisplayNode().SetPreferredDisplayRepresentationName3D(slicer.vtkSegmentationConverter.GetSegmentationClosedSurfaceRepresentationName())
 
 #
 # ArterialCalcificationPreProcessorLogic
