@@ -29,11 +29,7 @@ class QuickArterySegmentation(ScriptedLoadableModule):
     ScriptedLoadableModule.__init__(self, parent)
     self.parent.title = "Quick artery segmentation" 
     self.parent.categories = ["Vascular Modeling Toolkit"]
-    # https://github.com/vmtk/SlicerExtension-VMTK/pull/80#discussion_r1149483382
-    if slicer.app.testingEnabled():
-      self.parent.dependencies = ["ExtractCenterline"]
-    else:
-      self.parent.dependencies = ["SegmentEditorFloodFilling","ExtractCenterline"]
+    self.parent.dependencies = ["ExtractCenterline"]
     self.parent.contributors = ["Saleem Edah-Tally [Surgeon] [Hobbyist developer]", "Andras Lasso (PerkLab)"]
     self.parent.helpText = _("""
 This <a href="https://github.com/vmtk/SlicerExtension-VMTK/">module</a> is intended to create a segmentation from a contrast enhanced CT angioscan, and to finally extract centerlines from the surface model.
@@ -129,34 +125,12 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
     shortcut.setKey(qt.QKeySequence('Meta+d'))
     shortcut.connect( 'activated()', lambda: self.removeOutputNodes())
     
-    # Avoid cdash test failure.
-    if not slicer.app.testingEnabled():
-        try:
-          self.installExtensionFromServer("SegmentEditorExtraEffects")
-        except Exception as e:
-          slicer.util.errorDisplay(_("Failed to install extension: ") + str(e))
-          import traceback
-          traceback.print_exc()
-    
-  def installExtensionFromServer(self, extensionName) -> None:
-    # https://slicer.readthedocs.io/en/latest/developer_guide/script_repository.html#download-and-install-extension
+    extensionName = "SegmentEditorExtraEffects"
     em = slicer.app.extensionsManagerModel()
-    if not em.isExtensionInstalled(extensionName):
-      em.interactive = False
-      result = em.updateExtensionsMetadataFromServer(True, True)
-      if (not result):
-        raise ValueError(_("Could not update metadata from server to install {extension}.").format(extension = extensionName))
-      
-      reply = slicer.util.confirmYesNoDisplay(_("{extension} must be installed. Do you want to install it now ?").format(extension = extensionName))
-      if (not reply):
-        raise ValueError(_("This module cannot be used without {extension}.").format(extension = extensionName))
-      
-      if not em.downloadAndInstallExtensionByName(extensionName, True, True):
-        raise ValueError(_("Failed to install {extension} extension.").format(extension = extensionName))
-      
-      reply = slicer.util.confirmYesNoDisplay(_("{extension} has been installed from server.\n\nSlicer must be restarted. Do you want to restart now ?").format(extension = extensionName))
-      if reply:
-        slicer.util.restart()
+    em.interactive = True
+    restart = True
+    if not em.installExtensionFromServer(extensionName, restart):
+      raise ValueError(_("Failed to install {nameOfExtension} extension").format(nameOfExtension=extensionName))
 
   def inform(self, message) -> None:
     slicer.util.showStatusMessage(message, 3000)
