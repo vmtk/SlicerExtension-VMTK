@@ -13,13 +13,18 @@ VMTK extension is available for recent 3D Slicer versions 4.10 and above. Instal
 
 SlicerVMTK extension provides the following modules:
 
-- Segmentation:
+Segmentation:
+
   - Vesselness Filtering: Image processing operation that increases brightness of tubular structures and suppresses other shapes (plates and blobs). This module can be used to pre-process image data to make vessel segmentation easier.
   - Level Set Segmentation: This module can segment a *single vessel branch* of a vessel tree from an image (either unprocessed or vesselness-filtered can be used). Place "Seeds" points inside vessels and place "Stoppers" points in areas to avoid (where segmentation leaked out to). To segment multiple branches, you can use Segment Editor module.
-- Analysis:
+
+Analysis:
+
   - [Extract Centerline](Docs/ExtractCenterline.md): Determine centerlines in a vessel tree from an input segmentation or model. It can either do quick network extraction or an accurate centerline computation and branch extraction between designated endpoints. The module can simplify the input to make computations fast (typically 5-20 seconds) without significant decrease in accuracy and can also detect and mark mesh errors (non-manifold edges).
   - [Cross-Section Analysis](Docs/CrossSectionAnalysis.md): Reslice images, segmentations, or models along a centerline curve. It can measure cross-sectional area and various other metrics and displays it as a table or plot.
-- Workflows:
+
+Workflows:
+
   - [Guided Artery Segmentation](Docs/GuidedArterySegmentation.md): Create targeted segmentations from a contrast enhanced CT angio scan using a markups open curve, and to finally extract centerlines from the surface model. Overall, it's a small wrapper to create *short* arterial segments as *single* tubes, with subsequent centerline extraction.
   - [Quick Artery Segmentation](Docs/QuickArterySegmentation.md): Create targeted (small) segmentations from a contrast enhanced CT angio scan using fiducial points, and to finally extract centerlines from the surface model. Overall, it's a small wrapper for common arterial segmentation tasks.
   - [Stenosis measurement 1D](Docs/StenosisMeasurement1D.md): use distances between control points of a straightened open curve to evaluate a stenosis.
@@ -27,8 +32,11 @@ SlicerVMTK extension provides the following modules:
   - [Stenosis measurement 3D](Docs/StenosisMeasurement3D.md): use lumen and wall volumes to evaluate a stenosis.
   - [Branch clipper](Docs/BranchClipper.md) : This module splits a bifurcated vascular segment into individual branches, given its centerline model.
   - [Guided Vein Segmentation](Docs/GuidedVeinSegmentation.md): Segment *major* veins using an open markups curve leveraging the segment editor effects.
-  - [Arterial calcification pre-processor](Docs/ArterialCalcificationPreProcessor.md) : Segment arterial calcifications within a specified distance around a lumen.
-- Legacy modules (replaced by other modules, not developed anymore):
+  - [Arterial calcification pre-processor](Docs/ArterialCalcificationPreProcessor.md): Segment arterial calcifications within a specified distance around a lumen.
+  - [Centerline disassembly](Docs/CenterlineDisassembly.md): Break down a bifurcated centerline model into parts.
+
+Legacy modules (replaced by other modules, not developed anymore):
+
   - [Centerline Computation](Docs/CenterlineComputation.md): This module determines centerlines in a vessel tree from an input model node. *This module is replaced by the much improved, faster and more robust "Extract Centerline" module in current Slicer versions (Slicer-4.11 and later).*
 
 ![](Docs/CenterlineComputationOutput1.png)
