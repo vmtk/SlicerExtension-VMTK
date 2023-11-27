@@ -60,6 +60,7 @@ add_subdirectory(StenosisMeasurement2D)
 add_subdirectory(StenosisMeasurement3D)
 add_subdirectory(BranchClipper)
 add_subdirectory(ArterialCalcificationPreProcessor)
+add_subdirectory(CenterlineDisassembly)
 
 #-----------------------------------------------------------------------------
 set(EXTENSION_CPACK_INSTALL_CMAKE_PROJECTS)
