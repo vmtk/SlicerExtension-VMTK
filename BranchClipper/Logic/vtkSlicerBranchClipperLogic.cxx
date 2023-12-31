@@ -39,14 +39,7 @@ vtkStandardNewMacro(vtkSlicerBranchClipperLogic);
 
 //----------------------------------------------------------------------------
 vtkSlicerBranchClipperLogic::vtkSlicerBranchClipperLogic()
-{
-  this->CenterlineGroupIdsArrayName = (char*) "GroupIds";
-  this->GroupIdsArrayName = (char*) "GroupIds";
-  this->CenterlineRadiusArrayName = (char*) "Radius";
-  this->BlankingArrayName = (char*) "Blanking";
-  this->CenterlineIdsArrayName = (char*) "CenterlineIds";
-  this->TractIdsArrayName = (char*) "TractIds";
-  
+{  
   this->Output = vtkSmartPointer<vtkPolyData>::New();
 }
 
@@ -100,22 +93,22 @@ void vtkSlicerBranchClipperLogic::Execute()
 {
   vtkSmartPointer<vtkvmtkCenterlineBranchExtractor> extractor = vtkSmartPointer<vtkvmtkCenterlineBranchExtractor>::New();
   extractor->SetInputData(this->Centerlines);
-  extractor->SetBlankingArrayName(this->BlankingArrayName);
-  extractor->SetRadiusArrayName(this->CenterlineRadiusArrayName);
-  extractor->SetGroupIdsArrayName(this->GroupIdsArrayName);
-  extractor->SetCenterlineIdsArrayName(this->CenterlineIdsArrayName);
-  extractor->SetTractIdsArrayName(this->TractIdsArrayName);
+  extractor->SetBlankingArrayName(this->BlankingArrayName.c_str());
+  extractor->SetRadiusArrayName(this->CenterlineRadiusArrayName.c_str());
+  extractor->SetGroupIdsArrayName(this->GroupIdsArrayName.c_str());
+  extractor->SetCenterlineIdsArrayName(this->CenterlineIdsArrayName.c_str());
+  extractor->SetTractIdsArrayName(this->TractIdsArrayName.c_str());
   extractor->Update();
   this->OutputCenterlines = extractor->GetOutput();
   
   vtkSmartPointer<vtkvmtkPolyDataCenterlineGroupsClipper> clipper = vtkSmartPointer<vtkvmtkPolyDataCenterlineGroupsClipper>::New();
   clipper->SetInputData(this->Surface);
   clipper->SetCenterlines(this->OutputCenterlines);
-  clipper->SetCenterlineRadiusArrayName(this->CenterlineRadiusArrayName);
-  clipper->SetCenterlineGroupIdsArrayName(this->CenterlineGroupIdsArrayName);
-  clipper->SetGroupIdsArrayName(this->GroupIdsArrayName);
-  clipper->SetCenterlineRadiusArrayName(this->CenterlineRadiusArrayName);
-  clipper->SetBlankingArrayName(this->BlankingArrayName);
+  clipper->SetCenterlineRadiusArrayName(this->CenterlineRadiusArrayName.c_str());
+  clipper->SetCenterlineGroupIdsArrayName(this->CenterlineGroupIdsArrayName.c_str());
+  clipper->SetGroupIdsArrayName(this->GroupIdsArrayName.c_str());
+  clipper->SetCenterlineRadiusArrayName(this->CenterlineRadiusArrayName.c_str());
+  clipper->SetBlankingArrayName(this->BlankingArrayName.c_str());
   clipper->SetCutoffRadiusFactor(this->CutoffRadiusFactor);
   clipper->SetClipValue(this->ClipValue);
   clipper->SetUseRadiusInformation(this->UseRadiusInformation);
@@ -151,7 +144,7 @@ vtkIdType vtkSlicerBranchClipperLogic::GetNumberOfBranches()
 {
   vtkNew<vtkvmtkPolyDataBranchUtilities> groupCounter;
   vtkSmartPointer<vtkIdList> groupIds = vtkSmartPointer<vtkIdList>::New();
-  groupCounter->GetGroupsIdList(this->Output, this->GroupIdsArrayName, groupIds);
+  groupCounter->GetGroupsIdList(this->Output, this->GroupIdsArrayName.c_str(), groupIds);
   return groupIds->GetNumberOfIds();
 }
 
@@ -165,13 +158,13 @@ void vtkSlicerBranchClipperLogic::GetBranch(const vtkIdType index, vtkPolyData *
 {
   vtkNew<vtkvmtkPolyDataBranchUtilities> groupCounter;
   vtkSmartPointer<vtkIdList> groupIds = vtkSmartPointer<vtkIdList>::New();
-  groupCounter->GetGroupsIdList(this->Output, this->GroupIdsArrayName, groupIds);
+  groupCounter->GetGroupsIdList(this->Output, this->GroupIdsArrayName.c_str(), groupIds);
   
   // ExtractGroup modifies its input.
   vtkNew<vtkPolyData> input;
   input->DeepCopy(this->Output);
   
   vtkSmartPointer<vtkvmtkPolyDataBranchUtilities> splitter = vtkSmartPointer<vtkvmtkPolyDataBranchUtilities>::New();
-  splitter->ExtractGroup(input, this->GroupIdsArrayName,
+  splitter->ExtractGroup(input, this->GroupIdsArrayName.c_str(),
                          groupIds->GetId(index), true, surface);
 }
