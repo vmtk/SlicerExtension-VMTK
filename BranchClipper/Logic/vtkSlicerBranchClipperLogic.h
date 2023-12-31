@@ -36,6 +36,7 @@
 
 #include <vtkPolyData.h>
 #include <vtkSetGet.h>
+#include <vtkPolyDataCollection.h>
 
 /// \ingroup Slicer_QtModules_ExtensionTemplate
 class VTK_SLICER_BRANCHCLIPPER_MODULE_LOGIC_EXPORT vtkSlicerBranchClipperLogic :
@@ -88,6 +89,19 @@ public:
   void GetBranch(const vtkIdType index, vtkPolyData * surface);
 
   void Execute();
+  
+  // For bifurcation profiles.
+  vtkSetMacro(BifurcationProfileGroupIdsArrayName, std::string);
+  vtkGetMacro(BifurcationProfileGroupIdsArrayName, std::string);
+  vtkSetMacro(BifurcationProfileBifurcationGroupIdsArrayName, std::string);
+  vtkGetMacro(BifurcationProfileBifurcationGroupIdsArrayName, std::string);
+  vtkSetMacro(BifurcationProfileOrientationArrayName, std::string);
+  vtkGetMacro(BifurcationProfileOrientationArrayName, std::string);
+  
+  vtkPolyDataCollection * GetOutputBifurcationProfilesCollection()
+  {
+    return BifurcationProfilesCollection;
+  }
 
 protected:
   vtkSlicerBranchClipperLogic();
@@ -118,6 +132,15 @@ protected:
   
   vtkSmartPointer<vtkPolyData> Output = nullptr;
   vtkSmartPointer<vtkPolyData> OutputCenterlines = nullptr;
+  
+  // For bifurcation profiles.
+  bool CreatePolyDataFromCell(vtkIdType cellId, vtkPolyData * profiledOutput, vtkPolyData * cellPolyData);
+  
+  std::string BifurcationProfileGroupIdsArrayName = "BifurcationProfileGroupIds";
+  std::string BifurcationProfileBifurcationGroupIdsArrayName = "BifurcationProfileBifurcationGroupIds";
+  std::string BifurcationProfileOrientationArrayName = "BifurcationProfileOrientation";
+  
+  vtkPolyDataCollection * BifurcationProfilesCollection = nullptr;
   
 private:
 
