@@ -26,6 +26,10 @@
 #include <vtkMRMLModelNode.h>
 #include <vtkMRMLSegmentationNode.h>
 #include <vtkSegmentationConverter.h>
+#include <vtkMRMLSubjectHierarchyNode.h>
+#include <vtkMRMLScene.h>
+#include <vtkMRMLDisplayNode.h>
+#include <vtkPolyDataCollection.h>
 
 #include <qSlicerMainWindow.h>
 #include <qSlicerCoreApplication.h>
@@ -96,12 +100,20 @@ void qSlicerBranchClipperModuleWidget::onApply()
     this->showStatusMessage("No segmentation selected.", 5000);
     return;
   }
+  if ((d->bifurcationProfilesToolButton->isChecked() == false)
+    && (d->branchSegmentsToolButton->isChecked() == false))
+  {
+    this->showStatusMessage("No output selected.", 5000);
+    return;
+  }
   // Use controlled segment IDs. We can find and delete them precisely.
   std::string segmentID;
   std::string segmentName;
   
-  if (segmentationNode && segmentationNode->IsA("vtkMRMLSegmentationNode"))
+  if (segmentationNode && segmentationNode->IsA("vtkMRMLSegmentationNode")
+    && (d->branchSegmentsToolButton->isChecked() || d->bifurcationProfilesToolButton->isChecked()) )
   {
+    // Create a closed surface representation of the input segment.
     segmentation = vtkMRMLSegmentationNode::SafeDownCast(d->segmentationSelector->currentNode());
     if (segmentation->GetSegmentation() == nullptr) // Can it happen ?
     {
@@ -155,72 +167,115 @@ void qSlicerBranchClipperModuleWidget::onApply()
     this->showStatusMessage(msg, 5000);
     return;
   }
-  // Work on a copy of the debranched surface.
-  vtkNew<vtkPolyData> output;
-  output->DeepCopy(logic->GetOutput());
   
-  // Create one segment per branch.
-  const vtkIdType numberOfBranches = logic->GetNumberOfBranches();
-  if (numberOfBranches == 0)
+  // Create branch segments on demand; this can be a lengthy process too.
+  if (d->branchSegmentsToolButton->isChecked())
   {
-    const char * msg = "No branches could be retrieved; the centerline may be invalid.";
-    cerr << msg << endl;
-    this->showStatusMessage(msg, 5000);
-    return;
-  }
-  for (vtkIdType i = 0; i < numberOfBranches; i++)
-  {
-    std::string info("Processing branch: ");
-    info += std::to_string(i + 1) + std::string("/") + std::to_string(numberOfBranches) + std::string(".");
-    cout << info << endl;
-    this->showStatusMessage(info.c_str());
-    
-    vtkNew<vtkPolyData> branchSurface;
-    logic->GetBranch(i, branchSurface);
-    if (branchSurface == nullptr)
+    // Create one segment per branch.
+    const vtkIdType numberOfBranches = logic->GetNumberOfBranches();
+    if (numberOfBranches == 0)
     {
-      const char * msg = "Could not retrieve branch surface ";
-      cerr << msg << i << "." << endl;
+      const char * msg = "No branches could be retrieved; the centerline may be invalid.";
+      cerr << msg << endl;
       this->showStatusMessage(msg, 5000);
-      continue;
+      return;
     }
-    if (segmentation)
+    for (vtkIdType i = 0; i < numberOfBranches; i++)
     {
-      // Control branch segment name, id and colour.
-      std::string branchName = segmentName + std::string("_Branch_") + std::to_string((int) i);
-      const std::string branchId = segmentID + std::string("_Branch_") + std::to_string((int) i);
-      double colour[3] = {0.0};
-      // Don't use a black segment on creation.
-      bool segmentRemoved = false;
-      // Don't duplicate on repeat apply.
-      if (segmentation->GetSegmentation()->GetSegment(branchId))
+      std::string info("Processing branch: ");
+      info += std::to_string(i + 1) + std::string("/") + std::to_string(numberOfBranches) + std::string(".");
+      cout << info << endl;
+      this->showStatusMessage(info.c_str());
+      
+      vtkNew<vtkPolyData> branchSurface;
+      logic->GetBranch(i, branchSurface);
+      if (branchSurface == nullptr)
       {
-        // Keep the branch name if it has been changed in UI.
-        branchName = segmentation->GetSegmentation()->GetSegment(branchId)->GetName();
-        // Keep the colour of a segment with known id.
-        segmentation->GetSegmentation()->GetSegment(branchId)->GetColor(colour);
-        segmentation->GetSegmentation()->RemoveSegment(branchId);
-        segmentRemoved = true;
+        const char * msg = "Could not retrieve branch surface ";
+        cerr << msg << i << "." << endl;
+        this->showStatusMessage(msg, 5000);
+        continue;
       }
-      /*
-       * Don't use AddSegmentFromClosedSurfaceRepresentation().
-       * Parameter segmentId is marked vtkNotUsed().
-       */
-      //segmentation->AddSegmentFromClosedSurfaceRepresentation(branchSurface, branchName, segmentRemoved ? colour : nullptr, branchId);
-      vtkSmartPointer<vtkSegment> segment = vtkSmartPointer<vtkSegment>::New();
-      if (segmentRemoved)
+      if (segmentation)
       {
-        // Crash on nullptr. No crash with nullptr in other functions like AddSegmentFromClosedSurfaceRepresentation().
-        segment->SetColor(colour);
-      }
-      segment->SetName(branchName.c_str());
-      segment->SetTag("Segmentation.Status", "inprogress");
-      if (segment->AddRepresentation(vtkSegmentationConverter::GetClosedSurfaceRepresentationName(), branchSurface))
-      {
-        segmentation->GetSegmentation()->AddSegment(segment, branchId);
+        // Control branch segment name, id and colour.
+        std::string branchName = segmentName + std::string("_Branch_") + std::to_string((int) i);
+        const std::string branchId = segmentID + std::string("_Branch_") + std::to_string((int) i);
+        double colour[3] = {0.0};
+        // Don't use a black segment on creation.
+        bool segmentRemoved = false;
+        // Don't duplicate on repeat apply.
+        if (segmentation->GetSegmentation()->GetSegment(branchId))
+        {
+          // Keep the branch name if it has been changed in UI.
+          branchName = segmentation->GetSegmentation()->GetSegment(branchId)->GetName();
+          // Keep the colour of a segment with known id.
+          segmentation->GetSegmentation()->GetSegment(branchId)->GetColor(colour);
+          segmentation->GetSegmentation()->RemoveSegment(branchId);
+          segmentRemoved = true;
+        }
+        /*
+        * Don't use AddSegmentFromClosedSurfaceRepresentation().
+        * Parameter segmentId is marked vtkNotUsed().
+        */
+        //segmentation->AddSegmentFromClosedSurfaceRepresentation(branchSurface, branchName, segmentRemoved ? colour : nullptr, branchId);
+        vtkSmartPointer<vtkSegment> segment = vtkSmartPointer<vtkSegment>::New();
+        if (segmentRemoved)
+        {
+          // Crash on nullptr. No crash with nullptr in other functions like AddSegmentFromClosedSurfaceRepresentation().
+          segment->SetColor(colour);
+        }
+        segment->SetName(branchName.c_str());
+        segment->SetTag("Segmentation.Status", "inprogress");
+        if (segment->AddRepresentation(vtkSegmentationConverter::GetClosedSurfaceRepresentationName(), branchSurface))
+        {
+          segmentation->GetSegmentation()->AddSegment(segment, branchId);
+        }
       }
     }
   }
+  
+  // Create bifurcation profiles on demand; though it's usually faster than creating branch segments.
+  if (d->bifurcationProfilesToolButton->isChecked())
+  {
+    vtkPolyDataCollection * profiledPolyDatas = logic->GetOutputBifurcationProfilesCollection();
+    if (!profiledPolyDatas)
+    {
+      const char * msg = "Could not get a valid collection of bifurcation profiles.";
+      cerr << msg << endl;
+      this->showStatusMessage(msg, 5000);
+      return;
+    }
+    vtkMRMLSubjectHierarchyNode * shNode = mrmlScene()->GetSubjectHierarchyNode();
+    if (shNode == nullptr) // ?
+    {
+      const char * msg = "Could not get a valid subject hierarchy node.";
+      cerr << msg << endl;
+      this->showStatusMessage(msg, 5000);
+      return;
+    }
+    // Create a child folder of the input centerline to contain all created models.
+    vtkIdType shMasterCenterlineId = shNode->GetItemByDataNode(centerlineModel);
+    vtkIdType shFolderId = shNode->CreateFolderItem(shMasterCenterlineId, "Bifurcation profiles");
+    shNode->SetItemExpanded(shFolderId, false);
+    // Seed with a constant for predictable random table and colours.
+    vtkMath::RandomSeed(7);
+    
+    for (int i = 0; i < profiledPolyDatas->GetNumberOfItems(); i++)
+    {
+      // Create model and set colour.
+      vtkPolyData * profilePolyData = vtkPolyData::SafeDownCast(profiledPolyDatas->GetItemAsObject(i));
+      double colour[3] = {vtkMath::Random(), vtkMath::Random(), vtkMath::Random()};
+      vtkSmartPointer<vtkMRMLModelNode> profileModel = vtkMRMLModelNode::SafeDownCast(mrmlScene()->AddNewNodeByClass("vtkMRMLModelNode"));
+      profileModel->CreateDefaultDisplayNodes();
+      profileModel->SetAndObservePolyData(profilePolyData);
+      profileModel->GetDisplayNode()->SetColor(colour);
+      // Reparent in subject hierarchy.
+      vtkIdType shModelId = shNode->GetItemByDataNode(profileModel);
+      shNode->SetItemParent(shModelId, shFolderId);
+    }
+  }
+  
   this->showStatusMessage("Finished", 5000);
 }
 

@@ -25,6 +25,7 @@
 
 #include <vtkNew.h>
 #include <vtkObjectFactory.h>
+#include <vtkPolyLine.h>
 
 // STD includes
 #include <cassert>
@@ -32,8 +33,9 @@
 #include <vtkvmtkPolyDataCenterlineGroupsClipper.h>
 #include <vtkvmtkCenterlineBranchExtractor.h>
 #include <vtkvmtkPolyDataBranchUtilities.h>
+#include <vtkvmtkPolyDataBifurcationProfiles.h>
 
-// This class is based on vmtkbranchclipper.py.
+// This class is based on vmtkbranchclipper.py and on vmtkbifurcationprofiles.py.
 //----------------------------------------------------------------------------
 vtkStandardNewMacro(vtkSlicerBranchClipperLogic);
 
@@ -41,6 +43,7 @@ vtkStandardNewMacro(vtkSlicerBranchClipperLogic);
 vtkSlicerBranchClipperLogic::vtkSlicerBranchClipperLogic()
 {  
   this->Output = vtkSmartPointer<vtkPolyData>::New();
+  this->BifurcationProfilesCollection = vtkSmartPointer<vtkPolyDataCollection>::New();
 }
 
 //----------------------------------------------------------------------------
@@ -137,6 +140,29 @@ void vtkSlicerBranchClipperLogic::Execute()
   {
     this->Output->DeepCopy(clipper->GetClippedOutput());
   }
+  
+  // Always compute the bifurcation profiles, it's fast enough.
+  vtkNew<vtkvmtkPolyDataBifurcationProfiles> profiler;
+  profiler->SetInputData(this->Output);;
+  profiler->SetGroupIdsArrayName(this->GroupIdsArrayName.c_str());
+  profiler->SetCenterlines(this->OutputCenterlines);
+  profiler->SetCenterlineRadiusArrayName(this->CenterlineRadiusArrayName.c_str());
+  profiler->SetCenterlineGroupIdsArrayName(this->CenterlineGroupIdsArrayName.c_str());
+  profiler->SetCenterlineIdsArrayName(this->CenterlineIdsArrayName.c_str());
+  profiler->SetCenterlineTractIdsArrayName(this->TractIdsArrayName.c_str());
+  profiler->SetBlankingArrayName(this->BlankingArrayName.c_str());
+  profiler->SetBifurcationProfileGroupIdsArrayName(this->BifurcationProfileGroupIdsArrayName.c_str());
+  profiler->SetBifurcationProfileBifurcationGroupIdsArrayName(this->BifurcationProfileBifurcationGroupIdsArrayName.c_str());
+  profiler->SetBifurcationProfileOrientationArrayName(this->BifurcationProfileOrientationArrayName.c_str());
+  profiler->Update();
+  vtkPolyData * profiledOutput = profiler->GetOutput();
+  
+  for (int i = 0; i < profiledOutput->GetNumberOfCells(); i++) // For every cell.
+  {
+    vtkSmartPointer<vtkPolyData> cellPolyData = vtkSmartPointer<vtkPolyData>::New();
+    this->CreatePolyDataFromCell(i, profiledOutput, cellPolyData);
+    this->BifurcationProfilesCollection->AddItem(cellPolyData);
+  }
 }
 
 //---------------------------------------------------------------------------
@@ -167,4 +193,41 @@ void vtkSlicerBranchClipperLogic::GetBranch(const vtkIdType index, vtkPolyData *
   vtkSmartPointer<vtkvmtkPolyDataBranchUtilities> splitter = vtkSmartPointer<vtkvmtkPolyDataBranchUtilities>::New();
   splitter->ExtractGroup(input, this->GroupIdsArrayName.c_str(),
                          groupIds->GetId(index), true, surface);
+}
+
+//---------------------------------------------------------------------------
+bool vtkSlicerBranchClipperLogic::CreatePolyDataFromCell(vtkIdType cellId, vtkPolyData* profiledOutput, vtkPolyData * cellPolyData)
+{
+  if (profiledOutput == nullptr)
+  {
+    vtkErrorMacro("Input polydata is NULL");
+    return false;
+  }
+  if (cellPolyData == nullptr)
+  {
+    vtkErrorMacro("Target cell polydata is NULL");
+    return false;
+  }
+  vtkSmartPointer<vtkCellArray> cellArray = vtkSmartPointer<vtkCellArray>::New();
+  vtkCell * cell = profiledOutput->GetCell(cellId);
+  if (cell == nullptr) //?
+  {
+    vtkErrorMacro("NULL cell retrieved, aborting");
+    return false;
+  }
+  vtkPolyLine * polyLine = vtkPolyLine::SafeDownCast(cell);
+  cellArray->InsertNextCell(polyLine->GetNumberOfPoints() + 1); // *
+  for (int i = 0; i < polyLine->GetNumberOfPoints(); i++)
+  {
+    cellArray->InsertCellPoint(i);
+  }
+  cellArray->InsertCellPoint(polyLine->GetNumberOfPoints()); // *
+  vtkSmartPointer<vtkPoints> cellPoints = vtkSmartPointer<vtkPoints>::New();
+  cellPoints->DeepCopy(polyLine->GetPoints());
+  cellPoints->InsertNextPoint(cellPoints->GetPoint(0)); // * Visually close line
+  cellPolyData->Initialize();
+  cellPolyData->SetLines(cellArray);
+  cellPolyData->SetPoints(cellPoints);
+  
+  return true;
 }
