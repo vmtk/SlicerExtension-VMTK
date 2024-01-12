@@ -955,8 +955,8 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
         # Add current cell as a curve node
         assignAttribute = vtk.vtkAssignAttribute()
         assignAttribute.SetInputData(mergedCenterlines)
-        assignAttribute.Assign(self.groupIdsArrayName, vtk.vtkDataSetAttributes.SCALARS,
-                               vtk.vtkAssignAttribute.CELL_DATA)
+        assignAttribute.Assign(self.groupIdsArrayName, vtk.vtkDataSetAttributes.SCALARS, vtk.vtkAssignAttribute.CELL_DATA)
+
         thresholder = vtk.vtkThreshold()
         thresholder.SetInputConnection(assignAttribute.GetOutputPort())
         groupId = mergedCenterlines.GetCellData().GetArray(self.groupIdsArrayName).GetValue(cellId)
@@ -989,7 +989,10 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
 
         curveNode.SetAttribute("CellId", str(cellId))
         curveNode.SetAttribute("GroupId", str(groupId))
-        curveNode.SetControlPointPositionsWorld(thresholder.GetOutput().GetPoints())
+
+        # Add control points in the order as appears in the cell (line) because the point IDs are not in the
+        # correct order (the branching points always have the highest ID).
+        curveNode.SetControlPointPositionsWorld(thresholder.GetOutput().GetCell(0).GetPoints())
 
         self._addCurveMeasurementArray(curveNode, thresholder.GetOutput().GetPointData().GetArray('Radius'))
 
