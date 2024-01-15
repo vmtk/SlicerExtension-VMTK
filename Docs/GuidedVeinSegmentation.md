@@ -30,7 +30,3 @@ Secondary parameters should be rarely tuned :
  - Bulging may be the departure of branches or excessive localised segmentation.
  - The result of the very first run may indicate tuning until a satisfactory result is obtained.
 
-### Disclaimer
-
-Use at your own risks.
-

@@ -28,9 +28,3 @@ Show models of the surfaces being cut down and measured.
  - A small part of the drawn tube is excluded at each end during processing; the boundary points do not extend in the excluded parts.
  - The usefulness of evaluating arterial stenosis by volume in clinical practice is yet to be determined.
 
-**Disclaimer**
-
-Use at your own risks.
-
-
-
