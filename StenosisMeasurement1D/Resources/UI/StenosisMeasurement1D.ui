@@ -30,7 +30,7 @@
          <string>Pick the input markups curve.</string>
         </property>
         <property name="nodeTypes">
-         <stringlist>
+         <stringlist notr="true">
           <string>vtkMRMLMarkupsCurveNode</string>
          </stringlist>
         </property>
@@ -53,7 +53,7 @@
          <bool>true</bool>
         </property>
         <property name="SlicerParameterName" stdset="0">
-         <string>inputCurveNode</string>
+         <string notr="true">inputCurveNode</string>
         </property>
        </widget>
       </item>
