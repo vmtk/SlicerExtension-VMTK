@@ -59,6 +59,9 @@
             <property name="selectNodeUponCreation">
              <bool>false</bool>
             </property>
+            <property name="SlicerParameterName" stdset="0">
+             <string>inputSliceNode</string>
+            </property>
            </widget>
           </item>
           <item row="1" column="0">
@@ -98,6 +101,9 @@ Clicking at a control point allows to track the slice orientation in the selecte
             <property name="selectNodeUponCreation">
              <bool>false</bool>
             </property>
+            <property name="SlicerParameterName" stdset="0">
+             <string>inputFiducialNode</string>
+            </property>
            </widget>
           </item>
           <item row="2" column="0">
@@ -130,7 +136,7 @@ Clicking at a control point allows to track the slice orientation in the selecte
       <item>
        <widget class="ctkCollapsibleButton" name="optionsCollapsibleButton">
         <property name="toolTip">
-         <string>Right click for more.</string>
+         <string/>
         </property>
         <property name="text">
          <string>Options</string>
@@ -153,7 +159,10 @@ Clicking at a control point allows to track the slice orientation in the selecte
               <string>Apply to all segments</string>
              </property>
              <property name="checked">
-              <bool>true</bool>
+              <bool>false</bool>
+             </property>
+             <property name="SlicerParameterName" stdset="0">
+              <string>applyToAllSegments</string>
              </property>
             </widget>
            </item>
@@ -167,6 +176,9 @@ Clicking at a control point allows to track the slice orientation in the selecte
              </property>
              <property name="checked">
               <bool>true</bool>
+             </property>
+             <property name="SlicerParameterName" stdset="0">
+              <string>limitToClosestIslands</string>
              </property>
             </widget>
            </item>
@@ -203,6 +215,9 @@ The result is influenced by :
                   <property name="checked">
                    <bool>true</bool>
                   </property>
+                  <property name="SlicerParameterName" stdset="0">
+                   <string>createOutputModel</string>
+                  </property>
                  </widget>
                 </item>
                 <item>
@@ -214,6 +229,9 @@ The slice orientation in the selected view will be set to the known previous one
                   </property>
                   <property name="text">
                    <string>Reset control point orientation</string>
+                  </property>
+                  <property name="SlicerParameterName" stdset="0">
+                   <string>resetControlPointOrientation</string>
                   </property>
                  </widget>
                 </item>
