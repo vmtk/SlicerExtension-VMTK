@@ -1,9 +1,20 @@
-import os
-import unittest
 import logging
-import vtk, qt, ctk, slicer
+import os
+from typing import Annotated, Optional
+
+import vtk, qt
+
+import slicer
+from slicer.i18n import tr as _
+from slicer.i18n import translate
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
+from slicer.parameterNodeWrapper import (
+    parameterNodeWrapper,
+    WithinRange,
+)
+
+from slicer import vtkMRMLScalarVolumeNode
 
 #
 # StenosisMeasurement1D
@@ -30,6 +41,14 @@ and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR0132
 """
 
 #
+# StenosisMeasurement1DParameterNode
+#
+
+@parameterNodeWrapper
+class StenosisMeasurement1DParameterNode:
+    inputCurveNode: slicer.vtkMRMLMarkupsCurveNode
+
+#
 # StenosisMeasurement1DWidget
 #
 
@@ -38,7 +57,7 @@ class StenosisMeasurement1DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
 
-  def __init__(self, parent=None):
+  def __init__(self, parent=None) -> None:
     """
     Called when the user opens the module the first time and the widget is initialized.
     """
@@ -46,9 +65,9 @@ class StenosisMeasurement1DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
     VTKObservationMixin.__init__(self)  # needed for parameter node observation
     self.logic = None
     self._parameterNode = None
-    self._updatingGUIFromParameterNode = False
+    self._parameterNodeGuiTag = None
 
-  def setup(self):
+  def setup(self) -> None:
     """
     Called when the user opens the module the first time and the widget is initialized.
     """
@@ -77,48 +96,46 @@ class StenosisMeasurement1DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
     
     # Make sure parameter node is initialized (needed for module reload)
     self.initializeParameterNode()
-
-    # These connections ensure that whenever user changes some settings on the GUI, that is saved in the MRML scene
-    # (in the selected parameter node).
-    self.ui.inputMarkupsSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
     
     # Application connections
     self.ui.inputMarkupsSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.setInputCurve(node))
     
-    # Update logic from parameter node
-    self.logic.setInputCurve(self._parameterNode.GetNodeReference("InputCurve"))
-    
     # Fill the table through a callback from logic.
-    self.logic.widgetCallback = self.populateTable
+    self.logic._widgetCallback = self.populateTable
 
-  def cleanup(self):
+  def cleanup(self) -> None:
     """
     Called when the application closes and the module widget is destroyed.
     """
     self.removeObservers()
 
-  def enter(self):
+  def enter(self) -> None:
     """
     Called each time the user opens this module.
     """
     # Make sure parameter node exists and observed
     self.initializeParameterNode()
+    self.setInputCurve(self._parameterNode.inputCurveNode)
 
-  def exit(self):
+  def exit(self) -> None:
     """
     Called each time the user opens a different module.
     """
-    # Do not react to parameter node changes (GUI wlil be updated when the user enters into the module)
-    self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
+    self.logic.updateCurveObservations(None)
+    self.logic.setWidgetCallback(None)
+    # Do not react to parameter node changes (GUI will be updated when the user enters into the module)
+    if self._parameterNode:
+        self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
+        self._parameterNodeGuiTag = None
 
-  def onSceneStartClose(self, caller, event):
+  def onSceneStartClose(self, caller, event) -> None:
     """
     Called just before the scene is closed.
     """
     # Parameter node will be reset, do not use it anymore
     self.setParameterNode(None)
 
-  def onSceneEndClose(self, caller, event):
+  def onSceneEndClose(self, caller, event) -> None:
     """
     Called just after the scene is closed.
     """
@@ -127,7 +144,7 @@ class StenosisMeasurement1DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
       self.initializeParameterNode()
     self.logic.InitMemberVariables()
 
-  def initializeParameterNode(self):
+  def initializeParameterNode(self) -> None:
     """
     Ensure parameter node exists and observed.
     """
@@ -136,67 +153,28 @@ class StenosisMeasurement1DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
 
     self.setParameterNode(self.logic.getParameterNode())
 
-  def setParameterNode(self, inputParameterNode):
+  def setParameterNode(self, inputParameterNode: Optional[StenosisMeasurement1DParameterNode]) -> None:
     """
     Set and observe parameter node.
     Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
     """
-
-    if inputParameterNode:
-      self.logic.setDefaultParameters(inputParameterNode)
-
-    # Unobserve previously selected parameter node and add an observer to the newly selected.
-    # Changes of parameter node are observed so that whenever parameters are changed by a script or any other module
-    # those are reflected immediately in the GUI.
-    if self._parameterNode is not None:
-      self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
+    if self._parameterNode:
+        self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
     self._parameterNode = inputParameterNode
-    if self._parameterNode is not None:
-      self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
+    if self._parameterNode:
+        # Note: in the .ui file, a Qt dynamic property called "SlicerParameterName" is set on each
+        # ui element that needs connection.
+        self._parameterNodeGuiTag = self._parameterNode.connectGui(self.ui)
 
-    # Initial GUI update
-    self.updateGUIFromParameterNode()
-
-  def updateGUIFromParameterNode(self, caller=None, event=None):
-    """
-    This method is called whenever parameter node is changed.
-    The module GUI is updated to show the current state of the parameter node.
-    """
-
-    if self._parameterNode is None or self._updatingGUIFromParameterNode:
-      return
-
-    # Make sure GUI changes do not call updateParameterNodeFromGUI (it could cause infinite loop)
-    self._updatingGUIFromParameterNode = True
-
-    # Update node selectors and sliders
-    self.ui.inputMarkupsSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputCurve"))
-
-    # All the GUI updates are done
-    self._updatingGUIFromParameterNode = False
-
-  def updateParameterNodeFromGUI(self, caller=None, event=None):
-    """
-    This method is called when the user makes any change in the GUI.
-    The changes are saved into the parameter node (so that they are restored when the scene is saved and loaded).
-    """
-
-    if self._parameterNode is None or self._updatingGUIFromParameterNode:
-      return
-
-    wasModified = self._parameterNode.StartModify()  # Modify all properties in a single batch
-
-    self._parameterNode.SetNodeReferenceID("InputCurve", self.ui.inputMarkupsSelector.currentNodeID)
-
-    self._parameterNode.EndModify(wasModified)
-
-  def setInputCurve(self, curveNode):
-    self.logic.setInputCurve(curveNode)
+  def setInputCurve(self, curveNode) -> None:
+    self.logic.updateCurveObservations(None)
+    self._parameterNode.inputCurveNode = curveNode
+    self.logic.updateCurveObservations(curveNode)
     self.populateTable()
-    self.logic.widgetCallback = self.populateTable
+    self.logic.setWidgetCallback(self.populateTable)
 
-  def populateTable(self):
-    inputCurve = self.ui.inputMarkupsSelector.currentNode()
+  def populateTable(self) -> None:
+    inputCurve = self._parameterNode.inputCurveNode
     outputTable = self.ui.outputTableWidget
     # Clean table completely.
     outputTable.clear()
@@ -261,38 +239,37 @@ class StenosisMeasurement1DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
 
 class StenosisMeasurement1DLogic(ScriptedLoadableModuleLogic):
 
-  def __init__(self):
+  def __init__(self) -> None:
     """
     Called when the logic class is instantiated. Can be used for initializing member variables.
     """
     ScriptedLoadableModuleLogic.__init__(self)
     self.InitMemberVariables()
+  
+  def getParameterNode(self):
+    return self._parameterNode
     
-  def InitMemberVariables(self):
-    self.inputCurve = None
-    self.observations = []
-    self.widgetCallback = None
-    
-  def setDefaultParameters(self, parameterNode):
-    """
-    Initialize parameter node with default settings.
-    """
-    pass
+  def InitMemberVariables(self) -> None:
+    self._parameterNode = StenosisMeasurement1DParameterNode(super().getParameterNode())
+    self._observations = []
+    self._widgetCallback = None
+  
+  def setWidgetCallback(self, widgetCallback):
+    self._widgetCallback = widgetCallback
 
-  def setInputCurve(self, curveNode):
+  def updateCurveObservations(self, curveNode) -> None:
     # Remove all observations on current curve
-    if self.inputCurve:
-        for observation in self.observations:
-            self.inputCurve.RemoveObserver(observation)
-    self.observations.clear()
+    if curveNode:
+        for observation in self._observations:
+            curveNode.RemoveObserver(observation)
+    self._observations.clear()
     
-    self.inputCurve = curveNode
     # React when points are moved, removed or added.
-    if self.inputCurve:
-        self.observations.append(self.inputCurve.AddObserver(slicer.vtkMRMLMarkupsNode.PointEndInteractionEvent, self.onCurveControlPointEvent))
+    if curveNode:
+        self._observations.append(curveNode.AddObserver(slicer.vtkMRMLMarkupsNode.PointEndInteractionEvent, self.onCurveControlPointEvent))
         # Don't use PointAddedEvent. It is fired on mouse move in views.
-        self.observations.append(self.inputCurve.AddObserver(slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.onCurveControlPointEvent))
-        self.observations.append(self.inputCurve.AddObserver(slicer.vtkMRMLMarkupsNode.PointRemovedEvent, self.onCurveControlPointEvent))
+        self._observations.append(curveNode.AddObserver(slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.onCurveControlPointEvent))
+        self._observations.append(curveNode.AddObserver(slicer.vtkMRMLMarkupsNode.PointRemovedEvent, self.onCurveControlPointEvent))
         self.process()
     else:
         msg = "No curve."
@@ -300,31 +277,32 @@ class StenosisMeasurement1DLogic(ScriptedLoadableModuleLogic):
         slicer.app.processEvents()
         logging.info(msg)
         # Signal widget to clear the table.
-        if self.widgetCallback:
-            self.widgetCallback()
+        if self._widgetCallback:
+            self._widgetCallback()
 
-  def onCurveControlPointEvent(self, caller, event):
+  def onCurveControlPointEvent(self, caller, event) -> None:
     self.process()
 
-  def process(self):
-    if not self.inputCurve:
-      msg = "No curve."
+  def process(self) -> None:
+    inputCurve = self._parameterNode.inputCurveNode
+    if not inputCurve:
+      msg = _("No curve.")
       slicer.util.showStatusMessage(msg, 4000)
       slicer.app.processEvents()
       logging.info(msg)
       return
     # Don't do anything if there are 2 points only, already a line.
-    if (self.inputCurve.GetNumberOfControlPoints() == 2):
+    if (inputCurve.GetNumberOfControlPoints() == 2):
         # Just signal widget to fill the table with results.
-        if self.widgetCallback:
-            self.widgetCallback()
+        if self._widgetCallback:
+            self._widgetCallback()
         return
 
     # Generate a linear polydata from first and last control point.
-    numberOfControlPoints = self.inputCurve.GetNumberOfControlPoints()
+    numberOfControlPoints = inputCurve.GetNumberOfControlPoints()
     lineSource = vtk.vtkLineSource()
     curveControlPoints = vtk.vtkPoints()
-    self.inputCurve.GetControlPointPositionsWorld(curveControlPoints)
+    inputCurve.GetControlPointPositionsWorld(curveControlPoints)
     firstControlPointPosition = curveControlPoints.GetPoint(0)
     lastControlPointPosition = curveControlPoints.GetPoint(numberOfControlPoints - 1)
     lineSource.SetPoint1(firstControlPointPosition)
@@ -361,12 +339,12 @@ class StenosisMeasurement1DLogic(ScriptedLoadableModuleLogic):
     sortedCumulativeDistanceArray = sorted(cumulativeDistanceArray,
                                            key=lambda distance: distance[0])
     for pointIndex in range(1, numberOfControlPoints - 1):
-        self.inputCurve.SetNthControlPointPosition(pointIndex,
+        inputCurve.SetNthControlPointPosition(pointIndex,
                                                    sortedCumulativeDistanceArray[pointIndex][1])
     
     # Signal widget to fill the table with results.
-    if self.widgetCallback:
-        self.widgetCallback()
+    if self._widgetCallback:
+        self._widgetCallback()
 
 #
 # StenosisMeasurement1DTest

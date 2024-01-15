@@ -52,6 +52,9 @@
         <property name="renameEnabled">
          <bool>true</bool>
         </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>inputCurveNode</string>
+        </property>
        </widget>
       </item>
      </layout>
