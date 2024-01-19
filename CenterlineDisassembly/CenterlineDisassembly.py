@@ -174,7 +174,7 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
             # Compute output
             component = self.ui.componentComboBox.currentData
             shFolderId = -1
-            if component == 1:
+            if component == BIFURCATIONS_ITEM_ID:
                 bifurcationsPolyDatas = self.logic.processGroupIds(self._parameterNode.inputCenterline, True)
                 if (len(bifurcationsPolyDatas)):
                     shFolderId = self._createSubjectHierarchyFolderNode(self.ui.componentComboBox.currentText)
@@ -182,7 +182,7 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
                     bifurcationModel = slicer.modules.models.logic().AddModel(bifurcationPolyData)
                     bifurcationModel.GetDisplayNode().SetColor([0.67, 1.0, 1.0])
                     self._reparentNodeToSubjectHierarchyFolderNode(shFolderId, bifurcationModel)
-            elif component == 2:
+            elif component == BRANCHES_ITEM_ID:
                 branchesPolyDatas = self.logic.processGroupIds(self._parameterNode.inputCenterline, False)
                 if (len(branchesPolyDatas)):
                     shFolderId = self._createSubjectHierarchyFolderNode(self.ui.componentComboBox.currentText)
@@ -190,7 +190,7 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
                     branchModel = slicer.modules.models.logic().AddModel(branchPolyData)
                     branchModel.GetDisplayNode().SetColor([0.0, 0.0, 1.0])
                     self._reparentNodeToSubjectHierarchyFolderNode(shFolderId, branchModel)
-            elif component == 3:
+            elif component == CENTERLINES_ITEM_ID:
                 centerlinesPolyDatas = self.logic.processCenterlineIds(self._parameterNode.inputCenterline)
                 if (len(centerlinesPolyDatas)):
                     shFolderId = self._createSubjectHierarchyFolderNode(self.ui.componentComboBox.currentText)
