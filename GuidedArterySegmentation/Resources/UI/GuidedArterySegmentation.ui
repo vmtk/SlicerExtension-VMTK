@@ -44,7 +44,7 @@ The control points are assumed to be on the contrasted lumen.</string>
          <locale language="English" country="UnitedStates"/>
         </property>
         <property name="nodeTypes">
-         <stringlist>
+         <stringlist notr="true">
           <string>vtkMRMLMarkupsCurveNode</string>
          </stringlist>
         </property>
@@ -67,7 +67,7 @@ The control points are assumed to be on the contrasted lumen.</string>
          <bool>true</bool>
         </property>
         <property name="SlicerParameterName" stdset="0">
-         <string>inputCurveNode</string>
+         <string notr="true">inputCurveNode</string>
         </property>
        </widget>
       </item>
@@ -104,7 +104,7 @@ If a Shape::Tube node is specified below, this parameter is ignored.</string>
          <double>8.000000000000000</double>
         </property>
         <property name="SlicerParameterName" stdset="0">
-         <string>tubeDiameter</string>
+         <string notr="true">tubeDiameter</string>
         </property>
        </widget>
       </item>
@@ -124,7 +124,7 @@ If a Shape::Tube node is specified below, this parameter is ignored.</string>
          <locale language="English" country="UnitedStates"/>
         </property>
         <property name="nodeTypes">
-         <stringlist>
+         <stringlist notr="true">
           <string>vtkMRMLSegmentationNode</string>
          </stringlist>
         </property>
@@ -141,7 +141,7 @@ If a Shape::Tube node is specified below, this parameter is ignored.</string>
          <bool>true</bool>
         </property>
         <property name="SlicerParameterName" stdset="0">
-         <string>outputSegmentation</string>
+         <string notr="true">outputSegmentation</string>
         </property>
        </widget>
       </item>
@@ -156,7 +156,7 @@ If a Shape::Tube node is specified below, this parameter is ignored.</string>
            <locale language="English" country="UnitedStates"/>
           </property>
           <property name="nodeTypes">
-           <stringlist>
+           <stringlist notr="true">
             <string>vtkMRMLSliceNode</string>
            </stringlist>
           </property>
@@ -173,7 +173,7 @@ If a Shape::Tube node is specified below, this parameter is ignored.</string>
            <bool>false</bool>
           </property>
           <property name="SlicerParameterName" stdset="0">
-           <string>inputSliceNode</string>
+           <string notr="true">inputSliceNode</string>
           </property>
          </widget>
         </item>
@@ -341,7 +341,7 @@ If specified, the regular tube diameter above is ignored.</string>
           <number>100</number>
          </property>
          <property name="SlicerParameterName" stdset="0">
-          <string>intensityTolerance</string>
+          <string notr="true">intensityTolerance</string>
          </property>
         </widget>
        </item>
@@ -377,7 +377,7 @@ If specified, the regular tube diameter above is ignored.</string>
           <double>2.000000000000000</double>
          </property>
          <property name="SlicerParameterName" stdset="0">
-          <string>neighbourhoodSize</string>
+          <string notr="true">neighbourhoodSize</string>
          </property>
         </widget>
        </item>
@@ -391,7 +391,7 @@ If specified, the regular tube diameter above is ignored.</string>
       <string>Extract centerlines</string>
      </property>
      <property name="SlicerParameterName" stdset="0">
-      <string>extractCenterlines</string>
+      <string notr="true">extractCenterlines</string>
      </property>
     </widget>
    </item>
