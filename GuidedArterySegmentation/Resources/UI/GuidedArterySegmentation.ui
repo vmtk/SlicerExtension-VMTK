@@ -66,6 +66,9 @@ The control points are assumed to be on the contrasted lumen.</string>
         <property name="renameEnabled">
          <bool>true</bool>
         </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>inputCurveNode</string>
+        </property>
        </widget>
       </item>
       <item row="7" column="0">
@@ -99,6 +102,9 @@ If a Shape::Tube node is specified below, this parameter is ignored.</string>
         </property>
         <property name="value">
          <double>8.000000000000000</double>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>tubeDiameter</string>
         </property>
        </widget>
       </item>
@@ -134,6 +140,9 @@ If a Shape::Tube node is specified below, this parameter is ignored.</string>
         <property name="renameEnabled">
          <bool>true</bool>
         </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>outputSegmentation</string>
+        </property>
        </widget>
       </item>
       <item row="2" column="1">
@@ -162,6 +171,9 @@ If a Shape::Tube node is specified below, this parameter is ignored.</string>
           </property>
           <property name="selectNodeUponCreation">
            <bool>false</bool>
+          </property>
+          <property name="SlicerParameterName" stdset="0">
+           <string>inputSliceNode</string>
           </property>
          </widget>
         </item>
@@ -328,6 +340,9 @@ If specified, the regular tube diameter above is ignored.</string>
          <property name="value">
           <number>100</number>
          </property>
+         <property name="SlicerParameterName" stdset="0">
+          <string>intensityTolerance</string>
+         </property>
         </widget>
        </item>
        <item row="1" column="0">
@@ -361,6 +376,9 @@ If specified, the regular tube diameter above is ignored.</string>
          <property name="value">
           <double>2.000000000000000</double>
          </property>
+         <property name="SlicerParameterName" stdset="0">
+          <string>neighbourhoodSize</string>
+         </property>
         </widget>
        </item>
       </layout>
@@ -371,6 +389,9 @@ If specified, the regular tube diameter above is ignored.</string>
     <widget class="QCheckBox" name="extractCenterlinesCheckBox">
      <property name="text">
       <string>Extract centerlines</string>
+     </property>
+     <property name="SlicerParameterName" stdset="0">
+      <string>extractCenterlines</string>
      </property>
     </widget>
    </item>
