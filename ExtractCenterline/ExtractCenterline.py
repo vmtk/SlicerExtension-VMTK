@@ -4,7 +4,8 @@ import logging
 import vtk, qt, ctk, slicer
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
-
+from slicer.i18n import tr as _
+from slicer.i18n import translate
 #
 # ExtractCenterline
 #
@@ -23,12 +24,12 @@ class ExtractCenterline(ScriptedLoadableModule):
                                     "Daniel Haehn (Boston Children's Hospital)",
                                     "Luca Antiga (Orobix)",
                                     "Steve Pieper (Isomics)"]
-        self.parent.helpText = """
+        self.parent.helpText = _("""
     Compute and quantify centerline network of vasculature or airways from a surface model.
     Surface model can be created from image volume using Segment Editor module.
     This module replaces the old "Centerline Computation" module. Documentation is available
     <a href="https://github.com/vmtk/SlicerExtension-VMTK">here</a>.
-    """
+    """)
         self.parent.acknowledgementText = """
     """  # TODO: replace with organization, grant and thanks.
 
@@ -219,7 +220,7 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
         inputSurfacePolyData = self.logic.polyDataFromNode(self._parameterNode.GetNodeReference("InputSurface"),
                                                            self._parameterNode.GetParameter("InputSegmentID"))
         if not inputSurfacePolyData or inputSurfacePolyData.GetNumberOfPoints() == 0:
-            raise ValueError("Valid input surface is required")
+            raise ValueError(_("Valid input surface is required"))
 
         preprocessEnabled = (self._parameterNode.GetParameter("PreprocessInputSurface") == "true")
         if not preprocessEnabled:
@@ -237,7 +238,7 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
         qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
         try:
             # Preprocessing
-            slicer.util.showStatusMessage("Preprocessing...")
+            slicer.util.showStatusMessage(_("Preprocessing..."))
             slicer.app.processEvents()  # force update
             preprocessedPolyData = self.getPreprocessedPolyData()
             # Save preprocessing result to model node
@@ -253,7 +254,7 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
             # Get non-manifold edges
             meshErrorsMarkupsNode = self._parameterNode.GetNodeReference("MeshErrors")
             if meshErrorsMarkupsNode:
-                slicer.util.showStatusMessage("Get manifold edges...")
+                slicer.util.showStatusMessage(_("Get manifold edges..."))
                 slicer.app.processEvents()  # force update
                 meshErrorsMarkupsNode.RemoveAllControlPoints()
                 nonManifoldEdgePositions = self.logic.extractNonManifoldEdges(preprocessedPolyData)
@@ -261,8 +262,8 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
                     meshErrorsMarkupsNode.AddControlPoint(vtk.vtkVector3d(position), "NME {0}".format(pointIndex))
                 numberOfNonManifoldEdges = len(nonManifoldEdgePositions)
                 if numberOfNonManifoldEdges > 0:
-                    logging.warning("Found {0} non-manifold edges.".format(numberOfNonManifoldEdges)
-                                    + " Centerline computation may fail. Try to increase target point count or reduce decimation aggressiveness")
+                    logging.warning(_("Found {0} non-manifold edges.").format(numberOfNonManifoldEdges)
+                                    + _(" Centerline computation may fail. Try to increase target point count or reduce decimation aggressiveness"))
                     # TODO: we could remove non-manifold edges by using vtkFeatureEdges
 
             endPointsMarkupsNode = self._parameterNode.GetNodeReference("EndPoints")
@@ -273,7 +274,7 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
             networkCurveNode = self._parameterNode.GetNodeReference("NetworkCurve")
             networkPropertiesTableNode = self._parameterNode.GetNodeReference("NetworkProperties")
             if networkModelNode or networkCurveNode or networkPropertiesTableNode:
-                slicer.util.showStatusMessage("Extract network...")
+                slicer.util.showStatusMessage(_("Extract network..."))
                 slicer.app.processEvents()  # force update
                 networkPolyData = self.logic.extractNetwork(preprocessedPolyData, endPointsMarkupsNode, computeGeometry=True)
             if networkModelNode:
@@ -294,7 +295,7 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
             voronoiDiagramModelNode = self._parameterNode.GetNodeReference("VoronoiDiagram")
             curveSamplingDistance = float(self._parameterNode.GetParameter("CurveSamplingDistance"))
             if centerlineModelNode or centerlineCurveNode or centerlinePropertiesTableNode or voronoiDiagramModelNode:
-                slicer.util.showStatusMessage("Extract centerline...")
+                slicer.util.showStatusMessage(_("Extract centerline..."))
                 slicer.app.processEvents()  # force update
                 centerlinePolyData, voronoiDiagramPolyData = self.logic.extractCenterline(preprocessedPolyData, endPointsMarkupsNode, curveSamplingDistance)
             if centerlineModelNode:
@@ -313,16 +314,16 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
                     voronoiDiagramModelNode.GetDisplayNode().SetOpacity(0.2)
 
             if centerlineCurveNode or centerlinePropertiesTableNode:
-                slicer.util.showStatusMessage("Generate curves and quantification results table...")
+                slicer.util.showStatusMessage(_("Generate curves and quantification results table..."))
                 slicer.app.processEvents()  # force update
                 self.logic.createCurveTreeFromCenterline(centerlinePolyData, centerlineCurveNode, centerlinePropertiesTableNode, curveSamplingDistance)
 
         except Exception as e:
-            slicer.util.errorDisplay("Failed to compute results: "+str(e))
+            slicer.util.errorDisplay(_("Failed to compute results: ")+str(e))
             import traceback
             traceback.print_exc()
         qt.QApplication.restoreOverrideCursor()
-        slicer.util.showStatusMessage("Centerline analysis complete.", 3000)
+        slicer.util.showStatusMessage(_("Centerline analysis complete."), 3000)
 
     def onAutoDetectEndPoints(self):
         """
@@ -330,7 +331,7 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
         """
         qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
         try:
-            slicer.util.showStatusMessage("Preprocessing...")
+            slicer.util.showStatusMessage(_("Preprocessing..."))
             slicer.app.processEvents()  # force update
             preprocessedPolyData = self.getPreprocessedPolyData()
             endPointsMarkupsNode = self._parameterNode.GetNodeReference("EndPoints")
@@ -343,7 +344,7 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
                 inputSurfaceModelNode = self._parameterNode.GetNodeReference("InputSurface")
                 inputSurfaceModelNode.GetDisplayNode().SetOpacity(0.4)
 
-            slicer.util.showStatusMessage("Extract network...")
+            slicer.util.showStatusMessage(_("Extract network..."))
             slicer.app.processEvents()  # force update
             networkPolyData = self.logic.extractNetwork(preprocessedPolyData, endPointsMarkupsNode)
 
@@ -368,12 +369,12 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
                 endPointsMarkupsNode.SetNthControlPointSelected(0, False)
 
         except Exception as e:
-          slicer.util.errorDisplay("Failed to detect end points: "+str(e))
+          slicer.util.errorDisplay(_("Failed to detect end points: ")+str(e))
           import traceback
           traceback.print_exc()
         qt.QApplication.restoreOverrideCursor()
 
-        slicer.util.showStatusMessage("Automatic endpoint computation complete.", 3000)
+        slicer.util.showStatusMessage(_("Automatic endpoint computation complete."), 3000)
 
 #
 # ExtractCenterlineLogic
@@ -425,7 +426,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
 
     def polyDataFromNode(self, surfaceNode, segmentId):
         if not surfaceNode:
-            logging.error("Invalid input surface node")
+            logging.error(_("Invalid input surface node"))
             return None
         if surfaceNode.IsA("vtkMRMLModelNode"):
             return surfaceNode.GetPolyData()
@@ -436,7 +437,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
             surfaceNode.GetClosedSurfaceRepresentation(segmentId, polyData)
             return polyData
         else:
-            logging.error("Surface can only be loaded from model or segmentation node")
+            logging.error(_("Surface can only be loaded from model or segmentation node"))
             return None
 
     def preprocess(self, surfacePolyData, targetNumberOfPoints, decimationAggressiveness, subdivide):
@@ -445,11 +446,11 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
             import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
             import vtkvmtkMiscPython as vtkvmtkMisc
         except ImportError:
-            raise ImportError("VMTK library is not found")
+            raise ImportError(_("VMTK library is not found"))
 
         numberOfInputPoints = surfacePolyData.GetNumberOfPoints()
         if numberOfInputPoints == 0:
-            raise("Input surface model is empty")
+            raise(_("Input surface model is empty"))
         reductionFactor = (numberOfInputPoints-targetNumberOfPoints) / numberOfInputPoints
         if reductionFactor > 0.0:
             parameters = {}
@@ -485,7 +486,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
             subdiv.SetNumberOfSubdivisions(1)
             subdiv.Update()
             if subdiv.GetOutput().GetNumberOfPoints() == 0:
-                logging.warning("Mesh subdivision failed. Skip subdivision step.")
+                logging.warning(_("Mesh subdivision failed. Skip subdivision step."))
                 subdivide = False
 
         normals = vtk.vtkPolyDataNormals()
@@ -537,7 +538,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
 
         if nonManifoldEdgesPolyData:
             if not polyData.GetPoints():
-                raise ValueError("Failed to get non-manifold edges (neighborhood filter output was empty)")
+                raise ValueError(_("Failed to get non-manifold edges (neighborhood filter output was empty)"))
             pointsCopy = vtk.vtkPoints()
             pointsCopy.DeepCopy(polyData.GetPoints())
             nonManifoldEdgesPolyData.SetPoints(pointsCopy)
@@ -655,7 +656,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
         surfaceCapper.Update()
 
         if not endPointsMarkupsNode or endPointsMarkupsNode.GetNumberOfControlPoints() < 2:
-            raise ValueError("At least two endpoints are needed for centerline extraction")
+            raise ValueError(_("At least two endpoints are needed for centerline extraction"))
 
         tubePolyData = surfaceCapper.GetOutput()
         pos = [0.0, 0.0, 0.0]
@@ -716,16 +717,16 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
         centerlineFilter.Update()
 
         if not centerlineFilter.GetOutput():
-            raise ValueError("Failed to compute centerline (no output was generated)")
+            raise ValueError(_("Failed to compute centerline (no output was generated)"))
         centerlinePolyData = vtk.vtkPolyData()
         centerlinePolyData.DeepCopy(centerlineFilter.GetOutput())
 
         if not centerlineFilter.GetVoronoiDiagram():
-            raise ValueError("Failed to compute centerline (no Voronoi diagram was generated)")
+            raise ValueError(_("Failed to compute centerline (no Voronoi diagram was generated)"))
         voronoiDiagramPolyData = vtk.vtkPolyData()
         voronoiDiagramPolyData.DeepCopy(centerlineFilter.GetVoronoiDiagram())
 
-        logging.debug("End of Centerline Computation..")
+        logging.debug(_("End of Centerline Computation."))
         return centerlinePolyData, voronoiDiagramPolyData
 
     def openSurfaceAtPoint(self, polyData, holePosition=None, holePointIndex=None):
@@ -742,7 +743,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
 
         if holePointIndex < 0:
             # Calling GetPoint(-1) would crash the application
-            raise ValueError("openSurfaceAtPoint failed: empty input polydata")
+            raise ValueError(_("openSurfaceAtPoint failed: empty input polydata"))
 
         # Tell the polydata to build 'upward' links from points to cells
         polyData.BuildLinks()
@@ -771,7 +772,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
             import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
             import vtkvmtkMiscPython as vtkvmtkMisc
         except ImportError:
-            logging.error("Unable to import the SlicerVmtk libraries")
+            logging.error(_("Unable to import the SlicerVmtk libraries"))
 
         cleaner = vtk.vtkCleanPolyData()
         cleaner.SetInputData(inputNetworkPolyData)
@@ -1031,7 +1032,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
         # Add length
         lengthArray = networkPolyData.GetCellData().GetArray(self.lengthArrayName)
         if not lengthArray:
-            raise ValueError("Network polydata does not contain length cell array")
+            raise ValueError(_("Network polydata does not contain length cell array"))
         networkPropertiesTableNode.GetTable().AddColumn(lengthArray)
 
         # Add average radius, curvature, torsion values
@@ -1043,13 +1044,13 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
             pointDataToCellData.Update()
             averageArray = pointDataToCellData.GetOutput().GetCellData().GetArray(columnName)
             if not averageArray:
-                raise ValueError("Failed to compute array " + columnName)
+                raise ValueError(_("Failed to compute array ") + columnName)
             networkPropertiesTableNode.GetTable().AddColumn(averageArray)
 
         # Add tortuosity
         tortuosityArray = networkPolyData.GetCellData().GetArray(self.tortuosityArrayName)
         if not tortuosityArray:
-            raise ValueError("Network polydata does not contain length cell array")
+            raise ValueError(_("Network polydata does not contain length cell array"))
         networkPropertiesTableNode.GetTable().AddColumn(tortuosityArray)
 
         # Add branch start and end positions
