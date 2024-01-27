@@ -18,35 +18,35 @@
 
 ==============================================================================*/
 
-#ifndef __qSlicerBranchClipperFooBarWidget_h
-#define __qSlicerBranchClipperFooBarWidget_h
+#ifndef __qSlicerBranchClipperWidget_h
+#define __qSlicerBranchClipperWidget_h
 
 // Qt includes
 #include <QWidget>
 
-// FooBar Widgets includes
+//  Widgets includes
 #include "qSlicerBranchClipperModuleWidgetsExport.h"
 
-class qSlicerBranchClipperFooBarWidgetPrivate;
+class qSlicerBranchClipperWidgetPrivate;
 
 /// \ingroup Slicer_QtModules_BranchClipper
-class Q_SLICER_MODULE_BRANCHCLIPPER_WIDGETS_EXPORT qSlicerBranchClipperFooBarWidget
+class Q_SLICER_MODULE_BRANCHCLIPPER_WIDGETS_EXPORT qSlicerBranchClipperWidget
   : public QWidget
 {
   Q_OBJECT
 public:
   typedef QWidget Superclass;
-  qSlicerBranchClipperFooBarWidget(QWidget *parent=0);
-  ~qSlicerBranchClipperFooBarWidget() override;
+  qSlicerBranchClipperWidget(QWidget *parent=0);
+  ~qSlicerBranchClipperWidget() override;
 
 protected slots:
 
 protected:
-  QScopedPointer<qSlicerBranchClipperFooBarWidgetPrivate> d_ptr;
+  QScopedPointer<qSlicerBranchClipperWidgetPrivate> d_ptr;
 
 private:
-  Q_DECLARE_PRIVATE(qSlicerBranchClipperFooBarWidget);
-  Q_DISABLE_COPY(qSlicerBranchClipperFooBarWidget);
+  Q_DECLARE_PRIVATE(qSlicerBranchClipperWidget);
+  Q_DISABLE_COPY(qSlicerBranchClipperWidget);
 };
 
 #endif

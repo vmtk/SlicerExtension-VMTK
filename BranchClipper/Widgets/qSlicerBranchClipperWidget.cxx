@@ -18,55 +18,55 @@
 
 ==============================================================================*/
 
-// FooBar Widgets includes
-#include "qSlicerBranchClipperFooBarWidget.h"
-#include "ui_qSlicerBranchClipperFooBarWidget.h"
+//  Widgets includes
+#include "qSlicerBranchClipperWidget.h"
+#include "ui_qSlicerBranchClipperWidget.h"
 
 //-----------------------------------------------------------------------------
 /// \ingroup Slicer_QtModules_BranchClipper
-class qSlicerBranchClipperFooBarWidgetPrivate
-  : public Ui_qSlicerBranchClipperFooBarWidget
+class qSlicerBranchClipperWidgetPrivate
+  : public Ui_qSlicerBranchClipperWidget
 {
-  Q_DECLARE_PUBLIC(qSlicerBranchClipperFooBarWidget);
+  Q_DECLARE_PUBLIC(qSlicerBranchClipperWidget);
 protected:
-  qSlicerBranchClipperFooBarWidget* const q_ptr;
+  qSlicerBranchClipperWidget* const q_ptr;
 
 public:
-  qSlicerBranchClipperFooBarWidgetPrivate(
-    qSlicerBranchClipperFooBarWidget& object);
-  virtual void setupUi(qSlicerBranchClipperFooBarWidget*);
+  qSlicerBranchClipperWidgetPrivate(
+    qSlicerBranchClipperWidget& object);
+  virtual void setupUi(qSlicerBranchClipperWidget*);
 };
 
 // --------------------------------------------------------------------------
-qSlicerBranchClipperFooBarWidgetPrivate
-::qSlicerBranchClipperFooBarWidgetPrivate(
-  qSlicerBranchClipperFooBarWidget& object)
+qSlicerBranchClipperWidgetPrivate
+::qSlicerBranchClipperWidgetPrivate(
+  qSlicerBranchClipperWidget& object)
   : q_ptr(&object)
 {
 }
 
 // --------------------------------------------------------------------------
-void qSlicerBranchClipperFooBarWidgetPrivate
-::setupUi(qSlicerBranchClipperFooBarWidget* widget)
+void qSlicerBranchClipperWidgetPrivate
+::setupUi(qSlicerBranchClipperWidget* widget)
 {
-  this->Ui_qSlicerBranchClipperFooBarWidget::setupUi(widget);
+  this->Ui_qSlicerBranchClipperWidget::setupUi(widget);
 }
 
 //-----------------------------------------------------------------------------
-// qSlicerBranchClipperFooBarWidget methods
+// qSlicerBranchClipperWidget methods
 
 //-----------------------------------------------------------------------------
-qSlicerBranchClipperFooBarWidget
-::qSlicerBranchClipperFooBarWidget(QWidget* parentWidget)
+qSlicerBranchClipperWidget
+::qSlicerBranchClipperWidget(QWidget* parentWidget)
   : Superclass( parentWidget )
-  , d_ptr( new qSlicerBranchClipperFooBarWidgetPrivate(*this) )
+  , d_ptr( new qSlicerBranchClipperWidgetPrivate(*this) )
 {
-  Q_D(qSlicerBranchClipperFooBarWidget);
+  Q_D(qSlicerBranchClipperWidget);
   d->setupUi(this);
 }
 
 //-----------------------------------------------------------------------------
-qSlicerBranchClipperFooBarWidget
-::~qSlicerBranchClipperFooBarWidget()
+qSlicerBranchClipperWidget
+::~qSlicerBranchClipperWidget()
 {
 }
