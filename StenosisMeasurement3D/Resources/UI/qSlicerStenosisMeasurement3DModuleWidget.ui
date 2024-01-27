@@ -29,7 +29,7 @@
         <string>Select an input shape (tube) node, drawn to represent the vascular wall.</string>
        </property>
        <property name="nodeTypes">
-        <stringlist>
+        <stringlist notr="true">
          <string>vtkMRMLMarkupsShapeNode</string>
         </stringlist>
        </property>
@@ -61,7 +61,7 @@
 The first and second points are the boundaries between which the analysis will be performed. They should not be at the very ends of the wall surface for accurate results.</string>
        </property>
        <property name="nodeTypes">
-        <stringlist>
+        <stringlist notr="true">
          <string>vtkMRMLMarkupsFiducialNode</string>
         </stringlist>
        </property>
@@ -242,7 +242,7 @@ This should ideally exceed the wall surface a little, and must not be bifurcated
               <string>Show the wall between the boundary points as a model.</string>
              </property>
              <property name="nodeTypes">
-              <stringlist>
+              <stringlist notr="true">
                <string>vtkMRMLModelNode</string>
               </stringlist>
              </property>
@@ -273,7 +273,7 @@ This should ideally exceed the wall surface a little, and must not be bifurcated
               <string>Show the lumen between the boundary points as a model.</string>
              </property>
              <property name="nodeTypes">
-              <stringlist>
+              <stringlist notr="true">
                <string>vtkMRMLModelNode</string>
               </stringlist>
              </property>

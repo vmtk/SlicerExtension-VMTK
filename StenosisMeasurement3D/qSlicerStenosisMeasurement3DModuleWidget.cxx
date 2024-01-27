@@ -111,30 +111,30 @@ void qSlicerStenosisMeasurement3DModuleWidget::onApply()
   
   if (!shapeNode || !fiducialNode || !segmentationNode || currentSegmentID.empty())
   {
-    this->showStatusMessage("Insufficient input.", 5000);
+    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Insufficient input."), 5000);
     return;
   }
   vtkMRMLMarkupsShapeNode * shapeNodeReal = vtkMRMLMarkupsShapeNode::SafeDownCast(shapeNode);
   if (!shapeNodeReal || shapeNodeReal->GetShapeName() != vtkMRMLMarkupsShapeNode::Tube)
   {
-    this->showStatusMessage("Bad shape node.", 5000);
+    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Wrong shape node."), 5000);
     return;
   }
   vtkMRMLMarkupsFiducialNode * fiducialNodeReal = vtkMRMLMarkupsFiducialNode::SafeDownCast(fiducialNode);
   if (!fiducialNodeReal)
   {
-    this->showStatusMessage("Inconsistent fiducial input.", 5000);
+    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Inconsistent fiducial input."), 5000);
     return;
   }
   if (fiducialNodeReal->GetNumberOfControlPoints() < 2)
   {
-    this->showStatusMessage("Two fiducial input points are mandatory.", 5000);
+    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Two fiducial input points are mandatory."), 5000);
     return;
   }
   vtkMRMLSegmentationNode * segmentationNodeReal = vtkMRMLSegmentationNode::SafeDownCast(segmentationNode);
   if (!segmentationNodeReal)
   {
-    this->showStatusMessage("Inconsistent segmentation input.", 5000);
+    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Inconsistent segmentation input."), 5000);
     return;
   }
   
@@ -148,7 +148,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::onApply()
                                      fiducialNodeReal, wallOpen, lumenOpen, wallClosed, lumenClosed);
   if (length < 0.0)
   {
-    this->showStatusMessage("Processing failed.", 5000);
+    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Processing failed."), 5000);
     return;
   }
   // Finally show result.
