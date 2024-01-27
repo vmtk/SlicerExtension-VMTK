@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>qSlicerBranchClipperFooBarWidget</class>
- <widget class="QWidget" name="qSlicerBranchClipperFooBarWidget">
+ <class>qSlicerBranchClipperWidget</class>
+ <widget class="QWidget" name="qSlicerBranchClipperWidget">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -18,7 +18,7 @@
     <number>0</number>
    </property>
    <item>
-    <widget class="QPushButton" name="FooBarButton">
+    <widget class="QPushButton" name="Button">
      <property name="text">
       <string>Foo Bar</string>
      </property>
