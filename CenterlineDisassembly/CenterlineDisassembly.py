@@ -3,6 +3,7 @@ import os
 from typing import Annotated, Optional
 
 import vtk
+import qt
 
 import slicer
 from slicer.i18n import tr as _
@@ -48,6 +49,7 @@ and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR0132
 @parameterNodeWrapper
 class CenterlineDisassemblyParameterNode:
     inputCenterline: slicer.vtkMRMLModelNode
+    # QToolButton is not handled here.
 
 #
 # CenterlineDisassemblyWidget
@@ -67,6 +69,7 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         self.logic = None
         self._parameterNode = None
         self._parameterNodeGuiTag = None
+        self._createdCurveVisibilityAction = None
 
     def setup(self) -> None:
         """
@@ -89,9 +92,16 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         # in batch mode, without a graphical user interface.
         self.logic = CenterlineDisassemblyLogic()
         
-        self.ui.componentComboBox.addItem(_("Bifurcations"), BIFURCATIONS_ITEM_ID)
-        self.ui.componentComboBox.addItem(_("Branches"), BRANCHES_ITEM_ID)
-        self.ui.componentComboBox.addItem(_("Centerlines"), CENTERLINES_ITEM_ID)
+        self.ui.componentCheckableComboBox.addItem(_("Bifurcations"), BIFURCATIONS_ITEM_ID)
+        self.ui.componentCheckableComboBox.addItem(_("Branches"), BRANCHES_ITEM_ID)
+        self.ui.componentCheckableComboBox.addItem(_("Centerlines"), CENTERLINES_ITEM_ID)
+        
+        # When there are too many curves, the UI is obliterated.
+        # When there are a few, the curve names are nevertheless informative.
+        self.ui.optionCreateCurvesMenuButton.menu().clear()
+        self._createdCurveVisibilityAction = qt.QAction(_("Show curve names"))
+        self._createdCurveVisibilityAction.setCheckable(True)
+        self.ui.optionCreateCurvesMenuButton.menu().addAction(self._createdCurveVisibilityAction)
 
         # Connections
 
@@ -169,37 +179,80 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         """
         Run processing when user clicks "Apply" button.
         """
+        optionCreateModels = self.ui.optionCreateModelsToolButton.checked
+        optionCreateCurves = self.ui.optionCreateCurvesMenuButton.checked
+        optionShowCurveNames = self._createdCurveVisibilityAction.checked
+        
         with slicer.util.tryWithErrorDisplay(_("Failed to compute results."), waitCursor=True):
-
+            components = self.ui.componentCheckableComboBox.checkedIndexes()
+            numberOfComponents = len(components)
+            if (numberOfComponents == 0):
+                raise ValueError(_("Please select the components to create."))
+            
+            if (optionCreateModels is False) and \
+                (optionCreateCurves is False):
+                raise ValueError(_("Please specify whether centerline 'Models' and/or 'Curves' should be generated."))
+            
             # Compute output
-            component = self.ui.componentComboBox.currentData
+            self.logic.splitCenterlines(self._parameterNode.inputCenterline) # Once only for all selections
             shFolderId = -1
-            if component == BIFURCATIONS_ITEM_ID:
-                bifurcationsPolyDatas = self.logic.processGroupIds(self._parameterNode.inputCenterline, True)
-                if (len(bifurcationsPolyDatas)):
-                    shFolderId = self._createSubjectHierarchyFolderNode(self.ui.componentComboBox.currentText)
-                for bifurcationPolyData in bifurcationsPolyDatas:
-                    bifurcationModel = slicer.modules.models.logic().AddModel(bifurcationPolyData)
-                    bifurcationModel.GetDisplayNode().SetColor([0.67, 1.0, 1.0])
-                    self._reparentNodeToSubjectHierarchyFolderNode(shFolderId, bifurcationModel)
-            elif component == BRANCHES_ITEM_ID:
-                branchesPolyDatas = self.logic.processGroupIds(self._parameterNode.inputCenterline, False)
-                if (len(branchesPolyDatas)):
-                    shFolderId = self._createSubjectHierarchyFolderNode(self.ui.componentComboBox.currentText)
-                for branchPolyData in branchesPolyDatas:
-                    branchModel = slicer.modules.models.logic().AddModel(branchPolyData)
-                    branchModel.GetDisplayNode().SetColor([0.0, 0.0, 1.0])
-                    self._reparentNodeToSubjectHierarchyFolderNode(shFolderId, branchModel)
-            elif component == CENTERLINES_ITEM_ID:
-                centerlinesPolyDatas = self.logic.processCenterlineIds(self._parameterNode.inputCenterline)
-                if (len(centerlinesPolyDatas)):
-                    shFolderId = self._createSubjectHierarchyFolderNode(self.ui.componentComboBox.currentText)
-                for centerlinePolyData in centerlinesPolyDatas:
-                    centerlineModel = slicer.modules.models.logic().AddModel(centerlinePolyData)
-                    centerlineModel.GetDisplayNode().SetColor([1.0, 0.0, 0.5])
-                    self._reparentNodeToSubjectHierarchyFolderNode(shFolderId, centerlineModel)
-            else:
-                raise ValueError(_("Invalid component"))
+            
+            for idx in range(numberOfComponents): # For every selection
+                modelIndex = components[idx]
+                component = modelIndex.data(qt.Qt.UserRole)
+                componentLabel = modelIndex.data()
+                if component == BIFURCATIONS_ITEM_ID:
+                    bifurcationsPolyDatas = self.logic.processGroupIds(True)
+                    if (len(bifurcationsPolyDatas)):
+                        if optionCreateModels:
+                            shFolderId = self._createSubjectHierarchyFolderNode(componentLabel + " - " + self._parameterNode.inputCenterline.GetName() + _(" models"))
+                        
+                        if optionCreateCurves:
+                            shCurveFolderId = self._createCurveSubjectHierarchyFolderNode(componentLabel + " - " + self._parameterNode.inputCenterline.GetName() + _(" curves"))
+                        
+                    for bifurcationPolyData in bifurcationsPolyDatas:
+                        if optionCreateModels:
+                            self._createModelComponent(bifurcationPolyData, _("Bifurcation_Model"), [0.67, 1.0, 1.0], shFolderId)
+                        
+                        if optionCreateCurves:
+                            self._createCurveComponent(bifurcationPolyData, _("Bifurcation_Curve"),
+                                                       [0.33, 0.0, 0.0], shCurveFolderId, optionShowCurveNames)
+                        
+                elif component == BRANCHES_ITEM_ID:
+                    branchesPolyDatas = self.logic.processGroupIds(False)
+                    if (len(branchesPolyDatas)):
+                        if optionCreateModels:
+                            shFolderId = self._createSubjectHierarchyFolderNode(componentLabel + " - " + self._parameterNode.inputCenterline.GetName() + _(" models"))
+                        
+                        if optionCreateCurves:
+                            shCurveFolderId = self._createCurveSubjectHierarchyFolderNode(componentLabel + " - " + self._parameterNode.inputCenterline.GetName() + _(" curves"))
+                        
+                    for branchPolyData in branchesPolyDatas:
+                        if optionCreateModels:
+                            self._createModelComponent(branchPolyData, _("Branch_Model"), [0.0, 0.0, 1.0], shFolderId)
+                        
+                        if optionCreateCurves:
+                            self._createCurveComponent(branchPolyData, _("Branch_Curve"),
+                                                       [1.0, 1.0, 0.0], shCurveFolderId, optionShowCurveNames)
+                        
+                elif component == CENTERLINES_ITEM_ID:
+                    centerlinesPolyDatas = self.logic.processCenterlineIds()
+                    if (len(centerlinesPolyDatas)):
+                        if optionCreateModels:
+                            shFolderId = self._createSubjectHierarchyFolderNode(componentLabel + " - " + self._parameterNode.inputCenterline.GetName() + _(" models"))
+                        
+                        if optionCreateCurves:
+                            shCurveFolderId = self._createCurveSubjectHierarchyFolderNode(componentLabel + " - " + self._parameterNode.inputCenterline.GetName() + _(" curves"))
+                        
+                    for centerlinePolyData in centerlinesPolyDatas:
+                        if optionCreateModels:
+                            self._createModelComponent(centerlinePolyData, _("Centerline_Model"), [1.0, 0.0, 0.5], shFolderId)
+                        
+                        if optionCreateCurves:
+                            self._createCurveComponent(centerlinePolyData, _("Centerline_Curve"),
+                                                       [0.0, 1.0, 0.5], shCurveFolderId, optionShowCurveNames)
+                else:
+                    raise ValueError(_("Invalid component"))
 
     def _createSubjectHierarchyFolderNode(self, label):
         if self._parameterNode.inputCenterline is None:
@@ -209,6 +262,14 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         shFolderId = shNode.CreateFolderItem(shMasterCenterlineId, label)
         shNode.SetItemExpanded(shFolderId, False)
         return shFolderId
+    
+    def _createCurveSubjectHierarchyFolderNode(self, label):
+        if self._parameterNode.inputCenterline is None:
+            return
+        shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
+        shFolderId = shNode.CreateFolderItem(shNode.GetSceneItemID(), label)
+        shNode.SetItemExpanded(shFolderId, False)
+        return shFolderId
         
     def _reparentNodeToSubjectHierarchyFolderNode(self, shFolderId, anyObject):
         if shFolderId < 0:
@@ -216,6 +277,25 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
         shObjectId = shNode.GetItemByDataNode(anyObject)
         shNode.SetItemParent(shObjectId, shFolderId)
+    
+    def _createModelComponent(self, polydata, basename, color, parentFolderId):
+        name = slicer.mrmlScene.GenerateUniqueName(basename)
+        model = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", name)
+        model.CreateDefaultDisplayNodes()
+        model.SetAndObservePolyData(polydata)
+        model.GetDisplayNode().SetColor(color)
+        self._reparentNodeToSubjectHierarchyFolderNode(parentFolderId, model)
+        return model
+    
+    def _createCurveComponent(self, polydata, basename, color, parentFolderId, showCurveName):
+        name = slicer.mrmlScene.GenerateUniqueName(basename)
+        curve = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsCurveNode", name)
+        curve.CreateDefaultDisplayNodes()
+        curve.GetDisplayNode().SetPropertiesLabelVisibility(showCurveName)
+        self.logic.createCenterlineCurve(polydata, curve)
+        curve.GetDisplayNode().SetSelectedColor(color)
+        self._reparentNodeToSubjectHierarchyFolderNode(parentFolderId, curve)
+        return curve
 #
 # CenterlineDisassemblyLogic
 #
@@ -226,12 +306,12 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
         Called when the logic class is instantiated. Can be used for initializing member variables.
         """
         ScriptedLoadableModuleLogic.__init__(self)
-        self.centerlines = None
+        self._splitCenterlines = None
 
     def getParameterNode(self):
         return CenterlineDisassemblyParameterNode(super().getParameterNode())
 
-    def _extractCenterlines(self, inputCenterline: slicer.vtkMRMLModelNode):
+    def splitCenterlines(self, inputCenterline: slicer.vtkMRMLModelNode):
 
         if not inputCenterline:
             raise ValueError(_("Input centerline is invalid"))
@@ -246,12 +326,12 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
         branchExtractor.SetCenterlineIdsArrayName(centerlineIdsArrayName)
         branchExtractor.SetTractIdsArrayName(tractIdsArrayName)
         branchExtractor.Update()
-        self.centerlines = branchExtractor.GetOutput()
+        self._splitCenterlines = branchExtractor.GetOutput()
     
     def _createPolyData(self, cellIds):
-        masterRadiusArray = self.centerlines.GetPointData().GetArray(radiusArrayName)
-        masterEdgeArray = self.centerlines.GetPointData().GetArray(edgeArrayName)
-        masterEdgePCoordArray = self.centerlines.GetPointData().GetArray(edgePCoordArrayName)
+        masterRadiusArray = self._splitCenterlines.GetPointData().GetArray(radiusArrayName)
+        masterEdgeArray = self._splitCenterlines.GetPointData().GetArray(edgeArrayName)
+        masterEdgePCoordArray = self._splitCenterlines.GetPointData().GetArray(edgePCoordArrayName)
 
         resultPolyDatas = [] # One per cell
         nbIds = cellIds.GetNumberOfIds() # Number of cells
@@ -271,14 +351,14 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
             edgePCoordArray.SetName("EdgePCoordArray")
             
             masterCellId = cellIds.GetId(i)
-            masterCellPolyLine = self.centerlines.GetCell(masterCellId)
+            masterCellPolyLine = self._splitCenterlines.GetCell(masterCellId)
             masterCellPointIds = masterCellPolyLine.GetPointIds()
             numberOfMasterCellPointIds = masterCellPointIds.GetNumberOfIds()
             cellArray.InsertNextCell(numberOfMasterCellPointIds)
             for idx in range(numberOfMasterCellPointIds):
                 point = [0.0, 0.0, 0.0]
                 masterPointId = masterCellPointIds.GetId(idx)
-                self.centerlines.GetPoint(masterPointId, point)
+                self._splitCenterlines.GetPoint(masterPointId, point)
                 points.InsertNextPoint(point)
                 cellArray.InsertCellPoint(pointId)
                 radiusArray.InsertNextValue(masterRadiusArray.GetValue(masterPointId))
@@ -296,25 +376,114 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
                 unitCellPolyData.GetPointData().AddArray(edgePCoordArray)
                 resultPolyDatas.append(unitCellPolyData)
         return resultPolyDatas
+    
+    def createCenterlineCurve(self, centerlinePolyData, curveNode):
+        """
+        ExtractCenterline::_addCenterline works on a single cellId.
         
-    def processCenterlineIds(self, inputCenterline: slicer.vtkMRMLModelNode):
+        centerlinePolyData for bifurcations and branches always has a single cell.
+        
+        centerlinePolyData for centerlines has more than one cell.
+        We need to merge all the cells into a single cell to pass to
+        ExtractCenterline::addCenterlineCurves.
+        
+        We don't check if
+          - optionCreateCurves is True,
+          - centerlinePolyData has the required scalar arrays.
+        """
+        newPolyData = centerlinePolyData
+        
+        """
+        The mergedCenterlines in createCurveTreeFromCenterline does not get a GroupIds array
+        if the input polydata has fewer than 2 points.
+        
+        groupId = mergedCenterlines.GetCellData().GetArray(self.groupIdsArrayName).GetValue(cellId)
+        -> AttributeError: 'NoneType' object has no attribute 'GetValue'
+        """
+        if (centerlinePolyData and centerlinePolyData.GetNumberOfPoints() < 3):
+            logging.warning("Not enough points (<3) from polydata to create a markups curve.")
+            return
+        
+        import time
+        startTime = time.time()
+        logging.info(_("Processing curve creation started"))
+        
+        if (centerlinePolyData and centerlinePolyData.GetNumberOfCells() > 1):
+            masterRadiusArray = centerlinePolyData.GetPointData().GetArray(radiusArrayName)
+            masterEdgeArray = centerlinePolyData.GetPointData().GetArray(edgeArrayName)
+            masterEdgePCoordArray = centerlinePolyData.GetPointData().GetArray(edgePCoordArrayName)
+            
+            newPolyData = None
+            pointId = 0
+            # Read new{points, cellArray,...}
+            points = vtk.vtkPoints()
+            cellArray = vtk.vtkCellArray()
+            radiusArray = vtk.vtkDoubleArray()
+            radiusArray.SetName(radiusArrayName)
+            edgeArray = vtk.vtkDoubleArray()
+            edgeArray.SetName("EdgeArray")
+            edgeArray.SetNumberOfComponents(2)
+            edgePCoordArray = vtk.vtkDoubleArray()
+            edgePCoordArray.SetName("EdgePCoordArray")
+            
+            # The new cell array must allocate for points of all input cells.
+            cellArray.InsertNextCell(centerlinePolyData.GetNumberOfPoints())
+            
+            for cellId in range(centerlinePolyData.GetNumberOfCells()): # For every cell
+                masterCellPolyLine = centerlinePolyData.GetCell(cellId)
+                masterCellPointIds = masterCellPolyLine.GetPointIds()
+                numberOfMasterCellPointIds = masterCellPointIds.GetNumberOfIds()
+                
+                for idx in range(numberOfMasterCellPointIds):
+                    point = [0.0, 0.0, 0.0]
+                    masterPointId = masterCellPointIds.GetId(idx)
+                    centerlinePolyData.GetPoint(masterPointId, point)
+                    points.InsertNextPoint(point)
+                    cellArray.InsertCellPoint(pointId)
+                    radiusArray.InsertNextValue(masterRadiusArray.GetValue(masterPointId))
+                    edgeArray.InsertNextTuple2(masterEdgeArray.GetTuple2(masterPointId)[0], 
+                                            masterEdgeArray.GetTuple2(masterPointId)[1])
+                    edgePCoordArray.InsertNextValue(masterEdgePCoordArray.GetValue(masterPointId))
+                    pointId = pointId + 1
+            
+            # All cells from the input centerline have been processed.
+            if (pointId):
+                newPolyData = vtk.vtkPolyData()
+                newPolyData.SetPoints(points)
+                newPolyData.SetLines(cellArray)
+                newPolyData.GetPointData().AddArray(radiusArray)
+                newPolyData.GetPointData().AddArray(edgeArray)
+                newPolyData.GetPointData().AddArray(edgePCoordArray)
+                
+        
+        if curveNode and newPolyData:
+            import ExtractCenterline
+            ecLogic = ExtractCenterline.ExtractCenterlineLogic()
+            ecLogic.createCurveTreeFromCenterline(newPolyData, centerlineCurveNode = curveNode)
+            curveName = curveNode.GetName()
+            curveName = curveName[0:(len(curveName) - 4)] # Remove ' (0)'
+            curveNode.SetName(curveName)
+        
+        stopTime = time.time()
+        logging.info(f"Processing curve creation completed in {stopTime-startTime:.2f} seconds")
+    
+    def processCenterlineIds(self):
 
-        if not inputCenterline:
-            raise ValueError(_("Input centerline is invalid"))
+        if not self._splitCenterlines:
+            raise ValueError(_("Call 'splitCenterlines()' with an input centerline model first."))
 
         import time
         startTime = time.time()
-        logging.info(_("Processing started"))
+        logging.info(_("Processing centerline ids started"))
 
-        self._extractCenterlines(inputCenterline)
         centerlinePolyDatas = []
         import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
-        centerlineIdsArray = self.centerlines.GetCellData().GetArray(centerlineIdsArrayName)
+        centerlineIdsArray = self._splitCenterlines.GetCellData().GetArray(centerlineIdsArrayName)
         centerlineIdsValueRange = centerlineIdsArray.GetValueRange()
         centerlineUtilities = vtkvmtkComputationalGeometry.vtkvmtkCenterlineUtilities()
         for centerlineId in range(centerlineIdsValueRange[0], (centerlineIdsValueRange[1] + 1)):
             centerlineCellIdsArray = vtk.vtkIdList()
-            centerlineUtilities.GetCenterlineCellIds(self.centerlines, centerlineIdsArrayName,
+            centerlineUtilities.GetCenterlineCellIds(self._splitCenterlines, centerlineIdsArrayName,
                                                      centerlineId, centerlineCellIdsArray)
             unitCellPolyDatas = self._createPolyData(centerlineCellIdsArray) # One per cell
             appendPolyData = vtk.vtkAppendPolyData() # We want a complete centerline
@@ -323,53 +492,50 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
             appendPolyData.Update() # The scalar arrays are rightly merged... fortunately.
             centerlinePolyDatas.append(appendPolyData.GetOutput())
         
-        self.centerlines = None
         stopTime = time.time()
-        logging.info(f"Processing completed in {stopTime-startTime:.2f} seconds")
+        logging.info(f"Processing centerline ids completed in {stopTime-startTime:.2f} seconds")
         return centerlinePolyDatas
 
-    def processGroupIds(self, inputCenterline: slicer.vtkMRMLModelNode, bifurcations):
+    def processGroupIds(self, bifurcations):
 
-        if not inputCenterline:
-            raise ValueError(_("Input centerline is invalid"))
+        if not self._splitCenterlines:
+            raise ValueError(_("Call 'splitCenterlines()' with an input centerline model first."))
 
         import time
         startTime = time.time()
-        logging.info(_("Processing started"))
+        logging.info(_("Processing group ids started"))
 
-        self._extractCenterlines(inputCenterline)
         groupIdsPolyDatas = []
         import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
         groupIdsArray = vtk.vtkIdList()
         centerlineUtilities = vtkvmtkComputationalGeometry.vtkvmtkCenterlineUtilities()
         if (bifurcations):
             # Blanked
-            centerlineUtilities.GetBlankedGroupsIdList(self.centerlines, groupIdsArrayName,
+            centerlineUtilities.GetBlankedGroupsIdList(self._splitCenterlines, groupIdsArrayName,
                                                        blankingArrayName, groupIdsArray)
             for idx in range(groupIdsArray.GetNumberOfIds()):
                 groupCellIdsArray = vtk.vtkIdList()
                 groupCellId = groupIdsArray.GetId(idx)
-                centerlineUtilities.GetGroupUniqueCellIds(self.centerlines, groupIdsArrayName,
+                centerlineUtilities.GetGroupUniqueCellIds(self._splitCenterlines, groupIdsArrayName,
                                                           groupCellId, groupCellIdsArray)
                 unitCellPolyDatas = self._createPolyData(groupCellIdsArray)
                 for unitCellPolyData in unitCellPolyDatas:
                     groupIdsPolyDatas.append(unitCellPolyData)
         else:
             # Non-blanked
-            centerlineUtilities.GetNonBlankedGroupsIdList(self.centerlines, groupIdsArrayName,
+            centerlineUtilities.GetNonBlankedGroupsIdList(self._splitCenterlines, groupIdsArrayName,
                                                           blankingArrayName, groupIdsArray)
             for idx in range(groupIdsArray.GetNumberOfIds()):
                 groupCellIdsArray = vtk.vtkIdList()
                 groupCellId = groupIdsArray.GetId(idx)
-                centerlineUtilities.GetGroupUniqueCellIds(self.centerlines, groupIdsArrayName,
+                centerlineUtilities.GetGroupUniqueCellIds(self._splitCenterlines, groupIdsArrayName,
                                                           groupCellId, groupCellIdsArray)
                 unitCellPolyDatas = self._createPolyData(groupCellIdsArray)
                 for unitCellPolyData in unitCellPolyDatas:
                     groupIdsPolyDatas.append(unitCellPolyData)
         
-        self.centerlines = None
         stopTime = time.time()
-        logging.info(f"Processing completed in {stopTime-startTime:.2f} seconds")
+        logging.info(f"Processing group ids completed in {stopTime-startTime:.2f} seconds")
         return groupIdsPolyDatas
 #
 # CenterlineDisassemblyTest

@@ -8,7 +8,7 @@ The centerline must have been created with the 'Extract centerline' module.
 
 ### Usage
 
-Select a centerline model node, the components to extract and apply. The result can be browsed in the 'Models' module's widget.
+Select a centerline model node, the components to extract, the output type and apply. The result can be browsed in the 'Models' and 'Markups' modules' widgets.
 
 The components of a centerline can be:
 
