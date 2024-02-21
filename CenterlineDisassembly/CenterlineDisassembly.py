@@ -193,9 +193,13 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
                 (optionCreateCurves is False):
                 raise ValueError(_("Please specify whether centerline 'Models' and/or 'Curves' should be generated."))
             
+            self.showStatusMessage( (_("Splitting centerline"),) )
             # Compute output
             self.logic.splitCenterlines(self._parameterNode.inputCenterline) # Once only for all selections
             shFolderId = -1
+            
+            # The total procesing time is significantly reduced when there are too many components.
+            slicer.mrmlScene.StartState(slicer.mrmlScene.BatchProcessState)
             
             for idx in range(numberOfComponents): # For every selection
                 modelIndex = components[idx]
@@ -209,7 +213,8 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
                         
                         if optionCreateCurves:
                             shCurveFolderId = self._createCurveSubjectHierarchyFolderNode(componentLabel + " - " + self._parameterNode.inputCenterline.GetName() + _(" curves"))
-                        
+                    
+                    self.showStatusMessage( (_("Creating bifurcations"),) )
                     for bifurcationPolyData in bifurcationsPolyDatas:
                         if optionCreateModels:
                             self._createModelComponent(bifurcationPolyData, _("Bifurcation_Model"), [0.67, 1.0, 1.0], shFolderId)
@@ -226,7 +231,8 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
                         
                         if optionCreateCurves:
                             shCurveFolderId = self._createCurveSubjectHierarchyFolderNode(componentLabel + " - " + self._parameterNode.inputCenterline.GetName() + _(" curves"))
-                        
+                    
+                    self.showStatusMessage( (_("Creating branches"),) )
                     for branchPolyData in branchesPolyDatas:
                         if optionCreateModels:
                             self._createModelComponent(branchPolyData, _("Branch_Model"), [0.0, 0.0, 1.0], shFolderId)
@@ -243,7 +249,8 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
                         
                         if optionCreateCurves:
                             shCurveFolderId = self._createCurveSubjectHierarchyFolderNode(componentLabel + " - " + self._parameterNode.inputCenterline.GetName() + _(" curves"))
-                        
+                    
+                    self.showStatusMessage( (_("Creating centerlines"),) )
                     for centerlinePolyData in centerlinesPolyDatas:
                         if optionCreateModels:
                             self._createModelComponent(centerlinePolyData, _("Centerline_Model"), [1.0, 0.0, 0.5], shFolderId)
@@ -252,7 +259,13 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
                             self._createCurveComponent(centerlinePolyData, _("Centerline_Curve"),
                                                        [0.0, 1.0, 0.5], shCurveFolderId, optionShowCurveNames)
                 else:
-                    raise ValueError(_("Invalid component"))
+                    slicer.mrmlScene.EndState(slicer.mrmlScene.BatchProcessState)
+                    message = _("Invalid component")
+                    self.showStatusMessage( (message,) )
+                    raise ValueError( (message,) )
+            
+            slicer.mrmlScene.EndState(slicer.mrmlScene.BatchProcessState)
+            self.showStatusMessage( (_("Finished"),) )
 
     def _createSubjectHierarchyFolderNode(self, label):
         if self._parameterNode.inputCenterline is None:
@@ -271,7 +284,7 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         shNode.SetItemExpanded(shFolderId, False)
         return shFolderId
         
-    def _reparentNodeToSubjectHierarchyFolderNode(self, shFolderId, anyObject):
+    def _reparentNodeToSubjectHierarchyFolderNode(self, shFolderId, anyObject) -> None:
         if shFolderId < 0:
             return
         shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
@@ -296,6 +309,14 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         curve.GetDisplayNode().SetSelectedColor(color)
         self._reparentNodeToSubjectHierarchyFolderNode(parentFolderId, curve)
         return curve
+    
+    def showStatusMessage(self, messages, console = False) -> None:
+        separator = " "
+        msg = separator.join(messages)
+        slicer.util.showStatusMessage(msg, 3000)
+        slicer.app.processEvents()
+        if console:
+            logging.info(msg)
 #
 # CenterlineDisassemblyLogic
 #
