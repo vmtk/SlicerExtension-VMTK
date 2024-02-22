@@ -114,8 +114,8 @@ protected:
   void OnMRMLSceneNodeAdded(vtkMRMLNode* node) override;
   void OnMRMLSceneNodeRemoved(vtkMRMLNode* node) override;
   
-  vtkPolyData * Surface = nullptr;
-  vtkPolyData * Centerlines = nullptr;
+  vtkSmartPointer<vtkPolyData> Surface = nullptr;
+  vtkSmartPointer<vtkPolyData> Centerlines = nullptr;
   std::string CenterlineGroupIdsArrayName = "GroupIds";
   std::string GroupIdsArrayName = "GroupIds";
   std::string CenterlineRadiusArrayName = "Radius";
@@ -140,7 +140,7 @@ protected:
   std::string BifurcationProfileBifurcationGroupIdsArrayName = "BifurcationProfileBifurcationGroupIds";
   std::string BifurcationProfileOrientationArrayName = "BifurcationProfileOrientation";
   
-  vtkPolyDataCollection * BifurcationProfilesCollection = nullptr;
+  vtkSmartPointer<vtkPolyDataCollection> BifurcationProfilesCollection = nullptr;
   
 private:
 
