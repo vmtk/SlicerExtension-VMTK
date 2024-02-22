@@ -1,8 +1,8 @@
 # Centerline disassembly
 
-This module breaks down a bifurcated centerline model into parts.
+This module can split a bifurcated centerline model into multiple components. It can create centerline models and centerline curves.
 
-The centerline must have been created with the 'Extract centerline' module.
+The input centerline must have been created with the 'Extract centerline' module.
 
 ![CenterlineDisassembly](CenterlineDisassembly_0.png)
 
@@ -12,7 +12,7 @@ Select a centerline model node, the components to extract, the output type and a
 
 The components of a centerline can be:
 
-      - bifurcation parts
-      - branches, centerline parts that exclude the bifurcations
+      - bifurcations,
+      - branches, i.e,  centerline parts that exclude the bifurcations,
       - centerlines, i.e, one complete centerline from the first endpoint to every other endpoint.
 
