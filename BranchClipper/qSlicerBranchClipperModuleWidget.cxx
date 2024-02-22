@@ -30,6 +30,7 @@
 #include <vtkMRMLScene.h>
 #include <vtkMRMLDisplayNode.h>
 #include <vtkPolyDataCollection.h>
+#include <vtkTimerLog.h>
 
 #include <qSlicerMainWindow.h>
 #include <qSlicerCoreApplication.h>
@@ -154,7 +155,10 @@ void qSlicerBranchClipperModuleWidget::onApply()
     return;
   }
   
+  vtkNew<vtkTimerLog> timer;
+  
   // Debranch now. Execute() can be a long process on heavy segmentations.
+  timer->StartTimer();
   this->showStatusMessage("Debranching, please wait...");
   vtkNew<vtkSlicerBranchClipperLogic> logic;
   logic->SetCenterlines(centerlines);
@@ -167,6 +171,10 @@ void qSlicerBranchClipperModuleWidget::onApply()
     this->showStatusMessage(msg, 5000);
     return;
   }
+  timer->StopTimer();
+  QString centerlineElapsedTime = QString::asprintf("%.4f", timer->GetElapsedTime());
+  const std::string elapsedMessage = "Input centerline processed in " + centerlineElapsedTime.toStdString() + "s.";
+  cout << elapsedMessage << endl;
   
   mrmlScene()->StartState(vtkMRMLScene::BatchProcessState);
   
@@ -185,15 +193,17 @@ void qSlicerBranchClipperModuleWidget::onApply()
     }
     for (vtkIdType i = 0; i < numberOfBranches; i++)
     {
-      std::string info("Processing branch: ");
-      info += std::to_string(i + 1) + std::string("/") + std::to_string(numberOfBranches) + std::string(".");
-      cout << info << endl;
+      timer->StartTimer();
+      std::string info("Processing branch ");
+      info += std::to_string(i + 1) + std::string("/") + std::to_string(numberOfBranches);
+      cout << info; // no endl
       this->showStatusMessage(info.c_str());
       
       vtkNew<vtkPolyData> branchSurface;
       logic->GetBranch(i, branchSurface);
       if (branchSurface == nullptr)
       {
+        cout << endl;
         const char * msg = "Could not retrieve branch surface ";
         cerr << msg << i << "." << endl;
         this->showStatusMessage(msg, 5000);
@@ -235,6 +245,11 @@ void qSlicerBranchClipperModuleWidget::onApply()
           segmentation->GetSegmentation()->AddSegment(segment, branchId);
         }
       }
+      
+      timer->StopTimer();
+      QString elapsedTime = QString::asprintf("%.4f", timer->GetElapsedTime());
+      const std::string elapsedMessage = ": created in " + elapsedTime.toStdString() + "s.";
+      cout << elapsedMessage << endl;
     }
   }
   
@@ -259,6 +274,9 @@ void qSlicerBranchClipperModuleWidget::onApply()
       this->showStatusMessage(msg, 5000);
       return;
     }
+    
+    timer->StartTimer();
+    
     // Create a child folder of the input centerline to contain all created models.
     vtkIdType shMasterCenterlineId = shNode->GetItemByDataNode(centerlineModel);
     vtkIdType shFolderId = shNode->CreateFolderItem(shMasterCenterlineId, "Bifurcation profiles");
@@ -279,6 +297,11 @@ void qSlicerBranchClipperModuleWidget::onApply()
       vtkIdType shModelId = shNode->GetItemByDataNode(profileModel);
       shNode->SetItemParent(shModelId, shFolderId);
     }
+    
+    timer->StopTimer();
+    QString elapsedTime = QString::asprintf("%.4f", timer->GetElapsedTime());
+    const std::string elapsedMessage = "All bifurcation profiles created in " + elapsedTime.toStdString() + "s.";
+    cout << elapsedMessage << endl;
   }
   
   mrmlScene()->EndState(vtkMRMLScene::BatchProcessState);
