@@ -168,6 +168,8 @@ void qSlicerBranchClipperModuleWidget::onApply()
     return;
   }
   
+  mrmlScene()->StartState(vtkMRMLScene::BatchProcessState);
+  
   // Create branch segments on demand; this can be a lengthy process too.
   if (d->branchSegmentsToolButton->isChecked())
   {
@@ -175,6 +177,7 @@ void qSlicerBranchClipperModuleWidget::onApply()
     const vtkIdType numberOfBranches = logic->GetNumberOfBranches();
     if (numberOfBranches == 0)
     {
+      mrmlScene()->EndState(vtkMRMLScene::BatchProcessState);
       const char * msg = "No branches could be retrieved; the centerline may be invalid.";
       cerr << msg << endl;
       this->showStatusMessage(msg, 5000);
@@ -241,6 +244,7 @@ void qSlicerBranchClipperModuleWidget::onApply()
     vtkPolyDataCollection * profiledPolyDatas = logic->GetOutputBifurcationProfilesCollection();
     if (!profiledPolyDatas)
     {
+      mrmlScene()->EndState(vtkMRMLScene::BatchProcessState);
       const char * msg = "Could not get a valid collection of bifurcation profiles.";
       cerr << msg << endl;
       this->showStatusMessage(msg, 5000);
@@ -249,6 +253,7 @@ void qSlicerBranchClipperModuleWidget::onApply()
     vtkMRMLSubjectHierarchyNode * shNode = mrmlScene()->GetSubjectHierarchyNode();
     if (shNode == nullptr) // ?
     {
+      mrmlScene()->EndState(vtkMRMLScene::BatchProcessState);
       const char * msg = "Could not get a valid subject hierarchy node.";
       cerr << msg << endl;
       this->showStatusMessage(msg, 5000);
@@ -276,6 +281,7 @@ void qSlicerBranchClipperModuleWidget::onApply()
     }
   }
   
+  mrmlScene()->EndState(vtkMRMLScene::BatchProcessState);
   this->showStatusMessage("Finished", 5000);
 }
 
