@@ -118,32 +118,7 @@
     </spacer>
    </item>
    <item>
-    <widget class="ctkCollapsibleButton" name="optionsCollapsibleButton">
-     <property name="text">
-      <string>Options</string>
-     </property>
-     <property name="collapsed">
-      <bool>false</bool>
-     </property>
-     <layout class="QVBoxLayout" name="optionsVerticalLayout">
-      <item>
-       <widget class="QCheckBox" name="show3DCheckBox">
-        <property name="text">
-         <string>Show 3D on success</string>
-        </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string>show3D</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QPushButton" name="applyButton">
-     <property name="enabled">
-      <bool>true</bool>
-     </property>
+    <widget class="ctkMenuButton" name="applyButton">
      <property name="toolTip">
       <string>Run the algorithm.</string>
      </property>
@@ -156,10 +131,9 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>ctkCollapsibleButton</class>
-   <extends>QWidget</extends>
-   <header>ctkCollapsibleButton.h</header>
-   <container>1</container>
+   <class>ctkMenuButton</class>
+   <extends>QPushButton</extends>
+   <header>ctkMenuButton.h</header>
   </customwidget>
   <customwidget>
    <class>qMRMLNodeComboBox</class>
