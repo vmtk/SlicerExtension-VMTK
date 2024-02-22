@@ -3,6 +3,7 @@ import os
 from typing import Annotated, Optional
 
 import vtk
+import  qt
 
 import slicer
 from slicer.ScriptedLoadableModule import *
@@ -52,7 +53,6 @@ class ArterialCalcificationPreProcessorParameterNode:
     """
     inputVolume: slicer.vtkMRMLScalarVolumeNode
     marginSize: float = 4.0
-    show3D: bool = False
 
 #
 # ArterialCalcificationPreProcessorWidget
@@ -72,6 +72,7 @@ class ArterialCalcificationPreProcessorWidget(ScriptedLoadableModuleWidget, VTKO
         self.logic = None
         self._parameterNode = None
         self._parameterNodeGuiTag = None
+        self._show3DAction = None
 
     def setup(self) -> None:
         """
@@ -84,8 +85,6 @@ class ArterialCalcificationPreProcessorWidget(ScriptedLoadableModuleWidget, VTKO
         uiWidget = slicer.util.loadUI(self.resourcePath('UI/ArterialCalcificationPreProcessor.ui'))
         self.layout.addWidget(uiWidget)
         self.ui = slicer.util.childWidgetVariables(uiWidget)
-        
-        self.ui.optionsCollapsibleButton.collapsed = True
 
         # Set scene in MRML widgets. Make sure that in Qt designer the top-level qMRMLWidget's
         # "mrmlSceneChanged(vtkMRMLScene*)" signal in is connected to each MRML widget's.
@@ -101,6 +100,11 @@ class ArterialCalcificationPreProcessorWidget(ScriptedLoadableModuleWidget, VTKO
         # These connections ensure that we update parameter node when scene is closed
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
+        
+        self.ui.applyButton.menu().clear()
+        self._show3DAction = qt.QAction("Show 3D on success")
+        self._show3DAction.setCheckable(True)
+        self.ui.applyButton.menu().addAction(self._show3DAction)
 
         # Buttons
         self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
@@ -171,6 +175,7 @@ class ArterialCalcificationPreProcessorWidget(ScriptedLoadableModuleWidget, VTKO
     def onApplyButton(self) -> None:
 
         inputSegmentation = self.ui.segmentSelector.currentNode()
+        optionShow3D = self._show3DAction.checked
         
         with slicer.util.tryWithErrorDisplay("Failed to compute results.", waitCursor=True):
             
@@ -180,7 +185,7 @@ class ArterialCalcificationPreProcessorWidget(ScriptedLoadableModuleWidget, VTKO
                                self.ui.segmentSelector.currentSegmentID(),
                                self._parameterNode.marginSize)
         
-        if (not self._parameterNode.show3D) or (not inputSegmentation):
+        if (not optionShow3D) or (not inputSegmentation):
             return
         
         # Poked from qMRMLSegmentationShow3DButton.cxx
