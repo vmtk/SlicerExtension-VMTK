@@ -133,142 +133,7 @@ Clicking at a control point allows to track the slice orientation in the selecte
         </item>
        </layout>
       </item>
-      <item>
-       <widget class="ctkCollapsibleButton" name="optionsCollapsibleButton">
-        <property name="toolTip">
-         <string/>
-        </property>
-        <property name="text">
-         <string>Options</string>
-        </property>
-        <property name="checked">
-         <bool>true</bool>
-        </property>
-        <property name="flat">
-         <bool>true</bool>
-        </property>
-        <layout class="QVBoxLayout" name="optionsVerticalLayout">
-         <item>
-          <layout class="QHBoxLayout" name="optionsHorizontalLayout">
-           <item>
-            <widget class="QCheckBox" name="applyToAllSegmentsCheckBox">
-             <property name="toolTip">
-              <string>If unchecked, only the selected segment will be processed.</string>
-             </property>
-             <property name="text">
-              <string>Apply to all segments</string>
-             </property>
-             <property name="checked">
-              <bool>false</bool>
-             </property>
-             <property name="SlicerParameterName" stdset="0">
-              <string>applyToAllSegments</string>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QCheckBox" name="limitToClosestIslandCheckBox">
-             <property name="toolTip">
-              <string>Calculate the surface area of the island closest to the ficucial control point only.</string>
-             </property>
-             <property name="text">
-              <string>Limit to closest island(s)</string>
-             </property>
-             <property name="checked">
-              <bool>true</bool>
-             </property>
-             <property name="SlicerParameterName" stdset="0">
-              <string>limitToClosestIslands</string>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item>
-          <layout class="QVBoxLayout" name="verticalLayout_2">
-           <item>
-            <widget class="ctkCollapsibleGroupBox" name="moreOptionsCollapsibleGroupBox">
-             <property name="title">
-              <string>More</string>
-             </property>
-             <property name="flat">
-              <bool>true</bool>
-             </property>
-             <property name="collapsed">
-              <bool>false</bool>
-             </property>
-             <layout class="QVBoxLayout" name="verticalLayout_4">
-              <item>
-               <layout class="QHBoxLayout" name="moreOptionsHLayout">
-                <item>
-                 <widget class="QCheckBox" name="createModelCheckBox">
-                  <property name="toolTip">
-                   <string>Create a model for each cut segment. This allows to view the source object from which the surface area is calculated.
-
-The result is influenced by :
- - holes in the segments and point placement, if  'Closest island' option is selected,
- - smoothing level in the 'Segment editor'.</string>
-                  </property>
-                  <property name="text">
-                   <string>Create output model</string>
-                  </property>
-                  <property name="checked">
-                   <bool>true</bool>
-                  </property>
-                  <property name="SlicerParameterName" stdset="0">
-                   <string>createOutputModel</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QCheckBox" name="resetOrientationCheckBox">
-                  <property name="toolTip">
-                   <string>Click on a control point to reset its recorded slice orientation.
-
-The slice orientation in the selected view will be set to the known previous one. After defining a new orientation, click again on the same fiducial point to record the new orientation, while leaving this check box disabled.</string>
-                  </property>
-                  <property name="text">
-                   <string>Reset control point orientation</string>
-                  </property>
-                  <property name="SlicerParameterName" stdset="0">
-                   <string>resetControlPointOrientation</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <widget class="QPushButton" name="resetSliceViewsPushButton">
-                <property name="toolTip">
-                 <string>... to their default orientation.</string>
-                </property>
-                <property name="text">
-                 <string>Restore orientation of all slice views</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </widget>
-           </item>
-          </layout>
-         </item>
-        </layout>
-       </widget>
-      </item>
      </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QPushButton" name="applyButton">
-     <property name="enabled">
-      <bool>true</bool>
-     </property>
-     <property name="toolTip">
-      <string>Run the algorithm.</string>
-     </property>
-     <property name="text">
-      <string>Apply</string>
-     </property>
     </widget>
    </item>
    <item>
@@ -296,6 +161,13 @@ Right click for more.</string>
      </property>
     </spacer>
    </item>
+   <item>
+    <widget class="ctkMenuButton" name="applyButton">
+     <property name="text">
+      <string>Apply</string>
+     </property>
+    </widget>
+   </item>
   </layout>
  </widget>
  <customwidgets>
@@ -306,10 +178,9 @@ Right click for more.</string>
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>ctkCollapsibleGroupBox</class>
-   <extends>QGroupBox</extends>
-   <header>ctkCollapsibleGroupBox.h</header>
-   <container>1</container>
+   <class>ctkMenuButton</class>
+   <extends>QPushButton</extends>
+   <header>ctkMenuButton.h</header>
   </customwidget>
   <customwidget>
    <class>qMRMLNodeComboBox</class>

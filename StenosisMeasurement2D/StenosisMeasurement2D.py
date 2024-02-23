@@ -47,10 +47,6 @@ and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR0132
 class StenosisMeasurement2DParameterNode:
     inputSliceNode: slicer.vtkMRMLSliceNode
     inputFiducialNode: slicer.vtkMRMLMarkupsFiducialNode
-    applyToAllSegments: bool = False
-    limitToClosestIslands: bool = True
-    createOutputModel: bool = True
-    resetControlPointOrientation: bool = False
 
 
 class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
@@ -73,6 +69,14 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
     self.fiducialDisplayNodeObservation = None
     # Menus
     self.tableMenu = qt.QMenu()
+    
+    self._optionsMainMenu = None
+    self._optionsSubMenu1 = None
+    self._applyToAllSegmentsAction = None
+    self._limitToClosestIslandsAction = None
+    self._createOutputModelsAction = None
+    self._resetOrientationAction = None
+    self._restoreSliceViewsOrientation = None
 
   def setup(self) -> None:
     """
@@ -107,13 +111,36 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
     # Make sure parameter node is initialized (needed for module reload)
     self.initializeParameterNode()
     
+    # Options menu
+    self._optionsMainMenu = self.ui.applyButton.menu()
+    self._optionsMainMenu.clear()
+    self._optionsMainMenu.setToolTipsVisible(True)
+    self._optionsSubMenu1 = qt.QMenu("More options")
+    self._optionsSubMenu1.setToolTipsVisible(True)
+    self._applyToAllSegmentsAction = self._optionsMainMenu.addAction("Apply to all segments")
+    self._applyToAllSegmentsAction.setCheckable(True)
+    self._applyToAllSegmentsAction.setToolTip("If unchecked, only the selected segment will be processed.")
+    self._limitToClosestIslandsAction = self._optionsMainMenu.addAction("Limit to closest island")
+    self._limitToClosestIslandsAction.setCheckable(True)
+    self._limitToClosestIslandsAction.checked = True
+    self._limitToClosestIslandsAction.setToolTip("Calculate the surface area of the closest island to the ficucial control point.")
+    self._optionsMainMenu.addMenu(self._optionsSubMenu1)
+    
+    self._createOutputModelsAction = self._optionsSubMenu1.addAction("Create an output model.")
+    self._createOutputModelsAction.setCheckable(True)
+    self._createOutputModelsAction.checked = True
+    self._createOutputModelsAction.setToolTip("Create a model for each cut segment.\nThis allows to view the model from which the surface area is calculated.\n\nThe result is influenced by :\n - holes in the segments\n - point placement, if 'Closest island' option is selected,\n - smoothing level in the 'Segment editor'.")
+    self._resetOrientationAction = self._optionsSubMenu1.addAction("Reset control point orientation")
+    self._resetOrientationAction.setCheckable(True)
+    self._resetOrientationAction.setToolTip("Click on a control point to reset its recorded slice orientation.")
+    self._optionsSubMenu1.addSeparator()
+    self._restoreSliceViewsOrientation = self._optionsSubMenu1.addAction("Restore orientation of all slice views")
+    self._restoreSliceViewsOrientation.setToolTip("... to their default orientation.")
+    
     # Application connections
     self.ui.inputFiducialSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.observeFiducialNode)
-    self.ui.resetSliceViewsPushButton.connect("clicked()", self.restoreAllViews)
+    self._restoreSliceViewsOrientation.connect("triggered()", self.restoreAllViews)
     
-    # Defaults
-    self.ui.optionsCollapsibleButton.collapsed = True
-    self.ui.moreOptionsCollapsibleGroupBox.collapsed = True
     # Prepare table
     outputTable = self.ui.outputTableWidget
     outputTable.setColumnCount(5)
@@ -319,9 +346,9 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         normal = (sliceToRAS.GetElement(0, 2),
                   sliceToRAS.GetElement(1, 2),
                   sliceToRAS.GetElement(2, 2))
-        closestIsland = self._parameterNode.limitToClosestIslands
-        applyToAllSegments = self._parameterNode.applyToAllSegments
-        optionCreateCutModel = self._parameterNode.createOutputModel
+        closestIsland = self._limitToClosestIslandsAction.checked
+        applyToAllSegments = self._applyToAllSegmentsAction.checked
+        optionCreateCutModel = self._createOutputModelsAction.checked
         tuples = {}
         # Call logic functions.
         if applyToAllSegments:
@@ -455,12 +482,6 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         message = ("Fiducial node is being observed",)
         self.showStatusMessage(message)
 
-  # def GetNthControlPointOrientationMatrixWorldByID(id):
-  #   controlPointIndex = self.fiducialNode.GetNthControlPointIndexByID(id)
-  #   controlPointOrientationMatrix = vtk.vtkMatrix3x3()
-  #   self.fiducialNode.GetNthControlPointOrientationMatrixWorld(controlPointIndex, controlPointOrientationMatrix)
-  #   return controlPointOrientationMatrix
-
   """
   Store, restore or reset the orientation part of a sliceToRAS matrix with/from
   a control point's Get/SetOrientation() function.
@@ -502,13 +523,13 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         self.showStatusMessage(message)
     
     # Execute a request to reset a control point orientation matrix.
-    if self._parameterNode.resetControlPointOrientation:
+    if self._resetOrientationAction.checked:
         identityMatrix = vtk.vtkMatrix3x3()
         fiducialNode.SetNthControlPointOrientationMatrixWorld(controlPointIndex, identityMatrix)
         message = ("Reset orientation at point", fiducialNode.GetNthControlPointLabel(controlPointIndex))
         self.showStatusMessage(message)
     # Always set the checkbox to false.
-    self.ui.resetOrientationCheckBox.checked = False
+    self._resetOrientationAction.checked = False
 
   """
   Helper function.
