@@ -36,7 +36,7 @@
          <string>Pick the input centerline model.</string>
         </property>
         <property name="nodeTypes">
-         <stringlist>
+         <stringlist notr="true">
           <string>vtkMRMLModelNode</string>
          </stringlist>
         </property>
@@ -82,7 +82,7 @@ The input centerline is expected to be inside the lumen surface.</string>
            <locale language="English" country="UnitedStates"/>
           </property>
           <property name="nodeTypes">
-           <stringlist>
+           <stringlist notr="true">
             <string>vtkMRMLSegmentationNode</string>
            </stringlist>
           </property>

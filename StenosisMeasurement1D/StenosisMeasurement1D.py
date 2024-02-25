@@ -31,14 +31,14 @@ class StenosisMeasurement1D(ScriptedLoadableModule):
     self.parent.categories = ["Vascular Modeling Toolkit"]
     self.parent.dependencies = []
     self.parent.contributors = ["Saleem Edah-Tally [Surgeon] [Hobbyist developer]", "Andras Lasso, PerkLab"]
-    self.parent.helpText = """
+    self.parent.helpText = _("""
 This <a href="https://github.com/vmtk/SlicerExtension-VMTK/">module</a> straightens an open input markups curve and displays cumulative and individual lengths between control points. It is intended for quick one dimensional arterial stenosis evaluation, but is actually purpose agnostic.
-"""
+""")
     # TODO: replace with organization, grant and thanks
-    self.parent.acknowledgementText = """
+    self.parent.acknowledgementText = _("""
 This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc., Andras Lasso, PerkLab,
 and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
-"""
+""")
 
 #
 # StenosisMeasurement1DParameterNode
@@ -187,7 +187,7 @@ class StenosisMeasurement1DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
     if outputTable.columnCount == 0:
         outputTable.setColumnCount(4)
         outputTable.setRowCount(numberOfControlPoints - 1)
-        columnLabels = ("Cumulative", "Cumulative %", "Partial", "Partial %")
+        columnLabels = (_("Cumulative"), _("Cumulative %"), _("Partial"), _("Partial %"))
         outputTable.setHorizontalHeaderLabels(columnLabels)
     # Get global variables.
     curveTotalLength = inputCurve.GetCurveLengthWorld()
@@ -272,7 +272,7 @@ class StenosisMeasurement1DLogic(ScriptedLoadableModuleLogic):
         self._observations.append(curveNode.AddObserver(slicer.vtkMRMLMarkupsNode.PointRemovedEvent, self.onCurveControlPointEvent))
         self.process()
     else:
-        msg = "No curve."
+        msg = _("No curve.")
         slicer.util.showStatusMessage(msg, 4000)
         slicer.app.processEvents()
         logging.info(msg)
@@ -380,6 +380,6 @@ class StenosisMeasurement1DTest(ScriptedLoadableModuleTest):
     your test should break so they know that the feature is needed.
     """
 
-    self.delayDisplay("Starting the test")
+    self.delayDisplay(_("Starting the test"))
 
-    self.delayDisplay('Test passed')
+    self.delayDisplay(_("Test passed"))

@@ -2,6 +2,9 @@ import os
 import unittest
 import logging
 import vtk, qt, ctk, slicer
+from slicer.i18n import tr as _
+from slicer.i18n import translate
+
 import numpy as np
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
@@ -23,14 +26,14 @@ class CrossSectionAnalysis(ScriptedLoadableModule):
     self.parent.categories = ["Vascular Modeling Toolkit"]
     self.parent.dependencies = []
     self.parent.contributors = ["Saleem Edah-Tally (Surgeon) (Hobbyist developer)", "Andras Lasso (PerkLab)"]
-    self.parent.helpText = """
+    self.parent.helpText = _("""
 This module describes cross-sections along a VMTK centerline model, a VMTK centerline markups curve or an arbitrary markups curve. Documentation is available
     <a href="https://github.com/vmtk/SlicerExtension-VMTK/">here</a>.
-"""
-    self.parent.acknowledgementText = """
+""")
+    self.parent.acknowledgementText = _("""
 This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc., Andras Lasso, PerkLab,
 and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
-"""  # TODO: replace with organization, grant and thanks.
+""")  # TODO: replace with organization, grant and thanks.
 
 #
 # CrossSectionAnalysisWidget
@@ -328,7 +331,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
   def onApplyButton(self):
     if not self.logic.isInputCenterlineValid():
-        msg = "Input is invalid."
+        msg = _("Input is invalid.")
         slicer.util.showStatusMessage(msg, 3000)
         logging.info(msg)
         return # Just don't do anything
@@ -417,7 +420,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       self.ui.surfaceAreaValueLabel.setText(self.logic.getUnitNodeDisplayString(surfaceArea, "area").strip())
       self.ui.surfaceAreaValueLabel.setToolTip(str(surfaceArea))
     else:
-      self.ui.surfaceAreaValueLabel.setText("N/A (input lumen surface not specified)")
+      self.ui.surfaceAreaValueLabel.setText(_("N/A (input lumen surface not specified)"))
 
     if surfaceArea > 0.0:
       derivedDiameterVariant = tableNode.GetTable().GetValueByName(int(value), CE_DIAMETER_ARRAY_NAME)
@@ -436,7 +439,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         """
         diameterPercentDifference = (diameterDifference / misDiameter) * 100
         diameterDifferenceSign = "+" if diameterPercentDifference >=0 else "-"
-        derivedDiameterStr += f" (MIS diameter {diameterDifferenceSign}"
+        derivedDiameterStr += _(" (MIS diameter {sign}").format(sign=diameterDifferenceSign)
         # Using str().strip() to remove a leading space
         derivedDiameterStr += self.logic.getUnitNodeDisplayString(abs(diameterDifference), "length").strip()
         derivedDiameterStr += f", {diameterDifferenceSign}{round(abs(diameterPercentDifference), 2)}%)"
@@ -586,13 +589,13 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
   def setInputCenterlineNode(self, centerlineNode):
     if (centerlineNode is not None) and (centerlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode")):
       if centerlineNode.GetShapeName() != slicer.vtkMRMLMarkupsShapeNode.Tube :
-        self.logic.showStatusMessage(("Selected Shape node is not a Tube.",))
+        self.logic.showStatusMessage((_("Selected Shape node is not a Tube."),))
         self.ui.inputCenterlineSelector.setCurrentNode(None)
         self.logic.setInputCenterlineNode(None)
         return
     if (centerlineNode is not None) and (centerlineNode.IsTypeOf("vtkMRMLModelNode")):
       if not centerlineNode.HasPointScalarName("Radius"):
-        self.logic.showStatusMessage(("Selected model node does not have radius information.",))
+        self.logic.showStatusMessage((_("Selected model node does not have radius information."),))
         self.ui.inputCenterlineSelector.setCurrentNode(None)
         self.logic.setInputCenterlineNode(None)
         return
@@ -611,16 +614,16 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     comboBox.clear()
     
     if self.logic.isCenterlineRadiusAvailable():
-        comboBox.addItem("MIS diameter", MIS_DIAMETER)
+        comboBox.addItem(_("MIS diameter"), MIS_DIAMETER)
     if self.logic.lumenSurfaceNode:
-      comboBox.addItem("CE diameter", CE_DIAMETER)
-      comboBox.addItem("Cross-section area", CROSS_SECTION_AREA)
+      comboBox.addItem(_("CE diameter"), CE_DIAMETER)
+      comboBox.addItem(_("Cross-section area"), CROSS_SECTION_AREA)
     if self.logic.inputCenterlineNode and self.logic.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode"):
-      comboBox.addItem("Wall diameter", WALL_CE_DIAMETER)
-      comboBox.addItem("Wall cross-section area", WALL_CROSS_SECTION_AREA)
+      comboBox.addItem(_("Wall diameter"), WALL_CE_DIAMETER)
+      comboBox.addItem(_("Wall cross-section area"), WALL_CROSS_SECTION_AREA)
       if self.logic.lumenSurfaceNode:
-        comboBox.addItem("Stenosis by diameter (CE)", DIAMETER_STENOSIS)
-        comboBox.addItem("Stenosis by surface area", SURFACE_AREA_STENOSIS)
+        comboBox.addItem(_("Stenosis by diameter (CE)"), DIAMETER_STENOSIS)
+        comboBox.addItem(_("Stenosis by surface area"), SURFACE_AREA_STENOSIS)
 
     if (comboBox.count):
       comboBox.setCurrentIndex(0)
@@ -861,17 +864,17 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
   def run(self):
     self.resetCrossSections()
     if not self.isInputCenterlineValid():
-        msg = "Input is invalid."
+        msg = _("Input is invalid.")
         slicer.util.showStatusMessage(msg, 3000)
         raise ValueError(msg)
 
-    logging.info('Processing started')
+    logging.info(_("Processing started"))
     if self.outputTableNode:
       self.emptyOutputTableNode()
       self.updateOutputTable(self.inputCenterlineNode, self.outputTableNode)
     if self.outputPlotSeriesNode:
       self.updatePlot(self.outputPlotSeriesNode, self.outputTableNode, self.inputCenterlineNode.GetName())
-    logging.info('Processing completed')
+    logging.info(_("Processing completed"))
 
   def emptyOutputTableNode(self):
     # Clears the plot also.
@@ -1010,7 +1013,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
             crossSectionCompute.SetInputCenterlinePolyData(inputCenterline.GetCurveWorld())
     if self.lumenSurfaceNode:
         crossSectionCompute.SetInputSurfaceNode(self.lumenSurfaceNode, self.currentSegmentID)
-        self.showStatusMessage(("Waiting for background jobs...", ))
+        self.showStatusMessage((_("Waiting for background jobs..."), ))
         crossSectionCompute.UpdateTable(crossSectionAreaArray, ceDiameterArray)
     
     """
@@ -1029,7 +1032,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
         wallCrossSectionCompute.SetInputCenterlinePolyData(inputCenterline.GetSplineWorld())
       else:
         wallCrossSectionCompute.SetInputCenterlinePolyData(trimmedSpline)
-      self.showStatusMessage(("Waiting for background jobs...", ))
+      self.showStatusMessage((_("Waiting for background jobs..."), ))
       wallCrossSectionCompute.UpdateTable(wallCrossSectionAreaArray, wallDiameterArray)
     
     cumArray = vtk.vtkDoubleArray()
@@ -1039,7 +1042,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
             
     for i in range(numberOfPoints):
       if (((i + 1) % 25) == 0):
-          self.showStatusMessage(("Updating table :", str(i + 1), "/", str(numberOfPoints)))
+          self.showStatusMessage((_("Updating table :"), str(i + 1), "/", str(numberOfPoints)))
       # Distance from relative origin
       distanceArray.SetValue(i, relArray.GetValue(i))
       # Radii
@@ -1077,7 +1080,8 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     outputTable.GetTable().Modified()
     
     stopTime = time.time()
-    message = f'Processing completed in {stopTime-startTime:.2f} seconds - {numberOfPoints} points'
+    durationValue = '%.2f' % (stopTime-startTime)
+    message = _("Processing completed in {duration} seconds - {countOfPoints} points").format(duration=durationValue, countOfPoints=numberOfPoints)
     logging.info(message)
     slicer.util.showStatusMessage(message, 5000)
 
@@ -1140,21 +1144,21 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
 
     lengthUnit = self.getUnitNodeUnitDisplayString(0.0, "length")
     areaUnit = self.getUnitNodeUnitDisplayString(0.0, "area")
-    self.plotChartNode.SetXAxisTitle(f"{DISTANCE_ARRAY_NAME} ( {lengthUnit})")
+    self.plotChartNode.SetXAxisTitle("{nameOfDistanceArray} ( {unitOfLength})".format(nameOfDistanceArray=DISTANCE_ARRAY_NAME, unitOfLength=lengthUnit))
     if self.outputPlotSeriesType == MIS_DIAMETER:
-        self.plotChartNode.SetYAxisTitle(f"Diameter ({lengthUnit})")
+        self.plotChartNode.SetYAxisTitle(_("Diameter ({unitOfLength})").format(unitOfLength=lengthUnit))
     if self.outputPlotSeriesType == CE_DIAMETER:
-        self.plotChartNode.SetYAxisTitle(f"Diameter ({lengthUnit})")
+        self.plotChartNode.SetYAxisTitle(_("Diameter ({unitOfLength})").format(unitOfLength=lengthUnit))
     elif self.outputPlotSeriesType == CROSS_SECTION_AREA:
-        self.plotChartNode.SetYAxisTitle(f"Area ({areaUnit})")
+        self.plotChartNode.SetYAxisTitle(_("Area ({unitOfArea})").format(unitOfArea=areaUnit))
     elif self.outputPlotSeriesType == WALL_CE_DIAMETER:
-        self.plotChartNode.SetYAxisTitle(f"Diameter ({lengthUnit})")
+        self.plotChartNode.SetYAxisTitle(_("Diameter ({unitOfLength})").format(unitOfLength=lengthUnit))
     elif self.outputPlotSeriesType == WALL_CROSS_SECTION_AREA:
-        self.plotChartNode.SetYAxisTitle(f"Area ({areaUnit})")
+        self.plotChartNode.SetYAxisTitle(_("Area ({unitOfArea})").format(unitOfArea=areaUnit))
     elif self.outputPlotSeriesType == DIAMETER_STENOSIS:
-        self.plotChartNode.SetYAxisTitle(f"Stenosis (%)")
+        self.plotChartNode.SetYAxisTitle(_("Stenosis (%)"))
     elif self.outputPlotSeriesType == SURFACE_AREA_STENOSIS:
-        self.plotChartNode.SetYAxisTitle(f"Stenosis (%)")
+        self.plotChartNode.SetYAxisTitle(_("Stenosis (%)"))
     else:
       pass
     # Make sure the plot is in the chart
@@ -1371,11 +1375,11 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     planePoints = planeCut.GetOutput().GetPoints()
     # self.lumenSurfaceNode.GetDisplayNode().GetSegmentVisibility3D(self.currentSegmentID) doesn't work as expected. Even if the segment is hidden in 3D view, it returns True.
     if planePoints is None:
-        msg = "Could not cut segment. Is it visible in 3D view?"
+        msg = _("Could not cut segment. Is it visible in 3D view?")
         slicer.util.showStatusMessage(msg, 3000)
         raise ValueError(msg)
     if planePoints.GetNumberOfPoints() < 3:
-        logging.info("Not enough points to create surface")
+        logging.info(_("Not enough points to create surface"))
         return None
 
     # Keep the closed surface around the centerline
@@ -1408,7 +1412,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     # Finally create/update the model node
     if self.crossSectionModelNode is None:
       self.crossSectionModelNode = slicer.modules.models.logic().AddModel(crossSectionPolyData)
-      name = "Cross section for "
+      name = _("Cross section: ")
       if (self.lumenSurfaceNode.GetClassName() == "vtkMRMLSegmentationNode"):
         name += self.lumenSurfaceNode.GetSegmentation().GetSegment(self.currentSegmentID).GetName()
       else:
@@ -1431,7 +1435,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
 
   def getPositionMaximumInscribedSphereRadius(self, pointIndex):
     if not self.isCenterlineRadiusAvailable():
-      raise ValueError("Maximum inscribed sphere radius is not available")
+      raise ValueError(_("Maximum inscribed sphere radius is not available"))
     position = np.zeros(3)
     if self.inputCenterlineNode.IsTypeOf("vtkMRMLModelNode"):
       positionLocal = slicer.util.arrayFromModelPoints(self.inputCenterlineNode)[pointIndex]
@@ -1545,13 +1549,13 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       sphereModelDisplayNode.SetVisibility2D(True)
       sphereModelDisplayNode.SetVisibility3D(True)
       # Set model name
-      name = "Maximum inscribed sphere"
+      name = _("Maximum inscribed sphere: ")
       if self.lumenSurfaceNode:
         if (self.lumenSurfaceNode.GetClassName() == "vtkMRMLSegmentationNode"):
             if self.lumenSurfaceNode.GetSegmentation().GetSegment(self.currentSegmentID):
-              name += " for " + self.lumenSurfaceNode.GetSegmentation().GetSegment(self.currentSegmentID).GetName()
+              name += self.lumenSurfaceNode.GetSegmentation().GetSegment(self.currentSegmentID).GetName()
         else:
-            name += " for " + self.lumenSurfaceNode.GetName()
+            name += self.lumenSurfaceNode.GetName()
       self.maximumInscribedSphereModelNode.SetName(name)
       # Set sphere color
       sphereModelDisplayNode.SetColor(self.maximumInscribedSphereColor[0], self.maximumInscribedSphereColor[1], self.maximumInscribedSphereColor[2])
@@ -1613,14 +1617,14 @@ class CrossSectionAnalysisTest(ScriptedLoadableModuleTest):
     """
     """
 
-DISTANCE_ARRAY_NAME = "Distance"
-MIS_DIAMETER_ARRAY_NAME = "Diameter (MIS)"
-CE_DIAMETER_ARRAY_NAME = "Diameter (CE)"
-CROSS_SECTION_AREA_ARRAY_NAME = "Cross-section area"
-WALL_DIAMETER_ARRAY_NAME = "Wall diameter"
-WALL_CROSS_SECTION_AREA_ARRAY_NAME = "Wall cross-section area"
-SURFACE_AREA_STENOSIS_ARRAY_NAME = "Stenosis by surface area"
-DIAMETER_STENOSIS_ARRAY_NAME = "Stenosis by diameter (CE)"
+DISTANCE_ARRAY_NAME = _("Distance")
+MIS_DIAMETER_ARRAY_NAME = _("Diameter (MIS)")
+CE_DIAMETER_ARRAY_NAME = _("Diameter (CE)")
+CROSS_SECTION_AREA_ARRAY_NAME = _("Cross-section area")
+WALL_DIAMETER_ARRAY_NAME = _("Wall diameter")
+WALL_CROSS_SECTION_AREA_ARRAY_NAME = _("Wall cross-section area")
+SURFACE_AREA_STENOSIS_ARRAY_NAME = _("Stenosis by surface area")
+DIAMETER_STENOSIS_ARRAY_NAME = _("Stenosis by diameter (CE)")
 
 MIS_DIAMETER = "MIS_DIAMETER"
 CE_DIAMETER = "CE_DIAMETER"

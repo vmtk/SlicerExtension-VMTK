@@ -51,7 +51,7 @@
         <double>4.000000000000000</double>
        </property>
        <property name="SlicerParameterName" stdset="0">
-        <string>marginSize</string>
+        <string notr="true">marginSize</string>
        </property>
       </widget>
      </item>
@@ -98,7 +98,7 @@
         <string notr="true"/>
        </property>
        <property name="SlicerParameterName" stdset="0">
-        <string>inputVolume</string>
+        <string notr="true">inputVolume</string>
        </property>
       </widget>
      </item>
@@ -139,6 +139,7 @@
    <class>qMRMLNodeComboBox</class>
    <extends>QWidget</extends>
    <header>qMRMLNodeComboBox.h</header>
+   <container>1</container>
   </customwidget>
   <customwidget>
    <class>qMRMLWidget</class>

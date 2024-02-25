@@ -6,6 +6,8 @@ import vtk
 import  qt
 
 import slicer
+from slicer.i18n import tr as _
+from slicer.i18n import translate
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
 from slicer.parameterNodeWrapper import (
@@ -32,15 +34,15 @@ class ArterialCalcificationPreProcessor(ScriptedLoadableModule):
         self.parent.dependencies = [] 
         self.parent.contributors = ["Saleem Edah-Tally [Surgeon] [Hobbyist developer]"]  # TODO: replace with "Firstname Lastname (Organization)"
         # TODO: update with short description of the module and a link to online module documentation
-        self.parent.helpText = """
+        self.parent.helpText = _("""
 Segment calcifications around an arterial lumen within a margin.
 See more information in <a href="href="https://github.com/vmtk/SlicerExtension-VMTK/">module documentation</a>.
-"""
+""")
         # TODO: replace with organization, grant and thanks
-        self.parent.acknowledgementText = """
+        self.parent.acknowledgementText = _("""
 This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc., Andras Lasso, PerkLab,
 and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
-"""
+""")
 
 #
 # ArterialCalcificationPreProcessorParameterNode
@@ -102,7 +104,7 @@ class ArterialCalcificationPreProcessorWidget(ScriptedLoadableModuleWidget, VTKO
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
         
         self.ui.applyButton.menu().clear()
-        self._show3DAction = qt.QAction("Show 3D on success")
+        self._show3DAction = qt.QAction(_("Show 3D on success"))
         self._show3DAction.setCheckable(True)
         self.ui.applyButton.menu().addAction(self._show3DAction)
 
@@ -177,7 +179,7 @@ class ArterialCalcificationPreProcessorWidget(ScriptedLoadableModuleWidget, VTKO
         inputSegmentation = self.ui.segmentSelector.currentNode()
         optionShow3D = self._show3DAction.checked
         
-        with slicer.util.tryWithErrorDisplay("Failed to compute results.", waitCursor=True):
+        with slicer.util.tryWithErrorDisplay(_("Failed to compute results."), waitCursor=True):
             
             # Compute output
             self.logic.process(inputSegmentation,
@@ -214,11 +216,11 @@ class ArterialCalcificationPreProcessorLogic(ScriptedLoadableModuleLogic):
                 marginSize: float = 4.0) -> None:
 
         if not inputSegmentation or not inputVolume or not segmentID or segmentID == "":
-            raise ValueError("Input segmentation, volume or segment ID is invalid")
+            raise ValueError(_("Input segmentation, volume or segment ID is invalid"))
         
         import time
         startTime = time.time()
-        logging.info('Processing started')
+        logging.info(_("Processing started"))
         
         """
         We need the volume to get intensity values.
@@ -291,7 +293,8 @@ class ArterialCalcificationPreProcessorLogic(ScriptedLoadableModuleLogic):
         inputSegmentation.GetDisplayNode().SetSegmentOpacity3D(calcifSegmentID, 0.5)
 
         stopTime = time.time()
-        logging.info(f'Processing completed in {stopTime-startTime:.2f} seconds')
+        durationValue = '%.2f' % (stopTime-startTime)
+        logging.info(_("Processing completed in {duration} seconds").format(duration=durationValue))
 
 #
 # ArterialCalcificationPreProcessorTest
@@ -312,6 +315,6 @@ class ArterialCalcificationPreProcessorTest(ScriptedLoadableModuleTest):
 
     def test_ArterialCalcificationPreProcessor1(self):
 
-        self.delayDisplay("Starting the test")
+        self.delayDisplay(_("Starting the test"))
 
-        self.delayDisplay('Test passed')
+        self.delayDisplay(_("Test passed"))

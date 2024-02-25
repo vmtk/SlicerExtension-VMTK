@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>422</width>
-    <height>621</height>
+    <width>554</width>
+    <height>734</height>
    </rect>
   </property>
   <property name="toolTip">
@@ -33,7 +33,7 @@
          <string>Input surface model of the tree. If computation is slow adjust preprocessing parameters in advanced section.</string>
         </property>
         <property name="nodeTypes">
-         <stringlist>
+         <stringlist notr="true">
           <string>vtkMRMLModelNode</string>
           <string>vtkMRMLSegmentationNode</string>
          </stringlist>
@@ -70,7 +70,7 @@
            <string>Branch endpoints. &quot;Unselected&quot; control points are used as sources, &quot;selected&quot; control points are used as targets.</string>
           </property>
           <property name="nodeTypes">
-           <stringlist>
+           <stringlist notr="true">
             <string>vtkMRMLMarkupsFiducialNode</string>
            </stringlist>
           </property>
@@ -132,7 +132,7 @@
       <string>Pick node to store parameter set</string>
      </property>
      <property name="nodeTypes">
-      <stringlist>
+      <stringlist notr="true">
        <string>vtkMRMLScriptedModuleNode</string>
       </stringlist>
      </property>
@@ -185,7 +185,7 @@
             <string>Result of quick centerline network extraction.</string>
            </property>
            <property name="nodeTypes">
-            <stringlist>
+            <stringlist notr="true">
              <string>vtkMRMLModelNode</string>
             </stringlist>
            </property>
@@ -225,7 +225,7 @@
             <string>Table containing quantitative analysis of centerline (radius, length, curvature, torsion, etc.)</string>
            </property>
            <property name="nodeTypes">
-            <stringlist>
+            <stringlist notr="true">
              <string>vtkMRMLTableNode</string>
             </stringlist>
            </property>
@@ -265,7 +265,7 @@
             <string>Centerline extraction result as a hierarchy of markups curves.</string>
            </property>
            <property name="nodeTypes">
-            <stringlist>
+            <stringlist notr="true">
              <string>vtkMRMLMarkupsCurveNode</string>
             </stringlist>
            </property>
@@ -314,7 +314,7 @@
             <string>Centerline extraction result as a model.</string>
            </property>
            <property name="nodeTypes">
-            <stringlist>
+            <stringlist notr="true">
              <string>vtkMRMLModelNode</string>
             </stringlist>
            </property>
@@ -354,7 +354,7 @@
             <string>Centerline extraction result as a hierarchy of markups curves.</string>
            </property>
            <property name="nodeTypes">
-            <stringlist>
+            <stringlist notr="true">
              <string>vtkMRMLMarkupsCurveNode</string>
             </stringlist>
            </property>
@@ -394,7 +394,7 @@
             <string>Table containing quantitative analysis of centerline (radius, length, curvature, torsion, etc.)</string>
            </property>
            <property name="nodeTypes">
-            <stringlist>
+            <stringlist notr="true">
              <string>vtkMRMLTableNode</string>
             </stringlist>
            </property>
@@ -559,7 +559,7 @@
          <string>Save preprocessing result. Useful for quality checks and for making repeated computations faster: preprocessed surface can be used as input surface (and &quot;Preprocess input surface&quot; option can then be disabled).</string>
         </property>
         <property name="nodeTypes">
-         <stringlist>
+         <stringlist notr="true">
           <string>vtkMRMLModelNode</string>
          </stringlist>
         </property>
@@ -606,7 +606,7 @@
          <string>Voronoi diagram (similar to medial surface) that is used for computing centerline path between endpoints. It is useful for quality checks and for showing a model where endpoints can be robustly placed on.</string>
         </property>
         <property name="nodeTypes">
-         <stringlist>
+         <stringlist notr="true">
           <string>vtkMRMLModelNode</string>
          </stringlist>
         </property>
@@ -639,7 +639,7 @@
          <string>Result of mesh error checks. Currently the only check is for presence of non-manifold edges.</string>
         </property>
         <property name="nodeTypes">
-         <stringlist>
+         <stringlist notr="true">
           <string>vtkMRMLMarkupsFiducialNode</string>
          </stringlist>
         </property>
@@ -733,6 +733,7 @@
    <class>qMRMLNodeComboBox</class>
    <extends>QWidget</extends>
    <header>qMRMLNodeComboBox.h</header>
+   <container>1</container>
   </customwidget>
   <customwidget>
    <class>qMRMLSpinBox</class>

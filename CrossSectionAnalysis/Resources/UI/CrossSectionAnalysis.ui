@@ -47,7 +47,7 @@
 - an invisible centerline of a shape markups node used as a tube.</string>
         </property>
         <property name="nodeTypes">
-         <stringlist>
+         <stringlist notr="true">
           <string>vtkMRMLModelNode</string>
           <string>vtkMRMLMarkupsCurveNode</string>
           <string>vtkMRMLMarkupsShapeNode</string>
@@ -95,7 +95,7 @@ The input centerline is expected to be inside the lumen surface.</string>
            <locale language="English" country="UnitedStates"/>
           </property>
           <property name="nodeTypes">
-           <stringlist>
+           <stringlist notr="true">
             <string>vtkMRMLSegmentationNode</string>
             <string>vtkMRMLModelNode</string>
            </stringlist>
@@ -144,7 +144,7 @@ The input centerline is expected to be inside the lumen surface.</string>
            <string>Pick the output table to the algorithm.</string>
           </property>
           <property name="nodeTypes">
-           <stringlist>
+           <stringlist notr="true">
             <string>vtkMRMLTableNode</string>
            </stringlist>
           </property>
@@ -192,7 +192,7 @@ The input centerline is expected to be inside the lumen surface.</string>
            <string>Pick the output plot series to the algorithm.</string>
           </property>
           <property name="nodeTypes">
-           <stringlist>
+           <stringlist notr="true">
             <string>vtkMRMLPlotSeriesNode</string>
            </stringlist>
           </property>
@@ -387,7 +387,7 @@ The input centerline is expected to be inside the lumen surface.</string>
              <locale language="English" country="UnitedStates"/>
             </property>
             <property name="nodeTypes">
-             <stringlist>
+             <stringlist notr="true">
               <string>vtkMRMLSliceNode</string>
              </stringlist>
             </property>
@@ -478,7 +478,7 @@ The input centerline is expected to be inside the lumen surface.</string>
              <locale language="English" country="UnitedStates"/>
             </property>
             <property name="nodeTypes">
-             <stringlist>
+             <stringlist notr="true">
               <string>vtkMRMLSliceNode</string>
              </stringlist>
             </property>
@@ -1117,6 +1117,7 @@ Caution: values at bifurcations may not have clinical meaning.</string>
    <class>qMRMLNodeComboBox</class>
    <extends>QWidget</extends>
    <header>qMRMLNodeComboBox.h</header>
+   <container>1</container>
   </customwidget>
   <customwidget>
    <class>qMRMLWidget</class>

@@ -35,17 +35,17 @@ class GuidedArterySegmentation(ScriptedLoadableModule):
     else:
       self.parent.dependencies = ["SegmentEditorFloodFilling","ExtractCenterline"]
     self.parent.contributors = ["Saleem Edah-Tally [Surgeon] [Hobbyist developer]", "Andras Lasso (PerkLab)"]
-    self.parent.helpText = """
+    self.parent.helpText = _("""
 This <a href="https://github.com/vmtk/SlicerExtension-VMTK/">module</a> is intended to create a segmentation from a contrast enhanced CT angioscan, and to finally extract centerlines from the surface model.
 <br><br>It assumes that curve control points are placed in the contrasted lumen.
 <br><br>The 'Flood filling' and 'Split volume' effects of the '<a href="https://github.com/lassoan/SlicerSegmentEditorExtraEffects">Segment editor extra effects</a>' are used.
 <br><br>The '<a href="https://github.com/vmtk/SlicerExtension-VMTK/tree/master/ExtractCenterline/">SlicerExtension-VMTK Extract centerline</a>' module is required.
-"""
+""")
     # TODO: replace with organization, grant and thanks
-    self.parent.acknowledgementText = """
+    self.parent.acknowledgementText = _("""
 This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc., Andras Lasso, PerkLab,
 and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
-"""
+""")
 
 #
 # GuidedArterySegmentationParameterNode
@@ -137,7 +137,7 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
       try:
         self.installExtensionFromServer("SegmentEditorExtraEffects")
       except Exception as e:
-        slicer.util.errorDisplay("Failed to install extension: "+str(e))
+        slicer.util.errorDisplay(_("Failed to install extension: ") + str(e))
         import traceback
         traceback.print_exc()
       
@@ -149,16 +149,16 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
       em.interactive = False
       result = em.updateExtensionsMetadataFromServer(True, True)
       if (not result):
-        raise ValueError(f"Could not update metadata from server to install {extensionName}.")
+        raise ValueError(_("Could not update metadata from server to install {extension}.").format(extension=extensionName))
       
-      reply = slicer.util.confirmYesNoDisplay(f"{extensionName} must be installed. Do you want to install it now ?")
+      reply = slicer.util.confirmYesNoDisplay(_("{extension} must be installed. Do you want to install it now ?").format(extension=extensionName))
       if (not reply):
-        raise ValueError(f"This module cannot be used without {extensionName}.")
+        raise ValueError(_("This module cannot be used without {extension}.").format(extension=extensionName))
       
       if not em.downloadAndInstallExtensionByName(extensionName, True, True):
-        raise ValueError(f"Failed to install {extensionName} extension.")
+        raise ValueError(_("Failed to install {extension} extension.").format(extension=extensionName))
       
-      reply = slicer.util.confirmYesNoDisplay(f"{extensionName} has been installed from server.\n\nSlicer must be restarted. Do you want to restart now ?")
+      reply = slicer.util.confirmYesNoDisplay(_("{extension} has been installed from server.\n\nSlicer must be restarted. Do you want to restart now ?").format(extension=extensionName))
       if reply:
         slicer.util.restart()
 
@@ -172,7 +172,7 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
         return
     numberOfControlPoints = node.GetNumberOfControlPoints()
     if numberOfControlPoints < 3:
-        self.inform("Curve node must have at least 3 points.")
+        self.inform(_("Curve node must have at least 3 points."))
         self._parameterNode.inputCurveNode = None
         return
     # Update UI with previous referenced segmentation. May be changed before logic.process().
@@ -191,14 +191,14 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
         self.ui.tubeDiameterSpinBox.setVisible(True)
         return
     if node.GetShapeName() != slicer.vtkMRMLMarkupsShapeNode().Tube:
-        self.inform("Shape node is not a Tube.")
+        self.inform(_("Shape node is not a Tube."))
         self._shapeNode = None
         self.ui.tubeDiameterSpinBoxLabel.setVisible(True)
         self.ui.tubeDiameterSpinBox.setVisible(True)
         return
     numberOfControlPoints = node.GetNumberOfControlPoints()
     if numberOfControlPoints < 4:
-        self.inform("Shape node must have at least 4 points.")
+        self.inform(_("Shape node must have at least 4 points."))
         self._shapeNode = None
         self.ui.tubeDiameterSpinBoxLabel.setVisible(True)
         self.ui.tubeDiameterSpinBox.setVisible(True)
@@ -368,20 +368,20 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     """
     try:
         if self._parameterNode.inputCurveNode is None:
-            self.inform("No input curve node specified.")
+            self.inform(_("No input curve node specified."))
             return
         if self._parameterNode.inputCurveNode.GetNumberOfControlPoints() < 3:
-            self.inform("Input curve node must have at least 3 control points.")
+            self.inform(_("Input curve node must have at least 3 control points."))
             return
         if self._parameterNode.inputSliceNode is None:
-            self.inform("No input slice node specified.")
+            self.inform(_("No input slice node specified."))
             return
         # Ensure there's a background volume node.
         sliceNode = self._parameterNode.inputSliceNode
         sliceWidget = slicer.app.layoutManager().sliceWidget(sliceNode.GetName())
         volumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
         if volumeNode is None:
-            self.inform("No volume node selected in input slice node.")
+            self.inform(_("No volume node selected in input slice node."))
             return
         # Restore logic output objects with referenced ones.
         self.UpdateParameterNodeWithOutputNodes()
@@ -395,7 +395,7 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
         self.ui.outputSegmentationSelector.setCurrentNode(self._parameterNode.outputSegmentation)
 
     except Exception as e:
-      slicer.util.errorDisplay("Failed to compute results: "+str(e))
+      slicer.util.errorDisplay(_("Failed to compute results: ") + str(e))
       import traceback
       traceback.print_exc()
 
@@ -466,9 +466,9 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
   def process(self) -> None:
     import time
     startTime = time.time()
-    logging.info('Processing started')
+    logging.info((_("Processing started")))
     
-    slicer.util.showStatusMessage("Segment editor setup")
+    slicer.util.showStatusMessage(_("Segment editor setup"))
     slicer.app.processEvents()
     """
     Find segment editor widgets.
@@ -610,7 +610,8 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     for i in range(1, numberOfCurveControlPoints - 1):
         # Show progress in status bar. Helpful to wait.
         t = time.time()
-        msg = f'Flood filling : {t-startTime:.2f} seconds - '
+        durationValue = '%.2f' % (t-startTime)
+        msg = _("Flood filling : {duration} seconds - ").format(duration=durationValue)
         self.showStatusMessage((msg, str(i + 1), "/", str(numberOfCurveControlPoints)))
         
         rasPoint = curveControlPoints.GetPoint(i)
@@ -641,13 +642,14 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     
     if not self._parameterNode.extractCenterlines:
         stopTime = time.time()
-        message = f'Processing completed in {stopTime-startTime:.2f} seconds'
+        durationValue = '%.2f' % (stopTime-startTime)
+        message = _("Processing completed in {duration} seconds").format(duration=durationValue)
         logging.info(message)
         slicer.util.showStatusMessage(message, 5000)
         return
     
     #---------------------- Extract centerlines ---------------------
-    slicer.util.showStatusMessage("Extract centerline setup")
+    slicer.util.showStatusMessage(_("Extract centerline setup"))
     slicer.app.processEvents()
     mainWindow.moduleSelector().selectModule('ExtractCenterline')
     if not self._extractCenterlineWidgets:
@@ -715,7 +717,8 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     self._extractCenterlineWidgets.outputNetworkGroupBox.collapsed = True
 
     stopTime = time.time()
-    message = f'Processing completed in {stopTime-startTime:.2f} seconds'
+    durationValue = '%.2f' % (stopTime-startTime)
+    message = _("Processing completed in {duration} seconds").format(duration=durationValue)
     logging.info(message)
     slicer.util.showStatusMessage(message, 5000)
 
@@ -742,9 +745,9 @@ class GuidedArterySegmentationTest(ScriptedLoadableModuleTest):
     self.test_GuidedArterySegmentation1()
 
   def test_GuidedArterySegmentation1(self) -> None:
-    self.delayDisplay("Starting the test")
+    self.delayDisplay(_("Starting the test"))
 
-    self.delayDisplay('Test passed')
+    self.delayDisplay(_("Test passed"))
 
 """
 Weird and unusual approach to remote control modules, but very efficient.

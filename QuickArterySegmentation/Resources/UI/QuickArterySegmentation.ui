@@ -31,7 +31,7 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
          <locale language="English" country="UnitedStates"/>
         </property>
         <property name="nodeTypes">
-         <stringlist>
+         <stringlist notr="true">
           <string>vtkMRMLMarkupsFiducialNode</string>
          </stringlist>
         </property>
@@ -54,7 +54,7 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
          <bool>true</bool>
         </property>
         <property name="SlicerParameterName" stdset="0">
-         <string>inputFiducialNode</string>
+         <string notr="true">inputFiducialNode</string>
         </property>
        </widget>
       </item>
@@ -69,7 +69,7 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
            <locale language="English" country="UnitedStates"/>
           </property>
           <property name="nodeTypes">
-           <stringlist>
+           <stringlist notr="true">
             <string>vtkMRMLMarkupsROINode</string>
            </stringlist>
           </property>
@@ -77,7 +77,7 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
            <bool>true</bool>
           </property>
           <property name="SlicerParameterName" stdset="0">
-           <string>inputROINode</string>
+           <string notr="true">inputROINode</string>
           </property>
          </widget>
         </item>
@@ -129,7 +129,7 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
          <string>Select an output segmentation</string>
         </property>
         <property name="nodeTypes">
-         <stringlist>
+         <stringlist notr="true">
           <string>vtkMRMLSegmentationNode</string>
          </stringlist>
         </property>
@@ -149,7 +149,7 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
          <bool>true</bool>
         </property>
         <property name="SlicerParameterName" stdset="0">
-         <string>outputSegmentationNode</string>
+         <string notr="true">outputSegmentationNode</string>
         </property>
        </widget>
       </item>
@@ -164,7 +164,7 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
            <locale language="English" country="UnitedStates"/>
           </property>
           <property name="nodeTypes">
-           <stringlist>
+           <stringlist notr="true">
             <string>vtkMRMLSliceNode</string>
            </stringlist>
           </property>
@@ -181,7 +181,7 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
            <bool>false</bool>
           </property>
           <property name="SlicerParameterName" stdset="0">
-           <string>inputSliceNode</string>
+           <string notr="true">inputSliceNode</string>
           </property>
          </widget>
         </item>
@@ -265,7 +265,7 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
           <number>100</number>
          </property>
          <property name="SlicerParameterName" stdset="0">
-          <string>inputIntensityTolerance</string>
+          <string notr="true">inputIntensityTolerance</string>
          </property>
         </widget>
        </item>
@@ -301,7 +301,7 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
           <double>2.000000000000000</double>
          </property>
          <property name="SlicerParameterName" stdset="0">
-          <string>inputNeighbourhoodSize</string>
+          <string notr="true">inputNeighbourhoodSize</string>
          </property>
         </widget>
        </item>
@@ -329,7 +329,7 @@ It is recommended to generate centerlines on accurate segmentations.</string>
       <bool>false</bool>
      </property>
      <property name="SlicerParameterName" stdset="0">
-      <string>optionExtractCenterlines</string>
+      <string notr="true">optionExtractCenterlines</string>
      </property>
     </widget>
    </item>

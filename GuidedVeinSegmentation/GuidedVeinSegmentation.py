@@ -5,6 +5,8 @@ from typing import Annotated, Optional
 import vtk
 
 import slicer
+import slicer
+from slicer.i18n import tr as _
 from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
 from slicer.parameterNodeWrapper import (
@@ -30,13 +32,13 @@ class GuidedVeinSegmentation(ScriptedLoadableModule):
         self.parent.categories = ["Vascular Modeling Toolkit"]
         self.parent.dependencies = []
         self.parent.contributors = ["Saleem Edah-Tally [Surgeon] [Hobbyist developer]"]
-        self.parent.helpText = """
+        self.parent.helpText = _("""
 This <a href="https://github.com/vmtk/SlicerExtension-VMTK/">module</a> attempts to segment major veins using effects of the 'Segment editor'.
-"""
-        self.parent.acknowledgementText = """
+""")
+        self.parent.acknowledgementText = _("""
 This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc., Andras Lasso, PerkLab,
 and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
-"""
+""")
 
 #
 # GuidedVeinSegmentationParameterNode
@@ -190,7 +192,7 @@ class GuidedVeinSegmentationWidget(ScriptedLoadableModuleWidget, VTKObservationM
         """
         Run processing when user clicks "Apply" button.
         """
-        with slicer.util.tryWithErrorDisplay("Failed to compute results.", waitCursor=True):
+        with slicer.util.tryWithErrorDisplay(_("Failed to compute results."), waitCursor=True):
 
             # Compute output
             self.logic.process(self._parameterNode.inputCurve,
@@ -238,19 +240,19 @@ class GuidedVeinSegmentationLogic(ScriptedLoadableModuleLogic):
                 subtractOtherSegments: bool = True) -> None:
 
         if not inputCurve or not inputVolume or not inputSegmentation:
-            raise ValueError("Input curve or volume or segmentation is invalid.")
+            raise ValueError(_("Input curve or volume or segmentation is invalid."))
         
         if (extrusionKernelSize <= 0.0
             or gaussianStandardDeviation <= 0.0
             or seedRadius <= 0.0
             or shellMargin <= 0.0
             or shellThickness <= 0.0):
-            raise ValueError("Extrusion kernel size or Gaussian standard deviation\
-                or seed radius or shell margin or shell thickness is invalid.")
+            raise ValueError(_("Extrusion kernel size or Gaussian standard deviation\
+                or seed radius or shell margin or shell thickness is invalid."))
 
         import time
         startTime = time.time()
-        logging.info('Processing started')
+        logging.info(_("Processing started"))
         
         # Create slicer.modules.SegmentEditorWidget
         slicer.modules.segmenteditor.widgetRepresentation()
@@ -365,7 +367,8 @@ class GuidedVeinSegmentationLogic(ScriptedLoadableModuleLogic):
             inputSegmentation.GetDisplayNode().SetSegmentVisibility(visibleSegmentIDs.GetValue(segmentIndex), True)
         
         stopTime = time.time()
-        logging.info(f'Processing completed in {stopTime-startTime:.2f} seconds')
+        durationValue = '%.2f' % (stopTime-startTime)
+        logging.info(_("Processing completed in {duration} seconds").format(duration=durationValue))
 
 
 #
@@ -391,6 +394,6 @@ class GuidedVeinSegmentationTest(ScriptedLoadableModuleTest):
         self.test_GuidedVeinSegmentation1()
 
     def test_GuidedVeinSegmentation1(self):
-        self.delayDisplay("Starting the test")
+        self.delayDisplay(_("Starting the test"))
 
-        self.delayDisplay('Test passed')
+        self.delayDisplay(_("Test passed"))

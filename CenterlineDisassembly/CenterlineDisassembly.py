@@ -486,7 +486,8 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
             curveNode.SetName(curveName)
         
         stopTime = time.time()
-        logging.info(f"Processing curve creation completed in {stopTime-startTime:.2f} seconds")
+        durationValue = '%.2f' % (stopTime-startTime)
+        logging.info(_("Processing curve creation completed in {duration} seconds").format(duration=durationValue))
     
     def processCenterlineIds(self):
 
@@ -514,7 +515,8 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
             centerlinePolyDatas.append(appendPolyData.GetOutput())
         
         stopTime = time.time()
-        logging.info(f"Processing centerline ids completed in {stopTime-startTime:.2f} seconds")
+        durationValue = '%.2f' % (stopTime-startTime)
+        logging.info(_("Processing centerline ids completed in {duration} seconds").format(duration=durationValue))
         return centerlinePolyDatas
 
     def processGroupIds(self, bifurcations):
@@ -556,7 +558,8 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
                     groupIdsPolyDatas.append(unitCellPolyData)
         
         stopTime = time.time()
-        logging.info(f"Processing group ids completed in {stopTime-startTime:.2f} seconds")
+        durationValue = '%.2f' % (stopTime-startTime)
+        logging.info(_("Processing group ids completed in {duration} seconds").format(duration=durationValue))
         return groupIdsPolyDatas
 #
 # CenterlineDisassemblyTest
