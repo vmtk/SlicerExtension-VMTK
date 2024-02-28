@@ -447,7 +447,7 @@ The input centerline is expected to be inside the lumen surface.</string>
              <bool>false</bool>
             </property>
             <property name="toolTip">
-             <string>Rotate slice view around its Z-axis to restore anatomic orientation</string>
+             <string>Rotation angle for longitudinal slice view</string>
             </property>
             <property name="statusTip">
              <string/>
@@ -496,7 +496,7 @@ The input centerline is expected to be inside the lumen surface.</string>
           <item row="2" column="0">
            <widget class="QLabel" name="label_5">
             <property name="toolTip">
-             <string>Rotation angle for longitudinal slice view</string>
+             <string/>
             </property>
             <property name="text">
              <string>Rotate:</string>
