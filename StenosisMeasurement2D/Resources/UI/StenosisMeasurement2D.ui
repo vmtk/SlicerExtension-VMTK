@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>ObliqueSegmentSurfaceArea</class>
- <widget class="qMRMLWidget" name="ObliqueSegmentSurfaceArea">
+ <class>StenosisMeasurement2D</class>
+ <widget class="qMRMLWidget" name="StenosisMeasurement2D">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -43,7 +43,7 @@
              <string>Select an input slice view.</string>
             </property>
             <property name="nodeTypes">
-             <stringlist>
+             <stringlist notr="true">
               <string>vtkMRMLSliceNode</string>
              </stringlist>
             </property>
@@ -60,7 +60,7 @@
              <bool>false</bool>
             </property>
             <property name="SlicerParameterName" stdset="0">
-             <string>inputSliceNode</string>
+             <string notr="true">inputSliceNode</string>
             </property>
            </widget>
           </item>
@@ -79,7 +79,7 @@
 Clicking at a control point allows to track the slice orientation in the selected slice node, on top of the usual jump behaviour. This tracking is scene-wide only, it is not saved with the scene.</string>
             </property>
             <property name="nodeTypes">
-             <stringlist>
+             <stringlist notr="true">
               <string>vtkMRMLMarkupsFiducialNode</string>
              </stringlist>
             </property>
@@ -102,7 +102,7 @@ Clicking at a control point allows to track the slice orientation in the selecte
              <bool>false</bool>
             </property>
             <property name="SlicerParameterName" stdset="0">
-             <string>inputFiducialNode</string>
+             <string notr="true">inputFiducialNode</string>
             </property>
            </widget>
           </item>
@@ -186,6 +186,7 @@ Right click for more.</string>
    <class>qMRMLNodeComboBox</class>
    <extends>QWidget</extends>
    <header>qMRMLNodeComboBox.h</header>
+   <container>1</container>
   </customwidget>
   <customwidget>
    <class>qMRMLWidget</class>
@@ -202,7 +203,7 @@ Right click for more.</string>
  <resources/>
  <connections>
   <connection>
-   <sender>ObliqueSegmentSurfaceArea</sender>
+   <sender>StenosisMeasurement2D</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>inputSliceNodeSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
@@ -218,7 +219,7 @@ Right click for more.</string>
    </hints>
   </connection>
   <connection>
-   <sender>ObliqueSegmentSurfaceArea</sender>
+   <sender>StenosisMeasurement2D</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>inputFiducialSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
@@ -234,7 +235,7 @@ Right click for more.</string>
    </hints>
   </connection>
   <connection>
-   <sender>ObliqueSegmentSurfaceArea</sender>
+   <sender>StenosisMeasurement2D</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>inputSegmentSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>

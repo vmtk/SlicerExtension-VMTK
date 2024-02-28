@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>StraightCurveGauge</class>
- <widget class="qMRMLWidget" name="StraightCurveGauge">
+ <class>StenosisMeasurement1D</class>
+ <widget class="qMRMLWidget" name="StenosisMeasurement1D">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -113,7 +113,7 @@
  <resources/>
  <connections>
   <connection>
-   <sender>StraightCurveGauge</sender>
+   <sender>StenosisMeasurement1D</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>inputMarkupsSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
