@@ -159,7 +159,7 @@ void qSlicerBranchClipperModuleWidget::onApply()
   
   // Debranch now. Execute() can be a long process on heavy segmentations.
   timer->StartTimer();
-  this->showStatusMessage(qSlicerBranchClipperModuleWidget::tr("Disassembling, please wait..."));
+  this->showStatusMessage(qSlicerBranchClipperModuleWidget::tr("Splitting, please wait..."));
 
   vtkNew<vtkSlicerBranchClipperLogic> logic;
   logic->SetCenterlines(centerlines);
