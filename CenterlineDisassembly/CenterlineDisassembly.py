@@ -35,6 +35,7 @@ class CenterlineDisassembly(ScriptedLoadableModule):
         self.parent.contributors = ["Saleem Edah-Tally [Surgeon] [Hobbyist developer]"]
         self.parent.helpText = _("""
 Break down a centerline model into parts.
+This module makes use of the 'ExtractCenterline' module to generate curves.
 See more information in the <a href="https://github.com/vmtk/SlicerExtension-VMTK/">module documentation</a>.
 """)
         self.parent.acknowledgementText = _("""

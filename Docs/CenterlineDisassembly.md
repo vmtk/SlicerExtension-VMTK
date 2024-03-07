@@ -4,6 +4,8 @@ This module can split a bifurcated centerline model into multiple components. It
 
 The input centerline must have been created with the 'Extract centerline' module.
 
+This module makes use of the 'Extract centerline' module to generate curves.
+
 ![CenterlineDisassembly](CenterlineDisassembly_0.png)
 
 ### Usage
