@@ -140,6 +140,8 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     logging.info(message)
 
   def onCurveNode(self, node) -> None:
+    if not self._parameterNode:
+      return;
     self._parameterNode.inputCurveNode = node
     if node is None:
         return
@@ -243,9 +245,9 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     Called just after the scene is closed.
     """
     # If this module is shown while the scene is closed then recreate a new parameter node immediately
+    self.logic.initMemberVariables()
     if self.parent.isEntered:
       self.initializeParameterNode()
-    self.logic.initMemberVariables()
 
   def initializeParameterNode(self) -> None:
     """
