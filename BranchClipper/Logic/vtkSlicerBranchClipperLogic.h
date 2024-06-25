@@ -79,9 +79,6 @@ public:
   vtkSetMacro(ClipAllCenterlineGroupIds,int);
   vtkGetMacro(ClipAllCenterlineGroupIds,int);
   vtkBooleanMacro(ClipAllCenterlineGroupIds,int);
-  vtkSetMacro(InsideOut,int);
-  vtkGetMacro(InsideOut,int);
-  vtkBooleanMacro(InsideOut,int);
   vtkGetObjectMacro(Output, vtkPolyData);
   vtkGetObjectMacro(OutputCenterlines, vtkPolyData);
   
@@ -128,7 +125,6 @@ protected:
   vtkIdList * CenterlineGroupIds = nullptr;
   int GenerateClippedOutput = 0;
   int ClipAllCenterlineGroupIds = 0;
-  int InsideOut = 0;
   
   vtkSmartPointer<vtkPolyData> Output = nullptr;
   vtkSmartPointer<vtkPolyData> OutputCenterlines = nullptr;
