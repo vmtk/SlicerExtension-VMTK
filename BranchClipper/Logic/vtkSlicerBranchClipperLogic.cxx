@@ -129,7 +129,7 @@ void vtkSlicerBranchClipperLogic::Execute()
   {
     clipper->ClipAllCenterlineGroupIdsOn();
   }
-  clipper->SetGenerateClippedOutput(this->InsideOut);
+  clipper->SetGenerateClippedOutput(this->GenerateClippedOutput);
   clipper->Update();
   
   if (!this->InsideOut)
