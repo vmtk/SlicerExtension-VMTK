@@ -14,6 +14,8 @@
 #include <vtkPlane.h>
 #include <vtkCutter.h>
 #include <vtkConnectivityFilter.h>
+#include <vtkPolyDataConnectivityFilter.h>
+#include <vtkCleanPolyData.h>
 #include <vtkContourTriangulator.h>
 #include <vtkMassProperties.h>
 #include <vtkMath.h> // Pi()
@@ -77,6 +79,29 @@ void vtkCrossSectionCompute::PrintSelf(ostream& os, vtkIndent indent)
     os << indent << "inputSegmentID: " << this->InputSegmentID << "\n";
 }
 
+// Remove holes of the surface lumen if any. They are bound to be smaller than the wall itself.
+void vtkCrossSectionCompute::ExcludeHolesFromSurface(vtkPolyData * inPolyData, vtkPolyData * outPolyData)
+{
+    if (!inPolyData)
+    {
+        vtkErrorMacro("inPolyData is NULL.");
+        return;
+    }
+    if (!outPolyData)
+    {
+        vtkErrorMacro("outPolyData is NULL.");
+        return;
+    }
+    vtkNew<vtkPolyDataConnectivityFilter> wallFilter;
+    wallFilter->SetInputData(inPolyData);
+    wallFilter->SetExtractionModeToLargestRegion();
+    wallFilter->Update();
+    // Remove no longer used points.
+    vtkNew<vtkCleanPolyData> cleaner;
+    cleaner->SetInputConnection(wallFilter->GetOutputPort());
+    cleaner->Update();
+    outPolyData->DeepCopy(cleaner->GetOutput());
+}
 // The surface polydata is constant. Create it once only.
 bool vtkCrossSectionCompute::SetInputSurfaceNode(vtkMRMLNode * inputSurface, const std::string& inputSegmentId)
 {
@@ -91,8 +116,10 @@ bool vtkCrossSectionCompute::SetInputSurfaceNode(vtkMRMLNode * inputSurface, con
         this->ClosedSurfacePolyData = nullptr;
         return false;
     }
+    vtkNew<vtkPolyData> appSurfacePolyData;
     inputSegmentationNode->CreateClosedSurfaceRepresentation();
-    inputSegmentationNode->GetClosedSurfaceRepresentation(this->InputSegmentID, this->ClosedSurfacePolyData);
+    inputSegmentationNode->GetClosedSurfaceRepresentation(this->InputSegmentID, appSurfacePolyData);
+    this->ExcludeHolesFromSurface(appSurfacePolyData, this->ClosedSurfacePolyData);
   }
   else if (std::string(this->InputSurfaceNode->GetClassName()) == std::string("vtkMRMLModelNode"))
   {
@@ -103,7 +130,7 @@ bool vtkCrossSectionCompute::SetInputSurfaceNode(vtkMRMLNode * inputSurface, con
         this->ClosedSurfacePolyData = nullptr;
         return false;
     }
-    this->ClosedSurfacePolyData->DeepCopy(inputModelNode->GetPolyData());
+    this->ExcludeHolesFromSurface(inputModelNode->GetPolyData(), this->ClosedSurfacePolyData);
   }
   else if (std::string(this->InputSurfaceNode->GetClassName()) == std::string("vtkMRMLMarkupsShapeNode"))
   {

@@ -60,7 +60,6 @@ A graphical plot of MIS diameter, CE diameter or cross-section area against dist
 - When using a Shape node as a Tube :
     - the Tube should be nicely drawn, avoid kinking in particular,
     - the lumen should be cut to slightly exceed the ends of the Tube, remove all bifurcations and distant parts of the segment that are not enclosed in the Tube.
-- The quality of a segmented lumen is important. It must not contain holes. These may be misleading as the calculated surface area may concern a hole and not the segmented blood.
 
 
 ## Acknowledgement

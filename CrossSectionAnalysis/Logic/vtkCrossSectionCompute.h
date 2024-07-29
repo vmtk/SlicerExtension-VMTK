@@ -55,6 +55,8 @@ public:
 protected:
   vtkCrossSectionCompute();
   virtual ~vtkCrossSectionCompute();
+  
+  void ExcludeHolesFromSurface(vtkPolyData * inPolyData, vtkPolyData * outPolyData);
 
 private:
   unsigned int NumberOfThreads;
