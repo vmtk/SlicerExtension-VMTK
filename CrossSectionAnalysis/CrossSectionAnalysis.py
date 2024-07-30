@@ -1333,24 +1333,6 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       self.inputCenterlineNode.GetCurvePointToWorldTransformAtPointIndex(pointIndex, curvePointToWorld)
 
     return curvePointToWorld
-  
-  # Remove holes of the surface lumen if any. They are bound to be smaller that the wall itself.
-  def _excludeHolesFromSurface(self, inPolyData, outPolyData):
-    if (not inPolyData):
-      logging.info(_("inPolyData is None."))
-      return
-    if (not outPolyData):
-      logging.info(_("outPolyData is None."))
-      return
-    wallFilter = vtk.vtkPolyDataConnectivityFilter()
-    wallFilter.SetInputData(inPolyData)
-    wallFilter.SetExtractionModeToLargestRegion()
-    wallFilter.Update()
-    # Remove unneeded points.
-    cleaner = vtk.vtkCleanPolyData()
-    cleaner.SetInputConnection(wallFilter.GetOutputPort())
-    cleaner.Update()
-    outPolyData.DeepCopy(cleaner.GetOutput())
 
   def computeCrossSectionPolydata(self, pointIndex):
     curvePointToWorld = self.getCurvePointToWorldTransformAtPointIndex(pointIndex)
@@ -1366,16 +1348,12 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     plane.SetNormal(normal)
 
     # Work on the segment's closed surface
-    inClosedSurfacePolyData = vtk.vtkPolyData()
+    closedSurfacePolyData = vtk.vtkPolyData()
     if self.lumenSurfaceNode.GetClassName() == "vtkMRMLSegmentationNode":
       self.lumenSurfaceNode.CreateClosedSurfaceRepresentation()
-      self.lumenSurfaceNode.GetClosedSurfaceRepresentation(self.currentSegmentID, inClosedSurfacePolyData)
+      self.lumenSurfaceNode.GetClosedSurfaceRepresentation(self.currentSegmentID, closedSurfacePolyData)
     else:
-      inClosedSurfacePolyData = self.lumenSurfaceNode.GetPolyData()
-    
-    # Keep only the wall if there are holes in the lumen.
-    closedSurfacePolyData = vtk.vtkPolyData()
-    self._excludeHolesFromSurface(inClosedSurfacePolyData, closedSurfacePolyData)
+      closedSurfacePolyData = self.lumenSurfaceNode.GetPolyData()
 
     # If segmentation is transformed, apply it to the cross-section model. All computations are performed in the world coordinate system.
     if self.lumenSurfaceNode.GetParentTransformNode():
