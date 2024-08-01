@@ -464,13 +464,13 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
             parameters["aggressiveness"] = decimationAggressiveness
             decimation = slicer.modules.decimation
             cliNode = slicer.cli.runSync(decimation, None, parameters)
-            surfacePolyData = outputSurfaceModelNode.GetPolyData()
+            outputSurfacePolyData = outputSurfaceModelNode.GetPolyData()
             slicer.mrmlScene.RemoveNode(inputSurfaceModelNode)
             slicer.mrmlScene.RemoveNode(outputSurfaceModelNode)
             slicer.mrmlScene.RemoveNode(cliNode)
 
         surfaceCleaner = vtk.vtkCleanPolyData()
-        surfaceCleaner.SetInputData(surfacePolyData)
+        surfaceCleaner.SetInputData(outputSurfacePolyData)
         surfaceCleaner.Update()
 
         surfaceTriangulator = vtk.vtkTriangleFilter()
