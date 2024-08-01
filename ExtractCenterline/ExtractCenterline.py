@@ -429,7 +429,9 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
             logging.error(_("Invalid input surface node"))
             return None
         if surfaceNode.IsA("vtkMRMLModelNode"):
-            return surfaceNode.GetPolyData()
+            polyData = vtk.vtkPolyData()
+            polyData.DeepCopy(surfaceNode.GetPolyData())
+            return polyData
         elif surfaceNode.IsA("vtkMRMLSegmentationNode"):
             # Segmentation node
             polyData = vtk.vtkPolyData()
