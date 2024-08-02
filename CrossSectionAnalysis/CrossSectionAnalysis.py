@@ -698,13 +698,15 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.onRegionSelected(0)
     
     # If there's only 1 region, there's nothing to fix.
-    self.ui.surfaceInformationPaintToolButton.setVisible((numberOfRegions > 1) and self.checkAndSetSegmentEditor())
+    self.ui.surfaceInformationPaintToolButton.setVisible((numberOfRegions > 1) and self.checkAndSetSegmentEditor(True))
     if numberOfRegions == 1:
+      self.checkAndSetSegmentEditor(False)
       seWidget = slicer.modules.SegmentEditorWidget.editor
       seWidget.setActiveEffectByName(None)
   
+  # Initialise the segment editor if needed.
   # If the lumen surface is a segmentation, select it in the 'Segment editor'.
-  def checkAndSetSegmentEditor(self):
+  def checkAndSetSegmentEditor(self, setNodes = False):
     inputSegmentation = self.logic.lumenSurfaceNode
     if (not inputSegmentation) or (inputSegmentation.GetClassName() != "vtkMRMLSegmentationNode"):
       logging.error("Invalid input surface node.")
@@ -713,9 +715,23 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       logging.error("Invalid input segment ID.")
       return False
     
-    # Create slicer.modules.SegmentEditorWidget
-    slicer.modules.segmenteditor.widgetRepresentation()
-    seWidget = slicer.modules.SegmentEditorWidget.editor
+    # Set a default brush size of 3% if we initialise SegmentEditorWidget.
+    # Otherwise, it would be 1%.
+    try:
+      seWidget = slicer.modules.SegmentEditorWidget.editor
+    except Exception as e:
+      # Create slicer.modules.SegmentEditorWidget
+      slicer.modules.segmenteditor.widgetRepresentation()
+      seWidget = slicer.modules.SegmentEditorWidget.editor
+      seWidget.setActiveEffectByName("Paint")
+      effect = seWidget.activeEffect()
+      # setParameter() is bad here. It sets brush size within 2% to 4% using the spinbox.
+      effect.setCommonParameter("BrushRelativeDiameter", str(3.0))
+      seWidget.setActiveEffectByName(None)
+    
+    if not setNodes:
+      return True
+    
     seWidget.setSegmentationNode(inputSegmentation)
     inputVolume = seWidget.sourceVolumeNode()
     if inputVolume == None:
@@ -767,12 +783,10 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
   
   # Activate the 'Paint' effect of the 'Segment editor' with a sphere brush.
   def onSurfaceInformationPaintToggled(self, checked):
-    if not self.checkAndSetSegmentEditor():
+    if not self.checkAndSetSegmentEditor(checked):
       logging.info(_("Could not prepare the segment editor."))
       return
-    
-    # Create slicer.modules.SegmentEditorWidget
-    slicer.modules.segmenteditor.widgetRepresentation()
+
     seWidget = slicer.modules.SegmentEditorWidget.editor
     
     if checked:
