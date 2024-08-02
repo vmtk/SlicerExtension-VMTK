@@ -685,6 +685,10 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.surfaceInformationLabel.clear()
     self.ui.surfaceInformationSpinBox.setValue(0)
     self.ui.surfaceInformationSpinBox.setMaximum(0)
+    # Set the current effect to None.
+    self.checkAndSetSegmentEditor(False)
+    self.ui.surfaceInformationPaintToolButton.setChecked(False)
+    self.ui.surfaceInformationPaintToolButton.setVisible(False)
   
   # Identify and track all regions of the lumen surface.
   def onGetRegionsButton(self):
@@ -697,21 +701,26 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.surfaceInformationSpinBox.setMaximum(numberOfRegions)
     self.onRegionSelected(0)
     
-    # If there's only 1 region, there's nothing to fix.
-    self.ui.surfaceInformationPaintToolButton.setVisible((numberOfRegions > 1) and self.checkAndSetSegmentEditor(True))
-    if numberOfRegions == 1:
-      self.checkAndSetSegmentEditor(False)
-      seWidget = slicer.modules.SegmentEditorWidget.editor
-      seWidget.setActiveEffectByName(None)
+    inputSurface = self.logic.lumenSurfaceNode
+    if (inputSurface.GetClassName() == "vtkMRMLSegmentationNode"):
+      # If there's only 1 region, there's nothing to fix.
+      self.ui.surfaceInformationPaintToolButton.setVisible((numberOfRegions > 1) and self.checkAndSetSegmentEditor(True))
+      if (numberOfRegions == 1) and (self.checkAndSetSegmentEditor(False)):
+        seWidget = slicer.modules.SegmentEditorWidget.editor
+        seWidget.setActiveEffectByName(None)
+    else:
+      self.ui.surfaceInformationPaintToolButton.setVisible(False)
   
   # Initialise the segment editor if needed.
   # If the lumen surface is a segmentation, select it in the 'Segment editor'.
+  # Always deactivate the current effect.
   def checkAndSetSegmentEditor(self, setNodes = False):
-    inputSegmentation = self.logic.lumenSurfaceNode
-    if (not inputSegmentation) or (inputSegmentation.GetClassName() != "vtkMRMLSegmentationNode"):
+    inputSurface = self.logic.lumenSurfaceNode
+    if (not inputSurface):
       logging.error("Invalid input surface node.")
       return False;
-    if len(self.logic.currentSegmentID) == 0:
+    
+    if (inputSurface.GetClassName() == "vtkMRMLSegmentationNode") and len(self.logic.currentSegmentID) == 0:
       logging.error("Invalid input segment ID.")
       return False
     
@@ -727,17 +736,17 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       effect = seWidget.activeEffect()
       # setParameter() is bad here. It sets brush size within 2% to 4% using the spinbox.
       effect.setCommonParameter("BrushRelativeDiameter", str(3.0))
-      seWidget.setActiveEffectByName(None)
     
+    seWidget.setActiveEffectByName(None)
     if not setNodes:
       return True
     
-    seWidget.setSegmentationNode(inputSegmentation)
+    seWidget.setSegmentationNode(inputSurface)
     inputVolume = seWidget.sourceVolumeNode()
     if inputVolume == None:
       logging.error("Invalid input volume node.")
       return False
-    inputSegmentation.SetReferenceImageGeometryParameterFromVolumeNode(inputVolume)
+    inputSurface.SetReferenceImageGeometryParameterFromVolumeNode(inputVolume)
     seWidget.mrmlSegmentEditorNode().SetSelectedSegmentID(self.logic.currentSegmentID)
     
     return True
