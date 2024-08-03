@@ -78,6 +78,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self._lumenRegions = []
     # The paint effect button must not be visible by default.
     self.ui.surfaceInformationPaintToolButton.setVisible(False)
+    # Position the crosshair on a lumen region.
+    self.crosshair=slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLCrosshairNode")
 
     self.initializeParameterNode()
 
@@ -780,6 +782,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         firstPoint = region.GetPoint(0)
         for sliceNode in sliceNodes:
           slicer.vtkMRMLSliceNode.JumpSliceByCentering(sliceNode, *firstPoint)
+        
+        self.crosshair.SetCrosshairRAS(firstPoint)
       
     self.ui.surfaceInformationLabel.setText(label)
   
