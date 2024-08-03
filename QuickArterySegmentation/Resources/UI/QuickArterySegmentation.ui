@@ -229,8 +229,8 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
        <rect>
         <x>20</x>
         <y>40</y>
-        <width>262</width>
-        <height>84</height>
+        <width>281</width>
+        <height>81</height>
        </rect>
       </property>
       <layout class="QFormLayout" name="effectsParametersFormLayout">
@@ -310,6 +310,19 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
     </widget>
    </item>
    <item>
+    <spacer name="verticalSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item>
     <widget class="QCheckBox" name="extractCenterlinesCheckBox">
      <property name="toolTip">
       <string>Use 'Extract centerline' module to generate a centerline model and a centerline curve.
@@ -347,19 +360,6 @@ Output nodes from the last run will be removed.</string>
       <string>Apply</string>
      </property>
     </widget>
-   </item>
-   <item>
-    <spacer name="verticalSpacer">
-     <property name="orientation">
-      <enum>Qt::Vertical</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>20</width>
-       <height>40</height>
-      </size>
-     </property>
-    </spacer>
    </item>
   </layout>
  </widget>
