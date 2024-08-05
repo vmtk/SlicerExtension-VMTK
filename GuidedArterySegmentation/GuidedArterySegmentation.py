@@ -520,7 +520,7 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     allScalarVolumeNodes = slicer.mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
     outputSplitVolumeNode = allScalarVolumeNodes.GetItemAsObject(allScalarVolumeNodes.GetNumberOfItems() - 1)
     # Remove no longer needed drawn tube segment
-    segment = segmentation.GetSegmentation().GetSegment("TubeMask")
+    segment = segmentation.GetSegmentation().GetSegment(tubeMaskSegmentId)
     segmentation.GetSegmentation().RemoveSegment(segment)
     # Replace master volume of segmentation
     seWidgetEditor.setSourceVolumeNode(outputSplitVolumeNode)
