@@ -222,6 +222,9 @@ class ArterialCalcificationPreProcessorLogic(ScriptedLoadableModuleLogic):
         startTime = time.time()
         logging.info(_("Processing started"))
         
+        # Ensure the segment is visible so that SegmentStatistics can process it.
+        inputSegmentation.GetDisplayNode().SetSegmentVisibility(segmentID, True)
+        
         """
         We need the volume to get intensity values.
         We don't set the segment editor's volume input. They are expected to be
