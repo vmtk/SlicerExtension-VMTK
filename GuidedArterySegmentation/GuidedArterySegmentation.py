@@ -497,12 +497,12 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
       tube.SetNumberOfSides(30)
       tube.CappingOn()
       tube.Update()
-      segmentation.AddSegmentFromClosedSurfaceRepresentation(tube.GetOutput(), "TubeMask")
+      tubeMaskSegmentId = segmentation.AddSegmentFromClosedSurfaceRepresentation(tube.GetOutput(), "TubeMask")
     else:
       #---------------------- Draw tube from Shape node ---------------------
-      segmentation.AddSegmentFromClosedSurfaceRepresentation(self._shapeNode.GetCappedTubeWorld(), "TubeMask")
+      tubeMaskSegmentId = segmentation.AddSegmentFromClosedSurfaceRepresentation(self._shapeNode.GetCappedTubeWorld(), "TubeMask")
     # Select it so that Split Volume can work on this specific segment only.
-    seWidgetEditor.setCurrentSegmentID("TubeMask")
+    seWidgetEditor.setCurrentSegmentID(tubeMaskSegmentId)
     
     #---------------------- Split volume ---------------------
     slicer.util.showStatusMessage("Split volume")
