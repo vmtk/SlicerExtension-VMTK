@@ -275,22 +275,21 @@ class GuidedVeinSegmentationLogic(ScriptedLoadableModuleLogic):
                 inputSegmentation.GetDisplayNode().SetSegmentVisibility(segmentId, False)
         
         # Create a seed segment using the curve polydata.
-        seedSegmentId = inputCurve.GetName()
+        seedSegmentName = inputCurve.GetName() + "_" + _("Segment")
+        seedSegmentName = slicer.mrmlScene.GenerateUniqueName(seedSegmentName)
         tube = vtk.vtkTubeFilter()
         tube.SetInputData(inputCurve.GetCurveWorld())
         tube.SetRadius(seedRadius)
         tube.SetNumberOfSides(30)
         tube.CappingOn()
         tube.Update()
-        seedSegmentId = inputSegmentation.AddSegmentFromClosedSurfaceRepresentation(tube.GetOutput(), seedSegmentId)
+        seedSegmentId = inputSegmentation.AddSegmentFromClosedSurfaceRepresentation(tube.GetOutput(), seedSegmentName)
         seWidget.mrmlSegmentEditorNode().SetSelectedSegmentID(seedSegmentId)
         # Tag the seed segment.
         tagSourceCurveId = "SourceCurveId"
         segment = inputSegmentation.GetSegmentation().GetSegment(seedSegmentId)
         reference = vtk.reference(inputCurve.GetID())
         segment.SetTag(tagSourceCurveId, reference)
-        # Increment the visible name for repeat runs; a new segment is created each time.
-        segment.SetName(seedSegmentId)
         
         # Create a shell segment using the curve polydata : a new tube that will grow and get hollow.
         shell = vtk.vtkTubeFilter()
