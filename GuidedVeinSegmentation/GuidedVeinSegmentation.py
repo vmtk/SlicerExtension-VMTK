@@ -254,9 +254,9 @@ class GuidedVeinSegmentationLogic(ScriptedLoadableModuleLogic):
         startTime = time.time()
         logging.info(_("Processing started"))
         
-        # Create slicer.modules.SegmentEditorWidget
-        slicer.modules.segmenteditor.widgetRepresentation()
-        seWidget = slicer.modules.SegmentEditorWidget.editor
+        # Create segment editor object if needed.
+        segmentEditorModuleWidget = slicer.util.getModuleWidget("SegmentEditor")
+        seWidget = segmentEditorModuleWidget.editor
         seWidget.setSegmentationNode(inputSegmentation)
         seWidget.setSourceVolumeNode(inputVolume)
         inputSegmentation.SetReferenceImageGeometryParameterFromVolumeNode(inputVolume)
