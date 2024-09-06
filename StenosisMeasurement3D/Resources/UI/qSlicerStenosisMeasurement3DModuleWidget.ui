@@ -123,19 +123,6 @@ This should ideally exceed the wall surface a little, and must not be bifurcated
     </layout>
    </item>
    <item>
-    <widget class="QPushButton" name="applyButton">
-     <property name="enabled">
-      <bool>true</bool>
-     </property>
-     <property name="toolTip">
-      <string>Run the algorithm.</string>
-     </property>
-     <property name="text">
-      <string>Apply</string>
-     </property>
-    </widget>
-   </item>
-   <item>
     <widget class="ctkCollapsibleButton" name="resultCollapsibleButton">
      <property name="toolTip">
       <string/>
@@ -311,6 +298,19 @@ This should ideally exceed the wall surface a little, and must not be bifurcated
       </size>
      </property>
     </spacer>
+   </item>
+   <item>
+    <widget class="QPushButton" name="applyButton">
+     <property name="enabled">
+      <bool>true</bool>
+     </property>
+     <property name="toolTip">
+      <string>Run the algorithm.</string>
+     </property>
+     <property name="text">
+      <string>Apply</string>
+     </property>
+    </widget>
    </item>
   </layout>
  </widget>
