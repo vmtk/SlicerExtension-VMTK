@@ -58,7 +58,7 @@ The control points are assumed to be on the contrasted lumen.</string>
          <bool>false</bool>
         </property>
         <property name="removeEnabled">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
         <property name="editEnabled">
          <bool>true</bool>
@@ -132,7 +132,7 @@ If a Shape::Tube node is specified below, this parameter is ignored.</string>
          <bool>true</bool>
         </property>
         <property name="removeEnabled">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
         <property name="editEnabled">
          <bool>true</bool>
