@@ -422,8 +422,6 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     
   def initMemberVariables(self) -> None:
     self._parameterNode = QuickArterySegmentationParameterNode(super().getParameterNode())
-    self.segmentEditorWidgets = None
-    self.extractCenterlineWidgets = None
 
   def showStatusMessage(self, messages) -> None:
     separator = " "
@@ -438,14 +436,7 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     
     slicer.util.showStatusMessage(_("Segment editor setup"))
     slicer.app.processEvents()
-    """
-    Find segment editor widgets.
-    Use a dedicated class to store widget references once only.
-    Not reasonable to dig through the UI on every run.
-    """
-    if not self.segmentEditorWidgets:
-        self.segmentEditorWidgets = SegmentEditorWidgets()
-        self.segmentEditorWidgets.findWidgets()
+
     # Create a new segmentation if none is specified.
     if not self._parameterNode.outputSegmentationNode:
         segmentation=slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode")
@@ -454,20 +445,17 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
         # Prefer a local reference for readability
         segmentation = self._parameterNode.outputSegmentationNode
         
-    # Local direct reference to slicer.modules.SegmentEditorWidget.editor
-    seWidgetEditor=self.segmentEditorWidgets.widgetEditor
+    # Create segment editor object if needed.
+    segmentEditorModuleWidget = slicer.util.getModuleWidget("SegmentEditor")
+    seWidget = segmentEditorModuleWidget.editor
 
     # Get volume node
     sliceWidget = slicer.app.layoutManager().sliceWidget(self._parameterNode.inputSliceNode.GetName())
     volumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
     
     # Set segment editor controls
-    seWidgetEditor.setSegmentationNode(segmentation)
-    seWidgetEditor.setSourceVolumeNode(volumeNode)
-    
-    # Go to Segment Editor.
-    mainWindow = slicer.util.mainWindow()
-    mainWindow.moduleSelector().selectModule('SegmentEditor')
+    seWidget.setSegmentationNode(segmentation)
+    seWidget.setSourceVolumeNode(volumeNode)
     
     #---------------------- Manage segment --------------------
     # Remove a segment node and keep its color
@@ -493,19 +481,21 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     if len(segmentColor):
         segment.SetColor(segmentColor)
     # Select new segment
-    seWidgetEditor.setCurrentSegmentID(segmentID)
+    seWidget.setCurrentSegmentID(segmentID)
     
     #---------------------- Flood filling --------------------
     # Each fiducial point will be a user click.
     # Set parameters
-    seWidgetEditor.setActiveEffectByName("Flood filling")
-    ffEffect = seWidgetEditor.activeEffect()
+    seWidget.setActiveEffectByName("Flood filling")
+    ffEffect = seWidget.activeEffect()
     ffEffect.setParameter("IntensityTolerance", self._parameterNode.inputIntensityTolerance)
     ffEffect.setParameter("NeighborhoodSizeMm", self._parameterNode.inputNeighbourhoodSize)
     ffEffect.parameterSetNode().SetNodeReferenceID("FloodFilling.ROI", self._parameterNode.inputROINode.GetID() if self._parameterNode.inputROINode else None)
     ffEffect.updateGUIFromMRML()
     # Reset segment editor masking widgets. Values set by previous work must not interfere here.
-    self.segmentEditorWidgets.setMaskingOptionsToAllowOverlap()
+    seWidget.mrmlSegmentEditorNode().SetMaskMode(slicer.vtkMRMLSegmentationNode.EditAllowedEverywhere)
+    seWidget.mrmlSegmentEditorNode().SourceVolumeIntensityMaskOff()
+    seWidget.mrmlSegmentEditorNode().SetOverwriteMode(seWidget.mrmlSegmentEditorNode().OverwriteNone)
     
     # Apply flood filling at each fiducial point.
     points=vtk.vtkPoints()
@@ -526,11 +516,10 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
         ffEffect.self().floodFillFromPoint((int(qIjkPoint.x()), int(qIjkPoint.y()), int(qIjkPoint.z())))
     
     # Switch off active effect
-    seWidgetEditor.setActiveEffect(None)
-    # Show segment
-    show3DctkMenuButton = self.segmentEditorWidgets.show3DctkMenuButton
-    # Don't use click() here, smoothing options make a mess.
-    show3DctkMenuButton.setChecked(True)
+    seWidget.setActiveEffect(None)
+    # Show segment. Poked from qMRMLSegmentationShow3DButton.cxx
+    if segmentation.GetSegmentation().CreateRepresentation(slicer.vtkSegmentationConverter.GetSegmentationClosedSurfaceRepresentationName()):
+        segmentation.GetDisplayNode().SetPreferredDisplayRepresentationName3D(slicer.vtkSegmentationConverter.GetSegmentationClosedSurfaceRepresentationName())
     # Hide ROI
     if self._parameterNode.inputROINode:
         self._parameterNode.inputROINode.SetDisplayVisibility(False)
@@ -546,18 +535,17 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     #---------------------- Extract centerlines ---------------------
     slicer.util.showStatusMessage(_("Extract centerline setup"))
     slicer.app.processEvents()
-    mainWindow.moduleSelector().selectModule('ExtractCenterline')
-    if not self.extractCenterlineWidgets:
-        self.extractCenterlineWidgets = ExtractCenterlineWidgets()
-        self.extractCenterlineWidgets.findWidgets()
+    ecWidget = slicer.util.getModuleWidget('ExtractCenterline')
+    ecUi = ecWidget.ui
     
-    inputSurfaceComboBox = self.extractCenterlineWidgets.inputSurfaceComboBox
-    inputSegmentSelectorWidget = self.extractCenterlineWidgets.inputSegmentSelectorWidget
-    endPointsMarkupsSelector = self.extractCenterlineWidgets.endPointsMarkupsSelector
-    outputCenterlineModelSelector = self.extractCenterlineWidgets.outputCenterlineModelSelector
-    outputCenterlineCurveSelector = self.extractCenterlineWidgets.outputCenterlineCurveSelector
-    preprocessInputSurfaceModelCheckBox = self.extractCenterlineWidgets.preprocessInputSurfaceModelCheckBox
-    applyButton = self.extractCenterlineWidgets.applyButton
+    inputSurfaceComboBox = ecUi.inputSurfaceSelector
+    inputSegmentSelectorWidget = ecUi.inputSegmentSelectorWidget
+    endPointsMarkupsSelector = ecUi.endPointsMarkupsSelector
+    outputCenterlineModelSelector = ecUi.outputCenterlineModelSelector
+    outputCenterlineCurveSelector = ecUi.outputCenterlineCurveSelector
+    preprocessInputSurfaceModelCheckBox = ecUi.preprocessInputSurfaceModelCheckBox
+    applyButton = ecUi.applyButton
+    outputNetworkGroupBox = ecUi.CollapsibleGroupBox
     
     # Set input segmentation and endpoints
     inputSurfaceComboBox.setCurrentNode(segmentation)
@@ -590,7 +578,9 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     # Apply
     applyButton.click()
     # Close network pane; we don't use this here.
-    self.extractCenterlineWidgets.outputNetworkGroupBox.collapsed = True
+    outputNetworkGroupBox.collapsed = True
+    
+    slicer.util.mainWindow().moduleSelector().selectModule('ExtractCenterline')
     
     stopTime = time.time()
     duration = '%.2f' % (stopTime - startTime)
@@ -629,94 +619,3 @@ class QuickArterySegmentationTest(ScriptedLoadableModuleTest):
     logic = QuickArterySegmentationLogic()
 
     self.delayDisplay('Test passed')
-
-"""
-Weird and unusual approach to remote control modules, but very efficient.
-Get reference to widgets exposed by an API.
-Widgets can be removed, or their names may change.
-That's true for library interfaces also.
-"""
-class SegmentEditorWidgets(ScriptedLoadableModule):
-    def __init__(self):
-        self.widgetEditor = None
-        self.segmentationNodeComboBox = None
-        self.sourceVolumeNodeComboBox = None
-        self.newSegmentQPushButton = None
-        self.removeSegmentQPushButton = None
-        self.show3DctkMenuButton = None
-        self.maskingGroupBox = None
-        self.maskModeComboBox = None
-        self.sourceVolumeIntensityMaskCheckBox = None
-        self.sourceVolumeIntensityMaskRangeWidget = None
-        self.overwriteModeComboBox = None
-    
-    # Find widgets we are using only
-    def findWidgets(self):
-        # Create slicer.modules.SegmentEditorWidget
-        slicer.modules.segmenteditor.widgetRepresentation()
-        self.widgetEditor = slicer.modules.SegmentEditorWidget.editor
-        
-        # widgetEditor.children()
-        # Get segment editor controls and set values
-        self.segmentationNodeComboBox = self.widgetEditor.findChild(slicer.qMRMLNodeComboBox, "SegmentationNodeComboBox")
-        self.sourceVolumeNodeComboBox = self.widgetEditor.findChild(slicer.qMRMLNodeComboBox, "SourceVolumeNodeComboBox")
-        self.newSegmentQPushButton = self.widgetEditor.findChild(qt.QPushButton, "AddSegmentButton")
-        self.removeSegmentQPushButton = self.widgetEditor.findChild(qt.QPushButton, "RemoveSegmentButton")
-        self.show3DctkMenuButton = self.widgetEditor.findChild(ctk.ctkMenuButton, "Show3DButton")
-        
-        # Get segment editor masking groupbox and its widgets
-        self.maskingGroupBox = self.widgetEditor.findChild(qt.QGroupBox, "MaskingGroupBox")
-        self.maskModeComboBox = self.maskingGroupBox.findChild(qt.QComboBox, "MaskModeComboBox")
-        self.sourceVolumeIntensityMaskCheckBox = self.maskingGroupBox.findChild(ctk.ctkCheckBox, "SourceVolumeIntensityMaskCheckBox")
-        self.sourceVolumeIntensityMaskRangeWidget = self.maskingGroupBox.findChild(ctk.ctkRangeWidget, "SourceVolumeIntensityMaskRangeWidget")
-        self.overwriteModeComboBox = self.maskingGroupBox.findChild(qt.QComboBox, "OverwriteModeComboBox")
-
-    """
-    findWidgets() must have been called first.
-    Must be called when the first used effect is activated.
-    """
-    def setMaskingOptionsToAllowOverlap(self):
-        self.widgetEditor.mrmlSegmentEditorNode().SetMaskMode(slicer.vtkMRMLSegmentationNode.EditAllowedEverywhere)
-        self.widgetEditor.mrmlSegmentEditorNode().SourceVolumeIntensityMaskOff()
-        self.widgetEditor.mrmlSegmentEditorNode().SetOverwriteMode(self.widgetEditor.mrmlSegmentEditorNode().OverwriteNone)
-
-class ExtractCenterlineWidgets(ScriptedLoadableModule):
-    def __init__(self):
-        self.mainContainer = None
-        self.inputCollapsibleButton = None
-        self.outputCollapsibleButton = None
-        self.advancedCollapsibleButton = None
-        self.applyButton = None
-        self.inputSurfaceComboBox = None
-        self.endPointsMarkupsSelector = None
-        self.inputSegmentSelectorWidget = None
-        self.outputNetworkGroupBox = None
-        self.outputTreeGroupBox = None
-        self.outputCenterlineModelSelector = None
-        self.outputCenterlineCurveSelector = None
-        self.preprocessInputSurfaceModelCheckBox = None
-    
-    def findWidgets(self):
-        ecWidgetRepresentation = slicer.modules.extractcenterline.widgetRepresentation()
-        
-        # Containers
-        self.mainContainer = ecWidgetRepresentation.findChild(slicer.qMRMLWidget, "ExtractCenterline")
-        self.inputCollapsibleButton = self.mainContainer.findChild(ctk.ctkCollapsibleButton, "inputsCollapsibleButton")
-        self.outputCollapsibleButton = self.mainContainer.findChild(ctk.ctkCollapsibleButton, "outputsCollapsibleButton")
-        self.advancedCollapsibleButton = self.mainContainer.findChild(ctk.ctkCollapsibleButton, "advancedCollapsibleButton")
-        self.applyButton = self.mainContainer.findChild(qt.QPushButton, "applyButton")
-        
-        # Input widgets
-        self.inputSurfaceComboBox = self.inputCollapsibleButton.findChild(slicer.qMRMLNodeComboBox, "inputSurfaceSelector")
-        self.endPointsMarkupsSelector = self.inputCollapsibleButton.findChild(slicer.qMRMLNodeComboBox, "endPointsMarkupsSelector")
-        self.inputSegmentSelectorWidget = self.inputCollapsibleButton.findChild(slicer.qMRMLSegmentSelectorWidget, "inputSegmentSelectorWidget")
-        
-        # Output widgets
-        self.outputNetworkGroupBox = self.outputCollapsibleButton.findChild(ctk.ctkCollapsibleGroupBox, "CollapsibleGroupBox")
-        self.outputTreeGroupBox = self.outputCollapsibleButton.findChild(ctk.ctkCollapsibleGroupBox, "CollapsibleGroupBox_2")
-        self.outputCenterlineModelSelector = self.outputTreeGroupBox.findChild(slicer.qMRMLNodeComboBox, "outputCenterlineModelSelector")
-        self.outputCenterlineCurveSelector = self.outputTreeGroupBox.findChild(slicer.qMRMLNodeComboBox, "outputCenterlineCurveSelector")
-        
-        # Advanced widgets
-        self.preprocessInputSurfaceModelCheckBox = self.advancedCollapsibleButton.findChild(qt.QCheckBox, "preprocessInputSurfaceModelCheckBox")
-        
