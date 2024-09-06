@@ -50,13 +50,13 @@
          <bool>false</bool>
         </property>
         <property name="removeEnabled">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
         <property name="editEnabled">
          <bool>true</bool>
         </property>
         <property name="renameEnabled">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
        </widget>
       </item>
@@ -93,9 +93,12 @@ The input centerline is expected to be inside the lumen surface.</string>
            <bool>false</bool>
           </property>
           <property name="removeEnabled">
-           <bool>false</bool>
+           <bool>true</bool>
           </property>
           <property name="editEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="renameEnabled">
            <bool>true</bool>
           </property>
          </widget>
