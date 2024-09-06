@@ -708,7 +708,9 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       # If there's only 1 region, there's nothing to fix.
       self.ui.surfaceInformationPaintToolButton.setVisible((numberOfRegions > 1) and self.checkAndSetSegmentEditor(True))
       if (numberOfRegions == 1) and (self.checkAndSetSegmentEditor(False)):
-        seWidget = slicer.modules.SegmentEditorWidget.editor
+        # Create segment editor object if needed.
+        segmentEditorModuleWidget = slicer.util.getModuleWidget("SegmentEditor")
+        seWidget = segmentEditorModuleWidget.editor
         seWidget.setActiveEffectByName(None)
     else:
       self.ui.surfaceInformationPaintToolButton.setVisible(False)
@@ -726,20 +728,11 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       logging.error("Invalid input segment ID.")
       return False
     
-    # Set a default brush size of 3% if we initialise SegmentEditorWidget.
-    # Otherwise, it would be 1%.
-    try:
-      seWidget = slicer.modules.SegmentEditorWidget.editor
-    except Exception as e:
-      # Create slicer.modules.SegmentEditorWidget
-      slicer.modules.segmenteditor.widgetRepresentation()
-      seWidget = slicer.modules.SegmentEditorWidget.editor
-      seWidget.setActiveEffectByName("Paint")
-      effect = seWidget.activeEffect()
-      # setParameter() is bad here. It sets brush size within 2% to 4% using the spinbox.
-      effect.setCommonParameter("BrushRelativeDiameter", str(3.0))
-    
+    # Create segment editor object if needed.
+    segmentEditorModuleWidget = slicer.util.getModuleWidget("SegmentEditor")
+    seWidget = segmentEditorModuleWidget.editor
     seWidget.setActiveEffectByName(None)
+    
     if not setNodes:
       return True
     
@@ -800,7 +793,9 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       logging.info(_("Could not prepare the segment editor."))
       return
 
-    seWidget = slicer.modules.SegmentEditorWidget.editor
+    # Create segment editor object if needed.
+    segmentEditorModuleWidget = slicer.util.getModuleWidget("SegmentEditor")
+    seWidget = segmentEditorModuleWidget.editor
     
     if checked:
       seWidget.setActiveEffectByName("Paint")
