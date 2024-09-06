@@ -106,6 +106,7 @@ class ArterialCalcificationPreProcessorWidget(ScriptedLoadableModuleWidget, VTKO
         self.ui.applyButton.menu().clear()
         self._show3DAction = qt.QAction(_("Show 3D on success"))
         self._show3DAction.setCheckable(True)
+        self._show3DAction.setChecked(True)
         self.ui.applyButton.menu().addAction(self._show3DAction)
 
         # Buttons
@@ -241,9 +242,9 @@ class ArterialCalcificationPreProcessorLogic(ScriptedLoadableModuleLogic):
         maxSegmentHU = float(ssLogic.getStatisticsValueAsString(segmentID, "ScalarVolumeSegmentStatisticsPlugin.max"))
         maxVolumeHU = inputVolume.GetImageData().GetScalarRange()[1]
         
-        # Create slicer.modules.SegmentEditorWidget
-        slicer.modules.segmenteditor.widgetRepresentation()
-        seWidget = slicer.modules.SegmentEditorWidget.editor
+        # Create segment editor object if needed.
+        segmentEditorModuleWidget = slicer.util.getModuleWidget("SegmentEditor")
+        seWidget = segmentEditorModuleWidget.editor
         seWidget.mrmlSegmentEditorNode().SetMaskMode(slicer.vtkMRMLSegmentationNode.EditAllowedEverywhere)
         seWidget.mrmlSegmentEditorNode().SourceVolumeIntensityMaskOff()
         seWidget.mrmlSegmentEditorNode().SetOverwriteMode(seWidget.mrmlSegmentEditorNode().OverwriteNone)
