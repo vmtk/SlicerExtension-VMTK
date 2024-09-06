@@ -45,7 +45,7 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
          <bool>false</bool>
         </property>
         <property name="removeEnabled">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
         <property name="editEnabled">
          <bool>true</bool>
@@ -74,6 +74,12 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
            </stringlist>
           </property>
           <property name="noneEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="editEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="renameEnabled">
            <bool>true</bool>
           </property>
           <property name="SlicerParameterName" stdset="0">
@@ -137,7 +143,7 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
          <bool>true</bool>
         </property>
         <property name="removeEnabled">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
         <property name="editEnabled">
          <bool>true</bool>
