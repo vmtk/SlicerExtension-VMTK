@@ -68,6 +68,8 @@ endif()
 add_subdirectory(BranchClipper)
 add_subdirectory(ArterialCalcificationPreProcessor)
 add_subdirectory(CenterlineDisassembly)
+add_subdirectory(ClipVessel)
+
 
 #-----------------------------------------------------------------------------
 set(EXTENSION_CPACK_INSTALL_CMAKE_PROJECTS)
