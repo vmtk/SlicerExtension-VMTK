@@ -28,7 +28,7 @@ find_package(Git REQUIRED)
 mark_as_superbuild(GIT_EXECUTABLE)
 
 option(SlicerVMTK_USE_ExtraMarkups
-  "This needs to be disabled when this extension is bundled with Slicer" ON)
+  "This needs to be disabled if ExtraMarkups Slicer extension is unavailable" ON)
 
 if(SlicerVMTK_USE_ExtraMarkups)
   find_package(ExtraMarkups REQUIRED)
