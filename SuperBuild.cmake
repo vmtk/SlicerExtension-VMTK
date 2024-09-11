@@ -63,6 +63,7 @@ ExternalProject_Add(${proj}
     # Superbuild
     -D${EXTENSION_NAME}_SUPERBUILD:BOOL=OFF
     -DEXTENSION_SUPERBUILD_BINARY_DIR:PATH=${${EXTENSION_NAME}_BINARY_DIR}
+    -DSlicerVMTK_USE_ExtraMarkups:BOOL=${SlicerVMTK_USE_ExtraMarkups}
     # Libraries
     -DVMTK_DIR:PATH=${VMTK_DIR}
   DEPENDS
@@ -70,4 +71,3 @@ ExternalProject_Add(${proj}
   )
 
 ExternalProject_AlwaysConfigure(${proj})
-
