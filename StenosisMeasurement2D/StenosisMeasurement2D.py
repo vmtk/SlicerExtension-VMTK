@@ -27,7 +27,7 @@ class StenosisMeasurement2D(ScriptedLoadableModule):
 
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
-    self.parent.title = "Stenosis measurement : 2D"
+    self.parent.title = "Stenosis measurement: 2D"
     self.parent.categories = ["Vascular Modeling Toolkit"]
     self.parent.dependencies = []
     self.parent.contributors = ["Saleem Edah-Tally [Surgeon] [Hobbyist developer]", "Andras Lasso, PerkLab"]
@@ -69,7 +69,7 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
     self.fiducialDisplayNodeObservation = None
     # Menus
     self.tableMenu = qt.QMenu()
-    
+
     self._optionsMainMenu = None
     self._optionsSubMenu1 = None
     self._applyToAllSegmentsAction = None
@@ -98,7 +98,7 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
     # Create logic class. Logic implements all computations that should be possible to run
     # in batch mode, without a graphical user interface.
     self.logic = StenosisMeasurement2DLogic()
-    
+
     # Connections
 
     # These connections ensure that we update parameter node when scene is closed
@@ -110,7 +110,7 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
 
     # Make sure parameter node is initialized (needed for module reload)
     self.initializeParameterNode()
-    
+
     # Options menu
     self._optionsMainMenu = self.ui.applyButton.menu()
     self._optionsMainMenu.clear()
@@ -125,22 +125,22 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
     self._limitToClosestIslandsAction.checked = True
     self._limitToClosestIslandsAction.setToolTip(_("Calculate the surface area of the closest island to the ficucial control point."))
     self._optionsMainMenu.addMenu(self._optionsSubMenu1)
-    
+
     self._createOutputModelsAction = self._optionsSubMenu1.addAction(_("Create an output model."))
     self._createOutputModelsAction.setCheckable(True)
     self._createOutputModelsAction.checked = True
-    self._createOutputModelsAction.setToolTip(_("Create a model for each cut segment.\nThis allows to view the model from which the surface area is calculated.\n\nThe result is influenced by :\n - holes in the segments\n - point placement, if 'Closest island' option is selected,\n - smoothing level in the 'Segment editor'."))
+    self._createOutputModelsAction.setToolTip(_("Create a model for each cut segment.\nThis allows to view the model from which the surface area is calculated.\n\nThe result is influenced by:\n - holes in the segments\n - point placement, if 'Closest island' option is selected,\n - smoothing level in the 'Segment editor'."))
     self._resetOrientationAction = self._optionsSubMenu1.addAction(_("Reset control point orientation"))
     self._resetOrientationAction.setCheckable(True)
     self._resetOrientationAction.setToolTip(_("Click on a control point to reset its recorded slice orientation."))
     self._optionsSubMenu1.addSeparator()
     self._restoreSliceViewsOrientation = self._optionsSubMenu1.addAction(_("Restore orientation of all slice views"))
     self._restoreSliceViewsOrientation.setToolTip(_("... to their default orientation."))
-    
+
     # Application connections
     self.ui.inputFiducialSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.observeFiducialNode)
     self._restoreSliceViewsOrientation.connect("triggered()", self.restoreAllViews)
-    
+
     # Prepare table
     outputTable = self.ui.outputTableWidget
     outputTable.setColumnCount(5)
@@ -164,24 +164,24 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
   def showTableMenu(self, qpoint) -> None:
     # Start from zero.
     self.tableMenu.clear()
-    
+
     """
     If we do this in setup, when we first enter the module, a weird background
     rectangle is seen from the left of the module window.
     Just workaround it.
     """
     self.tableMenu.setParent(self.parent)
-    
+
     # Simple menu item to remove a single row.
     actionRemoveRow = self.tableMenu.addAction(_("Remove row"))
     actionRemoveRow.setData(OUTPUT_TABLE_MENU_REMOVE_ROW)
     actionRemoveRow.connect("triggered()", self.onTableMenuItem)
-    
+
     # Simple menu item to remove all rows.
     actionEmptyTable = self.tableMenu.addAction(_("Empty table"))
     actionEmptyTable.setData(OUTPUT_TABLE_MENU_EMPTY_TABLE)
     actionEmptyTable.connect("triggered()", self.onTableMenuItem)
-    
+
     self.tableMenu.addSeparator()
     # Clicking anywhere does not hide menu.
     actionCancel = self.tableMenu.addAction(_("Dismiss menu"))
@@ -196,7 +196,7 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
     menuPosition.setX(qpoint.x() + outputTableWidget.x)
     menuPosition.setY(qpoint.y() + outputTableWidget.y)
     self.tableMenu.popup(menuPosition)
-    
+
   def onTableMenuItem(self) -> None:
     action = self.tableMenu.activeAction()
     data = action.data()
@@ -269,7 +269,7 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
     if self._parameterNode:
         self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
         self._parameterNodeGuiTag = None
-    
+
     # Unobserve input fiducial.
     if self._parameterNode.inputFiducialNode and self.fiducialDisplayNodeObservation:
         self._parameterNode.inputFiducialNode.RemoveObserver(self.fiducialDisplayNodeObservation)
@@ -306,7 +306,7 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
     Set and observe parameter node.
     Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
     """
-    
+
     if self._parameterNode:
         self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
     self._parameterNode = inputParameterNode
@@ -334,7 +334,7 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         controlPointIndex = fiducialNode.GetNthControlPointIndexByID(self.currentControlPointID)
         currentControlPointPosition = fiducialNode.GetNthControlPointPositionWorld(controlPointIndex)
         currentControlPointLabel = fiducialNode.GetNthControlPointLabel(controlPointIndex)
-        
+
         # Define parameters for logic functions.
         inputSegmentation = self.ui.inputSegmentSelector.currentNode()
         segmentID = self.ui.inputSegmentSelector.currentSegmentID()
@@ -352,7 +352,7 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         tuples = {}
         # Call logic functions.
         if applyToAllSegments:
-            # tuples is a dictionary : [segmentID] = (area, model)
+            # tuples is a dictionary: [segmentID] = (area, model)
             tuples = self.logic.processVisibleSegments(inputSegmentation,
                             center, normal, closestIsland,
                             optionCreateCutModel, currentControlPointLabel)
@@ -366,7 +366,7 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         # Append results in table.
         self.populateOutputTable(tuples)
 
-  # Append mode only. tuples is a dictionary : [segmentID] = (area, model)
+  # Append mode only. tuples is a dictionary: [segmentID] = (area, model)
   def populateOutputTable(self, tuples) -> None:
     fiducialNode = self._parameterNode.inputFiducialNode
     # Get current control point label.
@@ -375,10 +375,10 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         controlPointIndex)
     # Get list of segment IDs.
     segmentIDs = tuples.keys()
-    
+
     segmentation = self.ui.inputSegmentSelector.currentNode()
     outputTable = self.ui.outputTableWidget
-    
+
     # Get unit for area.
     selectionNode = slicer.mrmlScene.GetNodeByID("vtkMRMLSelectionNodeSingleton")
     areaUnitNode = slicer.mrmlScene.GetNodeByID(selectionNode.GetUnitNodeID("area"))
@@ -424,7 +424,7 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         # Hide it by default. See onCurrentRowChanged() comment.
         modelCheckBox.hide()
         modelCheckBox.checked = cutModel.GetDisplayVisibility()
-        
+
         # Segment visibility.
         segmentWidget = qt.QWidget()
         segmentCheckBox = qt.QCheckBox(segmentWidget)
@@ -521,7 +521,7 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         mrmlSliceNode.UpdateMatrices()
         message = (_("Slice orientation restored"),)
         self.showStatusMessage(message)
-    
+
     # Execute a request to reset a control point orientation matrix.
     if self._resetOrientationAction.checked:
         identityMatrix = vtk.vtkMatrix3x3()
@@ -554,7 +554,7 @@ class StenosisMeasurement2DLogic(ScriptedLoadableModuleLogic):
     Called when the logic class is instantiated. Can be used for initializing member variables.
     """
     ScriptedLoadableModuleLogic.__init__(self)
-  
+
   def getParameterNode(self):
     return StenosisMeasurement2DParameterNode(super().getParameterNode())
 
@@ -570,7 +570,7 @@ class StenosisMeasurement2DLogic(ScriptedLoadableModuleLogic):
     import time
     startTime = time.time()
     logging.info(_("Processing started"))
-    
+
     # ---------------------- Generate cut polydata ---------
     closedSurfacePolyData = vtk.vtkPolyData()
     inputSegmentation.CreateClosedSurfaceRepresentation()
@@ -603,14 +603,14 @@ class StenosisMeasurement2DLogic(ScriptedLoadableModuleLogic):
     massProperties.SetInputData(polydata)
     massProperties.Update()
     surfaceArea = massProperties.GetSurfaceArea()
-    
+
     # Create a model of the polydata. Hidden by default, with no lighting.
     cutModel = None
     if createModel:
         cutModel = slicer.modules.models.logic().AddModel(polydata)
         cutModel.SetDisplayVisibility(False)
         cutModel.GetDisplayNode().SetLighting(False)
-        # Set model's name : control point label + segment name.
+        # Set model's name: control point label + segment name.
         segment = inputSegmentation.GetSegmentation().GetSegment(segmentID)
         if controlPointLabel and segment:
             modelName = controlPointLabel + "_" + segment.GetName()
@@ -618,7 +618,7 @@ class StenosisMeasurement2DLogic(ScriptedLoadableModuleLogic):
         # The model's color follows the segment's color.
         if segment:
             cutModel.GetDisplayNode().SetColor(segment.GetColor())
-    
+
     stopTime = time.time()
     durationValue = '%.2f' % (stopTime - startTime)
     logging.info(_("Processing completed in {duration} seconds").format(duration = durationValue))

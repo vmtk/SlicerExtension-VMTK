@@ -100,7 +100,7 @@ class GuidedVeinSegmentationWidget(ScriptedLoadableModuleWidget, VTKObservationM
         # "mrmlSceneChanged(vtkMRMLScene*)" signal in is connected to each MRML widget's.
         # "setMRMLScene(vtkMRMLScene*)" slot.
         uiWidget.setMRMLScene(slicer.mrmlScene)
-        
+
         self.ui.optionCollapsibleButton.collapsed = True
         self.ui.parameterCollapsibleButton.collapsed = True
 
@@ -241,7 +241,7 @@ class GuidedVeinSegmentationLogic(ScriptedLoadableModuleLogic):
 
         if not inputCurve or not inputVolume or not inputSegmentation:
             raise ValueError(_("Input curve or volume or segmentation is invalid."))
-        
+
         if (extrusionKernelSize <= 0.0
             or gaussianStandardDeviation <= 0.0
             or seedRadius <= 0.0
@@ -253,19 +253,19 @@ class GuidedVeinSegmentationLogic(ScriptedLoadableModuleLogic):
         import time
         startTime = time.time()
         logging.info(_("Processing started"))
-        
+
         # Create segment editor object if needed.
         segmentEditorModuleWidget = slicer.util.getModuleWidget("SegmentEditor")
         seWidget = segmentEditorModuleWidget.editor
         seWidget.setSegmentationNode(inputSegmentation)
         seWidget.setSourceVolumeNode(inputVolume)
         inputSegmentation.SetReferenceImageGeometryParameterFromVolumeNode(inputVolume)
-        
+
         # Use OverwriteNone to preserve other segments.
         seWidget.mrmlSegmentEditorNode().SetMaskMode(slicer.vtkMRMLSegmentationNode.EditAllowedEverywhere)
         seWidget.mrmlSegmentEditorNode().SourceVolumeIntensityMaskOff()
         seWidget.mrmlSegmentEditorNode().SetOverwriteMode(seWidget.mrmlSegmentEditorNode().OverwriteNone)
-        
+
         # Hide all existing segments for we will be using 'Grow from seeds'. Restore visibility at the end.
         allSegments = inputSegmentation.GetSegmentation().GetSegmentIDs()
         visibleSegmentIDs = vtk.vtkStringArray()
@@ -273,7 +273,7 @@ class GuidedVeinSegmentationLogic(ScriptedLoadableModuleLogic):
         if allSegments:
             for segmentId in allSegments:
                 inputSegmentation.GetDisplayNode().SetSegmentVisibility(segmentId, False)
-        
+
         # Create a seed segment using the curve polydata.
         seedSegmentName = inputCurve.GetName() + "_" + _("Segment")
         seedSegmentName = slicer.mrmlScene.GenerateUniqueName(seedSegmentName)
@@ -290,8 +290,8 @@ class GuidedVeinSegmentationLogic(ScriptedLoadableModuleLogic):
         segment = inputSegmentation.GetSegmentation().GetSegment(seedSegmentId)
         reference = vtk.reference(inputCurve.GetID())
         segment.SetTag(tagSourceCurveId, reference)
-        
-        # Create a shell segment using the curve polydata : a new tube that will grow and get hollow.
+
+        # Create a shell segment using the curve polydata: a new tube that will grow and get hollow.
         shell = vtk.vtkTubeFilter()
         shell.SetInputData(inputCurve.GetCurveWorld())
         shell.SetRadius(seedRadius)
@@ -315,7 +315,7 @@ class GuidedVeinSegmentationLogic(ScriptedLoadableModuleLogic):
         effect.setParameter("ShellThicknessMm", str(shellThickness))
         effect.self().onApply()
         seWidget.setActiveEffectByName(None)
-        
+
         # Grow the seed within the shell.
         seWidget.mrmlSegmentEditorNode().SetSelectedSegmentID(seedSegmentId)
         seWidget.setActiveEffectByName("Grow from seeds")
@@ -323,8 +323,8 @@ class GuidedVeinSegmentationLogic(ScriptedLoadableModuleLogic):
         effect.self().onPreview()
         effect.self().onApply()
         seWidget.setActiveEffectByName(None)
-        
-        # Smoothing : remove extrusion then Gaussian.
+
+        # Smoothing: remove extrusion then Gaussian.
         import SegmentEditorSmoothingEffect
         seWidget.setActiveEffectByName("Smoothing")
         effect = seWidget.activeEffect()
@@ -336,10 +336,10 @@ class GuidedVeinSegmentationLogic(ScriptedLoadableModuleLogic):
         effect.setParameter("GaussianStandardDeviationMm", str(gaussianStandardDeviation))
         effect.self().onApply()
         seWidget.setActiveEffectByName(None)
-        
+
         # The shell segment is no longer needed.
         inputSegmentation.GetSegmentation().RemoveSegment(shellSegmentId)
-        
+
         """
         Remove overlaps with all other segments. Duplicate segments originating
         from the same input curve, due to repeat runs, are excluded.
@@ -360,11 +360,11 @@ class GuidedVeinSegmentationLogic(ScriptedLoadableModuleLogic):
                         effect.setParameter("ModifierSegmentID", segmentId)
                         effect.self().onApply()
             seWidget.setActiveEffectByName(None)
-        
+
         # Restore segment visibility.
         for segmentIndex in range(visibleSegmentIDs.GetNumberOfValues()):
             inputSegmentation.GetDisplayNode().SetSegmentVisibility(visibleSegmentIDs.GetValue(segmentIndex), True)
-        
+
         stopTime = time.time()
         durationValue = '%.2f' % (stopTime-startTime)
         logging.info(_("Processing completed in {duration} seconds").format(duration=durationValue))

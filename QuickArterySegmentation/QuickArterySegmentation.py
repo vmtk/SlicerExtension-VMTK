@@ -15,7 +15,7 @@ from slicer.parameterNodeWrapper import (
 )
 
 from slicer import vtkMRMLScalarVolumeNode
-            
+
 #
 # QuickArterySegmentation
 #
@@ -27,7 +27,7 @@ class QuickArterySegmentation(ScriptedLoadableModule):
 
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
-    self.parent.title = "Quick artery segmentation" 
+    self.parent.title = "Quick artery segmentation"
     self.parent.categories = ["Vascular Modeling Toolkit"]
     self.parent.dependencies = ["ExtractCenterline"]
     self.parent.contributors = ["Saleem Edah-Tally [Surgeon] [Hobbyist developer]", "Andras Lasso (PerkLab)"]
@@ -59,7 +59,7 @@ class QuickArterySegmentationParameterNode:
     # These do not have widget counterparts.
     outputCenterlineModelNode: slicer.vtkMRMLModelNode
     outputCenterlineCurveNode: slicer.vtkMRMLMarkupsCurveNode
-    
+
 
 #
 # QuickArterySegmentationWidget
@@ -100,7 +100,7 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
     # Create logic class. Logic implements all computations that should be possible to run
     # in batch mode, without a graphical user interface.
     self.logic = QuickArterySegmentationLogic()
-    
+
     self.ui.floodFillingCollapsibleGroupBox.checked = False
 
     # Connections
@@ -119,12 +119,12 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
 
     # Make sure parameter node is initialized (needed for module reload)
     self.initializeParameterNode()
-    
+
     # A hidden one for the curious! For developers.
     shortcut = qt.QShortcut(self.ui.QuickArterySegmentation)
     shortcut.setKey(qt.QKeySequence('Meta+d'))
     shortcut.connect( 'activated()', lambda: self.removeOutputNodes())
-    
+
     extensionName = "SegmentEditorExtraEffects"
     em = slicer.app.extensionsManagerModel()
     em.interactive = True
@@ -214,7 +214,7 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
         return
     referencedInputVolume = inputFiducialNode.GetNodeReference("InputVolumeNode")
     self.updateSliceViews(referencedInputVolume)
-  
+
   def cleanup(self) -> None:
     """
     Called when the application closes and the module widget is destroyed.
@@ -285,7 +285,7 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
     if outputNode:
         outputNodeID = outputNode.GetID()
     self._parameterNode.inputFiducialNode.SetNodeReferenceID(referenceID, outputNodeID)
-    
+
   def UpdateInputNodeWithOutputNodes(self) -> None:
     if not self._parameterNode.inputFiducialNode:
         return
@@ -299,12 +299,12 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
     if not self._parameterNode.inputFiducialNode:
         return
     wasModified = self._parameterNode.inputFiducialNode.StartModify()
-    
+
     sliceNode = self._parameterNode.inputSliceNode
     sliceWidget = slicer.app.layoutManager().sliceWidget(sliceNode.GetName())
     volumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
     self._parameterNode.inputFiducialNode.SetNodeReferenceID("InputVolumeNode", volumeNode.GetID())
-    
+
     inputROINodeID = self._parameterNode.inputROINode.GetID()
     self._parameterNode.inputFiducialNode.SetNodeReferenceID("InputROINode", inputROINodeID)
     self._parameterNode.inputFiducialNode.SetAttribute("InputIntensityTolerance", str(self.ui.intensityToleranceSpinBox.value))
@@ -322,7 +322,7 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
     inputNeighbourhoodSize = node.GetAttribute("NeighbourhoodSize")
     if inputNeighbourhoodSize:
         self.ui.neighbourhoodSizeDoubleSpinBox.value = float(inputNeighbourhoodSize)
-  
+
   # Restore output nodes in logic
   def UpdateParameterWithOutputNodes(self) -> None:
     if not self._parameterNode.inputFiducialNode:
@@ -331,7 +331,7 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
     self._parameterNode.outputSegmentationNode = self.ui.outputSegmentationSelector.currentNode()
     self._parameterNode.outputCenterlineModelNode = self._parameterNode.inputFiducialNode.GetNodeReference("OutputCenterlineModel")
     self._parameterNode.outputCenterlineCurveNode = self._parameterNode.inputFiducialNode.GetNodeReference("OutputCenterlineCurve")
-    
+
   def onApplyButton(self) -> None:
     """
     Run processing when user clicks "Apply" button.
@@ -416,10 +416,10 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     """
     ScriptedLoadableModuleLogic.__init__(self)
     self.initMemberVariables()
-  
+
   def getParameterNode(self):
     return self._parameterNode
-    
+
   def initMemberVariables(self) -> None:
     self._parameterNode = QuickArterySegmentationParameterNode(super().getParameterNode())
 
@@ -428,12 +428,12 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     msg = separator.join(messages)
     slicer.util.showStatusMessage(msg, 3000)
     slicer.app.processEvents()
-    
+
   def process(self) -> None:
     import time
     startTime = time.time()
     logging.info(_("Processing started"))
-    
+
     slicer.util.showStatusMessage(_("Segment editor setup"))
     slicer.app.processEvents()
 
@@ -444,7 +444,7 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     else:
         # Prefer a local reference for readability
         segmentation = self._parameterNode.outputSegmentationNode
-        
+
     # Create segment editor object if needed.
     segmentEditorModuleWidget = slicer.util.getModuleWidget("SegmentEditor")
     seWidget = segmentEditorModuleWidget.editor
@@ -452,11 +452,11 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     # Get volume node
     sliceWidget = slicer.app.layoutManager().sliceWidget(self._parameterNode.inputSliceNode.GetName())
     volumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
-    
+
     # Set segment editor controls
     seWidget.setSegmentationNode(segmentation)
     seWidget.setSourceVolumeNode(volumeNode)
-    
+
     #---------------------- Manage segment --------------------
     # Remove a segment node and keep its color
     segment = None
@@ -471,7 +471,7 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     if segment:
         segmentColor = segment.GetColor()
         segmentation.GetSegmentation().RemoveSegment(segment)
-    
+
     # Add a new segment, with controlled ID and known color.
     object = segmentation.GetSegmentation().AddEmptySegment(segmentID)
     segment = segmentation.GetSegmentation().GetSegment(object)
@@ -482,7 +482,7 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
         segment.SetColor(segmentColor)
     # Select new segment
     seWidget.setCurrentSegmentID(segmentID)
-    
+
     #---------------------- Flood filling --------------------
     # Each fiducial point will be a user click.
     # Set parameters
@@ -496,7 +496,7 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     seWidget.mrmlSegmentEditorNode().SetMaskMode(slicer.vtkMRMLSegmentationNode.EditAllowedEverywhere)
     seWidget.mrmlSegmentEditorNode().SourceVolumeIntensityMaskOff()
     seWidget.mrmlSegmentEditorNode().SetOverwriteMode(seWidget.mrmlSegmentEditorNode().OverwriteNone)
-    
+
     # Apply flood filling at each fiducial point.
     points=vtk.vtkPoints()
     self._parameterNode.inputFiducialNode.GetControlPointPositionsWorld(points)
@@ -505,16 +505,16 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
         # Show progress in status bar. Helpful to wait.
         t = time.time()
         durationValue = '%.2f' % (t-startTime)
-        msg = _("Flood filling : {duration} seconds - ").format(duration = durationValue)
+        msg = _("Flood filling: {duration} seconds - ").format(duration = durationValue)
         self.showStatusMessage((msg, str(i + 1), "/", str(numberOfFiducialControlPoints)))
-        
+
         rasPoint = points.GetPoint(i)
         slicer.vtkMRMLSliceNode.JumpSlice(sliceWidget.sliceLogic().GetSliceNode(), *rasPoint)
         point3D = qt.QVector3D(rasPoint[0], rasPoint[1], rasPoint[2])
         point2D = ffEffect.rasToXy(point3D, sliceWidget)
         qIjkPoint = ffEffect.xyToIjk(point2D, sliceWidget, ffEffect.self().getClippedSourceImageData())
         ffEffect.self().floodFillFromPoint((int(qIjkPoint.x()), int(qIjkPoint.y()), int(qIjkPoint.z())))
-    
+
     # Switch off active effect
     seWidget.setActiveEffect(None)
     # Show segment. Poked from qMRMLSegmentationShow3DButton.cxx
@@ -523,7 +523,7 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     # Hide ROI
     if self._parameterNode.inputROINode:
         self._parameterNode.inputROINode.SetDisplayVisibility(False)
-    
+
     if not self._parameterNode.optionExtractCenterlines:
         stopTime = time.time()
         durationValue = '%.2f' % (stopTime - startTime)
@@ -531,13 +531,13 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
         logging.info(message)
         slicer.util.showStatusMessage(message, 5000)
         return
-    
+
     #---------------------- Extract centerlines ---------------------
     slicer.util.showStatusMessage(_("Extract centerline setup"))
     slicer.app.processEvents()
     ecWidget = slicer.util.getModuleWidget('ExtractCenterline')
     ecUi = ecWidget.ui
-    
+
     inputSurfaceComboBox = ecUi.inputSurfaceSelector
     inputSegmentSelectorWidget = ecUi.inputSegmentSelectorWidget
     endPointsMarkupsSelector = ecUi.endPointsMarkupsSelector
@@ -546,12 +546,12 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     preprocessInputSurfaceModelCheckBox = ecUi.preprocessInputSurfaceModelCheckBox
     applyButton = ecUi.applyButton
     outputNetworkGroupBox = ecUi.CollapsibleGroupBox
-    
+
     # Set input segmentation and endpoints
     inputSurfaceComboBox.setCurrentNode(segmentation)
     inputSegmentSelectorWidget.setCurrentSegmentID(segmentID)
     endPointsMarkupsSelector.setCurrentNode(self._parameterNode.inputFiducialNode)
-    
+
     # Output centerline model. A single node throughout.
     if not self._parameterNode.outputCenterlineModelNode:
         self._parameterNode.outputCenterlineModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode")
@@ -560,7 +560,7 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     # Account for rename
     self._parameterNode.outputCenterlineModelNode.SetName("Centerline_model_" + self._parameterNode.inputFiducialNode.GetName())
     outputCenterlineModelSelector.setCurrentNode(self._parameterNode.outputCenterlineModelNode)
-    
+
     # Output centerline curve. A single node throughout.
     centerlineCurve = self._parameterNode.outputCenterlineCurveNode
     if not self._parameterNode.outputCenterlineCurveNode:
@@ -570,7 +570,7 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     # Account for rename
     self._parameterNode.outputCenterlineCurveNode.SetName("Centerline_curve_" + self._parameterNode.inputFiducialNode.GetName())
     outputCenterlineCurveSelector.setCurrentNode(self._parameterNode.outputCenterlineCurveNode)
-    
+
     """
     Don't preprocess input surface. Decimation error may crash Slicer. Quadric method for decimation is slower but more reliable.
     """
@@ -579,9 +579,9 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     applyButton.click()
     # Close network pane; we don't use this here.
     outputNetworkGroupBox.collapsed = True
-    
+
     slicer.util.mainWindow().moduleSelector().selectModule('ExtractCenterline')
-    
+
     stopTime = time.time()
     duration = '%.2f' % (stopTime - startTime)
     message = _("Processing completed in {duration} seconds").format(duration = durationValue)

@@ -50,7 +50,7 @@ and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR0132
 @parameterNodeWrapper
 class GuidedArterySegmentationParameterNode:
   # N.B. - we cannot reference the Shape node here since it is an additional markups.
-  #      - either the module is not loaded or the parameter node complains (1). 
+  #      - either the module is not loaded or the parameter node complains (1).
   inputCurveNode: slicer.vtkMRMLMarkupsCurveNode
   inputSliceNode: slicer.vtkMRMLSliceNode
   tubeDiameter: float = 8.0
@@ -105,7 +105,7 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
 
     self.ui.floodFillingCollapsibleGroupBox.checked = False
     self.ui.extentCollapsibleGroupBox.checked = False
-    
+
     # Connections
 
     # These connections ensure that we update parameter node when scene is closed
@@ -122,7 +122,7 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
 
     # Make sure parameter node is initialized (needed for module reload)
     self.initializeParameterNode()
-    
+
     # A hidden one for the curious !
     shortcut = qt.QShortcut(self.ui.GuidedArterySegmentation)
     shortcut.setKey(qt.QKeySequence('Meta+d'))
@@ -159,7 +159,7 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     self.updateSliceViews(referencedInputVolume)
     # Reuse last known parameters
     self.updateGUIParametersFromInputNode()
-  
+
   def onShapeNode(self, node) -> None:
     if node is None:
         self.ui.tubeDiameterSpinBoxLabel.setVisible(True)
@@ -210,7 +210,7 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
         return
     referencedInputVolume = self._parameterNode.inputCurveNode.GetNodeReference("InputVolumeNode")
     self.updateSliceViews(referencedInputVolume)
-    
+
   def cleanup(self) -> None:
     """
     Called when the application closes and the module widget is destroyed.
@@ -281,7 +281,7 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     if outputNode:
         outputNodeID = outputNode.GetID()
     self._parameterNode.inputCurveNode.SetNodeReferenceID(referenceID, outputNodeID)
-    
+
   def UpdateInputNodeWithOutputNodes(self) -> None:
     if not self._parameterNode.inputCurveNode:
         return
@@ -296,16 +296,16 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     if not self._parameterNode.inputCurveNode:
         return
     wasModified = self._parameterNode.inputCurveNode.StartModify()
-    
+
     sliceNode = self._parameterNode.inputSliceNode
     sliceWidget = slicer.app.layoutManager().sliceWidget(sliceNode.GetName())
     volumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
     self._parameterNode.inputCurveNode.SetNodeReferenceID("InputVolumeNode", volumeNode.GetID())
-    
+
     shapeNode = self.logic.getShapeNode()
     shapeNodeID = shapeNode.GetID() if shapeNode is not None else ""
     self._parameterNode.inputCurveNode.SetNodeReferenceID("InputShapeNode", shapeNodeID)
-    
+
     self._parameterNode.inputCurveNode.SetAttribute("TubeDiameter", str(self._parameterNode.tubeDiameter))
     self._parameterNode.inputCurveNode.SetAttribute("InputIntensityTolerance", str(self._parameterNode.intensityTolerance))
     self._parameterNode.inputCurveNode.SetAttribute("NeighbourhoodSize", str(self._parameterNode.neighbourhoodSize))
@@ -385,7 +385,7 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     self._parameterNode.outputFiducialNode = None
     self._parameterNode.outputCenterlineModel = None
     self._parameterNode.outputCenterlineCurve = None
-    
+
     # Remove segment, ID is controlled.
     segmentation = inputCurveNode.GetNodeReference("OutputSegmentation")
     segmentID = "Segment_" + inputCurveNode.GetID()
@@ -414,10 +414,10 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     """
     ScriptedLoadableModuleLogic.__init__(self)
     self.initMemberVariables()
-  
+
   def getParameterNode(self):
     return self._parameterNode
-    
+
   def initMemberVariables(self) -> None:
     self._parameterNode = GuidedArterySegmentationParameterNode(super().getParameterNode())
     self._shapeNode = None
@@ -426,10 +426,10 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     if shapeNode == self._shapeNode:
       return
     self._shapeNode = shapeNode
-    
+
   def getShapeNode(self):
     return self._shapeNode
-    
+
   def showStatusMessage(self, messages) -> None:
     separator = " "
     msg = separator.join(messages)
@@ -440,7 +440,7 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     import time
     startTime = time.time()
     logging.info((_("Processing started")))
-    
+
     slicer.util.showStatusMessage(_("Segment editor setup"))
     slicer.app.processEvents()
 
@@ -459,7 +459,7 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     # Get volume node
     sliceWidget = slicer.app.layoutManager().sliceWidget(self._parameterNode.inputSliceNode.GetName())
     volumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
-    
+
     # Set segment editor controls
     seWidget.setSegmentationNode(segmentation)
     seWidget.setSourceVolumeNode(volumeNode)
@@ -469,14 +469,14 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     https://discourse.slicer.org/t/resampled-segmentation-limited-by-a-bounding-box-not-the-whole-volume/18772/3
     """
     segmentation.SetReferenceImageGeometryParameterFromVolumeNode(volumeNode)
-    
+
     # Show the input curve. Colour of control points change on selection, helps to wait.
     self._parameterNode.inputCurveNode.SetDisplayVisibility(True)
     # Reset segment editor masking widgets. Values set by previous work must not interfere here.
     seWidget.mrmlSegmentEditorNode().SetMaskMode(slicer.vtkMRMLSegmentationNode.EditAllowedEverywhere)
     seWidget.mrmlSegmentEditorNode().SourceVolumeIntensityMaskOff()
     seWidget.mrmlSegmentEditorNode().SetOverwriteMode(seWidget.mrmlSegmentEditorNode().OverwriteNone)
-    
+
     if self._shapeNode is None:
       #---------------------- Draw tube with VTK---------------------
       # https://discourse.slicer.org/t/converting-markupscurve-to-markupsfiducial/20246/3
@@ -492,7 +492,7 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
       tubeMaskSegmentId = segmentation.AddSegmentFromClosedSurfaceRepresentation(self._shapeNode.GetCappedTubeWorld(), "TubeMask")
     # Select it so that Split Volume can work on this specific segment only.
     seWidget.setCurrentSegmentID(tubeMaskSegmentId)
-    
+
     #---------------------- Split volume ---------------------
     slicer.util.showStatusMessage("Split volume")
     slicer.app.processEvents()
@@ -504,7 +504,7 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     svEffect.setParameter("ApplyToAllVisibleSegments", 0)
     svEffect.self().onApply()
     seWidget.setActiveEffectByName(None)
-    
+
     # Get output split volume
     allScalarVolumeNodes = slicer.mrmlScene.GetNodesByClass("vtkMRMLScalarVolumeNode")
     outputSplitVolumeNode = allScalarVolumeNodes.GetItemAsObject(allScalarVolumeNodes.GetNumberOfItems() - 1)
@@ -514,7 +514,7 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     # Replace master volume of segmentation
     seWidget.setSourceVolumeNode(outputSplitVolumeNode)
     segmentation.SetReferenceImageGeometryParameterFromVolumeNode(outputSplitVolumeNode)
-    
+
     """
     Split Volume creates a folder that contains the segmentation node,
     and the split volume(s) it creates.
@@ -528,7 +528,7 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     shSplitVolumeParentId = shNode.GetItemParent(shSplitVolumeId)
     shSegmentationId = shNode.GetItemByDataNode(segmentation)
     shSceneId = shNode.GetSceneItemID()
-    
+
     #---------------------- Manage segment --------------------
     # Remove a segment node and keep its color
     segment = None
@@ -543,7 +543,7 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     if segment:
         segmentColor = segment.GetColor()
         segmentation.GetSegmentation().RemoveSegment(segment)
-    
+
     # Add a new segment, with controlled ID and known color.
     object = segmentation.GetSegmentation().AddEmptySegment(segmentID)
     segment = segmentation.GetSegmentation().GetSegment(object)
@@ -554,7 +554,7 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
         segment.SetColor(segmentColor)
     # Select new segment
     seWidget.setCurrentSegmentID(segmentID)
-    
+
     #---------------------- Flood filling ---------------------
     # Set parameters
     seWidget.setActiveEffectByName("Flood filling")
@@ -575,16 +575,16 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
         # Show progress in status bar. Helpful to wait.
         t = time.time()
         durationValue = '%.2f' % (t-startTime)
-        msg = _("Flood filling : {duration} seconds - ").format(duration=durationValue)
+        msg = _("Flood filling: {duration} seconds - ").format(duration=durationValue)
         self.showStatusMessage((msg, str(i + 1), "/", str(numberOfCurveControlPoints)))
-        
+
         rasPoint = curveControlPoints.GetPoint(i)
         slicer.vtkMRMLSliceNode.JumpSlice(sliceWidget.sliceLogic().GetSliceNode(), *rasPoint)
         point3D = qt.QVector3D(rasPoint[0], rasPoint[1], rasPoint[2])
         point2D = ffEffect.rasToXy(point3D, sliceWidget)
         qIjkPoint = ffEffect.xyToIjk(point2D, sliceWidget, ffEffect.self().getClippedSourceImageData())
         ffEffect.self().floodFillFromPoint((int(qIjkPoint.x()), int(qIjkPoint.y()), int(qIjkPoint.z())))
-    
+
     # Switch off active effect
     seWidget.setActiveEffect(None)
     # Replace master volume of segmentation
@@ -592,7 +592,7 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     segmentation.SetReferenceImageGeometryParameterFromVolumeNode(volumeNode)
     # Remove no longer needed split volume.
     slicer.mrmlScene.RemoveNode(outputSplitVolumeNode)
-    
+
     # Remove folder created by Split Volume.
     # First, reparent the segmentation item to scene item.
     shNode.SetItemParent(shSegmentationId, shSceneId)
@@ -603,11 +603,11 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     if shNode.GetNumberOfItemChildren(shSplitVolumeParentId) == 0:
         if shNode.GetItemLevel(shSplitVolumeParentId) == "Folder":
             shNode.RemoveItem(shSplitVolumeParentId)
-    
+
     # Show segment. Poked from qMRMLSegmentationShow3DButton.cxx
     if segmentation.GetSegmentation().CreateRepresentation(slicer.vtkSegmentationConverter.GetSegmentationClosedSurfaceRepresentationName()):
         segmentation.GetDisplayNode().SetPreferredDisplayRepresentationName3D(slicer.vtkSegmentationConverter.GetSegmentationClosedSurfaceRepresentationName())
-    
+
     if not self._parameterNode.extractCenterlines:
         stopTime = time.time()
         durationValue = '%.2f' % (stopTime-startTime)
@@ -615,13 +615,13 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
         logging.info(message)
         slicer.util.showStatusMessage(message, 5000)
         return
-    
+
     #---------------------- Extract centerlines ---------------------
     slicer.util.showStatusMessage(_("Extract centerline setup"))
     slicer.app.processEvents()
     ecWidget = slicer.util.getModuleWidget('ExtractCenterline')
     ecUi = ecWidget.ui
-    
+
     inputSurfaceComboBox = ecUi.inputSurfaceSelector
     inputSegmentSelectorWidget = ecUi.inputSegmentSelectorWidget
     endPointsMarkupsSelector = ecUi.endPointsMarkupsSelector
@@ -630,7 +630,7 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     preprocessInputSurfaceModelCheckBox = ecUi.preprocessInputSurfaceModelCheckBox
     applyButton = ecUi.applyButton
     outputNetworkGroupBox = ecUi.CollapsibleGroupBox
-    
+
     # Set input segmentation
     inputSurfaceComboBox.setCurrentNode(segmentation)
     inputSegmentSelectorWidget.setCurrentSegmentID(segmentID)
@@ -649,7 +649,7 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
         self._parameterNode.outputFiducialNode = outputFiducialNode
     # Account for rename. Control points are not remaned though.
     outputFiducialNode.SetName("Endpoints_" + self._parameterNode.inputCurveNode.GetName())
-    
+
     # Output centerline model. A single node throughout.
     centerlineModel = self._parameterNode.outputCenterlineModel
     if not centerlineModel:
@@ -660,7 +660,7 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     # Account for rename
     centerlineModel.SetName("Centerline_model_" + self._parameterNode.inputCurveNode.GetName())
     outputCenterlineModelSelector.setCurrentNode(centerlineModel)
-    
+
     # Output centerline curve. A single node throughout.
     centerlineCurve = self._parameterNode.outputCenterlineCurve
     if not centerlineCurve:
@@ -670,7 +670,7 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
         self._parameterNode.outputCenterlineCurve = centerlineCurve
     # Account for rename
     centerlineCurve.SetName("Centerline_curve_" + self._parameterNode.inputCurveNode.GetName())
-    
+
     outputCenterlineCurveSelector.setCurrentNode(centerlineCurve)
     """
     Don't preprocess input surface. Decimation error may crash Slicer. Quadric method for decimation is slower but more reliable.
@@ -682,7 +682,7 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     self._parameterNode.inputCurveNode.SetDisplayVisibility(False)
     # Close network pane; we don't use this here.
     outputNetworkGroupBox.collapsed = True
-    
+
     slicer.util.mainWindow().moduleSelector().selectModule('ExtractCenterline')
 
     stopTime = time.time()

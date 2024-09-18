@@ -10,7 +10,7 @@ from slicer.ScriptedLoadableModule import *
 from slicer.util import VTKObservationMixin
 
 """
-  CrossSectionAnalysis : renamed from CenterlineMetrics, and merged with former deprecated CrossSectionAnalysis module.
+  CrossSectionAnalysis: renamed from CenterlineMetrics, and merged with former deprecated CrossSectionAnalysis module.
   This file was originally derived from LineProfile.py.
   Many more features have been added since.
 """
@@ -73,7 +73,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     uiWidget.setMRMLScene(slicer.mrmlScene)
 
     self.logic = CrossSectionAnalysisLogic()
-    
+
     # Track the polydata regions identified in the lumen surface.
     self._lumenRegions = []
     # The paint effect button must not be visible by default.
@@ -160,7 +160,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.axialSliceVerticalFlipCheckBox.connect("clicked()", self.setVerticalFlip)
     self.ui.maxDiameterStenosisToolButton.connect("clicked()", self.moveSliceViewToMaximumDiameterStenosis)
     self.ui.maxSurfaceAreaStenosisToolButton.connect("clicked()", self.moveSliceViewToMaximumSurfaceAreaStenosis)
-    
+
     self.ui.surfaceInformationGetToolButton.connect("clicked()", self.onGetRegionsButton)
     self.ui.surfaceInformationSpinBox.connect("valueChanged(int)", self.onRegionSelected)
     self.ui.surfaceInformationGoToToolButton.connect("toggled(bool)", self.onSurfaceInformationGoToToggled)
@@ -241,7 +241,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.moveToPointSliderWidget.setValue(0)
     self.resetMoveToPointSliderWidget()
     self.clearMetrics()
-  
+
   def updateGUIFromParameterNode(self, caller=None, event=None):
     """
     This method is called whenever parameter node is changed.
@@ -322,7 +322,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.moveToMinimumAreaPushButton.enabled = self.logic.lumenSurfaceNode is not None
     self.ui.moveToMaximumAreaPushButton.enabled = self.logic.lumenSurfaceNode is not None
     self.ui.showCrossSectionButton.enabled = self.logic.lumenSurfaceNode is not None
-    
+
     self.ui.surfaceInformationGoToToolButton.setChecked(self._parameterNode.GetParameter("GoToRegion") == "True")
 
     # Update outputs
@@ -477,12 +477,12 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.showPreComputedDoubleData(value, WALL_CROSS_SECTION_AREA_ARRAY_NAME, self.ui.wallSurfaceAreaValueLabel, "area")
     self.showPreComputedDoubleData(value, DIAMETER_STENOSIS_ARRAY_NAME, self.ui.diameterStenosisValueLabel, "%")
     self.showPreComputedDoubleData(value, SURFACE_AREA_STENOSIS_ARRAY_NAME, self.ui.surfaceAreaStenosisValueLabel, "%")
-    
+
   def showPreComputedDoubleData(self, pointIndex, columnArrayName, uiWidget, category):
     if self.logic.outputTableNode is None:
       uiWidget.setText("")
       return
-    
+
     dataVariant = self.logic.outputTableNode.GetTable().GetValueByName(int(pointIndex), columnArrayName)
     data = dataVariant.ToDouble() if dataVariant.IsValid() else 0.0
     if category == "length" or category == "area" or category == "volume":
@@ -604,10 +604,10 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
   def setVerticalFlip(self):
     pointIndex = int(self.ui.moveToPointSliderWidget.value)
     self.logic.updateSliceView(pointIndex)
-    
+
   def setInputCenterlineNode(self, centerlineNode):
     if (centerlineNode is not None) and (centerlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode")):
-      if centerlineNode.GetShapeName() != slicer.vtkMRMLMarkupsShapeNode.Tube :
+      if centerlineNode.GetShapeName() != slicer.vtkMRMLMarkupsShapeNode.Tube:
         self.logic.showStatusMessage((_("Selected Shape node is not a Tube."),))
         self.ui.inputCenterlineSelector.setCurrentNode(None)
         self.logic.setInputCenterlineNode(None)
@@ -618,21 +618,21 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.ui.inputCenterlineSelector.setCurrentNode(None)
         self.logic.setInputCenterlineNode(None)
         return
-    # N.B :  updateGUIFromParameterNode() has already done this.
+    # N.B. updateGUIFromParameterNode() has already done this.
     self.logic.setInputCenterlineNode(centerlineNode)
     self.updatePlotOptions()
     self.updateWallLabelsVisibility()
-  
+
   def onInputSegmentationNode(self):
     self.updatePlotOptions()
     self.updateWallLabelsVisibility()
     self.resetLumenRegions()
-  
+
   # The output table columns vary according to the input types; this defines what can be plotted.
   def updatePlotOptions(self):
     comboBox = self.ui.outputPlotSeriesTypeComboBox
     comboBox.clear()
-    
+
     if self.logic.isCenterlineRadiusAvailable():
         comboBox.addItem(_("MIS diameter"), MIS_DIAMETER)
     if self.logic.lumenSurfaceNode:
@@ -647,7 +647,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
     if (comboBox.count):
       comboBox.setCurrentIndex(0)
-  
+
   def updateWallLabelsVisibility(self):
     visibility = self.logic.inputCenterlineNode and self.logic.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode")
     self.ui.wallGroupBox.setVisible(visibility) # Always show or hide
@@ -655,7 +655,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.wallRowLabel.setVisible(visibility)
     self.ui.wallDiameterValueLabel.setVisible(visibility)
     self.ui.wallSurfaceAreaValueLabel.setVisible(visibility)
-    
+
     visibility = self.logic.inputCenterlineNode and self.logic.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode") and self.logic.lumenSurfaceNode
     # With or without a segmentation or model node as input lumen.
     self.ui.lumenRowLabel.setVisible(visibility)
@@ -666,21 +666,21 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.maxDiameterStenosisToolButton.setVisible(visibility)
     self.ui.surfaceAreaStenosisValueLabel.setVisible(visibility)
     self.ui.maxSurfaceAreaStenosisToolButton.setVisible(visibility)
-  
+
   # We would definitely want to go directly to the maximum stenosis.
   def moveSliceViewToMaximumDiameterStenosis(self):
     point = self.logic.getExtremeMetricPoint(DIAMETER_STENOSIS_ARRAY_NAME, True)
     if point == -1:
         return
     self.ui.moveToPointSliderWidget.setValue(point)
-  
+
   # A single function should probably do, as the diameters are derived from the surface areas.
   def moveSliceViewToMaximumSurfaceAreaStenosis(self):
     point = self.logic.getExtremeMetricPoint(SURFACE_AREA_STENOSIS_ARRAY_NAME, True)
     if point == -1:
         return
     self.ui.moveToPointSliderWidget.setValue(point)
-  
+
   def resetLumenRegions(self):
     if self._lumenRegions:
       self._lumenRegions.clear()
@@ -691,7 +691,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.checkAndSetSegmentEditor(False)
     self.ui.surfaceInformationPaintToolButton.setChecked(False)
     self.ui.surfaceInformationPaintToolButton.setVisible(False)
-  
+
   # Identify and track all regions of the lumen surface.
   def onGetRegionsButton(self):
     self.resetLumenRegions()
@@ -702,7 +702,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     numberOfRegions = len(self._lumenRegions)
     self.ui.surfaceInformationSpinBox.setMaximum(numberOfRegions)
     self.onRegionSelected(0)
-    
+
     inputSurface = self.logic.lumenSurfaceNode
     if (inputSurface.GetClassName() == "vtkMRMLSegmentationNode"):
       # If there's only 1 region, there's nothing to fix.
@@ -714,7 +714,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         seWidget.setActiveEffectByName(None)
     else:
       self.ui.surfaceInformationPaintToolButton.setVisible(False)
-  
+
   # Initialise the segment editor if needed.
   # If the lumen surface is a segmentation, select it in the 'Segment editor'.
   # Always deactivate the current effect.
@@ -723,19 +723,19 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     if (not inputSurface):
       logging.error("Invalid input surface node.")
       return False;
-    
+
     if (inputSurface.GetClassName() == "vtkMRMLSegmentationNode") and len(self.logic.currentSegmentID) == 0:
       logging.error("Invalid input segment ID.")
       return False
-    
+
     # Create segment editor object if needed.
     segmentEditorModuleWidget = slicer.util.getModuleWidget("SegmentEditor")
     seWidget = segmentEditorModuleWidget.editor
     seWidget.setActiveEffectByName(None)
-    
+
     if not setNodes:
       return True
-    
+
     seWidget.setSegmentationNode(inputSurface)
     inputVolume = seWidget.sourceVolumeNode()
     if inputVolume == None:
@@ -743,9 +743,9 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       return False
     inputSurface.SetReferenceImageGeometryParameterFromVolumeNode(inputVolume)
     seWidget.mrmlSegmentEditorNode().SetSelectedSegmentID(self.logic.currentSegmentID)
-    
+
     return True
-  
+
   """"
   Show the number of points and the number of cells of the selected region.
   Optionally locate the region in all slice views.
@@ -756,37 +756,37 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     if (not self._lumenRegions):
       logging.info(_("Collection of lumen regions is unexpectedly None."))
       return
-    
+
     numberOfRegions = len(self._lumenRegions)
     if (id > numberOfRegions):
       logging.info(_("Requested region is beyond range."))
       return
-    
+
     label = str(id) + "/" + str(numberOfRegions)
     if (id > 0):
       region = self._lumenRegions[id - 1]
       numberOfPoints = region.GetNumberOfPoints()
       numberOfCells = region.GetNumberOfCells()
       label = label + " - " + str(numberOfPoints) + _(" points") + ", " + str(numberOfCells) + _(" cells")
-      
+
       # If there is only one region, there's nothing to fix, no need to move the slice views.
       if self.ui.surfaceInformationGoToToolButton.checked and (numberOfRegions > 1):
         sliceNodes = [slicer.app.layoutManager().sliceWidget(viewName).mrmlSliceNode() for viewName in slicer.app.layoutManager().sliceViewNames()]
         firstPoint = region.GetPoint(0)
         for sliceNode in sliceNodes:
           slicer.vtkMRMLSliceNode.JumpSliceByCentering(sliceNode, *firstPoint)
-        
+
         self.crosshair.SetCrosshairRAS(firstPoint)
-      
+
     self.ui.surfaceInformationLabel.setText(label)
-  
+
   # Jump to the selected region as we enable the toogle button.
   def onSurfaceInformationGoToToggled(self, checked):
     if not checked:
       return
     regionId = self.ui.surfaceInformationSpinBox.value
     self.onRegionSelected(regionId)
-  
+
   # Activate the 'Paint' effect of the 'Segment editor' with a sphere brush.
   def onSurfaceInformationPaintToggled(self, checked):
     if not self.checkAndSetSegmentEditor(checked):
@@ -796,14 +796,14 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     # Create segment editor object if needed.
     segmentEditorModuleWidget = slicer.util.getModuleWidget("SegmentEditor")
     seWidget = segmentEditorModuleWidget.editor
-    
+
     if checked:
       seWidget.setActiveEffectByName("Paint")
       effect = seWidget.activeEffect()
       effect.setParameter("BrushSphere", str(1))
     else:
       seWidget.setActiveEffectByName(None)
-    
+
 #
 # CrossSectionAnalysisLogic
 #
@@ -822,7 +822,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.initMemberVariables()
 
   def initMemberVariables(self):
-    # For a Shape markups node, inputCenterlineNode is the node itself : wall + invisible spline as centerline.
+    # For a Shape markups node, inputCenterlineNode is the node itself: wall + invisible spline as centerline.
     self.inputCenterlineNode = None
     self.outputPlotSeriesNode = None
     self.outputTableNode = None
@@ -846,7 +846,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.showMaximumInscribedSphere = False
     self.maximumInscribedSphereColor = [0.2, 1.0, 0.4]
     self.relativeOriginPointIndex = 0
-    self.outputPlotSeriesType = MIS_DIAMETER 
+    self.outputPlotSeriesType = MIS_DIAMETER
     # Slice browsing
     self.axialSliceNode = None
     self.longitudinalSliceNode = None
@@ -958,7 +958,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
         displayNode = self.maximumInscribedSphereModelNode.GetDisplayNode()
         if (displayNode): # ?
           displayNode.SetVisibility(False)
-  
+
   # Identify the regions of the input lumen based on polydata connectivity.
   def getRegionsOfLumenSurface(self):
     closedSurfacePolyData = vtk.vtkPolyData()
@@ -966,13 +966,13 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     if (closedSurfacePolyData.GetNumberOfPoints() == 0):
       logging.error(_("Invalid surface polydata."))
       return
-    
+
     regionFilter = vtk.vtkPolyDataConnectivityFilter()
     regionFilter.SetInputData(closedSurfacePolyData)
     regionFilter.SetExtractionModeToAllRegions()
     regionFilter.Update()
     numberOfRegions = regionFilter.GetNumberOfExtractedRegions()
-    
+
     regions = []
     for regionId in range(numberOfRegions):
       regionExtrator = vtk.vtkPolyDataConnectivityFilter()
@@ -981,16 +981,16 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       regionExtrator.AddSpecifiedRegion(regionId)
       regionExtrator.SetInputData(closedSurfacePolyData)
       regionExtrator.Update()
-      
+
       # Remove isolated points.
       cleaner = vtk.vtkCleanPolyData()
       cleaner.SetInputConnection(regionExtrator.GetOutputPort())
       cleaner.Update()
-      
+
       region = vtk.vtkPolyData()
       region.DeepCopy(cleaner.GetOutput())
       regions.append(region)
-    
+
     return regions
 
   def isInputCenterlineValid(self):
@@ -1095,11 +1095,11 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       if self.lumenSurfaceNode:
         diameterStenosisArray = self.getArrayFromTable(outputTable, DIAMETER_STENOSIS_ARRAY_NAME)
         surfaceAreaStenosisArray = self.getArrayFromTable(outputTable, SURFACE_AREA_STENOSIS_ARRAY_NAME)
-    
+
     if self.lumenSurfaceNode:
         ceDiameterArray = self.getArrayFromTable(outputTable, CE_DIAMETER_ARRAY_NAME)
         crossSectionAreaArray = self.getArrayFromTable(outputTable, CROSS_SECTION_AREA_ARRAY_NAME)
-    
+
     if self.coordinateSystemColumnSingle:
         coordinatesArray = self.getArrayFromTable(outputTable, "RAS" if self.coordinateSystemColumnRAS else "LPS")
         coordinatesArray.SetNumberOfComponents(3)
@@ -1149,7 +1149,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
           points = slicer.util.arrayFromMarkupsCurvePoints(inputCenterline, world=True)
           controlPointFloatIndices = inputCenterline.GetCurveWorld().GetPointData().GetArray('PedigreeIDs')
           numberOfPoints = len(points)
-          
+
         radii = np.zeros(numberOfPoints)
         radiusMeasurement = inputCenterline.GetMeasurement("Radius")
         controlPointRadiusValues = vtk.vtkDoubleArray()
@@ -1171,7 +1171,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
 
     """
     Fill in cross-section areas in C++ threads.
-    N.B. : polydata caching is not concerned here.
+    N.B. polydata caching is not concerned here.
     """
     import vtkSlicerCrossSectionAnalysisModuleLogicPython as vtkSlicerCrossSectionAnalysisModuleLogic
     crossSectionCompute = vtkSlicerCrossSectionAnalysisModuleLogic.vtkCrossSectionCompute()
@@ -1193,7 +1193,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
         crossSectionCompute.SetInputSurfaceNode(self.lumenSurfaceNode, self.currentSegmentID)
         self.showStatusMessage((_("Waiting for background jobs..."), ))
         crossSectionCompute.UpdateTable(crossSectionAreaArray, ceDiameterArray)
-    
+
     """
     We may also use the TubeRadius scalar array of the spline. This may prevent
     weird measurements at both ends of the tube. Not tested.
@@ -1212,15 +1212,15 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
         wallCrossSectionCompute.SetInputCenterlinePolyData(trimmedSpline)
       self.showStatusMessage((_("Waiting for background jobs..."), ))
       wallCrossSectionCompute.UpdateTable(wallCrossSectionAreaArray, wallDiameterArray)
-    
+
     cumArray = vtk.vtkDoubleArray()
     self.cumulateDistances(points, cumArray)
     relArray = vtk.vtkDoubleArray()
     self.updateCumulativeDistancesToRelativeOrigin(cumArray, relArray)
-            
+
     for i in range(numberOfPoints):
       if (((i + 1) % 25) == 0):
-          self.showStatusMessage((_("Updating table :"), str(i + 1), "/", str(numberOfPoints)))
+          self.showStatusMessage((_("Updating table:"), str(i + 1), "/", str(numberOfPoints)))
       # Distance from relative origin
       distanceArray.SetValue(i, relArray.GetValue(i))
       # Radii
@@ -1256,7 +1256,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       crossSectionAreaArray.Modified()
       ceDiameterArray.Modified()
     outputTable.GetTable().Modified()
-    
+
     stopTime = time.time()
     durationValue = '%.2f' % (stopTime-startTime)
     message = _("Processing completed in {duration} seconds - {countOfPoints} points").format(duration=durationValue, countOfPoints=numberOfPoints)
@@ -1512,7 +1512,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       self.inputCenterlineNode.GetCurvePointToWorldTransformAtPointIndex(pointIndex, curvePointToWorld)
 
     return curvePointToWorld
-  
+
   def getClosedSurfacePolyData(self, closedSurfacePolyData):
     if (not self.lumenSurfaceNode):
       logging.error(_("Lumen surface node is not set."))
@@ -1523,7 +1523,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       self.lumenSurfaceNode.GetClosedSurfaceRepresentation(self.currentSegmentID, closedSurfacePolyData)
     else:
       closedSurfacePolyData.DeepCopy(self.lumenSurfaceNode.GetPolyData())
-  
+
   def computeCrossSectionPolydata(self, pointIndex):
     curvePointToWorld = self.getCurvePointToWorldTransformAtPointIndex(pointIndex)
     center = np.zeros(3)
@@ -1817,4 +1817,3 @@ WALL_CE_DIAMETER = "WALL_CE_DIAMETER"
 WALL_CROSS_SECTION_AREA = "WALL_CROSS_SECTION_AREA"
 DIAMETER_STENOSIS = "DIAMETER_STENOSIS"
 SURFACE_AREA_STENOSIS = "SURFACE_AREA_STENOSIS"
-
