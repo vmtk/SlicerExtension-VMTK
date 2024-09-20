@@ -27,8 +27,7 @@ This module clips a surface model given a VMTK centerline and markups indicating
     <a href="https://github.com/vmtk/SlicerExtension-VMTK/">here</a>.
 """
     self.parent.acknowledgementText = """
-This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc., Andras Lasso, PerkLab,
-and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
+This file was developed by David Molony, Georgia Heart Institute, Northeast Georgia Health System and was partially funded by NIH grant R01 HL118019.
 """  # TODO: replace with organization, grant and thanks.
 
 #
@@ -228,6 +227,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self._parameterNode.EndModify(wasModify)
 
   def getPreprocessedPolyData(self):
+  
     inputSurfacePolyData = self.logic.polyDataFromNode(self._parameterNode.GetNodeReference("InputSurface"),
                                                        self._parameterNode.GetParameter("InputSegmentID"))
     if not inputSurfacePolyData or inputSurfacePolyData.GetNumberOfPoints() == 0:
@@ -375,112 +375,11 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
     surfaceCapper.Update()
     surface = surfaceCapper.GetOutput()
     return surface
-    
-  def preprocess(self, surfacePolyData, targetNumberOfPoints, decimationAggressiveness, subdivide):
-    # import the vmtk libraries
-    try:
-        import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
-    except ImportError:
-        raise ImportError("VMTK library is not found")
 
-    numberOfInputPoints = surfacePolyData.GetNumberOfPoints()
-    if numberOfInputPoints == 0:
-        raise("Input surface model is empty")
-    reductionFactor = (numberOfInputPoints-targetNumberOfPoints) / numberOfInputPoints
-    if reductionFactor > 0.0:
-        parameters = {}
-        inputSurfaceModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "tempInputSurfaceModel")
-        inputSurfaceModelNode.SetAndObserveMesh(surfacePolyData)
-        parameters["inputModel"] = inputSurfaceModelNode
-        outputSurfaceModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "tempDecimatedSurfaceModel")
-        parameters["outputModel"] = outputSurfaceModelNode
-        parameters["reductionFactor"] = reductionFactor
-        parameters["method"] = "FastQuadric"
-        parameters["aggressiveness"] = decimationAggressiveness
-        decimation = slicer.modules.decimation
-        cliNode = slicer.cli.runSync(decimation, None, parameters)
-        surfacePolyData = outputSurfaceModelNode.GetPolyData()
-        slicer.mrmlScene.RemoveNode(inputSurfaceModelNode)
-        slicer.mrmlScene.RemoveNode(outputSurfaceModelNode)
-        slicer.mrmlScene.RemoveNode(cliNode)
-
-    surfaceCleaner = vtk.vtkCleanPolyData()
-    surfaceCleaner.SetInputData(surfacePolyData)
-    surfaceCleaner.Update()
-
-    surfaceTriangulator = vtk.vtkTriangleFilter()
-    surfaceTriangulator.SetInputData(surfaceCleaner.GetOutput())
-    surfaceTriangulator.PassLinesOff()
-    surfaceTriangulator.PassVertsOff()
-    surfaceTriangulator.Update()
-
-    # new steps for preparation to avoid problems because of slim models (f.e. at stenosis)
-    if subdivide:
-        subdiv = vtk.vtkLinearSubdivisionFilter()
-        subdiv.SetInputData(surfaceTriangulator.GetOutput())
-        subdiv.SetNumberOfSubdivisions(1)
-        subdiv.Update()
-        if subdiv.GetOutput().GetNumberOfPoints() == 0:
-            logging.warning("Mesh subdivision failed. Skip subdivision step.")
-            subdivide = False
-
-    normals = vtk.vtkPolyDataNormals()
-    if subdivide:
-        normals.SetInputData(subdiv.GetOutput())
-    else:
-        normals.SetInputData(surfaceTriangulator.GetOutput())
-    normals.SetAutoOrientNormals(1)
-    normals.SetFlipNormals(0)
-    normals.SetConsistency(1)
-    normals.SplittingOff()
-    normals.Update()
-
-    return normals.GetOutput()
-
-  # Unclear if necessary
-  def extractNonManifoldEdges(self, polyData, nonManifoldEdgesPolyData=None):
-    '''
-    Returns non-manifold edge center positions.
-    nonManifoldEdgesPolyData: optional vtk.vtkPolyData() input, if specified then a polydata is returned that contains the edges
-    '''
-    import vtkvmtkDifferentialGeometryPython as vtkvmtkDifferentialGeometry
-    neighborhoods = vtkvmtkDifferentialGeometry.vtkvmtkNeighborhoods()
-    neighborhoods.SetNeighborhoodTypeToPolyDataManifoldNeighborhood()
-    neighborhoods.SetDataSet(polyData)
-    neighborhoods.Build()
-
-    polyData.BuildCells()
-    polyData.BuildLinks(0)
-
-    edgeCenterPositions = []
-
-    neighborCellIds = vtk.vtkIdList()
-    nonManifoldEdgeLines = vtk.vtkCellArray()
-    points = polyData.GetPoints()
-    for i in range(neighborhoods.GetNumberOfNeighborhoods()):
-        neighborhood = neighborhoods.GetNeighborhood(i)
-        for j in range(neighborhood.GetNumberOfPoints()):
-            neighborId = neighborhood.GetPointId(j)
-            if i < neighborId:
-                neighborCellIds.Initialize()
-                polyData.GetCellEdgeNeighbors(-1, i, neighborId, neighborCellIds)
-                if neighborCellIds.GetNumberOfIds() > 2:
-                    nonManifoldEdgeLines.InsertNextCell(2)
-                    nonManifoldEdgeLines.InsertCellPoint(i)
-                    nonManifoldEdgeLines.InsertCellPoint(neighborId)
-                    p1 = points.GetPoint(i)
-                    p2 = points.GetPoint(neighborId)
-                    edgeCenterPositions.append([(p1[0]+p2[0])/2.0, (p1[1]+p2[1])/2.0, (p1[2]+p2[2])/2.0])
-
-    if nonManifoldEdgesPolyData:
-        if not polyData.GetPoints():
-            raise ValueError("Failed to get non-manifold edges (neighborhood filter output was empty)")
-        pointsCopy = vtk.vtkPoints()
-        pointsCopy.DeepCopy(polyData.GetPoints())
-        nonManifoldEdgesPolyData.SetPoints(pointsCopy)
-        nonManifoldEdgesPolyData.SetLines(nonManifoldEdgeLines)
-
-    return edgeCenterPositions
+  def preprocess(self, inputSurfacePolyData, targetNumberOfPoints, decimationAggressiveness, subdivideInputSurface):
+    import ExtractCenterline
+    extractCenterlineLogic = ExtractCenterline.ExtractCenterlineLogic()
+    extractCenterlineLogic.preprocess(inputSurfacePolyData, targetNumberOfPoints, decimationAggressiveness, subdivideInputSurface)
 
   def clipModel(self, surface, centerlines, point, reverse):
     """Clips the model at the given point. Reverse flag indicates whether the clip
