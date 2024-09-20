@@ -24,7 +24,7 @@ class ClipVessel(ScriptedLoadableModule):
     self.parent.contributors = ["David Molony (NGHS)", "Andras Lasso (PerkLab)"]
     self.parent.helpText = """
 This module clips a surface model given a VMTK centerline and markups indicating where the model will be clipped. The first marker indicates the inlet. Optionally, the user can cap and add flow extensions.
-    <a href="https://github.com/vmtk/SlicerExtension-VMTK/">here</a>.
+    Documentation is available <a href="https://github.com/vmtk/SlicerExtension-VMTK/blob/ClipVessel/Docs/ClipVessel.md">here</a>.
 """
     self.parent.acknowledgementText = """
 This file was developed by David Molony, Georgia Heart Institute, Northeast Georgia Health System and was partially funded by NIH grant R01 HL118019.
