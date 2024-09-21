@@ -379,8 +379,9 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
   def preprocess(self, inputSurfacePolyData, targetNumberOfPoints, decimationAggressiveness, subdivideInputSurface):
     import ExtractCenterline
     extractCenterlineLogic = ExtractCenterline.ExtractCenterlineLogic()
-    extractCenterlineLogic.preprocess(inputSurfacePolyData, targetNumberOfPoints, decimationAggressiveness, subdivideInputSurface)
-
+    prepocessedPolyData = extractCenterlineLogic.preprocess(inputSurfacePolyData, targetNumberOfPoints, decimationAggressiveness, subdivideInputSurface)
+    return prepocessedPolyData
+    
   def clipModel(self, surface, centerlines, point, reverse):
     """Clips the model at the given point. Reverse flag indicates whether the clip
      should be in the direction of the centerline tangent or not"""
