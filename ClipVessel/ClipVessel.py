@@ -437,37 +437,15 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
     
     # clip the surface with the hemi-sphere
     clipper.SetClipFunction(clipFunctionCombined)
-        
-    cutter = vtk.vtkCutter()
-    cutter.SetInputData(surface)
-    cutter.SetCutFunction(clipFunctionPlane)
-    
-    clippedSurface = vtk.vtkPolyData()
-    cutLines = vtk.vtkPolyData()
     clipper.Update()
-    
-    surface.DeepCopy(clipper.GetOutput())
+           
+    clippedSurface = vtk.vtkPolyData()    
     clippedSurface.DeepCopy(clipper.GetClippedOutput())
-    cutter.Update()
-    cutLines.DeepCopy(cutter.GetOutput())
-    
-    cleaner = vtk.vtkCleanPolyData()
-    cleaner.SetInputData(surface)
-    cleaner.Update()    
-    surface = cleaner.GetOutput()
-    
+       
     cleaner = vtk.vtkCleanPolyData()
     cleaner.SetInputData(clippedSurface)
     cleaner.Update()    
     clippedSurface = cleaner.GetOutput()
-
-    cleaner = vtk.vtkCleanPolyData()
-    cleaner.SetInputData(cutLines)
-    cleaner.Update()
-    stripper = vtk.vtkStripper()
-    stripper.SetInputData(cleaner.GetOutput())
-    stripper.Update()
-    cutLines = stripper.GetOutput()
     
     return clippedSurface
     
