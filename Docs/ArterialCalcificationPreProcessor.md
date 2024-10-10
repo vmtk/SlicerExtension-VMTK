@@ -21,7 +21,7 @@ These images illustrate the limitations of this approach.
 
 ![Lumen only](ArterialCalcificationPreProcessor_0.png)
 
-**Calcifications : good, missing and in excess**
+**Calcifications: good, missing and in excess**
 
 ![Calcifications](ArterialCalcificationPreProcessor_1.png)
 

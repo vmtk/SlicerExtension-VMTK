@@ -40,7 +40,7 @@ public:
   explicit qSlicerStenosisMeasurement3DModule(QObject *parent=nullptr);
   ~qSlicerStenosisMeasurement3DModule() override;
 
-  qSlicerGetTitleMacro("Stenosis measurement : 3D");
+  qSlicerGetTitleMacro("Stenosis measurement: 3D");
 
   QString helpText()const override;
   QString acknowledgementText()const override;
