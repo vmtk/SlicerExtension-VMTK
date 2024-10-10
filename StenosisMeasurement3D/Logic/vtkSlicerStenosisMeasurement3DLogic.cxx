@@ -94,7 +94,7 @@ double vtkSlicerStenosisMeasurement3DLogic::Process(vtkMRMLMarkupsShapeNode * wa
                                             vtkPolyData * wallOpenOut, vtkPolyData * lumenOpenOut,
                                             vtkPolyData * wallClosedOut, vtkPolyData * lumenClosedOut)
 {
-  // N.B. : we don't call ::UpdateBoundaryControlPointPosition here.
+  // N.B: we don't call ::UpdateBoundaryControlPointPosition here.
   if (wall == nullptr || lumen == nullptr || segmentID.empty() || boundary == nullptr
     || wall->GetNumberOfControlPoints() < 4 || boundary->GetNumberOfControlPoints() < 2
     || wall->GetShapeName() != vtkMRMLMarkupsShapeNode::Tube
@@ -135,7 +135,7 @@ double vtkSlicerStenosisMeasurement3DLogic::Process(vtkMRMLMarkupsShapeNode * wa
   
   // Get adjacent points to boundaries to calculate normals.
   /*
-   * N.B. : GetPoint() has a nasty documented version,
+   * N.B: GetPoint() has a nasty documented version,
    * when result is assigned to a pointer.
    * A first result takes the value of next ones !
    */
@@ -156,7 +156,7 @@ double vtkSlicerStenosisMeasurement3DLogic::Process(vtkMRMLMarkupsShapeNode * wa
   vtkMath::Subtract(p1Neighbour, p1, startDirection);
   vtkMath::Subtract(p2Neighbour, p2, endDirection);
   
-  // Open surface : Clip wall and lumen at p1. Clip the result at p2.
+  // Open surface: Clip wall and lumen at p1. Clip the result at p2.
   vtkNew<vtkPolyData> wallIntermediate;
   this->Clip(wallOpenSurface, wallIntermediate, p1, startDirection, false);
   this->Clip(wallIntermediate, wallOpenOut, p2, endDirection, false);
