@@ -52,6 +52,7 @@ A graphical plot of MIS diameter, CE diameter or cross-section area against dist
 
 ## Notes
 
+- The parameter set node is intended for distinct combinations of centerlines and surfaces to isolate a study.
 - Point coordinates can be displayed as an array in a single column, or split in three distinct columns. One can choose between RAS or LPS coordinates.
 - A markups curve may also lie outside a surface.
 - Providing a surface (segmentation or model) is optional. For example, a markups curve may be drawn on a vascular structure's boundary in slice views, to see the corresponding cross-sections only.
