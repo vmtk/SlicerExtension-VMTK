@@ -21,6 +21,49 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
+    <layout class="QFormLayout" name="parameterSetLayout">
+     <item row="0" column="0">
+      <widget class="QLabel" name="parameterSetLabel">
+       <property name="text">
+        <string>Parameter set:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="qMRMLNodeComboBox" name="parameterSetSelector">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="toolTip">
+        <string>Pick a node to store the parameter set.
+
+This is intended to represent a unique combination of input centerline and surface nodes. Create a distinct parameter set for each combination.</string>
+       </property>
+       <property name="nodeTypes">
+        <stringlist notr="true">
+         <string>vtkMRMLScriptedModuleNode</string>
+        </stringlist>
+       </property>
+       <property name="showHidden">
+        <bool>true</bool>
+       </property>
+       <property name="hideChildNodeTypes">
+        <stringlist notr="true"/>
+       </property>
+       <property name="baseName">
+        <string notr="true">CrossSectionAnalysis</string>
+       </property>
+       <property name="renameEnabled">
+        <bool>true</bool>
+       </property>
+       <property name="interactionNodeSingletonTag">
+        <string notr="true"/>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
     <widget class="ctkCollapsibleButton" name="parametersCollapsibleButton">
      <property name="sizePolicy">
       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
@@ -1423,6 +1466,22 @@ Caution: values at bifurcations may not have clinical meaning.</string>
     <hint type="destinationlabel">
      <x>298</x>
      <y>322</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>CrossSectionAnalysis</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>parameterSetSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>265</x>
+     <y>466</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>310</x>
+     <y>22</y>
     </hint>
    </hints>
   </connection>
