@@ -18,6 +18,8 @@
 // StenosisMeasurement3D Logic includes
 #include <vtkSlicerStenosisMeasurement3DLogic.h>
 
+#include <qSlicerCoreApplication.h>
+
 // StenosisMeasurement3D includes
 #include "qSlicerStenosisMeasurement3DModule.h"
 #include "qSlicerStenosisMeasurement3DModuleWidget.h"
