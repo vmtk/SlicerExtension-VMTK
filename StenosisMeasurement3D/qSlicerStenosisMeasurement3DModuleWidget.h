@@ -29,9 +29,9 @@
 #include <vtkPolyData.h>
 #include <vtkMRMLMarkupsNode.h>
 #include <vtkSlicerStenosisMeasurement3DLogic.h>
+#include <vtkMRMLStenosisMeasurement3DParameterNode.h>
 
 class qSlicerStenosisMeasurement3DModuleWidgetPrivate;
-class vtkMRMLNode;
 
 /// \ingroup Slicer_QtModules_ExtensionTemplate
 class Q_SLICER_QTMODULES_STENOSISMEASUREMENT3D_EXPORT qSlicerStenosisMeasurement3DModuleWidget :
@@ -45,31 +45,34 @@ public:
   qSlicerStenosisMeasurement3DModuleWidget(QWidget *parent=0);
   virtual ~qSlicerStenosisMeasurement3DModuleWidget();
 
+  bool setEditedNode(vtkMRMLNode* node, QString role = QString(), QString context = QString()) override;
+  void enter() override;
+
 public slots:
   void onApply();
+  void setParameterNode(vtkMRMLNode* node);
+
+protected slots:
   void onShapeNodeChanged(vtkMRMLNode * node);
   void onFiducialNodeChanged(vtkMRMLNode * node);
+  void onSegmentationNodeChanged(vtkMRMLNode * node);
+  void onSegmentIDChanged(QString segmentID);
+  void onWallModelNodeChanged(vtkMRMLNode * node);
+  void onLumenModelNodeChanged(vtkMRMLNode * node);
+  void onTableNodeChanged(vtkMRMLNode * node);
+  void onParameterNodeModified(); // Update the parameter node in the logic only.
 
 protected:
   QScopedPointer<qSlicerStenosisMeasurement3DModuleWidgetPrivate> d_ptr;
 
   void setup() override;
   bool showStatusMessage(const QString& message, int duration = 0);
-  void showResult(vtkPolyData * wall, vtkPolyData * lumen, double lenght);
+  void showResult(vtkVariantArray * results);
   void createModels(vtkPolyData * wall, vtkPolyData * lumen);
-  
-  vtkSmartPointer<vtkCallbackCommand> fiducialObservation;
-  static void onFiducialPointEndInteraction(vtkObject *caller,
-                               unsigned long event, void *clientData, void *callData);
-  
-  vtkSmartPointer<vtkCallbackCommand> tubeObservation;
-  static void onTubePointEndInteraction(vtkObject *caller,
-                               unsigned long event, void *clientData, void *callData);
-  
-  vtkWeakPointer<vtkMRMLNode> currentShapeNode;
-  vtkWeakPointer<vtkMRMLNode> currentFiducialNode;
+  void updateWidgetFromMRML();
+
   vtkSmartPointer<vtkSlicerStenosisMeasurement3DLogic> logic;
-  
+
 private:
   Q_DECLARE_PRIVATE(qSlicerStenosisMeasurement3DModuleWidget);
   Q_DISABLE_COPY(qSlicerStenosisMeasurement3DModuleWidget);
