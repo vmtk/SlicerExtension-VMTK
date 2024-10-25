@@ -1,3 +1,5 @@
+# EXPERIMENTAL - DO NOT USE
+
 The VMTK Extension for 3D Slicer
 --------------------------------
 
