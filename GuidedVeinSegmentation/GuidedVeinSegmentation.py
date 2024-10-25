@@ -72,10 +72,8 @@ class GuidedVeinSegmentationWidget(ScriptedLoadableModuleWidget, VTKObservationM
         ScriptedLoadableModuleWidget.__init__(self, parent)
         VTKObservationMixin.__init__(self)  # needed for parameter node observation
         self.logic = None
-        self._wrappedParameterNode = None
-        self._mrmlParameterNode = None
+        self._parameterNode = None
         self._parameterNodeGuiTag = None
-        self._parameterNodeBeingModified = False
 
     def setup(self) -> None:
         """
@@ -100,33 +98,21 @@ class GuidedVeinSegmentationWidget(ScriptedLoadableModuleWidget, VTKObservationM
         # Create logic class. Logic implements all computations that should be possible to run
         # in batch mode, without a graphical user interface.
         self.logic = GuidedVeinSegmentationLogic()
-        '''
-        Do not use the 'ModuleName' attribute. The logic's vtkMRMLScriptedModuleNode inner
-        parameter node has the same 'ModuleName' attribute with the module's name as value.
-        This inner MRML parameter node will appear as a default node in the combobox, and
-        it must not be used here at all. Ensure that the basename of the selector is not
-        the same as the module's name.
-        '''
-        parameterSetBaseName = self.ui.parameterSetSelector.baseName
-        if parameterSetBaseName == self.moduleName:
-            logging.warning("The basename of the parameter set selector must not be equal to the module's name.")
-            # Don't return, though bad things will happen.
-        self.ui.parameterSetSelector.addAttribute("vtkMRMLScriptedModuleNode", "BaseName", parameterSetBaseName)
+        self.ui.parameterSetSelector.addAttribute("vtkMRMLScriptedModuleNode", "ModuleName", self.moduleName)
 
         # Connections
-        self.ui.parameterSetSelector.connect('currentNodeChanged(vtkMRMLNode*)', self.onMrmlParameterNodeChanged)
+        self.ui.parameterSetSelector.connect('currentNodeChanged(vtkMRMLNode*)', self.parameterSetChanged)
         self.ui.parameterSetSelector.connect('currentNodeChanged(vtkMRMLNode*)', self.updateSliceViews)
-        
+
         # These connections ensure that we update parameter node when scene is closed
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
         
         # Buttons
-        self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
-        
-        # Make sure parameter node is initialized (needed for module reload)
-        self.initializeWrappedParameterNode()
+        self.ui.applyButton.connect('clicked(bool)', self.onApply)
 
+        # Refrain from adding a new parameter set.
+        
     def cleanup(self) -> None:
         """
         Called when the application closes and the module widget is destroyed.
@@ -134,144 +120,56 @@ class GuidedVeinSegmentationWidget(ScriptedLoadableModuleWidget, VTKObservationM
         self.removeObservers()
 
     def enter(self) -> None:
-        """
-        Called each time the user opens this module.
-        """
+        """Called each time the user opens this module."""
         # Make sure parameter node exists and observed
-        if not self._wrappedParameterNode:
-            self.initializeWrappedParameterNode()
-        else:
-            self.onMrmlParameterNodeChanged(self.ui.parameterSetSelector.currentNode())
+        if self._parameterNode:
+            self._parameterNodeGuiTag = self._parameterNode.connectGui(self.ui)
 
     def exit(self) -> None:
-        """
-        Called each time the user opens a different module.
-        """
+        """Called each time the user opens a different module."""
+        # Do not react to parameter node changes (GUI will be updated when the user enters into the module)
+        if self._parameterNode:
+            self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
+            self._parameterNodeGuiTag = None
 
     def onSceneStartClose(self, caller, event) -> None:
-        """
-        Called just before the scene is closed.
-        """
+        """Called just before the scene is closed."""
 
     def onSceneEndClose(self, caller, event) -> None:
-        """
-        Called just after the scene is closed.
-        """
-        # Restore wrapped parameter node to defaults and set MRML parameter node to None.
-        self.onMrmlParameterNodeChanged(None)
+        """Called just after the scene is closed."""
+        self.parameterSetChanged(None)
 
-    def restoreWrappedParameterNode(self) -> None:
-        if not self._wrappedParameterNode:
-            return
-        # Restore to default values.
-        self._wrappedParameterNode.inputCurve = None
-        self._wrappedParameterNode.inputVolume = None
-        self._wrappedParameterNode.inputSegmentation = None
-        self._wrappedParameterNode.extrusionKernelSize = 5.0
-        self._wrappedParameterNode.gaussianStandardDeviation = 2.0
-        self._wrappedParameterNode.seedRadius = 1.0
-        self._wrappedParameterNode.shellMargin = 18.0
-        self._wrappedParameterNode.shellThickness = 2.0
-        self._wrappedParameterNode.subtractOtherSegments = True
-
-    def initializeWrappedParameterNode(self) -> None:
-        """
-        Ensure parameter node exists and observed.
-        """
-        # Parameter node stores all user choices in parameter values, node selections, etc.
-        # so that when the scene is saved and reloaded, these settings are restored.
-
-        # Called only once.
-        self.setWrappedParameterNode(self.logic.getParameterNode())
-
-    def setWrappedParameterNode(self, inputParameterNode: Optional[GuidedVeinSegmentationParameterNode]) -> None:
+    def setParameterNode(self, inputParameterNode: Optional[GuidedVeinSegmentationParameterNode]) -> None:
         """
         Set and observe parameter node.
         Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
         """
-        # If the wrapped parameter node has already been initialized, don't do anything.
-        if self._wrappedParameterNode:
-            return
 
-        # We get here once only throughout a Slicer's session.
-        self._wrappedParameterNode = inputParameterNode
-
-        if self._wrappedParameterNode:
+        if self._parameterNode:
+            self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
+        self._parameterNode = inputParameterNode
+        if self._parameterNode:
             # Note: in the .ui file, a Qt dynamic property called "SlicerParameterName" is set on each
             # ui element that needs connection.
-            self._parameterNodeGuiTag = self._wrappedParameterNode.connectGui(self.ui)
-            self.addObserver(self._wrappedParameterNode, vtk.vtkCommand.ModifiedEvent, self.updateMrmlParameterNode)
-            # Add an initial MRML parameter node.
-            if self.ui.parameterSetSelector.nodeCount() == 0:
-                self.ui.parameterSetSelector.addNode("vtkMRMLScriptedModuleNode")
+            self._parameterNodeGuiTag = self._parameterNode.connectGui(self.ui)
+        self.logic.setParameterNode(self._parameterNode)
 
-    def onMrmlParameterNodeChanged(self, parameterNode: slicer.vtkMRMLScriptedModuleNode):
-        # The current item has changed in the selector.
-        if not self._wrappedParameterNode:
+    def parameterSetChanged(self, newParameterSet):
+        # Refrain from adding a new vtkMRMLScriptedModuleNode to scene if parameterNode is None.
+        # When nodes are deleted, the wrapper outputs errors and alien nodes appear in the selector.
+        if not newParameterSet:
+            self.setParameterNode(None)
             return
-
-        self._mrmlParameterNode = parameterNode
-        if not self._mrmlParameterNode:
-            self.restoreWrappedParameterNode()
-            return
-        
-        if parameterNode.GetParameterCount() == 0:
-            # Set default values of an empty MRML parameter node.
-            parameterNode.AddNodeReferenceID("inputCurve", None)
-            parameterNode.AddNodeReferenceID("inputVolume", None)
-            parameterNode.AddNodeReferenceID("inputSegmentation", None)
-            parameterNode.SetParameter("extrusionKernelSize", "5.0")
-            parameterNode.SetParameter("gaussianStandardDeviation", "2.0")
-            parameterNode.SetParameter("seedRadius", "1.0")
-            parameterNode.SetParameter("shellMargin", "18.0")
-            parameterNode.SetParameter("shellThickness", "2.0")
-            parameterNode.SetParameter("subtractOtherSegments", "1")
-        
-        # Avoid a loop with updateMrmlParameterNode.
-        self._parameterNodeBeingModified = True
-
-        # Update the wrapped parameter node and the connected GUI.
-        wrappedParameterNode = self._wrappedParameterNode
-        wrappedParameterNode.inputCurve = parameterNode.GetNodeReference("inputCurve")
-        wrappedParameterNode.inputVolume = parameterNode.GetNodeReference("inputVolume")
-        wrappedParameterNode.inputSegmentation = parameterNode.GetNodeReference("inputSegmentation")
-        wrappedParameterNode.extrusionKernelSize = float(parameterNode.GetParameter("extrusionKernelSize"))
-        wrappedParameterNode.gaussianStandardDeviation = float(parameterNode.GetParameter("gaussianStandardDeviation"))
-        wrappedParameterNode.seedRadius = float(parameterNode.GetParameter("seedRadius"))
-        wrappedParameterNode.shellMargin = float(parameterNode.GetParameter("shellMargin"))
-        wrappedParameterNode.shellThickness = float(parameterNode.GetParameter("shellThickness"))
-        wrappedParameterNode.subtractOtherSegments = False if (parameterNode.GetParameter("subtractOtherSegments") == "False") else True
-
-        self._parameterNodeBeingModified = False
-
-    def updateMrmlParameterNode(self, caller=None, event=None):
-        # Avoid a loop with onMrmlParameterNodeChanged.
-        if self._parameterNodeBeingModified:
-            return
-        if not self._wrappedParameterNode:
-            return
-
-        # Update the MRML parameter node of the combobox when a widget is changed bu user interaction.
-        mrmlParameterNode = self._mrmlParameterNode
-        wrappedParameterNode = self._wrappedParameterNode
-        if mrmlParameterNode:
-            mrmlParameterNode.SetNodeReferenceID("inputCurve", None if not wrappedParameterNode.inputCurve else wrappedParameterNode.inputCurve.GetID())
-            mrmlParameterNode.SetNodeReferenceID("inputVolume", None if not wrappedParameterNode.inputVolume else wrappedParameterNode.inputVolume.GetID())
-            mrmlParameterNode.SetNodeReferenceID("inputSegmentation", None if not wrappedParameterNode.inputSegmentation else wrappedParameterNode.inputSegmentation.GetID())
-            mrmlParameterNode.SetParameter("extrusionKernelSize", str(wrappedParameterNode.extrusionKernelSize))
-            mrmlParameterNode.SetParameter("gaussianStandardDeviation", str(wrappedParameterNode.gaussianStandardDeviation))
-            mrmlParameterNode.SetParameter("seedRadius", str(wrappedParameterNode.seedRadius))
-            mrmlParameterNode.SetParameter("shellMargin", str(wrappedParameterNode.shellMargin))
-            mrmlParameterNode.SetParameter("shellThickness", str(wrappedParameterNode.shellThickness))
-            mrmlParameterNode.SetParameter("subtractOtherSegments", str(wrappedParameterNode.subtractOtherSegments))
+        nextParameterNode = GuidedVeinSegmentationParameterNode(newParameterSet)
+        self.setParameterNode(nextParameterNode)
 
     def updateSliceViews(self):
-        wrappedParameterNode = self._wrappedParameterNode
-        if (not wrappedParameterNode) or (not wrappedParameterNode.inputVolume):
+        parameterNode = self._parameterNode
+        if (not parameterNode) or (not parameterNode.inputVolume):
             return
-        slicer.util.setSliceViewerLayers(background = wrappedParameterNode.inputVolume.GetID(), fit = True)
+        slicer.util.setSliceViewerLayers(background = parameterNode.inputVolume.GetID(), fit = True)
 
-    def onApplyButton(self) -> None:
+    def onApply(self) -> None:
         """
         Run processing when user clicks "Apply" button.
         """
@@ -303,30 +201,12 @@ class GuidedVeinSegmentationLogic(ScriptedLoadableModuleLogic):
         Called when the logic class is instantiated. Can be used for initializing member variables.
         """
         ScriptedLoadableModuleLogic.__init__(self)
-        '''
-        Connecting a wrapped parameter node:
-            self._parameterNodeGuiTag = self._wrappedParameterNode.connectGui(self.ui)
-
-        _parameterNodeGuiTag is always None because connectGui() does not return.
-        Hence disconnectGui() doesn't seem to do anything.
-
-        Use a single wrapped parameter node in this Slicers' session.
-        Avoid connecting multiple wrapped parameter nodes disputing the UI.
-        Update this parameter node explicitly whenever required.
-        '''
         self._parameterNode = None
-        self.initializeParameterNode()
 
-    def initializeParameterNode(self):
-        self._parameterNode = GuidedVeinSegmentationParameterNode(super().getParameterNode())
+    def setParameterNode(self, parameterNode):
+        self._parameterNode = parameterNode
 
     def getParameterNode(self):
-        '''
-        A single wrapped parameter node throughout, because a connected GUI is never disconnected.
-        This is consistent with the fact that super().getParameterNode()
-        gives a same vtkMRMLScriptedModuleNode object.
-        Update this wrapped parameter node whenever the parameter set changes.
-        '''
         return self._parameterNode
 
     def process(self) -> None:

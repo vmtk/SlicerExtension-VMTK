@@ -40,7 +40,7 @@
         <stringlist notr="true"/>
        </property>
        <property name="baseName">
-        <string notr="true">GuidedVeinSegmentationStudy</string>
+        <string notr="true">GuidedVeinSegmentation</string>
        </property>
        <property name="noneEnabled">
         <bool>false</bool>
