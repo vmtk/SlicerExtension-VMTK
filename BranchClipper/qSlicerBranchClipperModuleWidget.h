@@ -40,6 +40,7 @@ public:
 
 public slots:
   void onApply();
+  void onSurfaceChanged(vtkMRMLNode* surface);
 
 protected:
   QScopedPointer<qSlicerBranchClipperModuleWidgetPrivate> d_ptr;
