@@ -15,9 +15,9 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <widget class="ctkCollapsibleButton" name="CTKCollapsibleButton">
+    <widget class="ctkCollapsibleButton" name="inputCollapsibleButton">
      <property name="text">
-      <string>Parameters</string>
+      <string>Inputs</string>
      </property>
      <property name="collapsed">
       <bool>false</bool>
@@ -61,22 +61,21 @@
        </widget>
       </item>
       <item row="4" column="0">
-       <widget class="QLabel" name="segmentationLabel">
+       <widget class="QLabel" name="surfaceLabel">
         <property name="locale">
          <locale language="English" country="UnitedStates"/>
         </property>
         <property name="text">
-         <string>Segmentation:</string>
+         <string>Tube tree:</string>
         </property>
        </widget>
       </item>
       <item row="4" column="1">
-       <layout class="QVBoxLayout" name="segmentationLayout">
+       <layout class="QVBoxLayout" name="surfaceLayout">
         <item>
-         <widget class="qMRMLNodeComboBox" name="segmentationSelector">
+         <widget class="qMRMLNodeComboBox" name="surfaceSelector">
           <property name="toolTip">
-           <string>Input segmentation.
-The input centerline is expected to be inside the lumen surface.</string>
+           <string>Pick an input segmentation or model node.</string>
           </property>
           <property name="locale">
            <locale language="English" country="UnitedStates"/>
@@ -84,6 +83,7 @@ The input centerline is expected to be inside the lumen surface.</string>
           <property name="nodeTypes">
            <stringlist notr="true">
             <string>vtkMRMLSegmentationNode</string>
+            <string>vtkMRMLModelNode</string>
            </stringlist>
           </property>
           <property name="noneEnabled">
@@ -106,7 +106,7 @@ The input centerline is expected to be inside the lumen surface.</string>
         <item>
          <widget class="qMRMLSegmentSelectorWidget" name="segmentSelector">
           <property name="toolTip">
-           <string>Select an input segment in the selected segmentation.</string>
+           <string>Select an input segment.</string>
           </property>
           <property name="noneEnabled">
            <bool>true</bool>
@@ -249,7 +249,7 @@ The input centerline is expected to be inside the lumen surface.</string>
   <connection>
    <sender>qSlicerBranchClipperModuleWidget</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
-   <receiver>segmentationSelector</receiver>
+   <receiver>surfaceSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -259,22 +259,6 @@ The input centerline is expected to be inside the lumen surface.</string>
     <hint type="destinationlabel">
      <x>359</x>
      <y>133</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>segmentationSelector</sender>
-   <signal>currentNodeChanged(vtkMRMLNode*)</signal>
-   <receiver>segmentSelector</receiver>
-   <slot>setCurrentNode(vtkMRMLNode*)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>359</x>
-     <y>133</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>359</x>
-     <y>170</y>
     </hint>
    </hints>
   </connection>

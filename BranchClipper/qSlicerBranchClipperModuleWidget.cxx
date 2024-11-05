@@ -76,6 +76,26 @@ void qSlicerBranchClipperModuleWidget::setup()
   
   QObject::connect(d->applyButton, SIGNAL(clicked()),
                    this, SLOT(onApply()));
+  QObject::connect(d->surfaceSelector, SIGNAL(currentNodeChanged(vtkMRMLNode*)),
+                   this, SLOT(onSurfaceChanged(vtkMRMLNode*)));
+
+  d->segmentSelector->setVisible(false);
+  /*
+   * Seed with a constant for predictable random table and colours.
+   * Not using vtkMRMLColorTableNode because we may have more than 256 branches
+   * or bifurcation profiles.
+  */
+  vtkMath::RandomSeed(7);
+}
+
+//-----------------------------------------------------------------------------
+void qSlicerBranchClipperModuleWidget::onSurfaceChanged(vtkMRMLNode* surface)
+{
+  Q_D(qSlicerBranchClipperModuleWidget);
+  // Will be set to None if surface is a model.
+  d->segmentSelector->setCurrentNode(surface);
+  vtkMRMLSegmentationNode * segmentation = vtkMRMLSegmentationNode::SafeDownCast(surface);
+  d->segmentSelector->setVisible(segmentation != nullptr);
 }
 
 //-----------------------------------------------------------------------------
@@ -94,11 +114,12 @@ void qSlicerBranchClipperModuleWidget::onApply()
   }
   centerlines->DeepCopy(centerlineModel->GetPolyData());
   
-  vtkMRMLSegmentationNode * segmentation = nullptr;
-  vtkMRMLNode * segmentationNode = d->segmentationSelector->currentNode();
-  if (segmentationNode == nullptr)
+  vtkMRMLSegmentationNode * inputSegmentationNode = nullptr;
+  vtkMRMLModelNode * inputModelNode = nullptr;
+  vtkMRMLNode * surfaceNode = d->surfaceSelector->currentNode();
+  if (surfaceNode == nullptr)
   {
-    this->showStatusMessage(qSlicerBranchClipperModuleWidget::tr("No segmentation selected."), 5000);
+    this->showStatusMessage(qSlicerBranchClipperModuleWidget::tr("No surface selected."), 5000);
     return;
   }
   if ((d->bifurcationProfilesToolButton->isChecked() == false)
@@ -107,36 +128,39 @@ void qSlicerBranchClipperModuleWidget::onApply()
     this->showStatusMessage(qSlicerBranchClipperModuleWidget::tr("No output selected."), 5000);
     return;
   }
-  // Use controlled segment IDs. We can find and delete them precisely.
-  std::string segmentID;
-  std::string segmentName;
+  // Control segment and model names.
+  std::string inputSegmentName;
+  std::string inputModelName;
+  std::string inputSegmentID;
+  vtkMRMLSubjectHierarchyNode * shNode = mrmlScene()->GetSubjectHierarchyNode();
+  vtkIdType shBranchesModelFolderId = 0;
   
-  if (segmentationNode && segmentationNode->IsA("vtkMRMLSegmentationNode")
+  if (surfaceNode && surfaceNode->IsA("vtkMRMLSegmentationNode")
     && (d->branchSegmentsToolButton->isChecked() || d->bifurcationProfilesToolButton->isChecked()) )
   {
     // Create a closed surface representation of the input segment.
-    segmentation = vtkMRMLSegmentationNode::SafeDownCast(d->segmentationSelector->currentNode());
-    if (segmentation->GetSegmentation() == nullptr) // Can it happen ?
+    inputSegmentationNode = vtkMRMLSegmentationNode::SafeDownCast(d->surfaceSelector->currentNode());
+    if (inputSegmentationNode->GetSegmentation() == nullptr) // Can it happen ?
     {
       const QString msg = qSlicerBranchClipperModuleWidget::tr("Segmentation is NULL in MRML node, aborting");
       cerr << msg.toStdString() << endl;
       this->showStatusMessage(msg, 5000);
       return;
     }
-    if (segmentation && segmentation->CreateClosedSurfaceRepresentation())
+    if (inputSegmentationNode && inputSegmentationNode->CreateClosedSurfaceRepresentation())
     {
       // ID of input whole segment.
-      segmentID = d->segmentSelector->currentSegmentID().toStdString();
-      if (segmentID.empty())
+      inputSegmentID = d->segmentSelector->currentSegmentID().toStdString();
+      if (inputSegmentID.empty())
       {
         const QString msg = qSlicerBranchClipperModuleWidget::tr("No segment selected.");
         this->showStatusMessage(msg, 5000);
         return;
       }
       // Name of the input whole segment.
-      segmentName = segmentation->GetSegmentation()->GetSegment(segmentID)->GetName();
+      inputSegmentName = inputSegmentationNode->GetSegmentation()->GetSegment(inputSegmentID)->GetName();
       // Input whole surface.
-      segmentation->GetClosedSurfaceRepresentation(segmentID, surface);
+      inputSegmentationNode->GetClosedSurfaceRepresentation(inputSegmentID, surface);
     }
     else
     {
@@ -145,6 +169,13 @@ void qSlicerBranchClipperModuleWidget::onApply()
       this->showStatusMessage(msg, 5000);
       return;
     }
+  }
+  else if (surfaceNode && surfaceNode->IsA("vtkMRMLModelNode")
+    && (d->branchSegmentsToolButton->isChecked() || d->bifurcationProfilesToolButton->isChecked()) )
+  {
+    inputModelNode = vtkMRMLModelNode::SafeDownCast(d->surfaceSelector->currentNode());
+    surface->DeepCopy(inputModelNode->GetPolyData());
+    inputModelName = inputModelNode->GetName();
   }
   else
   {
@@ -157,7 +188,7 @@ void qSlicerBranchClipperModuleWidget::onApply()
   
   vtkNew<vtkTimerLog> timer;
   
-  // Debranch now. Execute() can be a long process on heavy segmentations.
+  // Split now. Execute() can be a long process on heavy segmentations.
   timer->StartTimer();
   this->showStatusMessage(qSlicerBranchClipperModuleWidget::tr("Splitting, please wait..."));
 
@@ -192,6 +223,13 @@ void qSlicerBranchClipperModuleWidget::onApply()
       this->showStatusMessage(msg, 5000);
       return;
     }
+    if (inputModelNode)
+    {
+      // Create a child folder of the input centerline to contain all created models; only for a input model surface.
+      vtkIdType shMasterCenterlineId = shNode->GetItemByDataNode(centerlineModel);
+      shBranchesModelFolderId = shNode->CreateFolderItem(shMasterCenterlineId, qSlicerBranchClipperModuleWidget::tr("Branches").toStdString());
+      shNode->SetItemExpanded(shBranchesModelFolderId, false);
+    }
     for (vtkIdType i = 0; i < numberOfBranches; i++)
     {
       timer->StartTimer();
@@ -213,40 +251,47 @@ void qSlicerBranchClipperModuleWidget::onApply()
         this->showStatusMessage(msg, 5000);
         continue;
       }
-      if (segmentation)
+      if (inputSegmentationNode)
       {
         // Control branch segment name, id and colour.
-        std::string branchName = segmentName + std::string("_Branch_") + std::to_string((int) i);
-        const std::string branchId = segmentID + std::string("_Branch_") + std::to_string((int) i);
-        double colour[3] = {0.0};
-        // Don't use a black segment on creation.
-        bool segmentRemoved = false;
+        std::string branchName = inputSegmentName + std::string("_Branch_") + std::to_string((int) i);
         // Don't duplicate on repeat apply.
-        if (segmentation->GetSegmentation()->GetSegment(branchId))
-        {
-          // Keep the branch name if it has been changed in UI.
-          branchName = segmentation->GetSegmentation()->GetSegment(branchId)->GetName();
-          // Keep the colour of a segment with known id.
-          segmentation->GetSegmentation()->GetSegment(branchId)->GetColor(colour);
-          segmentation->GetSegmentation()->RemoveSegment(branchId);
-          segmentRemoved = true;
-        }
         /*
         * Don't use AddSegmentFromClosedSurfaceRepresentation().
         * Parameter segmentId is marked vtkNotUsed().
         */
-        //segmentation->AddSegmentFromClosedSurfaceRepresentation(branchSurface, branchName, segmentRemoved ? colour : nullptr, branchId);
         vtkSmartPointer<vtkSegment> segment = vtkSmartPointer<vtkSegment>::New();
-        if (segmentRemoved)
-        {
-          // Crash on nullptr. No crash with nullptr in other functions like AddSegmentFromClosedSurfaceRepresentation().
-          segment->SetColor(colour);
-        }
         segment->SetName(branchName.c_str());
         segment->SetTag("Segmentation.Status", "inprogress");
         if (segment->AddRepresentation(vtkSegmentationConverter::GetClosedSurfaceRepresentationName(), branchSurface))
         {
-          segmentation->GetSegmentation()->AddSegment(segment, branchId);
+          inputSegmentationNode->GetSegmentation()->AddSegment(segment);
+        }
+        else
+        {
+          cerr << "Could not add a closed surface representation to a branch segment." << endl;
+        }
+      }
+      else if(inputModelNode)
+      {
+        // Control branch model name.
+        std::string branchName = inputModelName + std::string("_Branch_") + std::to_string((int) i);
+        vtkMRMLNode * branchNode = this->mrmlScene()->AddNewNodeByClass("vtkMRMLModelNode");
+        if (not branchNode)
+        {
+          cerr <<  "Could not add branch model: " << i << endl;
+        }
+        else
+        {
+          vtkMRMLModelNode * branchModelNode = vtkMRMLModelNode::SafeDownCast(branchNode);
+          branchModelNode->CreateDefaultDisplayNodes();
+          branchModelNode->SetName(branchName.c_str());
+          double colour[3] = {vtkMath::Random(), vtkMath::Random(), vtkMath::Random()};
+          branchModelNode->GetDisplayNode()->SetColor(colour);
+          branchModelNode->SetAndObservePolyData(branchSurface);
+          // Reparent in subject hierarchy.
+          vtkIdType shBranchModelId = shNode->GetItemByDataNode(branchModelNode);
+          shNode->SetItemParent(shBranchModelId, shBranchesModelFolderId);
         }
       }
       
@@ -269,7 +314,6 @@ void qSlicerBranchClipperModuleWidget::onApply()
       this->showStatusMessage(msg, 5000);
       return;
     }
-    vtkMRMLSubjectHierarchyNode * shNode = mrmlScene()->GetSubjectHierarchyNode();
     if (shNode == nullptr) // ?
     {
       mrmlScene()->EndState(vtkMRMLScene::BatchProcessState);
@@ -285,8 +329,6 @@ void qSlicerBranchClipperModuleWidget::onApply()
     vtkIdType shMasterCenterlineId = shNode->GetItemByDataNode(centerlineModel);
     vtkIdType shFolderId = shNode->CreateFolderItem(shMasterCenterlineId, qSlicerBranchClipperModuleWidget::tr("Bifurcation profiles").toStdString());
     shNode->SetItemExpanded(shFolderId, false);
-    // Seed with a constant for predictable random table and colours.
-    vtkMath::RandomSeed(7);
     
     for (int i = 0; i < profiledPolyDatas->GetNumberOfItems(); i++)
     {
