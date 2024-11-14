@@ -277,7 +277,7 @@ void qSlicerBranchClipperModuleWidget::onApply()
         // Control branch model name.
         std::string branchName = inputModelName + std::string("_Branch_") + std::to_string((int) i);
         vtkMRMLNode * branchNode = this->mrmlScene()->AddNewNodeByClass("vtkMRMLModelNode");
-        if (not branchNode)
+        if (!branchNode)
         {
           cerr <<  "Could not add branch model: " << i << endl;
         }
