@@ -255,7 +255,10 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.logic.setDefaultParameters(self._parameterNode)
       else:
         # Initial GUI update
+        # This comboBox would always set itself to the first item otherwise.
+        wasBlocked = self.ui.outputPlotSeriesTypeComboBox.blockSignals(True)
         self.updateGUIFromParameterNode()
+        self.ui.outputPlotSeriesTypeComboBox.blockSignals(wasBlocked)
 
   def resetOutput(self):
     # Only UI widgets, output tables and plot chart/series are left untouched.
@@ -339,12 +342,6 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.axialSliceVerticalFlipCheckBox.setChecked(self.logic.axialSliceVerticalFlip)
 
     itemIndex = self.ui.outputPlotSeriesTypeComboBox.findData(self._parameterNode.GetParameter("OutputPlotSeriesType"))
-    """
-    This value is never rightly restored.
-    Prefer a default value rather than unknown.
-    """
-    if itemIndex < 0:
-        itemIndex = 0;
     self.ui.outputPlotSeriesTypeComboBox.setCurrentIndex(itemIndex)
 
     # Update button states
