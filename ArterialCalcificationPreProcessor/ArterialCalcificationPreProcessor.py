@@ -300,6 +300,7 @@ class ArterialCalcificationPreProcessorLogic(ScriptedLoadableModuleLogic):
         durationValue = '%.2f' % (stopTime-startTime)
         logging.info(_("Processing completed in {duration} seconds").format(duration=durationValue))
 
+        return calcifSegmentID
 #
 # ArterialCalcificationPreProcessorTest
 #
