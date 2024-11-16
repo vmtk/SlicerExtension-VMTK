@@ -530,7 +530,7 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
         message = _("Processing completed in {duration} seconds").format(duration = durationValue)
         logging.info(message)
         slicer.util.showStatusMessage(message, 5000)
-        return
+        return segmentID
 
     #---------------------- Extract centerlines ---------------------
     slicer.util.showStatusMessage(_("Extract centerline setup"))
@@ -587,6 +587,7 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     message = _("Processing completed in {duration} seconds").format(duration = durationValue)
     logging.info(message)
     slicer.util.showStatusMessage(message, 5000)
+    return segmentID
 
 #
 # QuickArterySegmentationTest
