@@ -67,6 +67,7 @@ add_subdirectory(CenterlineDisassembly)
 if(SlicerVMTK_USE_ExtraMarkups)
   add_subdirectory(CrossSectionAnalysis)
   add_subdirectory(StenosisMeasurement3D)
+  add_subdirectory(PreFitTube)
 endif()
 
 #-----------------------------------------------------------------------------
