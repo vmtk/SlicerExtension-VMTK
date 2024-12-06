@@ -68,6 +68,7 @@ add_subdirectory(ClipVessel)
 if(SlicerVMTK_USE_ExtraMarkups)
   add_subdirectory(CrossSectionAnalysis)
   add_subdirectory(StenosisMeasurement3D)
+  add_subdirectory(EditCenterline)
 endif()
 
 #-----------------------------------------------------------------------------
