@@ -595,6 +595,9 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
 
         # clip the stub at the clipping point
         cutSegment = self.clipModel(stub, centerlinesPolyData, clipPoints[controlPointIndex], reverse)
+        if cutSegment.GetNumberOfPoints() == 0:
+            logging.error("Cut segment has zero points, skipping clip point " + str(controlPointIndex) + ".")
+            continue
         
         # merge stub and main vessel
         append=vtk.vtkAppendPolyData()
