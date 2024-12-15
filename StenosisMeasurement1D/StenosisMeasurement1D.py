@@ -27,7 +27,7 @@ class StenosisMeasurement1D(ScriptedLoadableModule):
 
   def __init__(self, parent):
     ScriptedLoadableModule.__init__(self, parent)
-    self.parent.title = "Stenosis measurement : 1D"
+    self.parent.title = "Stenosis measurement: 1D"
     self.parent.categories = ["Vascular Modeling Toolkit"]
     self.parent.dependencies = []
     self.parent.contributors = ["Saleem Edah-Tally [Surgeon] [Hobbyist developer]", "Andras Lasso, PerkLab"]
@@ -167,45 +167,49 @@ class StenosisMeasurement1DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         self._parameterNodeGuiTag = self._parameterNode.connectGui(self.ui)
 
   def setInputCurve(self, curveNode) -> None:
+    if not curveNode:
+      self.populateTable(None) # Clear the table.
+    self.logic.setWidgetCallback(None)
     self.logic.updateCurveObservations(None)
-    self._parameterNode.inputCurveNode = curveNode
-    self.logic.updateCurveObservations(curveNode)
-    self.populateTable()
-    self.logic.setWidgetCallback(self.populateTable)
+    if self._parameterNode:
+      self._parameterNode.inputCurveNode = curveNode
+      self.logic.updateCurveObservations(curveNode)
+      self.logic.setWidgetCallback(self.populateTable)
+      self.logic.process()
 
-  def populateTable(self) -> None:
-    inputCurve = self._parameterNode.inputCurveNode
+  def populateTable(self, distancesArray: vtk.vtkDoubleArray) -> None:
+    inputCurve = None
+    if self._parameterNode:
+      inputCurve = self._parameterNode.inputCurveNode
     outputTable = self.ui.outputTableWidget
     # Clean table completely.
     outputTable.clear()
     outputTable.setRowCount(0)
     outputTable.setColumnCount(0)
-    if not inputCurve:
+    if not inputCurve or not distancesArray:
         return
-    numberOfControlPoints = inputCurve.GetNumberOfControlPoints()
+
+    numberOfTuples = distancesArray.GetNumberOfTuples()
     # Setup table.
     if outputTable.columnCount == 0:
         outputTable.setColumnCount(4)
-        outputTable.setRowCount(numberOfControlPoints - 1)
+        outputTable.setRowCount(numberOfTuples - 1)
         columnLabels = (_("Cumulative"), _("Cumulative %"), _("Partial"), _("Partial %"))
         outputTable.setHorizontalHeaderLabels(columnLabels)
-    # Get global variables.
-    curveTotalLength = inputCurve.GetCurveLengthWorld()
-    curveControlPoints = vtk.vtkPoints()
-    inputCurve.GetControlPointPositionsWorld(curveControlPoints)
-    partDistance = 0.0
+    # Get length units.
     measurementLength = inputCurve.GetMeasurement("length")
     measurementLengthUnit = measurementLength.GetUnits()
     """
     Iterate over control points.
     Start at index 1, we measure backwards.
+    In the first row, all values are 0.0.
     """
-    for pointIndex in range(1, numberOfControlPoints):
-        curvePoint = curveControlPoints.GetPoint(pointIndex)
-        controlPointIndex = inputCurve.GetClosestCurvePointIndexToPositionWorld(curvePoint)
-        # Distance of control point from start.
-        cumulativeDistance = inputCurve.GetCurveLengthBetweenStartEndPointsWorld(
-            0, controlPointIndex)
+    for pointIndex in range(1, numberOfTuples):
+        distances = distancesArray.GetTuple(pointIndex)
+        cumulativeDistance = distances[0]
+        relativeCumulativeDistance = distances[1]
+        partialDistance = distances[2]
+        relativePartialDistance = distances[3]
 
         item = qt.QTableWidgetItem()
         content = f"{cumulativeDistance:.1f} {measurementLengthUnit}"
@@ -213,23 +217,18 @@ class StenosisMeasurement1DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         outputTable.setItem(pointIndex - 1, 0, item)
         # Proportional cumulative distance, with respect to total length.
         item = qt.QTableWidgetItem()
-        content = f"{(cumulativeDistance / curveTotalLength) * 100:.1f} %"
+        content = f"{relativeCumulativeDistance * 100:.1f} %"
         item.setText(content)
         outputTable.setItem(pointIndex - 1, 1, item)
-        
+
         # Distance between two adjacent points.
-        previousCurvePoint = curveControlPoints.GetPoint(pointIndex - 1)
-        previousControlPointIndex = inputCurve.GetClosestCurvePointIndexToPositionWorld(previousCurvePoint)
-        partDistance = inputCurve.GetCurveLengthBetweenStartEndPointsWorld(
-            previousControlPointIndex, controlPointIndex)
-        
         item = qt.QTableWidgetItem()
-        content = f"{partDistance:.1f} {measurementLengthUnit}"
+        content = f"{partialDistance:.1f} {measurementLengthUnit}"
         item.setText(content)
         outputTable.setItem(pointIndex - 1, 2, item)
         # Proportional distance between two adjacent points, with respect to total length.
         item = qt.QTableWidgetItem()
-        content = f"{(partDistance / curveTotalLength) * 100:.1f} %"
+        content = f"{relativePartialDistance * 100:.1f} %"
         item.setText(content)
         outputTable.setItem(pointIndex - 1, 3, item)
 
@@ -248,7 +247,7 @@ class StenosisMeasurement1DLogic(ScriptedLoadableModuleLogic):
   
   def getParameterNode(self):
     return self._parameterNode
-    
+
   def InitMemberVariables(self) -> None:
     self._parameterNode = StenosisMeasurement1DParameterNode(super().getParameterNode())
     self._observations = []
@@ -263,7 +262,7 @@ class StenosisMeasurement1DLogic(ScriptedLoadableModuleLogic):
         for observation in self._observations:
             curveNode.RemoveObserver(observation)
     self._observations.clear()
-    
+
     # React when points are moved, removed or added.
     if curveNode:
         self._observations.append(curveNode.AddObserver(slicer.vtkMRMLMarkupsNode.PointEndInteractionEvent, self.onCurveControlPointEvent))
@@ -278,12 +277,12 @@ class StenosisMeasurement1DLogic(ScriptedLoadableModuleLogic):
         logging.info(msg)
         # Signal widget to clear the table.
         if self._widgetCallback:
-            self._widgetCallback()
+            self._widgetCallback(None)
 
   def onCurveControlPointEvent(self, caller, event) -> None:
     self.process()
 
-  def process(self) -> None:
+  def process(self) -> vtk.vtkDoubleArray:
     inputCurve = self._parameterNode.inputCurveNode
     if not inputCurve:
       msg = _("No curve.")
@@ -291,12 +290,6 @@ class StenosisMeasurement1DLogic(ScriptedLoadableModuleLogic):
       slicer.app.processEvents()
       logging.info(msg)
       return
-    # Don't do anything if there are 2 points only, already a line.
-    if (inputCurve.GetNumberOfControlPoints() == 2):
-        # Just signal widget to fill the table with results.
-        if self._widgetCallback:
-            self._widgetCallback()
-        return
 
     # Generate a linear polydata from first and last control point.
     numberOfControlPoints = inputCurve.GetNumberOfControlPoints()
@@ -309,14 +302,14 @@ class StenosisMeasurement1DLogic(ScriptedLoadableModuleLogic):
     lineSource.SetPoint2(lastControlPointPosition)
     lineSource.Update()
     linePolyData = lineSource.GetOutput()
-    
+
     # The polydata contains 2 points. Generate more points.
     polydataSampler = vtk.vtkPolyDataPointSampler()
     polydataSampler.SetInputData(linePolyData)
     polydataSampler.Update()
     # This is the reference line polydata.
     straightLinePolyData = polydataSampler.GetOutput()
-    
+
     startPoint = curveControlPoints.GetPoint(0)
     cumulativeDistanceArray = [[0.0, startPoint]]
     # Iterate over all curve points, ignoring first and last.
@@ -341,11 +334,36 @@ class StenosisMeasurement1DLogic(ScriptedLoadableModuleLogic):
     for pointIndex in range(1, numberOfControlPoints - 1):
         inputCurve.SetNthControlPointPosition(pointIndex,
                                                    sortedCumulativeDistanceArray[pointIndex][1])
-    
+
+    curveTotalLength = inputCurve.GetCurveLengthWorld()
+    inputCurve.GetControlPointPositionsWorld(curveControlPoints)
+    startPoint = curveControlPoints.GetPoint(0)
+    partialDistance = 0.0
+    results = vtk.vtkDoubleArray()
+    results.SetNumberOfComponents(4)
+    for pointIndex in range(0, numberOfControlPoints):
+        controlPointPosition = curveControlPoints.GetPoint(pointIndex) # A coordinate.
+        controlPointIndex = inputCurve.GetClosestCurvePointIndexToPositionWorld(controlPointPosition) # An integer.
+        # Distance of control point from start.
+        cumulativeDistance = inputCurve.GetCurveLengthBetweenStartEndPointsWorld(
+            0, controlPointIndex)
+        relativeCumulativeDistance = cumulativeDistance / curveTotalLength
+
+        # Distance between two adjacent points.
+        previousControlPointPosition = curveControlPoints.GetPoint(pointIndex - 1) if pointIndex else startPoint
+        previousControlPointIndex = inputCurve.GetClosestCurvePointIndexToPositionWorld(previousControlPointPosition) if pointIndex else inputCurve.GetClosestCurvePointIndexToPositionWorld(startPoint)
+        partialDistance = inputCurve.GetCurveLengthBetweenStartEndPointsWorld(
+            previousControlPointIndex, controlPointIndex)
+        relativePartialDistance = partialDistance / curveTotalLength
+
+        results.InsertNextTuple( (cumulativeDistance, relativeCumulativeDistance, partialDistance, relativePartialDistance) )
+
     # Signal widget to fill the table with results.
     if self._widgetCallback:
-        self._widgetCallback()
+        self._widgetCallback(results)
 
+    # This is for python scripting if there is no callback.
+    return results
 #
 # StenosisMeasurement1DTest
 #

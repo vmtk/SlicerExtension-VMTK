@@ -30,7 +30,7 @@ Workflows:
   - [Stenosis measurement 1D](Docs/StenosisMeasurement1D.md): use distances between control points of a straightened open curve to evaluate a stenosis.
   - [Stenosis measurement 2D](Docs/StenosisMeasurement2D.md): use segment surface areas to evaluate a stenosis.
   - [Stenosis measurement 3D](Docs/StenosisMeasurement3D.md): use lumen and wall volumes to evaluate a stenosis.
-  - [Branch clipper](Docs/BranchClipper.md) : This module splits a bifurcated vascular segment into individual branches, given its centerline model.
+  - [Branch clipper](Docs/BranchClipper.md): This module splits a bifurcated vascular segment into individual branches, given its centerline model.
   - [Guided Vein Segmentation](Docs/GuidedVeinSegmentation.md): Segment *major* veins using an open markups curve leveraging the segment editor effects.
   - [Arterial calcification pre-processor](Docs/ArterialCalcificationPreProcessor.md): Segment arterial calcifications within a specified distance around a lumen.
   - [Centerline disassembly](Docs/CenterlineDisassembly.md): Break down a bifurcated centerline model into parts.

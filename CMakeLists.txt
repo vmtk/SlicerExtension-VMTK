@@ -27,8 +27,13 @@ mark_as_superbuild(Slicer_DIR)
 find_package(Git REQUIRED)
 mark_as_superbuild(GIT_EXECUTABLE)
 
-find_package(ExtraMarkups REQUIRED)
-mark_as_superbuild(ExtraMarkups_DIR)
+option(SlicerVMTK_USE_ExtraMarkups
+  "This needs to be disabled if ExtraMarkups Slicer extension is unavailable" ON)
+
+if(SlicerVMTK_USE_ExtraMarkups)
+  find_package(ExtraMarkups REQUIRED)
+  mark_as_superbuild(ExtraMarkups_DIR)
+endif()
 
 #-----------------------------------------------------------------------------
 # SuperBuild setup
@@ -51,18 +56,19 @@ if(${Slicer_VERSION_MAJOR}.${Slicer_VERSION_MINOR} VERSION_GREATER_EQUAL 4.11)
 else()
   add_subdirectory(CenterlineComputation)
 endif()
-add_subdirectory(CrossSectionAnalysis)
 add_subdirectory(QuickArterySegmentation)
 add_subdirectory(GuidedArterySegmentation)
 add_subdirectory(GuidedVeinSegmentation)
 add_subdirectory(StenosisMeasurement1D)
 add_subdirectory(StenosisMeasurement2D)
-add_subdirectory(StenosisMeasurement3D)
 add_subdirectory(BranchClipper)
 add_subdirectory(ArterialCalcificationPreProcessor)
 add_subdirectory(CenterlineDisassembly)
 add_subdirectory(ClipVessel)
-
+if(SlicerVMTK_USE_ExtraMarkups)
+  add_subdirectory(CrossSectionAnalysis)
+  add_subdirectory(StenosisMeasurement3D)
+endif()
 
 #-----------------------------------------------------------------------------
 set(EXTENSION_CPACK_INSTALL_CMAKE_PROJECTS)
@@ -78,4 +84,3 @@ list(APPEND CPACK_INSTALL_CMAKE_PROJECTS "${CMAKE_BINARY_DIR};${EXTENSION_NAME};
 list(APPEND CPACK_INSTALL_CMAKE_PROJECTS "${${EXTENSION_NAME}_CPACK_INSTALL_CMAKE_PROJECTS}")
 include(${Slicer_EXTENSION_GENERATE_CONFIG})
 include(${Slicer_EXTENSION_CPACK})
-

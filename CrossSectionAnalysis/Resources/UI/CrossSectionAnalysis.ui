@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>695</width>
-    <height>1082</height>
+    <width>532</width>
+    <height>933</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -21,7 +21,56 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
+    <layout class="QFormLayout" name="parameterSetLayout">
+     <item row="0" column="0">
+      <widget class="QLabel" name="parameterSetLabel">
+       <property name="text">
+        <string>Parameter set:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="qMRMLNodeComboBox" name="parameterSetSelector">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="toolTip">
+        <string>Pick a node to store the parameter set.
+
+This is intended to represent a unique combination of input centerline and surface nodes. Create a distinct parameter set for each combination.</string>
+       </property>
+       <property name="nodeTypes">
+        <stringlist notr="true">
+         <string>vtkMRMLScriptedModuleNode</string>
+        </stringlist>
+       </property>
+       <property name="showHidden">
+        <bool>true</bool>
+       </property>
+       <property name="hideChildNodeTypes">
+        <stringlist notr="true"/>
+       </property>
+       <property name="baseName">
+        <string notr="true">CrossSectionAnalysis</string>
+       </property>
+       <property name="renameEnabled">
+        <bool>true</bool>
+       </property>
+       <property name="interactionNodeSingletonTag">
+        <string notr="true"/>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
     <widget class="ctkCollapsibleButton" name="parametersCollapsibleButton">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="locale">
       <locale language="English" country="UnitedStates"/>
      </property>
@@ -39,7 +88,7 @@
       <item row="0" column="1">
        <widget class="qMRMLNodeComboBox" name="inputCenterlineSelector">
         <property name="toolTip">
-         <string>The centerline source may be :
+         <string>The centerline source may be:
 
 - a centerline curve created by 'Extract centerline' module,
 - a centerline model created by 'Extract centerline' module,
@@ -63,13 +112,13 @@
          <bool>false</bool>
         </property>
         <property name="removeEnabled">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
         <property name="editEnabled">
          <bool>true</bool>
         </property>
         <property name="renameEnabled">
-         <bool>false</bool>
+         <bool>true</bool>
         </property>
        </widget>
       </item>
@@ -107,9 +156,12 @@ The input centerline is expected to be inside the lumen surface.</string>
            <bool>false</bool>
           </property>
           <property name="removeEnabled">
-           <bool>false</bool>
+           <bool>true</bool>
           </property>
           <property name="editEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="renameEnabled">
            <bool>true</bool>
           </property>
          </widget>
@@ -160,6 +212,9 @@ The input centerline is expected to be inside the lumen surface.</string>
           <property name="removeEnabled">
            <bool>true</bool>
           </property>
+          <property name="editEnabled">
+           <bool>true</bool>
+          </property>
           <property name="renameEnabled">
            <bool>true</bool>
           </property>
@@ -199,6 +254,9 @@ The input centerline is expected to be inside the lumen surface.</string>
           <property name="noneEnabled">
            <bool>true</bool>
           </property>
+          <property name="editEnabled">
+           <bool>true</bool>
+          </property>
           <property name="renameEnabled">
            <bool>true</bool>
           </property>
@@ -229,6 +287,234 @@ The input centerline is expected to be inside the lumen surface.</string>
         </item>
        </layout>
       </item>
+      <item row="5" column="0" colspan="2">
+       <widget class="ctkCollapsibleGroupBox" name="optionsCollapsibleGroupBox">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="title">
+         <string>Tools / Options</string>
+        </property>
+        <property name="collapsed">
+         <bool>true</bool>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout_2">
+         <property name="leftMargin">
+          <number>0</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QTabWidget" name="toolsTabWidget">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="toolTip">
+            <string/>
+           </property>
+           <property name="tabPosition">
+            <enum>QTabWidget::North</enum>
+           </property>
+           <property name="currentIndex">
+            <number>0</number>
+           </property>
+           <property name="documentMode">
+            <bool>false</bool>
+           </property>
+           <widget class="QWidget" name="surfaceInformationTab">
+            <property name="toolTip">
+             <string>Manage connected regions of the lumen surface.</string>
+            </property>
+            <attribute name="title">
+             <string>Tab 1</string>
+            </attribute>
+            <layout class="QHBoxLayout" name="horizontalLayout_6">
+             <item>
+              <layout class="QFormLayout" name="surfaceInformationFormLayout">
+               <item row="0" column="0">
+                <widget class="QToolButton" name="surfaceInformationGetToolButton">
+                 <property name="toolTip">
+                  <string>Get the number of distinct connected regions in the lumen surface.
+
+Ideally, there should be only one region. More regions may indicate the presence of holes in the lumen and/or distinct regions outside of the lumen. Holes in the lumen mean inaccurate cross-section area measurement.
+
+When unwanted regions have been fixed, typically using the 'Paint' effect of the 'Segment editor', this function may be executed again.
+
+After a complete repair of the lumen surface, the centerlines must be extracted again so that the 'Maximum inscribed sphere' radius arrays get updated.</string>
+                 </property>
+                 <property name="text">
+                  <string>Get:</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="1">
+                <layout class="QHBoxLayout" name="surfaceInformationHorizontalLayout">
+                 <item>
+                  <widget class="QSpinBox" name="surfaceInformationSpinBox">
+                   <property name="sizePolicy">
+                    <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+                     <horstretch>0</horstretch>
+                     <verstretch>0</verstretch>
+                    </sizepolicy>
+                   </property>
+                   <property name="toolTip">
+                    <string>Cycle through the identified distinct regions.</string>
+                   </property>
+                   <property name="minimum">
+                    <number>0</number>
+                   </property>
+                   <property name="maximum">
+                    <number>0</number>
+                   </property>
+                   <property name="value">
+                    <number>0</number>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QLabel" name="surfaceInformationLabel">
+                   <property name="sizePolicy">
+                    <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
+                     <horstretch>0</horstretch>
+                     <verstretch>0</verstretch>
+                    </sizepolicy>
+                   </property>
+                   <property name="toolTip">
+                    <string>Indicates the size of the selected region. Low values suggest a parasite region.</string>
+                   </property>
+                   <property name="text">
+                    <string/>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QToolButton" name="surfaceInformationGoToToolButton">
+                   <property name="toolTip">
+                    <string>If toggled, the selected region is centred in all slice views, except in the ideal case where there is one single region.</string>
+                   </property>
+                   <property name="text">
+                    <string>go to</string>
+                   </property>
+                   <property name="checkable">
+                    <bool>true</bool>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QToolButton" name="surfaceInformationPaintToolButton">
+                   <property name="toolTip">
+                    <string>Activate the 'Paint' effect of the 'Segment editor'.
+
+This is available if the lumen surface is a segmentation.
+
+The 'Sphere' brush is enforced. Further customisation can be performed in the 'Segment editor'.</string>
+                   </property>
+                   <property name="text">
+                    <string>paint</string>
+                   </property>
+                   <property name="checkable">
+                    <bool>true</bool>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </widget>
+           <widget class="QWidget" name="coordinatesTab">
+            <property name="toolTip">
+             <string>Specify how to output point coordinates of the centerline.</string>
+            </property>
+            <attribute name="title">
+             <string>Tab 2</string>
+            </attribute>
+            <layout class="QVBoxLayout" name="verticalLayout_4">
+             <item>
+              <layout class="QFormLayout" name="coordinatesFormLayout">
+               <item row="0" column="0">
+                <widget class="QLabel" name="segmentationLabel_2">
+                 <property name="locale">
+                  <locale language="English" country="UnitedStates"/>
+                 </property>
+                 <property name="text">
+                  <string>Coordinate system:</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="1">
+                <layout class="QVBoxLayout" name="coordinatesVerticalLayout">
+                 <item>
+                  <widget class="QRadioButton" name="radioRAS">
+                   <property name="toolTip">
+                    <string>Right-Anterior-Superior coordinate system. Used in the Slicer scene.</string>
+                   </property>
+                   <property name="text">
+                    <string>RAS (Slicer convention)</string>
+                   </property>
+                   <property name="checked">
+                    <bool>true</bool>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QRadioButton" name="radioLPS">
+                   <property name="toolTip">
+                    <string>Left-Posterior-Superior coordinate system. Used commonly in files.</string>
+                   </property>
+                   <property name="text">
+                    <string>LPS (DICOM convention)</string>
+                   </property>
+                   <property name="checked">
+                    <bool>false</bool>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </item>
+               <item row="1" column="0">
+                <widget class="QLabel" name="segmentationLabel_3">
+                 <property name="locale">
+                  <locale language="English" country="UnitedStates"/>
+                 </property>
+                 <property name="text">
+                  <string>Split coordinates:</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="1">
+                <widget class="QCheckBox" name="distinctColumnsCheckBox">
+                 <property name="toolTip">
+                  <string>Split coordinate system values into three separate table columns.</string>
+                 </property>
+                 <property name="text">
+                  <string/>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </widget>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
       <item row="6" column="0" colspan="2">
        <widget class="QPushButton" name="applyButton">
         <property name="enabled">
@@ -242,100 +528,22 @@ The input centerline is expected to be inside the lumen surface.</string>
         </property>
        </widget>
       </item>
-      <item row="5" column="0" colspan="2">
-       <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox">
-        <property name="title">
-         <string>Table options</string>
-        </property>
-        <property name="collapsed">
-         <bool>true</bool>
-        </property>
-        <property name="collapsedHeight">
-         <number>6</number>
-        </property>
-        <layout class="QFormLayout" name="formLayout_3">
-         <property name="leftMargin">
-          <number>3</number>
-         </property>
-         <property name="topMargin">
-          <number>3</number>
-         </property>
-         <property name="rightMargin">
-          <number>3</number>
-         </property>
-         <property name="bottomMargin">
-          <number>3</number>
-         </property>
-         <item row="0" column="0">
-          <widget class="QLabel" name="segmentationLabel_2">
-           <property name="locale">
-            <locale language="English" country="UnitedStates"/>
-           </property>
-           <property name="text">
-            <string>Coordinate system:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="0">
-          <widget class="QLabel" name="segmentationLabel_3">
-           <property name="locale">
-            <locale language="English" country="UnitedStates"/>
-           </property>
-           <property name="text">
-            <string>Split coordinates:</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="1">
-          <widget class="QCheckBox" name="distinctColumnsCheckBox">
-           <property name="toolTip">
-            <string>Split coordinate system values into three separate table columns.</string>
-           </property>
-           <property name="text">
-            <string/>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="1">
-          <layout class="QVBoxLayout" name="verticalLayout_3">
-           <item>
-            <widget class="QRadioButton" name="radioRAS">
-             <property name="toolTip">
-              <string>Right-Anterior-Superior coordinate system. Used in the Slicer scene.</string>
-             </property>
-             <property name="text">
-              <string>RAS (Slicer convention)</string>
-             </property>
-             <property name="checked">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QRadioButton" name="radioLPS">
-             <property name="toolTip">
-              <string>Left-Posterior-Superior coordinate system. Used commonly in files.</string>
-             </property>
-             <property name="text">
-              <string>LPS (DICOM convention)</string>
-             </property>
-             <property name="checked">
-              <bool>false</bool>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-        </layout>
-       </widget>
-      </item>
      </layout>
     </widget>
    </item>
    <item>
     <widget class="ctkCollapsibleButton" name="browseCollapsibleButton">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="text">
       <string>Browse cross-sections</string>
+     </property>
+     <property name="collapsed">
+      <bool>false</bool>
      </property>
      <layout class="QVBoxLayout" name="verticalLayout_7">
       <item>
@@ -729,6 +937,16 @@ Concerns orthogonal reformat in axial navigation.</string>
           </property>
          </widget>
         </item>
+        <item row="5" column="0">
+         <widget class="QLabel" name="diameterLabel">
+          <property name="locale">
+           <locale language="English" country="UnitedStates"/>
+          </property>
+          <property name="text">
+           <string>Diameter (MIS):</string>
+          </property>
+         </widget>
+        </item>
         <item row="5" column="1">
          <layout class="QHBoxLayout" name="horizontalLayout_2">
           <item>
@@ -779,13 +997,10 @@ Concerns orthogonal reformat in axial navigation.</string>
           </item>
          </layout>
         </item>
-        <item row="5" column="0">
-         <widget class="QLabel" name="diameterLabel">
-          <property name="locale">
-           <locale language="English" country="UnitedStates"/>
-          </property>
+        <item row="6" column="0">
+         <widget class="QLabel" name="surfaceAreaLabel">
           <property name="text">
-           <string>Diameter (MIS):</string>
+           <string>Cross-section area:</string>
           </property>
          </widget>
         </item>
@@ -845,27 +1060,6 @@ Concerns orthogonal reformat in axial navigation.</string>
           </item>
          </layout>
         </item>
-        <item row="6" column="0">
-         <widget class="QLabel" name="surfaceAreaLabel">
-          <property name="text">
-           <string>Cross-section area:</string>
-          </property>
-         </widget>
-        </item>
-        <item row="7" column="1">
-         <widget class="QLabel" name="derivedDiameterValueLabel">
-          <property name="toolTip">
-           <string>Circular equivalent (CE) diameter: that of a circle having the  surface area of the cross-section.
-
-The absolute and percent difference with the maximum inscribed sphere (MIS) diameter are also provided.
-
-Caution: values at bifurcations may not have clinical meaning.</string>
-          </property>
-          <property name="text">
-           <string/>
-          </property>
-         </widget>
-        </item>
         <item row="7" column="0">
          <widget class="QLabel" name="derivedDiameterLabel">
           <property name="text">
@@ -873,10 +1067,14 @@ Caution: values at bifurcations may not have clinical meaning.</string>
           </property>
          </widget>
         </item>
-        <item row="8" column="1">
-         <widget class="QLabel" name="orientationValueLabel">
+        <item row="7" column="1">
+         <widget class="QLabel" name="derivedDiameterValueLabel">
           <property name="toolTip">
-           <string>Angles are in Slicer's coordinate system</string>
+           <string>Circular equivalent (CE) diameter: that of a circle having the surface area of the cross-section.
+
+The absolute and percent difference with the maximum inscribed sphere (MIS) diameter are also provided.
+
+Caution: values at bifurcations may not have clinical meaning.</string>
           </property>
           <property name="text">
            <string/>
@@ -890,6 +1088,16 @@ Caution: values at bifurcations may not have clinical meaning.</string>
           </property>
           <property name="text">
            <string>Orientation:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="8" column="1">
+         <widget class="QLabel" name="orientationValueLabel">
+          <property name="toolTip">
+           <string>Angles are in Slicer's coordinate system</string>
+          </property>
+          <property name="text">
+           <string/>
           </property>
          </widget>
         </item>
@@ -1258,6 +1466,22 @@ Caution: values at bifurcations may not have clinical meaning.</string>
     <hint type="destinationlabel">
      <x>298</x>
      <y>322</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>CrossSectionAnalysis</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>parameterSetSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>265</x>
+     <y>466</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>310</x>
+     <y>22</y>
     </hint>
    </hints>
   </connection>

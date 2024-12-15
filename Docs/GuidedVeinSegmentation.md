@@ -12,14 +12,14 @@ Draw an open markups curve along the axis of the vein. Select an input volume an
 
 The main parameters may be tuned according to the size of the target vein, considering that the default values target the inferior vena cava.
 
- - shell margin : the input curve path is expanded according to this margin,
- - extrusion kernel size : extrusions of the initial vein segment are removed accordingly,
- - Gaussian standard deviation : the vein segment is further smoothed per this value.
+ - shell margin: the input curve path is expanded according to this margin,
+ - extrusion kernel size: extrusions of the initial vein segment are removed accordingly,
+ - Gaussian standard deviation: the vein segment is further smoothed per this value.
 
 Secondary parameters should be rarely tuned :
 
- - shell thickness : the initial expanded segment is then hollowed to a shell with this outer thickness
- - seed radius : the dimension of the very first lumen and shell segments.
+ - shell thickness: the initial expanded segment is then hollowed to a shell with this outer thickness
+ - seed radius: the dimension of the very first lumen and shell segments.
 
 ### Notes
 

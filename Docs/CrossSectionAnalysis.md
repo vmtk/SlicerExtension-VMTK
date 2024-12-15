@@ -52,6 +52,7 @@ A graphical plot of MIS diameter, CE diameter or cross-section area against dist
 
 ## Notes
 
+- The parameter set node is intended for distinct combinations of centerlines and surfaces to isolate a study.
 - Point coordinates can be displayed as an array in a single column, or split in three distinct columns. One can choose between RAS or LPS coordinates.
 - A markups curve may also lie outside a surface.
 - Providing a surface (segmentation or model) is optional. For example, a markups curve may be drawn on a vascular structure's boundary in slice views, to see the corresponding cross-sections only.
@@ -60,7 +61,11 @@ A graphical plot of MIS diameter, CE diameter or cross-section area against dist
 - When using a Shape node as a Tube :
     - the Tube should be nicely drawn, avoid kinking in particular,
     - the lumen should be cut to slightly exceed the ends of the Tube, remove all bifurcations and distant parts of the segment that are not enclosed in the Tube.
-- The quality of a segmented lumen is important. It must not contain holes. These may be misleading as the calculated surface area may concern a hole and not the segmented blood.
+- The quality of a segmented lumen is important. It must not contain holes. These may be misleading as the calculated surface area may concern a hole and not the segmented blood. These defects may be identified and tracked in the module. For a segmentation lumen surface, the 'Paint' effect of the 'Segment editor' may be activated in-place to fill the holes.
+
+|                                                    |                                                    |
+|----------------------------------------------------|----------------------------------------------------|
+|![Texte alternatif](CrossSectionAnalysis_hole_0.png)|![Texte alternatif](CrossSectionAnalysis_hole_1.png)|
 
 
 ## Acknowledgement

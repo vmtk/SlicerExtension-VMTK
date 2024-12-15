@@ -129,10 +129,10 @@ void vtkSlicerBranchClipperLogic::Execute()
   {
     clipper->ClipAllCenterlineGroupIdsOn();
   }
-  clipper->SetGenerateClippedOutput(this->InsideOut);
+  clipper->SetGenerateClippedOutput(this->GenerateClippedOutput);
   clipper->Update();
   
-  if (!this->InsideOut)
+  if (!this->GenerateClippedOutput)
   {
     this->Output->DeepCopy(clipper->GetOutput());
   }
