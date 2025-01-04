@@ -337,7 +337,7 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
 
         if not inputCenterline:
             raise ValueError(_("Input centerline is invalid"))
-        
+
         import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
         
         branchExtractor = vtkvmtkComputationalGeometry.vtkvmtkCenterlineBranchExtractor()
@@ -349,15 +349,53 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
         branchExtractor.SetTractIdsArrayName(tractIdsArrayName)
         branchExtractor.Update()
         self._splitCenterlines = branchExtractor.GetOutput()
-    
+        return self._splitCenterlines
+
+    def getNumberOfCenterlines(self):
+        if not self._splitCenterlines:
+            raise ValueError(_("Call 'splitCenterlines()' with an input centerline model first."))
+
+        import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
+        centerlineIdsArray = self._splitCenterlines.GetCellData().GetArray(centerlineIdsArrayName)
+        centerlineIdsValueRange = centerlineIdsArray.GetValueRange()
+        # centerlineIdsValueRange[0] is always seen as 0.
+        return (centerlineIdsValueRange[1] - centerlineIdsValueRange[0]) + 1
+
+    def getNumberOfBifurcations(self):
+        # Logical bifurcations, not by anatomy.
+        if not self._splitCenterlines:
+            raise ValueError(_("Call 'splitCenterlines()' with an input centerline model first."))
+
+        groupIdsArray = vtk.vtkIdList()
+        import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
+        centerlineUtilities = vtkvmtkComputationalGeometry.vtkvmtkCenterlineUtilities()
+        centerlineUtilities.GetBlankedGroupsIdList(self._splitCenterlines, groupIdsArrayName,
+                                                       blankingArrayName, groupIdsArray)
+        return groupIdsArray.GetNumberOfIds()
+
+    def getNumberOfBranches(self):
+        # Logical branches, not by anatomy.
+        if not self._splitCenterlines:
+            raise ValueError(_("Call 'splitCenterlines()' with an input centerline model first."))
+
+        groupIdsArray = vtk.vtkIdList()
+        import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
+        centerlineUtilities = vtkvmtkComputationalGeometry.vtkvmtkCenterlineUtilities()
+        centerlineUtilities.GetNonBlankedGroupsIdList(self._splitCenterlines, groupIdsArrayName,
+                                                       blankingArrayName, groupIdsArray)
+        return groupIdsArray.GetNumberOfIds()
+
     def _createPolyData(self, cellIds):
+        if not self._splitCenterlines:
+            raise ValueError(_("Call 'splitCenterlines()' with an input centerline model first."))
+
         masterRadiusArray = self._splitCenterlines.GetPointData().GetArray(radiusArrayName)
         masterEdgeArray = self._splitCenterlines.GetPointData().GetArray(edgeArrayName)
         masterEdgePCoordArray = self._splitCenterlines.GetPointData().GetArray(edgePCoordArrayName)
 
         resultPolyDatas = [] # One per cell
         nbIds = cellIds.GetNumberOfIds() # Number of cells
-        
+
         for i in range(nbIds): # For every cell
             unitCellPolyData = None
             pointId = 0
@@ -366,11 +404,13 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
             cellArray = vtk.vtkCellArray()
             radiusArray = vtk.vtkDoubleArray()
             radiusArray.SetName(radiusArrayName)
-            edgeArray = vtk.vtkDoubleArray()
-            edgeArray.SetName("EdgeArray")
-            edgeArray.SetNumberOfComponents(2)
-            edgePCoordArray = vtk.vtkDoubleArray()
-            edgePCoordArray.SetName("EdgePCoordArray")
+            if masterEdgeArray:
+                edgeArray = vtk.vtkDoubleArray()
+                edgeArray.SetName("EdgeArray")
+                edgeArray.SetNumberOfComponents(2)
+            if masterEdgePCoordArray:
+                edgePCoordArray = vtk.vtkDoubleArray()
+                edgePCoordArray.SetName("EdgePCoordArray")
             
             masterCellId = cellIds.GetId(i)
             masterCellPolyLine = self._splitCenterlines.GetCell(masterCellId)
@@ -384,9 +424,11 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
                 points.InsertNextPoint(point)
                 cellArray.InsertCellPoint(pointId)
                 radiusArray.InsertNextValue(masterRadiusArray.GetValue(masterPointId))
-                edgeArray.InsertNextTuple2(masterEdgeArray.GetTuple2(masterPointId)[0], 
-                                           masterEdgeArray.GetTuple2(masterPointId)[1])
-                edgePCoordArray.InsertNextValue(masterEdgePCoordArray.GetValue(masterPointId))
+                if masterEdgeArray:
+                    edgeArray.InsertNextTuple2(masterEdgeArray.GetTuple2(masterPointId)[0], 
+                                            masterEdgeArray.GetTuple2(masterPointId)[1])
+                if masterEdgePCoordArray:
+                    edgePCoordArray.InsertNextValue(masterEdgePCoordArray.GetValue(masterPointId))
                 pointId = pointId + 1
 
             if (numberOfMasterCellPointIds):
@@ -394,8 +436,10 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
                 unitCellPolyData.SetPoints(points)
                 unitCellPolyData.SetLines(cellArray)
                 unitCellPolyData.GetPointData().AddArray(radiusArray)
-                unitCellPolyData.GetPointData().AddArray(edgeArray)
-                unitCellPolyData.GetPointData().AddArray(edgePCoordArray)
+                if masterEdgeArray:
+                    unitCellPolyData.GetPointData().AddArray(edgeArray)
+                if masterEdgePCoordArray:
+                    unitCellPolyData.GetPointData().AddArray(edgePCoordArray)
                 resultPolyDatas.append(unitCellPolyData)
         return resultPolyDatas
     
@@ -442,11 +486,13 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
             cellArray = vtk.vtkCellArray()
             radiusArray = vtk.vtkDoubleArray()
             radiusArray.SetName(radiusArrayName)
-            edgeArray = vtk.vtkDoubleArray()
-            edgeArray.SetName("EdgeArray")
-            edgeArray.SetNumberOfComponents(2)
-            edgePCoordArray = vtk.vtkDoubleArray()
-            edgePCoordArray.SetName("EdgePCoordArray")
+            if masterEdgeArray:
+                edgeArray = vtk.vtkDoubleArray()
+                edgeArray.SetName("EdgeArray")
+                edgeArray.SetNumberOfComponents(2)
+            if masterEdgePCoordArray:
+                edgePCoordArray = vtk.vtkDoubleArray()
+                edgePCoordArray.SetName("EdgePCoordArray")
             
             # The new cell array must allocate for points of all input cells.
             cellArray.InsertNextCell(centerlinePolyData.GetNumberOfPoints())
@@ -463,9 +509,11 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
                     points.InsertNextPoint(point)
                     cellArray.InsertCellPoint(pointId)
                     radiusArray.InsertNextValue(masterRadiusArray.GetValue(masterPointId))
-                    edgeArray.InsertNextTuple2(masterEdgeArray.GetTuple2(masterPointId)[0], 
-                                            masterEdgeArray.GetTuple2(masterPointId)[1])
-                    edgePCoordArray.InsertNextValue(masterEdgePCoordArray.GetValue(masterPointId))
+                    if masterEdgeArray:
+                        edgeArray.InsertNextTuple2(masterEdgeArray.GetTuple2(masterPointId)[0], 
+                                                masterEdgeArray.GetTuple2(masterPointId)[1])
+                    if masterEdgePCoordArray:
+                        edgePCoordArray.InsertNextValue(masterEdgePCoordArray.GetValue(masterPointId))
                     pointId = pointId + 1
             
             # All cells from the input centerline have been processed.
@@ -474,9 +522,10 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
                 newPolyData.SetPoints(points)
                 newPolyData.SetLines(cellArray)
                 newPolyData.GetPointData().AddArray(radiusArray)
-                newPolyData.GetPointData().AddArray(edgeArray)
-                newPolyData.GetPointData().AddArray(edgePCoordArray)
-                
+                if masterEdgeArray:
+                    newPolyData.GetPointData().AddArray(edgeArray)
+                if masterEdgePCoordArray:
+                    newPolyData.GetPointData().AddArray(edgePCoordArray)
         
         if curveNode and newPolyData:
             import ExtractCenterline
@@ -530,8 +579,8 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
         logging.info(_("Processing group ids started"))
 
         groupIdsPolyDatas = []
-        import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
         groupIdsArray = vtk.vtkIdList()
+        import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
         centerlineUtilities = vtkvmtkComputationalGeometry.vtkvmtkCenterlineUtilities()
         if (bifurcations):
             # Blanked
