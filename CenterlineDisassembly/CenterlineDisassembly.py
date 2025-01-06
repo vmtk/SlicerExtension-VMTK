@@ -196,7 +196,7 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
             
             self.showStatusMessage( (_("Splitting centerline"),) )
             # Compute output
-            self.logic.splitCenterlines(self._parameterNode.inputCenterline) # Once only for all selections
+            self.logic.splitCenterlines(self._parameterNode.inputCenterline.GetPolyData()) # Once only for all selections
             shFolderId = -1
             
             # The total procesing time is significantly reduced when there are too many components.
@@ -333,7 +333,7 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
     def getParameterNode(self):
         return CenterlineDisassemblyParameterNode(super().getParameterNode())
 
-    def splitCenterlines(self, inputCenterline: slicer.vtkMRMLModelNode):
+    def splitCenterlines(self, inputCenterline: vtk.vtkPolyData):
 
         if not inputCenterline:
             raise ValueError(_("Input centerline is invalid"))
@@ -341,7 +341,7 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
         import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
         
         branchExtractor = vtkvmtkComputationalGeometry.vtkvmtkCenterlineBranchExtractor()
-        branchExtractor.SetInputData(inputCenterline.GetPolyData())
+        branchExtractor.SetInputData(inputCenterline)
         branchExtractor.SetBlankingArrayName(blankingArrayName)
         branchExtractor.SetRadiusArrayName(radiusArrayName)
         branchExtractor.SetGroupIdsArrayName(groupIdsArrayName)
@@ -353,7 +353,7 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
 
     def getNumberOfCenterlines(self):
         if not self._splitCenterlines:
-            raise ValueError(_("Call 'splitCenterlines()' with an input centerline model first."))
+            raise ValueError(_("Call 'splitCenterlines()' with an input centerline polydata first."))
 
         import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
         centerlineIdsArray = self._splitCenterlines.GetCellData().GetArray(centerlineIdsArrayName)
@@ -364,7 +364,7 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
     def getNumberOfBifurcations(self):
         # Logical bifurcations, not by anatomy.
         if not self._splitCenterlines:
-            raise ValueError(_("Call 'splitCenterlines()' with an input centerline model first."))
+            raise ValueError(_("Call 'splitCenterlines()' with an input centerline polydata first."))
 
         groupIdsArray = vtk.vtkIdList()
         import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
@@ -376,7 +376,7 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
     def getNumberOfBranches(self):
         # Logical branches, not by anatomy.
         if not self._splitCenterlines:
-            raise ValueError(_("Call 'splitCenterlines()' with an input centerline model first."))
+            raise ValueError(_("Call 'splitCenterlines()' with an input centerline polydata first."))
 
         groupIdsArray = vtk.vtkIdList()
         import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
@@ -387,7 +387,7 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
 
     def _createPolyData(self, cellIds):
         if not self._splitCenterlines:
-            raise ValueError(_("Call 'splitCenterlines()' with an input centerline model first."))
+            raise ValueError(_("Call 'splitCenterlines()' with an input centerline polydata first."))
 
         masterRadiusArray = self._splitCenterlines.GetPointData().GetArray(radiusArrayName)
         masterEdgeArray = self._splitCenterlines.GetPointData().GetArray(edgeArrayName)
@@ -443,9 +443,9 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
                 resultPolyDatas.append(unitCellPolyData)
         return resultPolyDatas
     
-    def createCenterlineCurve(self, centerlinePolyData, curveNode):
+    def _mergeCenterlineCells(self, centerlinePolyData):
         """
-        ExtractCenterline::_addCenterline works on a single cellId.
+        1. ExtractCenterline::_addCenterline works on a single cellId.
         
         centerlinePolyData for bifurcations and branches always has a single cell.
         
@@ -453,88 +453,96 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
         We need to merge all the cells into a single cell to pass to
         ExtractCenterline::addCenterlineCurves.
         
-        We don't check if
-          - optionCreateCurves is True,
-          - centerlinePolyData has the required scalar arrays.
+        2. If the centerline cells are not merged, bifurcations will be identified if the centerline
+        is reprocessed here, while it does not have any bifurcation.
         """
-        newPolyData = centerlinePolyData
-        
+        if not centerlinePolyData:
+            raise ValueError("Centerline polydata is None.")
+        if centerlinePolyData.GetNumberOfCells() == 0:
+            raise ValueError("Centerline polydata does not have any cell.")
+            return centerlinePolyData
+        if centerlinePolyData.GetNumberOfCells() == 1:
+            logging.info("Centerline polydata already has a single cell.")
+            return centerlinePolyData
+
+        masterRadiusArray = centerlinePolyData.GetPointData().GetArray(radiusArrayName)
+        masterEdgeArray = centerlinePolyData.GetPointData().GetArray(edgeArrayName)
+        masterEdgePCoordArray = centerlinePolyData.GetPointData().GetArray(edgePCoordArrayName)
+
+        newPolyData = None
+        pointId = 0
+        # Read new{points, cellArray,...}
+        points = vtk.vtkPoints()
+        cellArray = vtk.vtkCellArray()
+        radiusArray = vtk.vtkDoubleArray()
+        radiusArray.SetName(radiusArrayName)
+        if masterEdgeArray:
+            edgeArray = vtk.vtkDoubleArray()
+            edgeArray.SetName("EdgeArray")
+            edgeArray.SetNumberOfComponents(2)
+        if masterEdgePCoordArray:
+            edgePCoordArray = vtk.vtkDoubleArray()
+            edgePCoordArray.SetName("EdgePCoordArray")
+
+        # The new cell array must allocate for points of all input cells.
+        cellArray.InsertNextCell(centerlinePolyData.GetNumberOfPoints())
+
+        for cellId in range(centerlinePolyData.GetNumberOfCells()): # For every cell
+            masterCellPolyLine = centerlinePolyData.GetCell(cellId)
+            masterCellPointIds = masterCellPolyLine.GetPointIds()
+            numberOfMasterCellPointIds = masterCellPointIds.GetNumberOfIds()
+
+            for idx in range(numberOfMasterCellPointIds):
+                point = [0.0, 0.0, 0.0]
+                masterPointId = masterCellPointIds.GetId(idx)
+                centerlinePolyData.GetPoint(masterPointId, point)
+                points.InsertNextPoint(point)
+                cellArray.InsertCellPoint(pointId)
+                radiusArray.InsertNextValue(masterRadiusArray.GetValue(masterPointId))
+                if masterEdgeArray:
+                    edgeArray.InsertNextTuple2(masterEdgeArray.GetTuple2(masterPointId)[0], 
+                                            masterEdgeArray.GetTuple2(masterPointId)[1])
+                if masterEdgePCoordArray:
+                    edgePCoordArray.InsertNextValue(masterEdgePCoordArray.GetValue(masterPointId))
+                pointId = pointId + 1
+
+        # All cells from the input centerline have been processed.
+        if (pointId):
+            newPolyData = vtk.vtkPolyData()
+            newPolyData.SetPoints(points)
+            newPolyData.SetLines(cellArray)
+            newPolyData.GetPointData().AddArray(radiusArray)
+            if masterEdgeArray:
+                newPolyData.GetPointData().AddArray(edgeArray)
+            if masterEdgePCoordArray:
+                newPolyData.GetPointData().AddArray(edgePCoordArray)
+
+        return newPolyData
+
+    def createCenterlineCurve(self, centerlinePolyData, curveNode):
         """
         The mergedCenterlines in createCurveTreeFromCenterline does not get a GroupIds array
         if the input polydata has fewer than 2 points.
-        
+
         groupId = mergedCenterlines.GetCellData().GetArray(self.groupIdsArrayName).GetValue(cellId)
         -> AttributeError: 'NoneType' object has no attribute 'GetValue'
         """
         if (centerlinePolyData and centerlinePolyData.GetNumberOfPoints() < 3):
             logging.warning("Not enough points (<3) from polydata to create a markups curve.")
             return
-        
+
         import time
         startTime = time.time()
         logging.info(_("Processing curve creation started"))
-        
-        if (centerlinePolyData and centerlinePolyData.GetNumberOfCells() > 1):
-            masterRadiusArray = centerlinePolyData.GetPointData().GetArray(radiusArrayName)
-            masterEdgeArray = centerlinePolyData.GetPointData().GetArray(edgeArrayName)
-            masterEdgePCoordArray = centerlinePolyData.GetPointData().GetArray(edgePCoordArrayName)
-            
-            newPolyData = None
-            pointId = 0
-            # Read new{points, cellArray,...}
-            points = vtk.vtkPoints()
-            cellArray = vtk.vtkCellArray()
-            radiusArray = vtk.vtkDoubleArray()
-            radiusArray.SetName(radiusArrayName)
-            if masterEdgeArray:
-                edgeArray = vtk.vtkDoubleArray()
-                edgeArray.SetName("EdgeArray")
-                edgeArray.SetNumberOfComponents(2)
-            if masterEdgePCoordArray:
-                edgePCoordArray = vtk.vtkDoubleArray()
-                edgePCoordArray.SetName("EdgePCoordArray")
-            
-            # The new cell array must allocate for points of all input cells.
-            cellArray.InsertNextCell(centerlinePolyData.GetNumberOfPoints())
-            
-            for cellId in range(centerlinePolyData.GetNumberOfCells()): # For every cell
-                masterCellPolyLine = centerlinePolyData.GetCell(cellId)
-                masterCellPointIds = masterCellPolyLine.GetPointIds()
-                numberOfMasterCellPointIds = masterCellPointIds.GetNumberOfIds()
-                
-                for idx in range(numberOfMasterCellPointIds):
-                    point = [0.0, 0.0, 0.0]
-                    masterPointId = masterCellPointIds.GetId(idx)
-                    centerlinePolyData.GetPoint(masterPointId, point)
-                    points.InsertNextPoint(point)
-                    cellArray.InsertCellPoint(pointId)
-                    radiusArray.InsertNextValue(masterRadiusArray.GetValue(masterPointId))
-                    if masterEdgeArray:
-                        edgeArray.InsertNextTuple2(masterEdgeArray.GetTuple2(masterPointId)[0], 
-                                                masterEdgeArray.GetTuple2(masterPointId)[1])
-                    if masterEdgePCoordArray:
-                        edgePCoordArray.InsertNextValue(masterEdgePCoordArray.GetValue(masterPointId))
-                    pointId = pointId + 1
-            
-            # All cells from the input centerline have been processed.
-            if (pointId):
-                newPolyData = vtk.vtkPolyData()
-                newPolyData.SetPoints(points)
-                newPolyData.SetLines(cellArray)
-                newPolyData.GetPointData().AddArray(radiusArray)
-                if masterEdgeArray:
-                    newPolyData.GetPointData().AddArray(edgeArray)
-                if masterEdgePCoordArray:
-                    newPolyData.GetPointData().AddArray(edgePCoordArray)
-        
-        if curveNode and newPolyData:
+
+        if curveNode and centerlinePolyData:
             import ExtractCenterline
             ecLogic = ExtractCenterline.ExtractCenterlineLogic()
-            ecLogic.createCurveTreeFromCenterline(newPolyData, centerlineCurveNode = curveNode)
+            ecLogic.createCurveTreeFromCenterline(centerlinePolyData, centerlineCurveNode = curveNode)
             curveName = curveNode.GetName()
             curveName = curveName[0:(len(curveName) - 4)] # Remove ' (0)'
             curveNode.SetName(curveName)
-        
+
         stopTime = time.time()
         durationValue = '%.2f' % (stopTime-startTime)
         logging.info(_("Processing curve creation completed in {duration} seconds").format(duration=durationValue))
@@ -542,7 +550,7 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
     def processCenterlineIds(self):
 
         if not self._splitCenterlines:
-            raise ValueError(_("Call 'splitCenterlines()' with an input centerline model first."))
+            raise ValueError(_("Call 'splitCenterlines()' with an input centerline polydata first."))
 
         import time
         startTime = time.time()
@@ -562,8 +570,9 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
             for resultPolyData in unitCellPolyDatas:
                 appendPolyData.AddInputData(resultPolyData)
             appendPolyData.Update() # The scalar arrays are rightly merged... fortunately.
-            centerlinePolyDatas.append(appendPolyData.GetOutput())
-        
+            mergedCellsPolyData = self._mergeCenterlineCells(appendPolyData.GetOutput())
+            centerlinePolyDatas.append(mergedCellsPolyData)
+
         stopTime = time.time()
         durationValue = '%.2f' % (stopTime-startTime)
         logging.info(_("Processing centerline ids completed in {duration} seconds").format(duration=durationValue))
@@ -572,7 +581,7 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
     def processGroupIds(self, bifurcations):
 
         if not self._splitCenterlines:
-            raise ValueError(_("Call 'splitCenterlines()' with an input centerline model first."))
+            raise ValueError(_("Call 'splitCenterlines()' with an input centerline polydata first."))
 
         import time
         startTime = time.time()
@@ -606,7 +615,7 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
                 unitCellPolyDatas = self._createPolyData(groupCellIdsArray)
                 for unitCellPolyData in unitCellPolyDatas:
                     groupIdsPolyDatas.append(unitCellPolyData)
-        
+
         stopTime = time.time()
         durationValue = '%.2f' % (stopTime-startTime)
         logging.info(_("Processing group ids completed in {duration} seconds").format(duration=durationValue))
