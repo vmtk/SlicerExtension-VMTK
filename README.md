@@ -35,7 +35,7 @@ Workflows:
   - [Arterial calcification pre-processor](Docs/ArterialCalcificationPreProcessor.md): Segment arterial calcifications within a specified distance around a lumen.
   - [Centerline disassembly](Docs/CenterlineDisassembly.md): Break down a bifurcated centerline model into parts.
   - [Clip vessel](Docs/ClipVessel.md): Clip a segmentation or model normal to the centerline.
-  - [Pre-fit tube](Docs/PreFitTube.md): Pre-fit a Shape::Tube markups node around an artery.
+  - [Edit centerline](Docs/EditCenterline.md): Create a Shape::Tube markups node around an artery.
 
 Legacy modules (replaced by other modules, not developed anymore):
 
