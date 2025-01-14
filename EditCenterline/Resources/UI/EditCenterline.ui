@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>325</width>
-    <height>373</height>
+    <width>361</width>
+    <height>433</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
@@ -211,54 +211,162 @@ The tortuosity of the tube and the diameter distribution determine this paramete
         </item>
        </layout>
       </item>
-      <item>
-       <widget class="ctkCollapsibleButton" name="ouitputOptionsCollapsibleButton">
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="ctkCollapsibleButton" name="optionsOptionsCollapsibleButton">
+     <property name="text">
+      <string>Options</string>
+     </property>
+     <property name="flat">
+      <bool>false</bool>
+     </property>
+     <layout class="QFormLayout" name="outputOptionsFormLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="outputSegmentationLabel">
         <property name="text">
-         <string>Options</string>
+         <string>Segmentation:</string>
         </property>
-        <property name="flat">
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="qMRMLNodeComboBox" name="outputSegmentationSelector">
+        <property name="toolTip">
+         <string>Select an optional segmentation node to keep the segment mask.</string>
+        </property>
+        <property name="nodeTypes">
+         <stringlist notr="true">
+          <string>vtkMRMLSegmentationNode</string>
+         </stringlist>
+        </property>
+        <property name="hideChildNodeTypes">
+         <stringlist notr="true"/>
+        </property>
+        <property name="noneEnabled">
          <bool>true</bool>
         </property>
-        <layout class="QFormLayout" name="outputOptionsFormLayout">
-         <item row="0" column="1">
-          <widget class="qMRMLNodeComboBox" name="outputSegmentationSelector">
-           <property name="toolTip">
-            <string>Select an optional segmentation node to keep the segment mask.</string>
-           </property>
-           <property name="nodeTypes">
-            <stringlist notr="true">
-             <string>vtkMRMLSegmentationNode</string>
-            </stringlist>
-           </property>
-           <property name="hideChildNodeTypes">
-            <stringlist notr="true"/>
-           </property>
-           <property name="noneEnabled">
-            <bool>true</bool>
-           </property>
-           <property name="editEnabled">
-            <bool>true</bool>
-           </property>
-           <property name="renameEnabled">
-            <bool>true</bool>
-           </property>
-           <property name="interactionNodeSingletonTag">
-            <string notr="true"/>
-           </property>
-           <property name="SlicerParameterName" stdset="0">
-            <string notr="true">outputSegmentationNode</string>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="0">
-          <widget class="QLabel" name="outputSegmentationLabel">
-           <property name="text">
-            <string>Segmentation:</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
+        <property name="editEnabled">
+         <bool>true</bool>
+        </property>
+        <property name="renameEnabled">
+         <bool>true</bool>
+        </property>
+        <property name="interactionNodeSingletonTag">
+         <string notr="true"/>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string notr="true">outputSegmentationNode</string>
+        </property>
        </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="outputCenterlineModelLabel">
+        <property name="text">
+         <string>Centerline model:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <layout class="QHBoxLayout" name="outputCenterlineModelLayout" stretch="0,0">
+        <item>
+         <widget class="qMRMLNodeComboBox" name="outputCenterlineModelSelector">
+          <property name="toolTip">
+           <string>Select an edited centerline model.</string>
+          </property>
+          <property name="nodeTypes">
+           <stringlist notr="true">
+            <string>vtkMRMLModelNode</string>
+           </stringlist>
+          </property>
+          <property name="hideChildNodeTypes">
+           <stringlist notr="true"/>
+          </property>
+          <property name="baseName">
+           <string>EditedModel</string>
+          </property>
+          <property name="noneEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="editEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="renameEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="interactionNodeSingletonTag">
+           <string notr="true"/>
+          </property>
+          <property name="SlicerParameterName" stdset="0">
+           <string notr="true">editedCenterlineModel</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QToolButton" name="outputCenterlineModelButton">
+          <property name="toolTip">
+           <string>Update the edited centerline model.</string>
+          </property>
+          <property name="text">
+           <string>↺</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="outputCenterlineCurveLabel">
+        <property name="text">
+         <string>Centerline curve:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <layout class="QHBoxLayout" name="outputCenterlineCurveLayout">
+        <item>
+         <widget class="qMRMLNodeComboBox" name="outputCenterlineCurveSelector">
+          <property name="toolTip">
+           <string>Select an edited centerline curve.</string>
+          </property>
+          <property name="nodeTypes">
+           <stringlist notr="true">
+            <string>vtkMRMLMarkupsCurveNode</string>
+           </stringlist>
+          </property>
+          <property name="hideChildNodeTypes">
+           <stringlist notr="true"/>
+          </property>
+          <property name="baseName">
+           <string>EditedCurve</string>
+          </property>
+          <property name="noneEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="editEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="renameEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="interactionNodeSingletonTag">
+           <string notr="true"/>
+          </property>
+          <property name="SlicerParameterName" stdset="0">
+           <string notr="true">editedCenterlineCurve</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QToolButton" name="outputCenterlineCurveButton">
+          <property name="toolTip">
+           <string>Update the edited centerline curve.</string>
+          </property>
+          <property name="text">
+           <string>↺</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </item>
      </layout>
     </widget>
@@ -374,6 +482,38 @@ The tortuosity of the tube and the diameter distribution determine this paramete
     <hint type="destinationlabel">
      <x>206</x>
      <y>191</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>EditCenterline</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>outputCenterlineModelSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>162</x>
+     <y>186</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>215</x>
+     <y>288</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>EditCenterline</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>outputCenterlineCurveSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>162</x>
+     <y>186</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>215</x>
+     <y>309</y>
     </hint>
    </hints>
   </connection>

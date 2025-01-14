@@ -54,6 +54,8 @@ class EditCenterlineParameterNode:
     # These are not SlicerParameterName in the UI.
     inputCurveNode: slicer.vtkMRMLMarkupsCurveNode
     inputModelNode: slicer.vtkMRMLModelNode
+    editedCenterlineModel: slicer.vtkMRMLModelNode
+    editedCenterlineCurve: slicer.vtkMRMLMarkupsCurveNode
     # When a SlicerParameterName dynamic property is assigned to a QSpinBox or
     # a QDoubleSpinBox, the minimum property is ignored.
     numberOfPairs: int = 5
@@ -159,6 +161,8 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.outputShapeSelector.connect('nodeAddedByUser(vtkMRMLNode*)', self.onTubeNodeAdded)
         self.ui.inputCenterlineSelector.connect('currentNodeChanged(vtkMRMLNode*)', self.onCenterlineChanged)
         self.ui.numberOfPairsSpinBox.connect('valueChanged(int)', self.onNumberOfPairsChanged)
+        self.ui.outputCenterlineModelButton.connect('clicked()', self.onUpdateEditedCenterlineModel)
+        self.ui.outputCenterlineCurveButton.connect('clicked()', self.onUpdateEditedCenterlineCurve)
 
         # These connections ensure that we update parameter node when scene is closed
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
@@ -170,6 +174,7 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
 
+        self.ui.optionsOptionsCollapsibleButton.collapsed = True
         self.setupUI(CENTERLINE_ARBITRARY_CURVE)
 
     def cleanup(self) -> None:
@@ -225,6 +230,8 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """Run processing when user clicks "Apply" button."""
         with slicer.util.tryWithErrorDisplay(_("Failed to compute results."), waitCursor=True):
             self.logic.process()
+            self.onUpdateEditedCenterlineModel()
+            self.onUpdateEditedCenterlineCurve()
 
     def onDimensionPresetChanged(self, index):
         if self._parameterNode:
@@ -269,7 +276,6 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
         index = self.ui.dimensionComboBox.findData(self._parameterNode.dimensionPreset)
         self.ui.dimensionComboBox.setCurrentIndex(index)
-        self.ui.ouitputOptionsCollapsibleButton.collapsed = (self._parameterNode.outputSegmentationNode is None)
         if self._parameterNode.inputCurveNode and (not self._parameterNode.inputModelNode):
             self.ui.inputCenterlineSelector.setCurrentNode(self._parameterNode.inputCurveNode)
         if self._parameterNode.inputModelNode and (not self._parameterNode.inputCurveNode):
@@ -286,7 +292,32 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.dimensionComboBox.setVisible(isArbitraryCurve)
         self.ui.numberOfPairsLabel.setVisible(not isArbitraryCurve)
         self.ui.numberOfPairsSpinBox.setVisible(not isArbitraryCurve)
-        self.ui.ouitputOptionsCollapsibleButton.setVisible(isArbitraryCurve)
+        self.ui.outputSegmentationLabel.setVisible(isArbitraryCurve)
+        self.ui.outputSegmentationSelector.setVisible(isArbitraryCurve)
+
+    def onUpdateEditedCenterlineModel(self):
+        if (not self._parameterNode):
+            logging.error("Parameter node is None.")
+
+        editedCenterlineModel = self.ui.outputCenterlineModelSelector.currentNode()
+        if (not editedCenterlineModel):
+            logging.warning("No edited centerline model provided.")
+            return
+        editedCenterlineModel.CreateDefaultDisplayNodes()
+        editedCenterline = self.logic.createEditedCenterlinePolyData(self._parameterNode.outputShapeNode)
+        editedCenterlineModel.SetAndObservePolyData(editedCenterline)
+
+    def onUpdateEditedCenterlineCurve(self):
+        if (not self._parameterNode):
+            logging.error("Parameter node is None.")
+
+        editedCenterlineCurve = self.ui.outputCenterlineCurveSelector.currentNode()
+        if (not editedCenterlineCurve):
+            logging.warning("No edited centerline curve provided.")
+            return
+        editedCenterlineCurve.CreateDefaultDisplayNodes()
+        self.logic.updateCenterlineCurve(self._parameterNode.outputShapeNode, editedCenterlineCurve)
+
 #
 # EditCenterlineLogic
 #
@@ -312,7 +343,7 @@ class EditCenterlineLogic(ScriptedLoadableModuleLogic):
 
     def getCenterlineType(self):
         if not self._parameterNode:
-            raise ValueError("Parameter node is None.")
+            raise ValueError(_("Parameter node is None."))
 
         inputCurve = self._parameterNode.inputCurveNode
         inputModel = self._parameterNode.inputModelNode
@@ -399,7 +430,7 @@ class EditCenterlineLogic(ScriptedLoadableModuleLogic):
         # Centerline model or curve from ExtractCenterline.
 
         if not self._parameterNode:
-            raise ValueError("Parameter node is None.")
+            raise ValueError(_("Parameter node is None."))
 
         if not centerline:
             raise ValueError("Centerline is None.")
@@ -548,6 +579,64 @@ class EditCenterlineLogic(ScriptedLoadableModuleLogic):
         # If we created the segmentation, remove it.
         if not self._parameterNode.outputSegmentationNode:
                 slicer.mrmlScene.RemoveNode(segmentationNode)
+
+    def createEditedCenterlinePolyData(self, tube):
+        if (not tube):
+            raise ValueError(_("Tube is None."))
+        if (tube.GetShapeName() != slicer.vtkMRMLMarkupsShapeNode.Tube):
+            raise ValueError(_("Shape is not a tube."))
+        if tube.GetNumberOfDefinedControlPoints(False) < 4:
+            raise ValueError(_("Tube must have at least 4 points."))
+
+        spline = tube.GetSplineWorld()
+        if (not spline):
+            raise ValueError(_("The central spline of the tube is None."))
+        editedCenterline = vtk.vtkPolyData()
+        editedCenterline.DeepCopy(spline)
+        radiusArray = editedCenterline.GetPointData().GetArray("TubeRadius")
+        if not radiusArray:
+            raise ValueError(_("The central spline of the tube does not have radius information."))
+        radiusArray.SetName("Radius")
+
+        return editedCenterline
+
+    def updateCenterlineCurve(self, tube, curve):
+        if (not tube):
+            raise ValueError(_("Tube is None."))
+        if (tube.GetShapeName() != slicer.vtkMRMLMarkupsShapeNode.Tube):
+            raise ValueError(_("Shape is not a tube."))
+        if tube.GetNumberOfDefinedControlPoints(False) < 4:
+            raise ValueError(_("Tube must have at least 4 points."))
+        
+        if (not curve):
+            raise ValueError(_("Centerline curve is None."))
+
+        spline = tube.GetSplineWorld()
+        if (not spline):
+            raise ValueError(_("The central spline of the tube is None."))
+        radiusArray = spline.GetPointData().GetArray("TubeRadius")
+        if not radiusArray:
+            raise ValueError(_("The central spline of the tube does not have radius information."))
+
+        curve.RemoveAllControlPoints()
+        curveRadiusArray = vtk.vtkDoubleArray()
+        curveRadiusArray.DeepCopy(radiusArray)
+        curveRadiusArray.SetName("Radius")
+        curve.SetNumberOfPointsPerInterpolatingSegment(1)
+        curve.SetControlPointPositionsWorld(spline.GetPoints())
+        slicer.modules.markups.logic().SetAllControlPointsVisibility(curve, False)
+
+        # Copied from ExtractCenterline::_addCurveMeasurementArray, it is not public there.
+        radiusMeasurement = curve.GetMeasurement(radiusArray.GetName())
+        if not radiusMeasurement:
+            radiusMeasurement = slicer.vtkMRMLStaticMeasurement()
+            radiusMeasurement.SetName(curveRadiusArray.GetName())
+            radiusMeasurement.SetUnits('mm')
+            radiusMeasurement.SetPrintFormat('') # Prevent from showing up in subject hierarchy Description column
+            radiusMeasurement.SetControlPointValues(curveRadiusArray)
+            curve.AddMeasurement(radiusMeasurement)
+        else:
+            radiusMeasurement.SetControlPointValues(curveRadiusArray)
 
 #
 # EditCenterlineTest
