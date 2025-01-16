@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>361</width>
-    <height>433</height>
+    <width>341</width>
+    <height>520</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
@@ -222,68 +222,28 @@ The tortuosity of the tube and the diameter distribution determine this paramete
      <property name="flat">
       <bool>false</bool>
      </property>
-     <layout class="QFormLayout" name="outputOptionsFormLayout">
-      <item row="0" column="0">
-       <widget class="QLabel" name="outputSegmentationLabel">
-        <property name="text">
-         <string>Segmentation:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="qMRMLNodeComboBox" name="outputSegmentationSelector">
-        <property name="toolTip">
-         <string>Select an optional segmentation node to keep the segment mask.</string>
-        </property>
-        <property name="nodeTypes">
-         <stringlist notr="true">
-          <string>vtkMRMLSegmentationNode</string>
-         </stringlist>
-        </property>
-        <property name="hideChildNodeTypes">
-         <stringlist notr="true"/>
-        </property>
-        <property name="noneEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="editEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="renameEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="interactionNodeSingletonTag">
-         <string notr="true"/>
-        </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string notr="true">outputSegmentationNode</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="outputCenterlineModelLabel">
-        <property name="text">
-         <string>Centerline model:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <layout class="QHBoxLayout" name="outputCenterlineModelLayout" stretch="0,0">
-        <item>
-         <widget class="qMRMLNodeComboBox" name="outputCenterlineModelSelector">
+     <layout class="QVBoxLayout" name="optionsVerticalLayout">
+      <item>
+       <layout class="QFormLayout" name="optionsFormLayout">
+        <item row="0" column="0">
+         <widget class="QLabel" name="outputSegmentationLabel">
+          <property name="text">
+           <string>Segmentation:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1">
+         <widget class="qMRMLNodeComboBox" name="outputSegmentationSelector">
           <property name="toolTip">
-           <string>Select an edited centerline model.</string>
+           <string>Select an optional segmentation node to keep the segment mask.</string>
           </property>
           <property name="nodeTypes">
            <stringlist notr="true">
-            <string>vtkMRMLModelNode</string>
+            <string>vtkMRMLSegmentationNode</string>
            </stringlist>
           </property>
           <property name="hideChildNodeTypes">
            <stringlist notr="true"/>
-          </property>
-          <property name="baseName">
-           <string>EditedModel</string>
           </property>
           <property name="noneEnabled">
            <bool>true</bool>
@@ -298,75 +258,178 @@ The tortuosity of the tube and the diameter distribution determine this paramete
            <string notr="true"/>
           </property>
           <property name="SlicerParameterName" stdset="0">
-           <string notr="true">editedCenterlineModel</string>
+           <string notr="true">outputSegmentationNode</string>
           </property>
          </widget>
         </item>
-        <item>
-         <widget class="QToolButton" name="outputCenterlineModelButton">
-          <property name="toolTip">
-           <string>Update the edited centerline model.</string>
-          </property>
+        <item row="1" column="0">
+         <widget class="QLabel" name="outputCenterlineModelLabel">
           <property name="text">
-           <string>↺</string>
+           <string>Centerline model:</string>
           </property>
          </widget>
+        </item>
+        <item row="1" column="1">
+         <layout class="QHBoxLayout" name="outputCenterlineModelLayout" stretch="0,0">
+          <item>
+           <widget class="qMRMLNodeComboBox" name="outputCenterlineModelSelector">
+            <property name="toolTip">
+             <string>Select an edited centerline model.</string>
+            </property>
+            <property name="nodeTypes">
+             <stringlist notr="true">
+              <string>vtkMRMLModelNode</string>
+             </stringlist>
+            </property>
+            <property name="hideChildNodeTypes">
+             <stringlist notr="true"/>
+            </property>
+            <property name="baseName">
+             <string>EditedModel</string>
+            </property>
+            <property name="noneEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="editEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="renameEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="interactionNodeSingletonTag">
+             <string notr="true"/>
+            </property>
+            <property name="SlicerParameterName" stdset="0">
+             <string notr="true">editedCenterlineModel</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="outputCenterlineModelButton">
+            <property name="toolTip">
+             <string>Update the edited centerline model.</string>
+            </property>
+            <property name="text">
+             <string>↺</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="outputCenterlineCurveLabel">
+          <property name="text">
+           <string>Centerline curve:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <layout class="QHBoxLayout" name="outputCenterlineCurveLayout">
+          <item>
+           <widget class="qMRMLNodeComboBox" name="outputCenterlineCurveSelector">
+            <property name="toolTip">
+             <string>Select an edited centerline curve.</string>
+            </property>
+            <property name="nodeTypes">
+             <stringlist notr="true">
+              <string>vtkMRMLMarkupsCurveNode</string>
+             </stringlist>
+            </property>
+            <property name="hideChildNodeTypes">
+             <stringlist notr="true"/>
+            </property>
+            <property name="baseName">
+             <string>EditedCurve</string>
+            </property>
+            <property name="noneEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="editEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="renameEnabled">
+             <bool>true</bool>
+            </property>
+            <property name="interactionNodeSingletonTag">
+             <string notr="true"/>
+            </property>
+            <property name="SlicerParameterName" stdset="0">
+             <string notr="true">editedCenterlineCurve</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="outputCenterlineCurveButton">
+            <property name="toolTip">
+             <string>Update the edited centerline curve.</string>
+            </property>
+            <property name="text">
+             <string>↺</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </item>
        </layout>
       </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="outputCenterlineCurveLabel">
+      <item>
+       <widget class="ctkCollapsibleButton" name="advancedOptionsCollapsibleButton">
         <property name="text">
-         <string>Centerline curve:</string>
+         <string>Advanced</string>
         </property>
+        <property name="flat">
+         <bool>true</bool>
+        </property>
+        <layout class="QVBoxLayout" name="advancedOptionsVerticalLayout">
+         <item>
+          <layout class="QFormLayout" name="advancedOptoonsFormLayout">
+           <item row="1" column="0">
+            <widget class="QLabel" name="radiusScaleFactorLabel">
+             <property name="text">
+              <string>Radius scale factor:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <layout class="QHBoxLayout" name="radiusScaleFactorHorizontalLayout">
+             <item>
+              <widget class="QDoubleSpinBox" name="radiusScaleFactorSpinBox">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="toolTip">
+                <string>This scale factor is applied to the reference radii.</string>
+               </property>
+               <property name="minimum">
+                <double>0.010000000000000</double>
+               </property>
+               <property name="singleStep">
+                <double>0.100000000000000</double>
+               </property>
+               <property name="value">
+                <double>1.000000000000000</double>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QToolButton" name="radiusScaleFactorButton">
+               <property name="toolTip">
+                <string>Update the Tube's radii.</string>
+               </property>
+               <property name="text">
+                <string>↺</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </item>
+        </layout>
        </widget>
-      </item>
-      <item row="2" column="1">
-       <layout class="QHBoxLayout" name="outputCenterlineCurveLayout">
-        <item>
-         <widget class="qMRMLNodeComboBox" name="outputCenterlineCurveSelector">
-          <property name="toolTip">
-           <string>Select an edited centerline curve.</string>
-          </property>
-          <property name="nodeTypes">
-           <stringlist notr="true">
-            <string>vtkMRMLMarkupsCurveNode</string>
-           </stringlist>
-          </property>
-          <property name="hideChildNodeTypes">
-           <stringlist notr="true"/>
-          </property>
-          <property name="baseName">
-           <string>EditedCurve</string>
-          </property>
-          <property name="noneEnabled">
-           <bool>true</bool>
-          </property>
-          <property name="editEnabled">
-           <bool>true</bool>
-          </property>
-          <property name="renameEnabled">
-           <bool>true</bool>
-          </property>
-          <property name="interactionNodeSingletonTag">
-           <string notr="true"/>
-          </property>
-          <property name="SlicerParameterName" stdset="0">
-           <string notr="true">editedCenterlineCurve</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QToolButton" name="outputCenterlineCurveButton">
-          <property name="toolTip">
-           <string>Update the edited centerline curve.</string>
-          </property>
-          <property name="text">
-           <string>↺</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
       </item>
      </layout>
     </widget>

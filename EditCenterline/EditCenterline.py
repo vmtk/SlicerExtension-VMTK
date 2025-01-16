@@ -59,6 +59,7 @@ class EditCenterlineParameterNode:
     # When a SlicerParameterName dynamic property is assigned to a QSpinBox or
     # a QDoubleSpinBox, the minimum property is ignored.
     numberOfPairs: int = 5
+    radiusScaleFactor: float = 1.0
 
 class dimensionPresets:
     tiny = {
@@ -156,6 +157,9 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.dimensionComboBox.addItem(_("Big"), DIMENSION_BIG)
         self.ui.dimensionComboBox.addItem(_("Huge"), DIMENSION_HUGE)
 
+        self.ui.optionsOptionsCollapsibleButton.collapsed = True
+        self.ui.advancedOptionsCollapsibleButton.collapsed = True
+
         # Connections
         self.ui.dimensionComboBox.connect('currentIndexChanged(int)', self.onDimensionPresetChanged)
         self.ui.outputShapeSelector.connect('nodeAddedByUser(vtkMRMLNode*)', self.onTubeNodeAdded)
@@ -163,6 +167,8 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.numberOfPairsSpinBox.connect('valueChanged(int)', self.onNumberOfPairsChanged)
         self.ui.outputCenterlineModelButton.connect('clicked()', self.onUpdateEditedCenterlineModel)
         self.ui.outputCenterlineCurveButton.connect('clicked()', self.onUpdateEditedCenterlineCurve)
+        self.ui.radiusScaleFactorSpinBox.connect('valueChanged(double)', self.onRadiusScaleFactorChanged)
+        self.ui.radiusScaleFactorButton.connect('clicked()', self.onUpdateRadiusScaleFactor)
 
         # These connections ensure that we update parameter node when scene is closed
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
@@ -174,7 +180,6 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
 
-        self.ui.optionsOptionsCollapsibleButton.collapsed = True
         self.setupUI(CENTERLINE_ARBITRARY_CURVE)
 
     def cleanup(self) -> None:
@@ -269,6 +274,12 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self._parameterNode.numberOfPairs = value
 
+    def onRadiusScaleFactorChanged(self, value):
+        if not self._parameterNode:
+            return;
+
+        self._parameterNode.radiusScaleFactor = value
+
     def updateGuiFromParameterNode(self):
         if not self._parameterNode or self._updatingGuiFromParameterNode:
             return
@@ -281,6 +292,7 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if self._parameterNode.inputModelNode and (not self._parameterNode.inputCurveNode):
             self.ui.inputCenterlineSelector.setCurrentNode(self._parameterNode.inputModelNode)
         self.ui.numberOfPairsSpinBox.setValue(self._parameterNode.numberOfPairs)
+        self.ui.radiusScaleFactorSpinBox.setValue(self._parameterNode.radiusScaleFactor)
 
         self._updatingGuiFromParameterNode = False
 
@@ -296,27 +308,33 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.outputSegmentationSelector.setVisible(isArbitraryCurve)
 
     def onUpdateEditedCenterlineModel(self):
-        if (not self._parameterNode):
-            logging.error("Parameter node is None.")
-
         editedCenterlineModel = self.ui.outputCenterlineModelSelector.currentNode()
         if (not editedCenterlineModel):
-            logging.warning("No edited centerline model provided.")
             return
+        if (not self._parameterNode):
+            logging.error("Parameter node is None.")
+            return
+
         editedCenterlineModel.CreateDefaultDisplayNodes()
         editedCenterline = self.logic.createEditedCenterlinePolyData(self._parameterNode.outputShapeNode)
         editedCenterlineModel.SetAndObservePolyData(editedCenterline)
 
     def onUpdateEditedCenterlineCurve(self):
+        editedCenterlineCurve = self.ui.outputCenterlineCurveSelector.currentNode()
+        if (not editedCenterlineCurve):
+            return
+        if (not self._parameterNode):
+            logging.error("Parameter node is None.")
+            return
+
+        editedCenterlineCurve.CreateDefaultDisplayNodes()
+        self.logic.updateCenterlineCurve(self._parameterNode.outputShapeNode, editedCenterlineCurve)
+
+    def onUpdateRadiusScaleFactor(self):
         if (not self._parameterNode):
             logging.error("Parameter node is None.")
 
-        editedCenterlineCurve = self.ui.outputCenterlineCurveSelector.currentNode()
-        if (not editedCenterlineCurve):
-            logging.warning("No edited centerline curve provided.")
-            return
-        editedCenterlineCurve.CreateDefaultDisplayNodes()
-        self.logic.updateCenterlineCurve(self._parameterNode.outputShapeNode, editedCenterlineCurve)
+        self.logic.scaleTubeRadii(self._parameterNode.outputShapeNode, self._parameterNode.radiusScaleFactor)
 
 #
 # EditCenterlineLogic
@@ -406,6 +424,7 @@ class EditCenterlineLogic(ScriptedLoadableModuleLogic):
             self._processCenterlinePolyData(self._parameterNode.inputModelNode.GetPolyData())
 
         self._parameterNode.outputShapeNode.SnapAllControlPointsToTubeSurface()
+        self.scaleTubeRadii(self._parameterNode.outputShapeNode, self._parameterNode.radiusScaleFactor)
 
         stopTime = time.time()
         durationValue = '%.2f' % (stopTime-startTime)
@@ -638,6 +657,30 @@ class EditCenterlineLogic(ScriptedLoadableModuleLogic):
         else:
             radiusMeasurement.SetControlPointValues(curveRadiusArray)
 
+    def scaleTubeRadii(self, tube, scaleFactor):
+        """
+        The more the radius distribution is harmonious, the closer the final
+        radii are to an expected (radius * scaleFactor).
+        For a monstruous Tube, the discrepancy is maximal throughout the
+        radius distribution.
+        """
+        if scaleFactor == 1.0:
+            return
+        if not tube:
+            raise ValueError(_("Tube is None."))
+        if (tube.GetShapeName() != slicer.vtkMRMLMarkupsShapeNode.Tube):
+            raise ValueError(_("Shape is not a tube."))
+        if tube.GetNumberOfDefinedControlPoints(False) < 4:
+            raise ValueError(_("Tube must have at least 4 points."))
+
+        numberOfControlPoints = tube.GetNumberOfControlPoints()
+        if slicer.mrmlScene:
+            slicer.mrmlScene.StartState(slicer.mrmlScene.BatchProcessState)
+        for i in range(0, numberOfControlPoints, 2):
+            radius = tube.GetNthControlPointRadius(i)
+            tube.SetNthControlPointRadius(i, radius * scaleFactor)
+        if slicer.mrmlScene:
+            slicer.mrmlScene.EndState(slicer.mrmlScene.BatchProcessState)
 #
 # EditCenterlineTest
 #
