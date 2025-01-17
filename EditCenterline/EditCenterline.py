@@ -59,7 +59,7 @@ class EditCenterlineParameterNode:
     # When a SlicerParameterName dynamic property is assigned to a QSpinBox or
     # a QDoubleSpinBox, the minimum property is ignored.
     numberOfPairs: int = 5
-    radiusScaleFactor: float = 1.0
+    radiusScaleFactorOffset: float = 0.0
 
 class dimensionPresets:
     tiny = {
@@ -168,7 +168,8 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.outputCenterlineModelButton.connect('clicked()', self.onUpdateEditedCenterlineModel)
         self.ui.outputCenterlineCurveButton.connect('clicked()', self.onUpdateEditedCenterlineCurve)
         self.ui.radiusScaleFactorSpinBox.connect('valueChanged(double)', self.onRadiusScaleFactorChanged)
-        self.ui.radiusScaleFactorButton.connect('clicked()', self.onUpdateRadiusScaleFactor)
+        self.ui.radiusIncreaseScaleFactorButton.connect('clicked()', lambda : self.onUpdateRadiusScaleFactor('+'))
+        self.ui.radiusDecreaseScaleFactorButton.connect('clicked()', lambda : self.onUpdateRadiusScaleFactor('-'))
 
         # These connections ensure that we update parameter node when scene is closed
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
@@ -278,7 +279,7 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if not self._parameterNode:
             return;
 
-        self._parameterNode.radiusScaleFactor = value
+        self._parameterNode.radiusScaleFactorOffset = value
 
     def updateGuiFromParameterNode(self):
         if not self._parameterNode or self._updatingGuiFromParameterNode:
@@ -292,7 +293,7 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if self._parameterNode.inputModelNode and (not self._parameterNode.inputCurveNode):
             self.ui.inputCenterlineSelector.setCurrentNode(self._parameterNode.inputModelNode)
         self.ui.numberOfPairsSpinBox.setValue(self._parameterNode.numberOfPairs)
-        self.ui.radiusScaleFactorSpinBox.setValue(self._parameterNode.radiusScaleFactor)
+        self.ui.radiusScaleFactorSpinBox.setValue(self._parameterNode.radiusScaleFactorOffset)
 
         self._updatingGuiFromParameterNode = False
 
@@ -330,11 +331,17 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         editedCenterlineCurve.CreateDefaultDisplayNodes()
         self.logic.updateCenterlineCurve(self._parameterNode.outputShapeNode, editedCenterlineCurve)
 
-    def onUpdateRadiusScaleFactor(self):
+    def onUpdateRadiusScaleFactor(self, sign):
         if (not self._parameterNode):
             logging.error("Parameter node is None.")
-
-        self.logic.scaleTubeRadii(self._parameterNode.outputShapeNode, self._parameterNode.radiusScaleFactor)
+        scaleFactor = 1.0
+        if (sign == '+'):
+            scaleFactor = scaleFactor + self._parameterNode.radiusScaleFactorOffset
+        elif (sign == '-'):
+            scaleFactor = scaleFactor - self._parameterNode.radiusScaleFactorOffset
+        else:
+            pass
+        self.logic.scaleTubeRadii(self._parameterNode.outputShapeNode, scaleFactor)
 
 #
 # EditCenterlineLogic
@@ -424,7 +431,7 @@ class EditCenterlineLogic(ScriptedLoadableModuleLogic):
             self._processCenterlinePolyData(self._parameterNode.inputModelNode.GetPolyData())
 
         self._parameterNode.outputShapeNode.SnapAllControlPointsToTubeSurface()
-        self.scaleTubeRadii(self._parameterNode.outputShapeNode, self._parameterNode.radiusScaleFactor)
+        self.scaleTubeRadii(self._parameterNode.outputShapeNode, 1.0 + self._parameterNode.radiusScaleFactorOffset)
 
         stopTime = time.time()
         durationValue = '%.2f' % (stopTime-startTime)
