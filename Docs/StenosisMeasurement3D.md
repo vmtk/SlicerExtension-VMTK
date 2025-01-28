@@ -10,7 +10,9 @@ Segment a diseased arterial lumen using the segment editor. Draw a best fit arte
  
  - use a temporary open curve markups node: place each point of the curve at best estimates of the artery's anatomical axis; use 'Cross-section analysis' module to browse a resliced view along the curve; place pairs of control points of the Shape::Tube node at significant intervals during browsing; the open curve node can then be hidden or removed;
  
- - place pairs of control points of the Shape::Tube in a 'Volume rendering' view along the artery, click on successive control points and reslice to the active control point each time in the Markups module widget; this will reslice the selected view such that both elements of a pair of control points of the Shape::Tube node can be repositioned accurately to the best estimate of the artery's walls.
+ - place pairs of control points of the Shape::Tube in a 'Volume rendering' view along the artery, click on successive control points and reslice to the active control point each time in the Markups module widget; this will reslice the selected view such that both elements of a pair of control points of the Shape::Tube node can be repositioned accurately to the best estimate of the artery's walls;
+
+ - use '[Edit centerline](https://github.com/vmtk/SlicerExtension-VMTK/blob/master/Docs/EditCenterline.md)' module.
 
 The lumen should be manually cut to the zone of study. Otherwise, the result may be meaningless, if surrounding far away parts of the segment are included in the calculation. There should remain the drawn Tube surrounding a lumen that extends a little beyond the Tube.
 
