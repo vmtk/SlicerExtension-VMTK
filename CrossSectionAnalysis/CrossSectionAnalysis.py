@@ -160,7 +160,6 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.outputPlotSeriesTypeComboBox.connect("currentIndexChanged(int)", self.setPlotSeriesType)
     self.ui.axialSliceHorizontalFlipCheckBox.connect("clicked()", self.setHorizontalFlip)
     self.ui.axialSliceVerticalFlipCheckBox.connect("clicked()", self.setVerticalFlip)
-    self.ui.maxDiameterStenosisToolButton.connect("clicked()", self.moveSliceViewToMaximumDiameterStenosis)
     self.ui.maxSurfaceAreaStenosisToolButton.connect("clicked()", self.moveSliceViewToMaximumSurfaceAreaStenosis)
 
     self.ui.surfaceInformationGetToolButton.connect("clicked()", self.onGetRegionsButton)
@@ -707,18 +706,10 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.lumenSurfaceAreaValueLabel.setVisible(visibility)
     self.ui.stenosisRowLabel.setVisible(visibility)
     self.ui.diameterStenosisValueLabel.setVisible(visibility)
-    self.ui.maxDiameterStenosisToolButton.setVisible(visibility)
     self.ui.surfaceAreaStenosisValueLabel.setVisible(visibility)
     self.ui.maxSurfaceAreaStenosisToolButton.setVisible(visibility)
 
   # We would definitely want to go directly to the maximum stenosis.
-  def moveSliceViewToMaximumDiameterStenosis(self):
-    point = self.logic.getExtremeMetricPoint(DIAMETER_STENOSIS_ARRAY_NAME, True)
-    if point == -1:
-        return
-    self.ui.moveToPointSliderWidget.setValue(point)
-
-  # A single function should probably do, as the diameters are derived from the surface areas.
   def moveSliceViewToMaximumSurfaceAreaStenosis(self):
     point = self.logic.getExtremeMetricPoint(SURFACE_AREA_STENOSIS_ARRAY_NAME, True)
     if point == -1:
