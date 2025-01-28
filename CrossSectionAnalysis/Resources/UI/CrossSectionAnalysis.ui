@@ -1212,22 +1212,6 @@ Caution: values at bifurcations may not have clinical meaning.</string>
             </widget>
            </item>
            <item>
-            <widget class="QToolButton" name="maxDiameterStenosisToolButton">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="toolTip">
-              <string>Jump to the maximum stenosis point by CE diameter.</string>
-             </property>
-             <property name="text">
-              <string>max</string>
-             </property>
-            </widget>
-           </item>
-           <item>
             <spacer name="horizontalSpacer">
              <property name="orientation">
               <enum>Qt::Horizontal</enum>
