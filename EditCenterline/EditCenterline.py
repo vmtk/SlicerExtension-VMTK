@@ -34,7 +34,7 @@ class EditCenterline(ScriptedLoadableModule):
         self.parent.helpText = _("""
 Create a Shape::Tube markups node guided by an arbitrary markups curve, a centerline model or a centerline curve.
 See more information in <a href="https://github.com/vmtk/SlicerExtension-VMTK/">module documentation</a>.
-Thanks to Andras Lasso for requiring a centerline model/curve as input.
+Thanks to Andras Lasso for requiring import/export from/to a centerline model/curve.
 """)
         self.parent.acknowledgementText = _("""
 This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc., Andras Lasso, PerkLab,

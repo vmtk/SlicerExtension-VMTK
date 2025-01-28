@@ -386,7 +386,7 @@ The tortuosity of the tube and the diameter distribution determine this paramete
            <item row="1" column="0">
             <widget class="QLabel" name="radiusScaleFactorLabel">
              <property name="text">
-              <string>Radiuspercent scaling:</string>
+              <string>Radius percent scaling:</string>
              </property>
             </widget>
            </item>
