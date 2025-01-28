@@ -131,7 +131,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.rotationSliderWidget.connect("valueChanged(double)", lambda value: self.setValueInParameterNode("RotationAngleDeg", value))
     self.ui.axialSpinSliderWidget.connect("valueChanged(double)", lambda value: self.setValueInParameterNode("AxialSpinAngleDeg", value))
     self.ui.longitudinalSpinSliderWidget.connect("valueChanged(double)", lambda value: self.setValueInParameterNode("LongitudinalSpinAngleDeg", value))
-    self.ui.showMISDiameterPushButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode("ShowMISModel", "True" if value else "False"))
+    self.ui.showMISDiameterButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode("ShowMISModel", "True" if value else "False"))
     self.ui.showCrossSectionButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode("ShowCrossSection", "True" if value else "False"))
     self.ui.axialSliceHorizontalFlipCheckBox.connect("clicked()", lambda: self.setValueInParameterNode("AxialSliceHorizontalFlip", str(self.ui.axialSliceHorizontalFlipCheckBox.isChecked())))
     self.ui.axialSliceVerticalFlipCheckBox.connect("clicked()", lambda : self.setValueInParameterNode("AxialSliceVerticalFlip", str(self.ui.axialSliceVerticalFlipCheckBox.isChecked())))
@@ -150,17 +150,19 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.moveToPointSliderWidget.connect("valueChanged(double)", self.setCurrentPointIndex)
     self.ui.useCurrentPointAsOriginButton.connect("clicked()", self.onUseCurrentPointAsOrigin)
     self.ui.goToOriginButton.connect("clicked()", self.onGoToOriginPoint)
-    self.ui.moveToMinimumMISDiameterPushButton.connect("clicked()", self.moveSliceViewToMinimumMISDiameter)
-    self.ui.moveToMaximumMISDiameterPushButton.connect("clicked()", self.moveSliceViewToMaximumMISDiameter)
-    self.ui.moveToMinimumAreaPushButton.connect("clicked()", self.moveSliceViewToMinimumArea)
-    self.ui.moveToMaximumAreaPushButton.connect("clicked()", self.moveSliceViewToMaximumArea)
+    self.ui.moveToMinimumMISDiameterButton.connect("clicked()", lambda: self.moveSliceViewToExtremeMeasurement(MIS_DIAMETER_ARRAY_NAME, False))
+    self.ui.moveToMaximumMISDiameterButton.connect("clicked()", lambda: self.moveSliceViewToExtremeMeasurement(MIS_DIAMETER_ARRAY_NAME, True))
+    self.ui.moveToMinimumAreaButton.connect("clicked()", lambda: self.moveSliceViewToExtremeMeasurement(CROSS_SECTION_AREA_ARRAY_NAME, False))
+    self.ui.moveToMaximumAreaButton.connect("clicked()", lambda: self.moveSliceViewToExtremeMeasurement(CROSS_SECTION_AREA_ARRAY_NAME, True))
+    self.ui.minWallSurfaceAreaButton.connect("clicked()", lambda: self.moveSliceViewToExtremeMeasurement(WALL_CROSS_SECTION_AREA_ARRAY_NAME, False))
+    self.ui.maxWallSurfaceAreaButton.connect("clicked()", lambda: self.moveSliceViewToExtremeMeasurement(WALL_CROSS_SECTION_AREA_ARRAY_NAME, True))
     self.ui.toggleTableLayoutButton.connect("clicked()", self.toggleTableLayout)
     self.ui.togglePlotLayoutButton.connect("clicked()", self.togglePlotLayout)
 
     self.ui.outputPlotSeriesTypeComboBox.connect("currentIndexChanged(int)", self.setPlotSeriesType)
     self.ui.axialSliceHorizontalFlipCheckBox.connect("clicked()", self.setHorizontalFlip)
     self.ui.axialSliceVerticalFlipCheckBox.connect("clicked()", self.setVerticalFlip)
-    self.ui.maxSurfaceAreaStenosisToolButton.connect("clicked()", self.moveSliceViewToMaximumSurfaceAreaStenosis)
+    self.ui.maxSurfaceAreaStenosisButton.connect("clicked()", self.moveSliceViewToMaximumSurfaceAreaStenosis)
 
     self.ui.surfaceInformationGetToolButton.connect("clicked()", self.onGetRegionsButton)
     self.ui.surfaceInformationSpinBox.connect("valueChanged(int)", self.onRegionSelected)
@@ -335,7 +337,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.rotationSliderWidget.setValue(self.logic.rotationAngleDeg)
     self.ui.axialSpinSliderWidget.setValue(self.logic.axialSpinAngleDeg)
     self.ui.longitudinalSpinSliderWidget.setValue(self.logic.longitudinalSpinAngleDeg)
-    self.ui.showMISDiameterPushButton.setChecked(self.logic.showMaximumInscribedSphere)
+    self.ui.showMISDiameterButton.setChecked(self.logic.showMaximumInscribedSphere)
     self.ui.showCrossSectionButton.setChecked(self.logic.showCrossSection)
     self.ui.axialSliceHorizontalFlipCheckBox.setChecked(self.logic.axialSliceHorizontalFlip)
     self.ui.axialSliceVerticalFlipCheckBox.setChecked(self.logic.axialSliceVerticalFlip)
@@ -355,8 +357,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.rotationSliderWidget.setEnabled(reformatEnabled and self.ui.longitudinalSliceViewSelector.currentNodeID)
     self.ui.longitudinalSpinSliderWidget.setEnabled(reformatEnabled and self.ui.longitudinalSliceViewSelector.currentNodeID)
 
-    self.ui.moveToMinimumAreaPushButton.enabled = self.logic.lumenSurfaceNode is not None
-    self.ui.moveToMaximumAreaPushButton.enabled = self.logic.lumenSurfaceNode is not None
+    self.ui.moveToMinimumAreaButton.enabled = self.logic.lumenSurfaceNode is not None
+    self.ui.moveToMaximumAreaButton.enabled = self.logic.lumenSurfaceNode is not None
     self.ui.showCrossSectionButton.enabled = self.logic.lumenSurfaceNode is not None
 
     self.ui.surfaceInformationGoToToolButton.setChecked(self._parameterNode.GetParameter("GoToRegion") == "True")
@@ -408,12 +410,12 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       isCenterlineRadiusAvailable = self.logic.isCenterlineRadiusAvailable()
       self.ui.toggleTableLayoutButton.visible = self.logic.outputTableNode is not None
       self.ui.togglePlotLayoutButton.visible = self.logic.outputPlotSeriesNode is not None
-      self.ui.moveToMinimumMISDiameterPushButton.enabled = isCenterlineRadiusAvailable
-      self.ui.moveToMaximumMISDiameterPushButton.enabled = isCenterlineRadiusAvailable
-      self.ui.showMISDiameterPushButton.enabled = isCenterlineRadiusAvailable
+      self.ui.moveToMinimumMISDiameterButton.enabled = isCenterlineRadiusAvailable
+      self.ui.moveToMaximumMISDiameterButton.enabled = isCenterlineRadiusAvailable
+      self.ui.showMISDiameterButton.enabled = isCenterlineRadiusAvailable
 
-      self.ui.moveToMinimumAreaPushButton.enabled = self.logic.lumenSurfaceNode is not None
-      self.ui.moveToMaximumAreaPushButton.enabled = self.logic.lumenSurfaceNode is not None
+      self.ui.moveToMinimumAreaButton.enabled = self.logic.lumenSurfaceNode is not None
+      self.ui.moveToMaximumAreaButton.enabled = self.logic.lumenSurfaceNode is not None
       self.ui.showCrossSectionButton.enabled = self.logic.lumenSurfaceNode is not None
 
       if tableHasData:
@@ -564,26 +566,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     slider.maximum = 0
     slider.setValue(0)
 
-  def moveSliceViewToMinimumMISDiameter(self):
-    point = self.logic.getExtremeMetricPoint(MIS_DIAMETER_ARRAY_NAME, False)
-    if point == -1:
-        return
-    self.ui.moveToPointSliderWidget.setValue(point)
-
-  def moveSliceViewToMaximumMISDiameter(self):
-    point = self.logic.getExtremeMetricPoint(MIS_DIAMETER_ARRAY_NAME, True)
-    if point == -1:
-        return
-    self.ui.moveToPointSliderWidget.setValue(point)
-
-  def moveSliceViewToMinimumArea(self):
-    point = self.logic.getExtremeMetricPoint(CROSS_SECTION_AREA_ARRAY_NAME, False)
-    if point == -1:
-        return
-    self.ui.moveToPointSliderWidget.setValue(point)
-
-  def moveSliceViewToMaximumArea(self):
-    point = self.logic.getExtremeMetricPoint(CROSS_SECTION_AREA_ARRAY_NAME, True)
+  def moveSliceViewToExtremeMeasurement(self, arrayName, max):
+    point = self.logic.getExtremeMetricPoint(arrayName, max)
     if point == -1:
         return
     self.ui.moveToPointSliderWidget.setValue(point)
@@ -698,6 +682,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.wallRowLabel.setVisible(visibility)
     self.ui.wallDiameterValueLabel.setVisible(visibility)
     self.ui.wallSurfaceAreaValueLabel.setVisible(visibility)
+    self.ui.minWallSurfaceAreaButton.setVisible(visibility)
+    self.ui.maxWallSurfaceAreaButton.setVisible(visibility)
 
     visibility = self.logic.inputCenterlineNode and self.logic.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode") and self.logic.lumenSurfaceNode
     # With or without a segmentation or model node as input lumen.
@@ -707,7 +693,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.stenosisRowLabel.setVisible(visibility)
     self.ui.diameterStenosisValueLabel.setVisible(visibility)
     self.ui.surfaceAreaStenosisValueLabel.setVisible(visibility)
-    self.ui.maxSurfaceAreaStenosisToolButton.setVisible(visibility)
+    self.ui.maxSurfaceAreaStenosisButton.setVisible(visibility)
 
   # We would definitely want to go directly to the maximum stenosis.
   def moveSliceViewToMaximumSurfaceAreaStenosis(self):
