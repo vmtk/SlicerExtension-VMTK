@@ -133,7 +133,7 @@ This is intended to represent a unique combination of input centerline and surfa
        </widget>
       </item>
       <item row="1" column="1">
-       <layout class="QVBoxLayout" name="verticalLayout_6">
+       <layout class="QVBoxLayout" name="parametersVerticalLayout">
         <item>
          <widget class="qMRMLNodeComboBox" name="segmentationSelector">
           <property name="toolTip">
@@ -189,7 +189,7 @@ The input centerline is expected to be inside the lumen surface.</string>
        </widget>
       </item>
       <item row="2" column="1">
-       <layout class="QHBoxLayout" name="horizontalLayout_8">
+       <layout class="QHBoxLayout" name="outputTableHorizontalLayout">
         <item>
          <widget class="qMRMLNodeComboBox" name="outputTableSelector">
           <property name="toolTip">
@@ -240,7 +240,7 @@ The input centerline is expected to be inside the lumen surface.</string>
        </widget>
       </item>
       <item row="4" column="1">
-       <layout class="QHBoxLayout" name="horizontalLayout_5">
+       <layout class="QHBoxLayout" name="outputPlotSeriesHorizontalLayout">
         <item>
          <widget class="qMRMLNodeComboBox" name="outputPlotSeriesSelector">
           <property name="toolTip">
@@ -547,7 +547,7 @@ The 'Sphere' brush is enforced. Further customisation can be performed in the 'S
      </property>
      <layout class="QVBoxLayout" name="verticalLayout_7">
       <item>
-       <layout class="QFormLayout" name="formLayout_5">
+       <layout class="QFormLayout" name="outputFormLayout">
         <item row="0" column="0">
          <widget class="QLabel" name="moveToPointLabel">
           <property name="layoutDirection">
@@ -585,7 +585,7 @@ The 'Sphere' brush is enforced. Further customisation can be performed in the 'S
          </widget>
         </item>
         <item row="1" column="1">
-         <layout class="QGridLayout" name="gridLayout">
+         <layout class="QGridLayout" name="moveSliceViewGridLayout">
           <item row="0" column="1">
            <widget class="qMRMLNodeComboBox" name="axialSliceViewSelector">
             <property name="toolTip">
@@ -643,7 +643,7 @@ The 'Sphere' brush is enforced. Further customisation can be performed in the 'S
            </widget>
           </item>
           <item row="0" column="0">
-           <widget class="QLabel" name="label_3">
+           <widget class="QLabel" name="axialLabel">
             <property name="text">
              <string>Axial:</string>
             </property>
@@ -702,7 +702,7 @@ The 'Sphere' brush is enforced. Further customisation can be performed in the 'S
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="QLabel" name="label_5">
+           <widget class="QLabel" name="rotateLabel">
             <property name="toolTip">
              <string/>
             </property>
@@ -712,7 +712,7 @@ The 'Sphere' brush is enforced. Further customisation can be performed in the 'S
            </widget>
           </item>
           <item row="1" column="0">
-           <widget class="QLabel" name="label_4">
+           <widget class="QLabel" name="longitudinalLabel">
             <property name="toolTip">
              <string>Longitudinal</string>
             </property>
@@ -724,7 +724,7 @@ The 'Sphere' brush is enforced. Further customisation can be performed in the 'S
          </layout>
         </item>
         <item row="2" column="1">
-         <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox_2">
+         <widget class="ctkCollapsibleGroupBox" name="spinFlipCollapsibleGroupBox">
           <property name="title">
            <string>Spin / Flip</string>
           </property>
@@ -748,7 +748,7 @@ The 'Sphere' brush is enforced. Further customisation can be performed in the 'S
             <number>3</number>
            </property>
            <item row="0" column="0">
-            <widget class="QLabel" name="label">
+            <widget class="QLabel" name="axialSpinFlipLabel">
              <property name="text">
               <string>Axial:</string>
              </property>
@@ -783,7 +783,7 @@ The 'Sphere' brush is enforced. Further customisation can be performed in the 'S
             </widget>
            </item>
            <item row="1" column="0">
-            <widget class="QLabel" name="label_2">
+            <widget class="QLabel" name="longitudinalSpinFlipLabel">
              <property name="text">
               <string>Long.:</string>
              </property>
@@ -866,7 +866,7 @@ Concerns orthogonal reformat in axial navigation.</string>
          </widget>
         </item>
         <item row="3" column="1">
-         <layout class="QHBoxLayout" name="horizontalLayout_4">
+         <layout class="QHBoxLayout" name="distanceFromOriginHorizontalLayout">
           <item>
            <widget class="QLabel" name="distanceValueLabel">
             <property name="toolTip">
@@ -948,7 +948,7 @@ Concerns orthogonal reformat in axial navigation.</string>
          </widget>
         </item>
         <item row="5" column="1">
-         <layout class="QHBoxLayout" name="horizontalLayout_2">
+         <layout class="QHBoxLayout" name="misDiameterHorizontalLayout">
           <item>
            <widget class="QLabel" name="diameterValueLabel">
             <property name="toolTip">
@@ -963,7 +963,7 @@ Concerns orthogonal reformat in axial navigation.</string>
            </widget>
           </item>
           <item>
-           <widget class="QToolButton" name="moveToMinimumMISDiameterPushButton">
+           <widget class="QToolButton" name="moveToMinimumMISDiameterButton">
             <property name="toolTip">
              <string>Jump to the smallest MIS diameter point.</string>
             </property>
@@ -973,7 +973,7 @@ Concerns orthogonal reformat in axial navigation.</string>
            </widget>
           </item>
           <item>
-           <widget class="QToolButton" name="moveToMaximumMISDiameterPushButton">
+           <widget class="QToolButton" name="moveToMaximumMISDiameterButton">
             <property name="toolTip">
              <string>Jump to the largest MIS diameter point.</string>
             </property>
@@ -983,7 +983,7 @@ Concerns orthogonal reformat in axial navigation.</string>
            </widget>
           </item>
           <item>
-           <widget class="QToolButton" name="showMISDiameterPushButton">
+           <widget class="QToolButton" name="showMISDiameterButton">
             <property name="toolTip">
              <string>Show the maximum inscribed sphere diameter.</string>
             </property>
@@ -1005,7 +1005,7 @@ Concerns orthogonal reformat in axial navigation.</string>
          </widget>
         </item>
         <item row="6" column="1">
-         <layout class="QHBoxLayout" name="horizontalLayout">
+         <layout class="QHBoxLayout" name="crossSectionAreaHorizontalLayout">
           <item>
            <widget class="QLabel" name="surfaceAreaValueLabel">
             <property name="toolTip">
@@ -1017,7 +1017,7 @@ Concerns orthogonal reformat in axial navigation.</string>
            </widget>
           </item>
           <item>
-           <widget class="QToolButton" name="moveToMinimumAreaPushButton">
+           <widget class="QToolButton" name="moveToMinimumAreaButton">
             <property name="enabled">
              <bool>false</bool>
             </property>
@@ -1030,7 +1030,7 @@ Concerns orthogonal reformat in axial navigation.</string>
            </widget>
           </item>
           <item>
-           <widget class="QToolButton" name="moveToMaximumAreaPushButton">
+           <widget class="QToolButton" name="moveToMaximumAreaButton">
             <property name="enabled">
              <bool>false</bool>
             </property>
@@ -1109,13 +1109,6 @@ Caution: values at bifurcations may not have clinical meaning.</string>
          <string/>
         </property>
         <layout class="QGridLayout" name="gridLayout_2">
-         <item row="1" column="1">
-          <widget class="QLabel" name="wallDiameterValueLabel">
-           <property name="text">
-            <string/>
-           </property>
-          </widget>
-         </item>
          <item row="0" column="1">
           <widget class="QLabel" name="diameterColumnLabel">
            <property name="toolTip">
@@ -1126,28 +1119,14 @@ Caution: values at bifurcations may not have clinical meaning.</string>
            </property>
           </widget>
          </item>
-         <item row="2" column="1">
+         <item row="3" column="1">
           <widget class="QLabel" name="lumenDiameterValueLabel">
            <property name="text">
             <string/>
            </property>
           </widget>
          </item>
-         <item row="0" column="2">
-          <widget class="QLabel" name="surfaceAreaColumnLabel">
-           <property name="text">
-            <string>Surface area</string>
-           </property>
-          </widget>
-         </item>
-         <item row="1" column="2">
-          <widget class="QLabel" name="wallSurfaceAreaValueLabel">
-           <property name="text">
-            <string/>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="0">
+         <item row="3" column="0">
           <widget class="QLabel" name="lumenRowLabel">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
@@ -1160,6 +1139,43 @@ Caution: values at bifurcations may not have clinical meaning.</string>
            </property>
            <property name="alignment">
             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="0">
+          <widget class="QLabel" name="stenosisRowLabel">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Stenosis:</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QLabel" name="wallDiameterValueLabel">
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="2">
+          <widget class="QLabel" name="lumenSurfaceAreaValueLabel">
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="2">
+          <widget class="QLabel" name="surfaceAreaColumnLabel">
+           <property name="text">
+            <string>Surface area</string>
            </property>
           </widget>
          </item>
@@ -1179,30 +1195,7 @@ Caution: values at bifurcations may not have clinical meaning.</string>
            </property>
           </widget>
          </item>
-         <item row="4" column="0">
-          <widget class="QLabel" name="stenosisRowLabel">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="text">
-            <string>Stenosis:</string>
-           </property>
-           <property name="alignment">
-            <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="2">
-          <widget class="QLabel" name="lumenSurfaceAreaValueLabel">
-           <property name="text">
-            <string/>
-           </property>
-          </widget>
-         </item>
-         <item row="4" column="1">
+         <item row="5" column="1">
           <layout class="QHBoxLayout" name="diameterStenosisLayout">
            <item>
             <widget class="QLabel" name="diameterStenosisValueLabel">
@@ -1212,7 +1205,7 @@ Caution: values at bifurcations may not have clinical meaning.</string>
             </widget>
            </item>
            <item>
-            <spacer name="horizontalSpacer">
+            <spacer name="stenosisByDiameterHorizontalSpacer">
              <property name="orientation">
               <enum>Qt::Horizontal</enum>
              </property>
@@ -1226,7 +1219,7 @@ Caution: values at bifurcations may not have clinical meaning.</string>
            </item>
           </layout>
          </item>
-         <item row="4" column="2">
+         <item row="5" column="2">
           <layout class="QHBoxLayout" name="surfaceAreaStenosisLayout">
            <item>
             <widget class="QLabel" name="surfaceAreaStenosisValueLabel">
@@ -1236,7 +1229,20 @@ Caution: values at bifurcations may not have clinical meaning.</string>
             </widget>
            </item>
            <item>
-            <widget class="QToolButton" name="maxSurfaceAreaStenosisToolButton">
+            <spacer name="stenosisBySurfaceAreaHorizontalSpacer">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QToolButton" name="maxSurfaceAreaStenosisButton">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
                <horstretch>0</horstretch>
@@ -1251,8 +1257,19 @@ Caution: values at bifurcations may not have clinical meaning.</string>
              </property>
             </widget>
            </item>
+          </layout>
+         </item>
+         <item row="1" column="2">
+          <layout class="QHBoxLayout" name="wallSurfaceAreaHorizontalLayout">
            <item>
-            <spacer name="horizontalSpacer_2">
+            <widget class="QLabel" name="wallSurfaceAreaValueLabel">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="wallSurfaceAreaHorizontalSpacer">
              <property name="orientation">
               <enum>Qt::Horizontal</enum>
              </property>
@@ -1264,6 +1281,20 @@ Caution: values at bifurcations may not have clinical meaning.</string>
              </property>
             </spacer>
            </item>
+           <item>
+            <widget class="QToolButton" name="minWallSurfaceAreaButton">
+             <property name="text">
+              <string>min</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QToolButton" name="maxWallSurfaceAreaButton">
+             <property name="text">
+              <string>max</string>
+             </property>
+            </widget>
+           </item>
           </layout>
          </item>
         </layout>
@@ -1273,7 +1304,7 @@ Caution: values at bifurcations may not have clinical meaning.</string>
     </widget>
    </item>
    <item>
-    <spacer name="verticalSpacer">
+    <spacer name="bottomVerticalSpacer">
      <property name="orientation">
       <enum>Qt::Vertical</enum>
      </property>
