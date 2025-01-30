@@ -143,7 +143,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
     self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.setInputCenterlineNode)
     self.ui.segmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onInputSegmentationNode)
-    self.ui.segmentSelector.connect("currentSegmentChanged(QString)", self.resetLumenRegions)
+    self.ui.segmentSelector.connect("currentSegmentChanged(QString)", self.onInputSegmentationNode) # Need to perform the same tasks as with segmentationSelector.
     self.ui.outputPlotSeriesSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.resetOutput)
     self.ui.outputTableSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.resetOutput)
 
@@ -645,12 +645,14 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.ui.inputCenterlineSelector.setCurrentNode(None)
         self.logic.setInputCenterlineNode(None)
         return
+    self.resetOutput()
     # Notes:  updateGUIFromParameterNode() has already done this.
     self.logic.setInputCenterlineNode(centerlineNode)
     self.updatePlotOptions()
     self.updateWallLabelsVisibility()
 
   def onInputSegmentationNode(self):
+    self.resetOutput()
     self.updatePlotOptions()
     self.updateWallLabelsVisibility()
     self.resetLumenRegions()
