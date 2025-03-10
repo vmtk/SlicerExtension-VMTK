@@ -44,15 +44,6 @@ and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR0132
 """)
 
 #
-# CenterlineDisassemblyParameterNode
-#
-
-@parameterNodeWrapper
-class CenterlineDisassemblyParameterNode:
-    inputCenterline: slicer.vtkMRMLModelNode
-    # QToolButton is not handled here.
-
-#
 # CenterlineDisassemblyWidget
 #
 
@@ -69,7 +60,7 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         VTKObservationMixin.__init__(self)  # needed for parameter node observation
         self.logic = None
         self._parameterNode = None
-        self._parameterNodeGuiTag = None
+        self._updatingGUIFromParameterNode = False
         self._createdCurveVisibilityAction = None
 
     def setup(self) -> None:
@@ -92,6 +83,7 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         # Create logic class. Logic implements all computations that should be possible to run
         # in batch mode, without a graphical user interface.
         self.logic = CenterlineDisassemblyLogic()
+        self.ui.parameterSetSelector.addAttribute("vtkMRMLScriptedModuleNode", "ModuleName", self.moduleName)
         
         self.ui.componentCheckableComboBox.addItem(_("Bifurcations"), BIFURCATIONS_ITEM_ID)
         self.ui.componentCheckableComboBox.addItem(_("Branches"), BRANCHES_ITEM_ID)
@@ -110,6 +102,13 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
 
+        # Update the parameter node.
+        self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onCenterlineChanged)
+        self.ui.parameterSetSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.setParameterNode)
+        self.ui.optionCreateModelsToolButton.connect("toggled(bool)", self.onCreateModels)
+        self.ui.optionCreateCurvesMenuButton.connect("toggled(bool)", self.onCreateCurves)
+        self._createdCurveVisibilityAction.connect("toggled(bool)", self.onShowCurveNames)
+        self.ui.componentCheckableComboBox.connect("checkedIndexesChanged()", self.onComponentSelection)
         # Buttons
         self.ui.applyButton.connect("clicked(bool)", self.onApplyButton)
 
@@ -133,10 +132,7 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         """
         Called each time the user opens a different module.
         """
-        # Do not react to parameter node changes (GUI will be updated when the user enters into the module)
-        if self._parameterNode:
-            self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
-            self._parameterNodeGuiTag = None
+        pass
 
     def onSceneStartClose(self, caller, event) -> None:
         """
@@ -160,21 +156,37 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         # Parameter node stores all user choices in parameter values, node selections, etc.
         # so that when the scene is saved and reloaded, these settings are restored.
 
-        self.setParameterNode(self.logic.getParameterNode())
+        # The initial parameter node originates from logic and is picked up by the parameter set combobox.
+        # Other parameter nodes are created by the parameter set combobox and used here.
+        if not self._parameterNode:
+            self.setParameterNode(self.logic.getParameterNode())
+            wasBlocked = self.ui.parameterSetSelector.blockSignals(True)
+            self.ui.parameterSetSelector.setCurrentNode(self._parameterNode)
+            self.ui.parameterSetSelector.blockSignals(wasBlocked)
 
-    def setParameterNode(self, inputParameterNode: Optional[CenterlineDisassemblyParameterNode]) -> None:
-        """
-        Set and observe parameter node.
-        Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
-        """
-
-        if self._parameterNode:
-            self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
+    def setParameterNode(self, inputParameterNode: slicer.vtkMRMLScriptedModuleNode) -> None:
+        if inputParameterNode == self._parameterNode:
+            return
         self._parameterNode = inputParameterNode
+
         if self._parameterNode:
-            # Note: in the .ui file, a Qt dynamic property called "SlicerParameterName" is set on each
-            # ui element that needs connection.
-            self._parameterNodeGuiTag = self._parameterNode.connectGui(self.ui)
+            self.setDefaultValues()
+            self.updateGUIFromParameterNode()
+
+    def setDefaultValues(self):
+        if not self._parameterNode:
+            return
+
+        if self._parameterNode.HasParameter(ROLE_INITIALIZED):
+            return
+        
+        self._parameterNode.SetParameter(ROLE_CREATE_MODELS, str(0))
+        self._parameterNode.SetParameter(ROLE_CREATE_CURVES, str(0))
+        self._parameterNode.SetParameter(ROLE_SHOW_CURVE_NAMES, str(0))
+        self._parameterNode.SetParameter(ROLE_CREATE_BIFURCATIONS, str(0))
+        self._parameterNode.SetParameter(ROLE_CREATE_BRANCHES, str(0))
+        self._parameterNode.SetParameter(ROLE_CREATE_CENTERLINES, str(0))
+        self._parameterNode.SetParameter(ROLE_INITIALIZED, str(1))
 
     def onApplyButton(self) -> None:
         """
@@ -183,6 +195,7 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         optionCreateModels = self.ui.optionCreateModelsToolButton.checked
         optionCreateCurves = self.ui.optionCreateCurvesMenuButton.checked
         optionShowCurveNames = self._createdCurveVisibilityAction.checked
+        inputCenterline = self._parameterNode.GetNodeReference(ROLE_INPUT_CENTERLINE)
         
         with slicer.util.tryWithErrorDisplay(_("Failed to compute results."), waitCursor=True):
             components = self.ui.componentCheckableComboBox.checkedIndexes()
@@ -196,7 +209,7 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
             
             self.showStatusMessage( (_("Splitting centerline"),) )
             # Compute output
-            self.logic.splitCenterlines(self._parameterNode.inputCenterline.GetPolyData()) # Once only for all selections
+            self.logic.splitCenterlines(inputCenterline.GetPolyData()) # Once only for all selections
             shFolderId = -1
             
             # The total procesing time is significantly reduced when there are too many components.
@@ -210,10 +223,10 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
                     bifurcationsPolyDatas = self.logic.processGroupIds(True)
                     if (len(bifurcationsPolyDatas)):
                         if optionCreateModels:
-                            shFolderId = self._createSubjectHierarchyFolderNode(componentLabel + " - " + self._parameterNode.inputCenterline.GetName() + _(" models"))
+                            shFolderId = self._createSubjectHierarchyFolderNode(componentLabel + " - " + inputCenterline.GetName() + _(" models"))
                         
                         if optionCreateCurves:
-                            shCurveFolderId = self._createCurveSubjectHierarchyFolderNode(componentLabel + " - " + self._parameterNode.inputCenterline.GetName() + _(" curves"))
+                            shCurveFolderId = self._createCurveSubjectHierarchyFolderNode(componentLabel + " - " + inputCenterline.GetName() + _(" curves"))
                     
                     self.showStatusMessage( (_("Creating bifurcations"),) )
                     for bifurcationPolyData in bifurcationsPolyDatas:
@@ -228,10 +241,10 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
                     branchesPolyDatas = self.logic.processGroupIds(False)
                     if (len(branchesPolyDatas)):
                         if optionCreateModels:
-                            shFolderId = self._createSubjectHierarchyFolderNode(componentLabel + " - " + self._parameterNode.inputCenterline.GetName() + _(" models"))
+                            shFolderId = self._createSubjectHierarchyFolderNode(componentLabel + " - " + inputCenterline.GetName() + _(" models"))
                         
                         if optionCreateCurves:
-                            shCurveFolderId = self._createCurveSubjectHierarchyFolderNode(componentLabel + " - " + self._parameterNode.inputCenterline.GetName() + _(" curves"))
+                            shCurveFolderId = self._createCurveSubjectHierarchyFolderNode(componentLabel + " - " + inputCenterline.GetName() + _(" curves"))
                     
                     self.showStatusMessage( (_("Creating branches"),) )
                     for branchPolyData in branchesPolyDatas:
@@ -246,10 +259,10 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
                     centerlinesPolyDatas = self.logic.processCenterlineIds()
                     if (len(centerlinesPolyDatas)):
                         if optionCreateModels:
-                            shFolderId = self._createSubjectHierarchyFolderNode(componentLabel + " - " + self._parameterNode.inputCenterline.GetName() + _(" models"))
+                            shFolderId = self._createSubjectHierarchyFolderNode(componentLabel + " - " + inputCenterline.GetName() + _(" models"))
                         
                         if optionCreateCurves:
-                            shCurveFolderId = self._createCurveSubjectHierarchyFolderNode(componentLabel + " - " + self._parameterNode.inputCenterline.GetName() + _(" curves"))
+                            shCurveFolderId = self._createCurveSubjectHierarchyFolderNode(componentLabel + " - " + inputCenterline.GetName() + _(" curves"))
                     
                     self.showStatusMessage( (_("Creating centerlines"),) )
                     for centerlinePolyData in centerlinesPolyDatas:
@@ -269,16 +282,18 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
             self.showStatusMessage( (_("Finished"),) )
 
     def _createSubjectHierarchyFolderNode(self, label):
-        if self._parameterNode.inputCenterline is None:
+        inputCenterline = self._parameterNode.GetNodeReference(ROLE_INPUT_CENTERLINE)
+        if inputCenterline is None:
             return
         shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
-        shMasterCenterlineId = shNode.GetItemByDataNode(self._parameterNode.inputCenterline)
+        shMasterCenterlineId = shNode.GetItemByDataNode(inputCenterline)
         shFolderId = shNode.CreateFolderItem(shMasterCenterlineId, label)
         shNode.SetItemExpanded(shFolderId, False)
         return shFolderId
     
     def _createCurveSubjectHierarchyFolderNode(self, label):
-        if self._parameterNode.inputCenterline is None:
+        inputCenterline = self._parameterNode.GetNodeReference(ROLE_INPUT_CENTERLINE)
+        if inputCenterline is None:
             return
         shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
         shFolderId = shNode.CreateFolderItem(shNode.GetSceneItemID(), label)
@@ -318,6 +333,57 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         slicer.app.processEvents()
         if console:
             logging.info(msg)
+
+    def onCenterlineChanged(self, node):
+        if self._parameterNode:
+            self._parameterNode.SetNodeReferenceID(ROLE_INPUT_CENTERLINE, node.GetID() if node else None)
+
+    def onCreateModels(self, checked):
+        if self._parameterNode:
+            self._parameterNode.SetParameter(ROLE_CREATE_MODELS, str(1) if checked else str(0))
+
+    def onCreateCurves(self, checked):
+        if self._parameterNode:
+            self._parameterNode.SetParameter(ROLE_CREATE_CURVES, str(1) if checked else str(0))
+
+    def onShowCurveNames(self, checked):
+        if self._parameterNode:
+            self._parameterNode.SetParameter(ROLE_SHOW_CURVE_NAMES, str(1) if checked else str(0))
+
+    def onComponentSelection(self):
+        bifurcationsModelIndex = self.ui.componentCheckableComboBox.checkableModel().index(0, 0)
+        self._parameterNode.SetParameter(ROLE_CREATE_BIFURCATIONS, str(self.ui.componentCheckableComboBox.checkState(bifurcationsModelIndex)))
+        
+        branchesModelIndex = self.ui.componentCheckableComboBox.checkableModel().index(1, 0)
+        self._parameterNode.SetParameter(ROLE_CREATE_BRANCHES, str(self.ui.componentCheckableComboBox.checkState(branchesModelIndex)))
+        
+        centerlinesModelIndex = self.ui.componentCheckableComboBox.checkableModel().index(2, 0)
+        self._parameterNode.SetParameter(ROLE_CREATE_CENTERLINES, str(self.ui.componentCheckableComboBox.checkState(centerlinesModelIndex)))
+
+    def updateGUIFromParameterNode(self):
+        if self._parameterNode is None or self._updatingGUIFromParameterNode:
+            return
+
+        # Make sure GUI changes do not call updateParameterNodeFromGUI (it could cause infinite loop)
+        self._updatingGUIFromParameterNode = True
+
+        self.ui.inputCenterlineSelector.setCurrentNode(self._parameterNode.GetNodeReference(ROLE_INPUT_CENTERLINE))
+        self.ui.optionCreateModelsToolButton.setChecked(int(self._parameterNode.GetParameter(ROLE_CREATE_MODELS)))
+        self.ui.optionCreateCurvesMenuButton.setChecked(int(self._parameterNode.GetParameter(ROLE_CREATE_CURVES)))
+        self._createdCurveVisibilityAction.setChecked(int(self._parameterNode.GetParameter(ROLE_SHOW_CURVE_NAMES)))
+
+        wasBlocked = self.ui.componentCheckableComboBox.blockSignals(True)
+        bifurcationsModelIndex = self.ui.componentCheckableComboBox.checkableModel().index(0, 0)
+        self.ui.componentCheckableComboBox.setCheckState(bifurcationsModelIndex, int(self._parameterNode.GetParameter(ROLE_CREATE_BIFURCATIONS)))
+        
+        branchesModelIndex = self.ui.componentCheckableComboBox.checkableModel().index(1, 0)
+        self.ui.componentCheckableComboBox.setCheckState(branchesModelIndex, int(self._parameterNode.GetParameter(ROLE_CREATE_BRANCHES)))
+        
+        centerlinesModelIndex = self.ui.componentCheckableComboBox.checkableModel().index(2, 0)
+        self.ui.componentCheckableComboBox.setCheckState(centerlinesModelIndex, int(self._parameterNode.GetParameter(ROLE_CREATE_CENTERLINES)))
+        self.ui.componentCheckableComboBox.blockSignals(wasBlocked)
+
+        self._updatingGUIFromParameterNode = False
 #
 # CenterlineDisassemblyLogic
 #
@@ -329,9 +395,6 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
         """
         ScriptedLoadableModuleLogic.__init__(self)
         self._splitCenterlines = None
-
-    def getParameterNode(self):
-        return CenterlineDisassemblyParameterNode(super().getParameterNode())
 
     def splitCenterlines(self, inputCenterline: vtk.vtkPolyData):
 
@@ -406,11 +469,11 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
             radiusArray.SetName(radiusArrayName)
             if masterEdgeArray:
                 edgeArray = vtk.vtkDoubleArray()
-                edgeArray.SetName("EdgeArray")
+                edgeArray.SetName(edgeArrayName)
                 edgeArray.SetNumberOfComponents(2)
             if masterEdgePCoordArray:
                 edgePCoordArray = vtk.vtkDoubleArray()
-                edgePCoordArray.SetName("EdgePCoordArray")
+                edgePCoordArray.SetName(edgePCoordArrayName)
             
             masterCellId = cellIds.GetId(i)
             masterCellPolyLine = self._splitCenterlines.GetCell(masterCellId)
@@ -478,11 +541,11 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
         radiusArray.SetName(radiusArrayName)
         if masterEdgeArray:
             edgeArray = vtk.vtkDoubleArray()
-            edgeArray.SetName("EdgeArray")
+            edgeArray.SetName(edgeArrayName)
             edgeArray.SetNumberOfComponents(2)
         if masterEdgePCoordArray:
             edgePCoordArray = vtk.vtkDoubleArray()
-            edgePCoordArray.SetName("EdgePCoordArray")
+            edgePCoordArray.SetName(edgePCoordArrayName)
 
         # The new cell array must allocate for points of all input cells.
         cellArray.InsertNextCell(centerlinePolyData.GetNumberOfPoints())
@@ -650,3 +713,12 @@ centerlineIdsArrayName = 'CenterlineIds'
 tractIdsArrayName = 'TractIds'
 edgeArrayName = 'EdgeArray'
 edgePCoordArrayName = 'EdgePCoordArray'
+
+ROLE_INPUT_CENTERLINE = "InputCenterline"
+ROLE_CREATE_MODELS = "CreateModels"
+ROLE_CREATE_CURVES = "CreateCurves"
+ROLE_SHOW_CURVE_NAMES = "ShowCurveNames"
+ROLE_CREATE_BIFURCATIONS = "CreateBifurcations"
+ROLE_CREATE_BRANCHES = "CreateBranches"
+ROLE_CREATE_CENTERLINES = "CreateCenterlines"
+ROLE_INITIALIZED = "Initialized"

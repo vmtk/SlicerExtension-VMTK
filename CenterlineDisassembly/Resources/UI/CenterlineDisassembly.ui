@@ -12,68 +12,117 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <layout class="QFormLayout" name="inputFormLayout">
+    <layout class="QFormLayout" name="parameterSetLayout">
      <item row="0" column="0">
-      <widget class="QLabel" name="inputSectorLabel">
+      <widget class="QLabel" name="parameterSetLabel">
        <property name="text">
-        <string>Centerline model:</string>
+        <string>Parameter set:</string>
        </property>
       </widget>
      </item>
      <item row="0" column="1">
-      <widget class="qMRMLNodeComboBox" name="inputSelector">
+      <widget class="qMRMLNodeComboBox" name="parameterSetSelector">
        <property name="enabled">
-        <bool>true</bool>
+        <bool>false</bool>
        </property>
        <property name="toolTip">
-        <string>Pick the input to the algorithm.</string>
+        <string>A parameter set groups parameters that define a named study distinctly.</string>
        </property>
        <property name="nodeTypes">
         <stringlist notr="true">
-         <string>vtkMRMLModelNode</string>
+         <string>vtkMRMLScriptedModuleNode</string>
         </stringlist>
        </property>
-       <property name="showChildNodeTypes">
-        <bool>false</bool>
+       <property name="showHidden">
+        <bool>true</bool>
+       </property>
+       <property name="hideChildNodeTypes">
+        <stringlist notr="true"/>
+       </property>
+       <property name="baseName">
+        <string notr="true">CenterlineDisassembly</string>
        </property>
        <property name="noneEnabled">
-        <bool>true</bool>
-       </property>
-       <property name="addEnabled">
         <bool>false</bool>
-       </property>
-       <property name="removeEnabled">
-        <bool>true</bool>
-       </property>
-       <property name="editEnabled">
-        <bool>true</bool>
        </property>
        <property name="renameEnabled">
         <bool>true</bool>
        </property>
+       <property name="interactionNodeSingletonTag">
+        <string notr="true"/>
+       </property>
        <property name="selectNodeUponCreation">
-        <bool>false</bool>
-       </property>
-       <property name="SlicerParameterName" stdset="0">
-        <string notr="true">inputCenterline</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="0">
-      <widget class="QLabel" name="componentLabel">
-       <property name="text">
-        <string>Component:</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="1">
-      <widget class="ctkCheckableComboBox" name="componentCheckableComboBox">
-       <property name="toolTip">
-        <string>Select the output components.</string>
+        <bool>true</bool>
        </property>
       </widget>
      </item>
     </layout>
+   </item>
+   <item>
+    <widget class="ctkCollapsibleButton" name="inputsCollapsibleButton">
+     <property name="text">
+      <string>Inputs</string>
+     </property>
+     <layout class="QFormLayout" name="formLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="inputSectorLabel">
+        <property name="text">
+         <string>Centerline model:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="qMRMLNodeComboBox" name="inputCenterlineSelector">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <property name="toolTip">
+         <string>Pick the input to the algorithm.</string>
+        </property>
+        <property name="nodeTypes">
+         <stringlist notr="true">
+          <string>vtkMRMLModelNode</string>
+         </stringlist>
+        </property>
+        <property name="showChildNodeTypes">
+         <bool>false</bool>
+        </property>
+        <property name="noneEnabled">
+         <bool>true</bool>
+        </property>
+        <property name="addEnabled">
+         <bool>false</bool>
+        </property>
+        <property name="removeEnabled">
+         <bool>true</bool>
+        </property>
+        <property name="editEnabled">
+         <bool>true</bool>
+        </property>
+        <property name="renameEnabled">
+         <bool>true</bool>
+        </property>
+        <property name="selectNodeUponCreation">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="componentLabel">
+        <property name="text">
+         <string>Component:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="ctkCheckableComboBox" name="componentCheckableComboBox">
+        <property name="toolTip">
+         <string>Select the output components.</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
    </item>
    <item>
     <spacer name="verticalSpacer">
@@ -89,7 +138,7 @@
     </spacer>
    </item>
    <item>
-    <layout class="QHBoxLayout" name="horizontalLayout">
+    <layout class="QHBoxLayout" name="createButtonsHorizontalLayout">
      <item>
       <widget class="QToolButton" name="optionCreateModelsToolButton">
        <property name="sizePolicy">
@@ -148,6 +197,12 @@ Upon curve creation, the visibility of the names can be specified via the menu.<
    <header>ctkCheckableComboBox.h</header>
   </customwidget>
   <customwidget>
+   <class>ctkCollapsibleButton</class>
+   <extends>QWidget</extends>
+   <header>ctkCollapsibleButton.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
    <class>ctkMenuButton</class>
    <extends>QPushButton</extends>
    <header>ctkMenuButton.h</header>
@@ -170,7 +225,7 @@ Upon curve creation, the visibility of the names can be specified via the menu.<
   <connection>
    <sender>CenterlineDisassembly</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
-   <receiver>inputSelector</receiver>
+   <receiver>inputCenterlineSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -180,6 +235,22 @@ Upon curve creation, the visibility of the names can be specified via the menu.<
     <hint type="destinationlabel">
      <x>248</x>
      <y>61</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>CenterlineDisassembly</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>parameterSetSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>176</x>
+     <y>201</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>221</x>
+     <y>22</y>
     </hint>
    </hints>
   </connection>
