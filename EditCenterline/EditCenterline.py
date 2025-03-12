@@ -41,27 +41,6 @@ This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc
 and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
 """)
 
-#
-# EditCenterlineParameterNode
-#
-
-@parameterNodeWrapper
-class EditCenterlineParameterNode:
-    import vtkSlicerShapeModuleMRMLPython as vtkSlicerShapeModuleMRML
-    inputVolumeNode: slicer.vtkMRMLScalarVolumeNode
-    dimensionPreset: int = 3
-    outputShapeNode: vtkSlicerShapeModuleMRML.vtkMRMLMarkupsShapeNode
-    outputSegmentationNode: slicer.vtkMRMLSegmentationNode
-    # These are not SlicerParameterName in the UI.
-    inputCurveNode: slicer.vtkMRMLMarkupsCurveNode
-    inputModelNode: slicer.vtkMRMLModelNode
-    editedCenterlineModel: slicer.vtkMRMLModelNode
-    editedCenterlineCurve: slicer.vtkMRMLMarkupsCurveNode
-    # When a SlicerParameterName dynamic property is assigned to a QSpinBox or
-    # a QDoubleSpinBox, the minimum property is ignored.
-    numberOfPairs: int = 5
-    radiusScaleFactorOffset: float = 0.0
-
 class dimensionPresets:
     tiny = {
         "extrusionKernelSize": 0.5,
@@ -130,7 +109,6 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         VTKObservationMixin.__init__(self)  # needed for parameter node observation
         self.logic = None
         self._parameterNode = None
-        self._parameterNodeGuiTag = None
         self._updatingGuiFromParameterNode = False
 
     def setup(self) -> None:
@@ -151,6 +129,7 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Create logic class. Logic implements all computations that should be possible to run
         # in batch mode, without a graphical user interface.
         self.logic = EditCenterlineLogic()
+        self.ui.parameterSetSelector.addAttribute("vtkMRMLScriptedModuleNode", "ModuleName", self.moduleName)
 
         self.ui.dimensionComboBox.addItem(_("Tiny"), DIMENSION_TINY)
         self.ui.dimensionComboBox.addItem(_("Small"), DIMENSION_SMALL)
@@ -162,19 +141,28 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.advancedOptionsCollapsibleButton.collapsed = True
 
         # Connections
-        self.ui.dimensionComboBox.connect('currentIndexChanged(int)', self.onDimensionPresetChanged)
         self.ui.outputShapeSelector.connect('nodeAddedByUser(vtkMRMLNode*)', self.onTubeNodeAdded)
         self.ui.inputCenterlineSelector.connect('currentNodeChanged(vtkMRMLNode*)', self.onCenterlineChanged)
-        self.ui.numberOfPairsSpinBox.connect('valueChanged(int)', self.onNumberOfPairsChanged)
+        self.ui.dimensionComboBox.connect('currentIndexChanged(int)', self.onDimensionPresetChanged)
+
+        self.ui.inputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.onMrmlNodeChanged(ROLE_INPUT_VOLUME, node))
+        self.ui.outputShapeSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.onMrmlNodeChanged(ROLE_OUTPUT_SHAPE, node))
+        self.ui.outputSegmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.onMrmlNodeChanged(ROLE_OUTPUT_SEGMENTATION, node))
+        self.ui.outputCenterlineModelSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.onMrmlNodeChanged(ROLE_OUTPUT_CENTERLINE_MODEL, node))
+        self.ui.outputCenterlineCurveSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.onMrmlNodeChanged(ROLE_OUTPUT_CENTERLINE_CURVE, node))
+        self.ui.numberOfPairsSpinBox.connect('valueChanged(int)', lambda value: self.onSpinBoxChanged(ROLE_NUMBER_OF_PAIRS, value))
+        self.ui.radiusScaleFactorSpinBox.connect('valueChanged(double)', lambda value: self.onSpinBoxChanged(ROLE_RADIUS_SCALE_FACTOR_OFFSET, value))
+
         self.ui.outputCenterlineModelButton.connect('clicked()', self.onUpdateEditedCenterlineModel)
         self.ui.outputCenterlineCurveButton.connect('clicked()', self.onUpdateEditedCenterlineCurve)
-        self.ui.radiusScaleFactorSpinBox.connect('valueChanged(double)', self.onRadiusScaleFactorChanged)
         self.ui.radiusIncreaseScaleFactorButton.connect('clicked()', lambda : self.onUpdateRadiusScaleFactor('+'))
         self.ui.radiusDecreaseScaleFactorButton.connect('clicked()', lambda : self.onUpdateRadiusScaleFactor('-'))
 
         # These connections ensure that we update parameter node when scene is closed
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
+
+        self.ui.parameterSetSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.setParameterNode)
 
         # Buttons
         self.ui.applyButton.connect("clicked(bool)", self.onApplyButton)
@@ -195,10 +183,7 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def exit(self) -> None:
         """Called each time the user opens a different module."""
-        # Do not react to parameter node changes (GUI will be updated when the user enters into the module)
-        if self._parameterNode:
-            self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
-            self._parameterNodeGuiTag = None
+        pass
 
     def onSceneStartClose(self, caller, event) -> None:
         """Called just before the scene is closed."""
@@ -216,22 +201,35 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Parameter node stores all user choices in parameter values, node selections, etc.
         # so that when the scene is saved and reloaded, these settings are restored.
 
-        self.setParameterNode(self.logic.getParameterNode())
+        # The initial parameter node originates from logic and is picked up by the parameter set combobox.
+        # Other parameter nodes are created by the parameter set combobox and used here.
+        if not self._parameterNode:
+            self.setParameterNode(self.logic.getParameterNode())
+            wasBlocked = self.ui.parameterSetSelector.blockSignals(True)
+            self.ui.parameterSetSelector.setCurrentNode(self._parameterNode)
+            self.ui.parameterSetSelector.blockSignals(wasBlocked)
 
-    def setParameterNode(self, inputParameterNode: Optional[EditCenterlineParameterNode]) -> None:
-        """
-        Set and observe parameter node.
-        Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
-        """
-
-        if self._parameterNode:
-            self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
+    def setParameterNode(self, inputParameterNode: slicer.vtkMRMLScriptedModuleNode) -> None:
+        if inputParameterNode == self._parameterNode:
+            return
         self._parameterNode = inputParameterNode
+
+        self.logic.setParameterNode(self._parameterNode)
         if self._parameterNode:
-            # Note: in the .ui file, a Qt dynamic property called "SlicerParameterName" is set on each
-            # ui element that needs connection.
-            self._parameterNodeGuiTag = self._parameterNode.connectGui(self.ui)
-            self.updateGuiFromParameterNode()
+            self.setDefaultValues()
+            self.updateGUIFromParameterNode()
+
+    def setDefaultValues(self):
+        if not self._parameterNode:
+            return
+
+        if self._parameterNode.HasParameter(ROLE_INITIALIZED):
+            return
+
+        self._parameterNode.SetParameter(ROLE_INPUT_PRESET, str(3))
+        self._parameterNode.SetParameter(ROLE_NUMBER_OF_PAIRS, str(5))
+        self._parameterNode.SetParameter(ROLE_RADIUS_SCALE_FACTOR_OFFSET, str(0.0))
+        self._parameterNode.SetParameter(ROLE_INITIALIZED, str(1))
 
     def onApplyButton(self) -> None:
         """Run processing when user clicks "Apply" button."""
@@ -242,7 +240,7 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def onDimensionPresetChanged(self, index):
         if self._parameterNode:
-            self._parameterNode.dimensionPreset = self.ui.dimensionComboBox.currentData
+            self._parameterNode.SetParameter(ROLE_INPUT_PRESET, str(self.ui.dimensionComboBox.currentData))
 
     def onTubeNodeAdded(self, node):
         if not node:
@@ -254,47 +252,34 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if not self._parameterNode:
             return;
 
-        if not node:
-            self._parameterNode.inputCurveNode = None
-            self._parameterNode.inputModelNode = None
-            return
-        if node.IsTypeOf("vtkMRMLMarkupsCurveNode"):
-            self._parameterNode.inputCurveNode = node
-            self._parameterNode.inputModelNode = None
-        elif node.IsTypeOf("vtkMRMLModelNode"):
-            self._parameterNode.inputCurveNode = None
-            self._parameterNode.inputModelNode = node
-        else:
-            self._parameterNode.inputCurveNode = None
-            self._parameterNode.inputModelNode = None
-            logging.warning("Unknown input centerline type.")
-        self.setupUI(self.logic.getCenterlineType())
+        self.onMrmlNodeChanged(ROLE_INPUT_CENTERLINE, node)
+        if node:
+            self.setupUI(self.logic.getCenterlineType())
 
-    def onNumberOfPairsChanged(self, value):
-        if not self._parameterNode:
-            return;
+    def onMrmlNodeChanged(self, role, node):
+        if self._parameterNode:
+            self._parameterNode.SetNodeReferenceID(role, node.GetID() if node else None)
 
-        self._parameterNode.numberOfPairs = value
+    def onSpinBoxChanged(self, role, value):
+        if self._parameterNode:
+            self._parameterNode.SetParameter(role, str(value))
 
-    def onRadiusScaleFactorChanged(self, value):
-        if not self._parameterNode:
-            return;
-
-        self._parameterNode.radiusScaleFactorOffset = value
-
-    def updateGuiFromParameterNode(self):
+    def updateGUIFromParameterNode(self):
         if not self._parameterNode or self._updatingGuiFromParameterNode:
             return
         self._updatingGuiFromParameterNode = True
         
-        index = self.ui.dimensionComboBox.findData(self._parameterNode.dimensionPreset)
+        index = self.ui.dimensionComboBox.findData(int(self._parameterNode.GetParameter(ROLE_INPUT_PRESET)))
         self.ui.dimensionComboBox.setCurrentIndex(index)
-        if self._parameterNode.inputCurveNode and (not self._parameterNode.inputModelNode):
-            self.ui.inputCenterlineSelector.setCurrentNode(self._parameterNode.inputCurveNode)
-        if self._parameterNode.inputModelNode and (not self._parameterNode.inputCurveNode):
-            self.ui.inputCenterlineSelector.setCurrentNode(self._parameterNode.inputModelNode)
-        self.ui.numberOfPairsSpinBox.setValue(self._parameterNode.numberOfPairs)
-        self.ui.radiusScaleFactorSpinBox.setValue(self._parameterNode.radiusScaleFactorOffset)
+        self.ui.numberOfPairsSpinBox.setValue(int(self._parameterNode.GetParameter(ROLE_NUMBER_OF_PAIRS)))
+        self.ui.radiusScaleFactorSpinBox.setValue(float(self._parameterNode.GetParameter(ROLE_RADIUS_SCALE_FACTOR_OFFSET)))
+
+        self.ui.inputCenterlineSelector.setCurrentNode(self._parameterNode.GetNodeReference(ROLE_INPUT_CENTERLINE))
+        self.ui.inputVolumeSelector.setCurrentNode(self._parameterNode.GetNodeReference(ROLE_INPUT_VOLUME))
+        self.ui.outputShapeSelector.setCurrentNode(self._parameterNode.GetNodeReference(ROLE_OUTPUT_SHAPE))
+        self.ui.outputSegmentationSelector.setCurrentNode(self._parameterNode.GetNodeReference(ROLE_OUTPUT_SEGMENTATION))
+        self.ui.outputCenterlineModelSelector.setCurrentNode(self._parameterNode.GetNodeReference(ROLE_OUTPUT_CENTERLINE_MODEL))
+        self.ui.outputCenterlineCurveSelector.setCurrentNode(self._parameterNode.GetNodeReference(ROLE_OUTPUT_CENTERLINE_CURVE))
 
         self._updatingGuiFromParameterNode = False
 
@@ -318,7 +303,7 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             return
 
         editedCenterlineModel.CreateDefaultDisplayNodes()
-        editedCenterline = self.logic.createEditedCenterlinePolyData(self._parameterNode.outputShapeNode)
+        editedCenterline = self.logic.createEditedCenterlinePolyData(self._parameterNode.GetNodeReference(ROLE_OUTPUT_SHAPE))
         editedCenterlineModel.SetAndObservePolyData(editedCenterline)
 
     def onUpdateEditedCenterlineCurve(self):
@@ -330,19 +315,20 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             return
 
         editedCenterlineCurve.CreateDefaultDisplayNodes()
-        self.logic.updateCenterlineCurve(self._parameterNode.outputShapeNode, editedCenterlineCurve)
+        self.logic.updateCenterlineCurve(self._parameterNode.GetNodeReference(ROLE_OUTPUT_SHAPE), editedCenterlineCurve)
 
     def onUpdateRadiusScaleFactor(self, sign):
         if (not self._parameterNode):
             logging.error("Parameter node is None.")
         scaleFactor = 1.0
+        offset = float(self._parameterNode.GetParameter(ROLE_RADIUS_SCALE_FACTOR_OFFSET))
         if (sign == '+'):
-            scaleFactor = scaleFactor + self._parameterNode.radiusScaleFactorOffset
+            scaleFactor = scaleFactor + offset
         elif (sign == '-'):
-            scaleFactor = scaleFactor - self._parameterNode.radiusScaleFactorOffset
+            scaleFactor = scaleFactor - offset
         else:
             pass
-        self.logic.scaleTubeRadii(self._parameterNode.outputShapeNode, scaleFactor)
+        self.logic.scaleTubeRadii(self._parameterNode.GetNodeReference(ROLE_OUTPUT_SHAPE), scaleFactor)
 
 #
 # EditCenterlineLogic
@@ -363,23 +349,23 @@ class EditCenterlineLogic(ScriptedLoadableModuleLogic):
         ScriptedLoadableModuleLogic.__init__(self)
         self._parameterNode = None
 
-    def getParameterNode(self):
-        self._parameterNode = EditCenterlineParameterNode(super().getParameterNode())
-        return self._parameterNode
+    def setParameterNode(self, inputParameterNode):
+        self._parameterNode = inputParameterNode
 
     def getCenterlineType(self):
         if not self._parameterNode:
             raise ValueError(_("Parameter node is None."))
 
-        inputCurve = self._parameterNode.inputCurveNode
-        inputModel = self._parameterNode.inputModelNode
-        if inputCurve and not inputModel:
-            if not inputCurve.GetCurveWorld().GetPointData().HasArray("Radius"):
+        inputCenterline = self._parameterNode.GetNodeReference(ROLE_INPUT_CENTERLINE)
+        if inputCenterline is None:
+            raise ValueError(_("Input centerline is None."))
+        if inputCenterline.IsTypeOf("vtkMRMLMarkupsCurveNode"):
+            if not inputCenterline.GetCurveWorld().GetPointData().HasArray("Radius"):
                 return CENTERLINE_ARBITRARY_CURVE
             else:
                 return CENTERLINE_CURVE
-        elif inputModel and not inputCurve:
-            if not inputModel.GetPolyData().GetPointData().HasArray("Radius"):
+        elif inputCenterline.IsTypeOf("vtkMRMLModelNode"):
+            if not inputCenterline.GetPolyData().GetPointData().HasArray("Radius"):
                 raise ValueError("Input centerline model does not have a 'Radius' array.")
             return CENTERLINE_MODEL
         else:
@@ -412,27 +398,33 @@ class EditCenterlineLogic(ScriptedLoadableModuleLogic):
         return result
 
     def process(self):
+        if not self._parameterNode:
+            raise ValueError(_("Parameter node is None."))
+
         import time
 
         startTime = time.time()
         logging.info(_("Processing started."))
 
         centerlineType = self.getCenterlineType()
+        inputCenterline = self._parameterNode.GetNodeReference(ROLE_INPUT_CENTERLINE)
         if centerlineType == CENTERLINE_ARBITRARY_CURVE:
             self._processArbitraryCurve()
         elif centerlineType == CENTERLINE_CURVE:
-            self._processCenterlinePolyData(self._parameterNode.inputCurveNode.GetCurveWorld())
+            self._processCenterlinePolyData(inputCenterline.GetCurveWorld())
         else:
             import CenterlineDisassembly
             cdaLogic = CenterlineDisassembly.CenterlineDisassemblyLogic()
-            if not cdaLogic.splitCenterlines(self._parameterNode.inputModelNode.GetPolyData()):
+            if not cdaLogic.splitCenterlines(inputCenterline.GetPolyData()):
                 raise ValueError(_("Centerline model processing failed."))
             if cdaLogic.getNumberOfBifurcations() > 0:
                 raise ValueError(_("Centerline is bifurcated, it must not be bifurcated."))
-            self._processCenterlinePolyData(self._parameterNode.inputModelNode.GetPolyData())
+            self._processCenterlinePolyData(inputCenterline.GetPolyData())
 
-        self._parameterNode.outputShapeNode.SnapAllControlPointsToTubeSurface()
-        self.scaleTubeRadii(self._parameterNode.outputShapeNode, 1.0 + self._parameterNode.radiusScaleFactorOffset)
+        outputShapeNode = self._parameterNode.GetNodeReference(ROLE_OUTPUT_SHAPE)
+        radiusScaleFactorOffset = float(self._parameterNode.GetParameter(ROLE_RADIUS_SCALE_FACTOR_OFFSET))
+        outputShapeNode.SnapAllControlPointsToTubeSurface()
+        self.scaleTubeRadii(outputShapeNode, 1.0 + radiusScaleFactorOffset)
 
         stopTime = time.time()
         durationValue = '%.2f' % (stopTime-startTime)
@@ -462,7 +454,7 @@ class EditCenterlineLogic(ScriptedLoadableModuleLogic):
         if not centerline:
             raise ValueError("Centerline is None.")
 
-        shapeNode = self._parameterNode.outputShapeNode
+        shapeNode = self._parameterNode.GetNodeReference(ROLE_OUTPUT_SHAPE)
         if not shapeNode:
             raise ValueError("No output shape node specified.")
 
@@ -475,7 +467,8 @@ class EditCenterlineLogic(ScriptedLoadableModuleLogic):
         tubeControlPoint1 = [0.0] * 3
         tubeControlPoint2 = [0.0] * 3
         # The first pair is added at 0.
-        numberOfTubeControlPairs = self._parameterNode.numberOfPairs - 1
+        totalNumberOfTubeControlPairs = int(self._parameterNode.GetParameter(ROLE_NUMBER_OF_PAIRS))
+        numberOfTubeControlPairs = totalNumberOfTubeControlPairs - 1
         for i in range(0, numberOfCenterlinePoints, int(numberOfCenterlinePoints / numberOfTubeControlPairs)):
             centerline.GetPoint(i, p1)
             centerline.GetPoint(i + 1, p2)
@@ -489,60 +482,63 @@ class EditCenterlineLogic(ScriptedLoadableModuleLogic):
         centerline.GetPoint(lastPointIndex - 1, p1) # Before last.
         centerline.GetPoint(lastPointIndex, p2)
         self._calculateControlPairPosition(centerline, lastPointIndex, p2, p1, tubeControlPoint1, tubeControlPoint2)
-        if numberOfTubeControlPairsCreated == self._parameterNode.numberOfPairs:
-            shapeNode.SetNthControlPointPositionWorld((self._parameterNode.numberOfPairs * 2) - 2, tubeControlPoint1)
-            shapeNode.SetNthControlPointPositionWorld((self._parameterNode.numberOfPairs * 2) - 1, tubeControlPoint2)
+        if numberOfTubeControlPairsCreated == totalNumberOfTubeControlPairs:
+            shapeNode.SetNthControlPointPositionWorld((totalNumberOfTubeControlPairs * 2) - 2, tubeControlPoint1)
+            shapeNode.SetNthControlPointPositionWorld((totalNumberOfTubeControlPairs * 2) - 1, tubeControlPoint2)
         else:
             shapeNode.AddControlPoint(tubeControlPoint1)
             shapeNode.AddControlPoint(tubeControlPoint2)
 
     def _processArbitraryCurve(self) -> None:
-        curveNode = self._parameterNode.inputCurveNode
+        curveNode = self._parameterNode.GetNodeReference(ROLE_INPUT_CENTERLINE)
         if not curveNode:
             raise ValueError("No input curve node specified.")
         if curveNode.GetNumberOfControlPoints() < 2:
             raise ValueError("At least 2 control points are required.")
 
-        volumeNode = self._parameterNode.inputVolumeNode
+        volumeNode = self._parameterNode.GetNodeReference(ROLE_INPUT_VOLUME)
         if not volumeNode:
             raise ValueError("No input volume node specified.")
 
-        shapeNode = self._parameterNode.outputShapeNode
+        shapeNode = self._parameterNode.GetNodeReference(ROLE_OUTPUT_SHAPE)
         if not shapeNode:
             raise ValueError("No output shape node specified.")
 
-        segmentationNode = self._parameterNode.outputSegmentationNode
+        segmentationNode = self._parameterNode.GetNodeReference(ROLE_OUTPUT_SEGMENTATION)
         if not segmentationNode:
             segmentationNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode")
 
         profiles = dimensionPresets()
-        profile = profiles.getPreset(self._parameterNode.dimensionPreset)
+        profile = profiles.getPreset(int(self._parameterNode.GetParameter(ROLE_INPUT_PRESET)))
 
         """
         Create a segment than can overlap on contrast calcifications and soft
         lesions. The more the curve can pass through each type of structure,
         the better. But the curve should represent the axis of the vessel.
         """
-        import GuidedVeinSegmentation
-        gvsLogic = GuidedVeinSegmentation.GuidedVeinSegmentationLogic()
-        segmentID = gvsLogic.process(
-            inputCurve = curveNode,
-            inputVolume =  volumeNode,
-            inputSegmentation = segmentationNode,
-            extrusionKernelSize = profile["extrusionKernelSize"],
-            gaussianStandardDeviation = profile["gaussianStandardDeviation"],
-            seedRadius = profile["seedRadius"],
-            shellMargin = profile["shellMargin"],
-            shellThickness = profile["shellThickness"],
-            subtractOtherSegments = False # Do not account for prior work in the same segmentation.
-            )
+        import GuidedVeinSegmentation as GVS
+        gvsLogic = GVS.GuidedVeinSegmentationLogic()
+        gvsParameterNode = gvsLogic.getParameterNode()
+        gvsParameterNode.SetNodeReferenceID(GVS.ROLE_INPUT_CURVE, self._parameterNode.GetNodeReference(ROLE_INPUT_CENTERLINE).GetID())
+        gvsParameterNode.SetNodeReferenceID(GVS.ROLE_INPUT_VOLUME, self._parameterNode.GetNodeReference(ROLE_INPUT_VOLUME).GetID())
+        gvsParameterNode.SetNodeReferenceID(GVS.ROLE_INPUT_SEGMENTATION, segmentationNode.GetID())
+        gvsParameterNode.SetParameter(GVS.ROLE_EXTRUSION_KERNEL_SIZE, str(profile["extrusionKernelSize"]))
+        gvsParameterNode.SetParameter(GVS.ROLE_GAUSSIAN_STANDARD_DEVIATION, str(profile["gaussianStandardDeviation"]))
+        gvsParameterNode.SetParameter(GVS.ROLE_SEED_RADIUS, str(profile["seedRadius"]))
+        gvsParameterNode.SetParameter(GVS.ROLE_SHELL_MARGIN, str(profile["shellMargin"]))
+        gvsParameterNode.SetParameter(GVS.ROLE_SHELL_THICKNESS, str(profile["shellThickness"]))
+        gvsParameterNode.SetParameter(GVS.ROLE_SUBTRACT_OTHER_SEGMENTS, str(0)) # Do not account for prior work in the same segmentation.
+        gvsParameterNode.SetParameter(GVS.ROLE_INITIALIZED, str(1))
+        gvsLogic.setParameterNode(gvsParameterNode)
+        
+        segmentID = gvsLogic.process()
         segmentationNode.CreateClosedSurfaceRepresentation()
         # At this step, the segment editor is already setup.
 
         # Get segment as polydata.
         segmentPolyData = vtk.vtkPolyData()
         if not segmentationNode.GetClosedSurfaceRepresentation(segmentID, segmentPolyData):
-            if not self._parameterNode.outputSegmentationNode:
+            if not self._parameterNode.GetNodeReference(ROLE_OUTPUT_SEGMENTATION):
                 slicer.mrmlScene.RemoveNode(segmentationNode)
             raise RuntimeError(_("Failed to get segment polydata."))
 
@@ -604,7 +600,7 @@ class EditCenterlineLogic(ScriptedLoadableModuleLogic):
             shapeNode.AddControlPoint(farthestPoints.GetPoint(1))
 
         # If we created the segmentation, remove it.
-        if not self._parameterNode.outputSegmentationNode:
+        if not self._parameterNode.GetNodeReference(ROLE_OUTPUT_SEGMENTATION):
                 slicer.mrmlScene.RemoveNode(segmentationNode)
 
     def createEditedCenterlinePolyData(self, tube):
@@ -725,3 +721,14 @@ class EditCenterlineTest(ScriptedLoadableModuleTest):
         self.delayDisplay("Starting the test")
 
         self.delayDisplay("Test passed")
+
+ROLE_INPUT_CENTERLINE = "InputCenterline"
+ROLE_INPUT_VOLUME = "InputVolume"
+ROLE_INPUT_PRESET = "InputPreset"
+ROLE_OUTPUT_SEGMENTATION = "OutputSegmentation"
+ROLE_OUTPUT_SHAPE = "OutputShape"
+ROLE_OUTPUT_CENTERLINE_MODEL = "OutputCenterlineModel"
+ROLE_OUTPUT_CENTERLINE_CURVE = "OutputCenterlineCurve"
+ROLE_NUMBER_OF_PAIRS = "NumberOfPairs"
+ROLE_RADIUS_SCALE_FACTOR_OFFSET = "RadiusScaleFactorOffset"
+ROLE_INITIALIZED = "Initialized"

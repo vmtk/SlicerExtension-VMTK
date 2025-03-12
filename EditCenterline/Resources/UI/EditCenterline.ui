@@ -7,10 +7,57 @@
     <x>0</x>
     <y>0</y>
     <width>341</width>
-    <height>520</height>
+    <height>581</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <layout class="QFormLayout" name="parameterSetLayout">
+     <item row="0" column="0">
+      <widget class="QLabel" name="parameterSetLabel">
+       <property name="text">
+        <string>Parameter set:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="qMRMLNodeComboBox" name="parameterSetSelector">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="toolTip">
+        <string>A parameter set groups parameters that define a named study distinctly.</string>
+       </property>
+       <property name="nodeTypes">
+        <stringlist notr="true">
+         <string>vtkMRMLScriptedModuleNode</string>
+        </stringlist>
+       </property>
+       <property name="showHidden">
+        <bool>true</bool>
+       </property>
+       <property name="hideChildNodeTypes">
+        <stringlist notr="true"/>
+       </property>
+       <property name="baseName">
+        <string notr="true">EditCenterline</string>
+       </property>
+       <property name="noneEnabled">
+        <bool>false</bool>
+       </property>
+       <property name="renameEnabled">
+        <bool>true</bool>
+       </property>
+       <property name="interactionNodeSingletonTag">
+        <string notr="true"/>
+       </property>
+       <property name="selectNodeUponCreation">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
    <item>
     <widget class="ctkCollapsibleButton" name="inputsCollapsibleButton">
      <property name="text">
@@ -95,9 +142,6 @@ This can be:
         <property name="renameEnabled">
          <bool>true</bool>
         </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string notr="true">inputVolumeNode</string>
-        </property>
        </widget>
       </item>
       <item row="2" column="0">
@@ -172,9 +216,6 @@ Examples:
           </property>
           <property name="renameEnabled">
            <bool>true</bool>
-          </property>
-          <property name="SlicerParameterName" stdset="0">
-           <string notr="true">outputShapeNode</string>
           </property>
          </widget>
         </item>
@@ -257,9 +298,6 @@ The tortuosity of the tube and the diameter distribution determine this paramete
           <property name="interactionNodeSingletonTag">
            <string notr="true"/>
           </property>
-          <property name="SlicerParameterName" stdset="0">
-           <string notr="true">outputSegmentationNode</string>
-          </property>
          </widget>
         </item>
         <item row="1" column="0">
@@ -298,9 +336,6 @@ The tortuosity of the tube and the diameter distribution determine this paramete
             </property>
             <property name="interactionNodeSingletonTag">
              <string notr="true"/>
-            </property>
-            <property name="SlicerParameterName" stdset="0">
-             <string notr="true">editedCenterlineModel</string>
             </property>
            </widget>
           </item>
@@ -352,9 +387,6 @@ The tortuosity of the tube and the diameter distribution determine this paramete
             </property>
             <property name="interactionNodeSingletonTag">
              <string notr="true"/>
-            </property>
-            <property name="SlicerParameterName" stdset="0">
-             <string notr="true">editedCenterlineCurve</string>
             </property>
            </widget>
           </item>
@@ -590,6 +622,22 @@ The tortuosity of the tube and the diameter distribution determine this paramete
     <hint type="destinationlabel">
      <x>215</x>
      <y>309</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>EditCenterline</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>parameterSetSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>170</x>
+     <y>290</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>214</x>
+     <y>22</y>
     </hint>
    </hints>
   </connection>
