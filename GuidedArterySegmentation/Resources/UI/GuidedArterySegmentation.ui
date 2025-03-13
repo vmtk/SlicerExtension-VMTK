@@ -12,6 +12,91 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
+    <layout class="QFormLayout" name="parameterSetLayout">
+     <item row="0" column="0">
+      <widget class="QLabel" name="parameterSetLabel">
+       <property name="text">
+        <string>Parameter set:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <layout class="QHBoxLayout" name="parameterSetHorizontalLayout">
+       <property name="spacing">
+        <number>6</number>
+       </property>
+       <property name="sizeConstraint">
+        <enum>QLayout::SetDefaultConstraint</enum>
+       </property>
+       <item>
+        <widget class="qMRMLNodeComboBox" name="parameterSetSelector">
+         <property name="enabled">
+          <bool>true</bool>
+         </property>
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+           <horstretch>1</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="toolTip">
+          <string>A parameter set groups parameters that define a named study distinctly.</string>
+         </property>
+         <property name="nodeTypes">
+          <stringlist notr="true">
+           <string>vtkMRMLScriptedModuleNode</string>
+          </stringlist>
+         </property>
+         <property name="showHidden">
+          <bool>true</bool>
+         </property>
+         <property name="hideChildNodeTypes">
+          <stringlist notr="true"/>
+         </property>
+         <property name="baseName">
+          <string notr="true">GuidedArterySegmentation</string>
+         </property>
+         <property name="noneEnabled">
+          <bool>false</bool>
+         </property>
+         <property name="renameEnabled">
+          <bool>true</bool>
+         </property>
+         <property name="interactionNodeSingletonTag">
+          <string notr="true"/>
+         </property>
+         <property name="selectNodeUponCreation">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QToolButton" name="parameterSetUpdateUIToolButton">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="toolTip">
+          <string>Update the segment editor and the slice views with the input segmentation and volume if any.</string>
+         </property>
+         <property name="text">
+          <string>↺</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+    </layout>
+   </item>
+   <item>
     <widget class="ctkCollapsibleButton" name="inputsCollapsibleButton">
      <property name="sizePolicy">
       <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
@@ -66,9 +151,6 @@ The control points are assumed to be on the contrasted lumen.</string>
         <property name="renameEnabled">
          <bool>true</bool>
         </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string notr="true">inputCurveNode</string>
-        </property>
        </widget>
       </item>
       <item row="7" column="0">
@@ -102,9 +184,6 @@ If a Shape::Tube node is specified below, this parameter is ignored.</string>
         </property>
         <property name="value">
          <double>8.000000000000000</double>
-        </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string notr="true">tubeDiameter</string>
         </property>
        </widget>
       </item>
@@ -140,9 +219,6 @@ If a Shape::Tube node is specified below, this parameter is ignored.</string>
         <property name="renameEnabled">
          <bool>true</bool>
         </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string notr="true">outputSegmentation</string>
-        </property>
        </widget>
       </item>
       <item row="2" column="1">
@@ -171,19 +247,6 @@ If a Shape::Tube node is specified below, this parameter is ignored.</string>
           </property>
           <property name="selectNodeUponCreation">
            <bool>false</bool>
-          </property>
-          <property name="SlicerParameterName" stdset="0">
-           <string notr="true">inputSliceNode</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QToolButton" name="restoreSliceViewToolButton">
-          <property name="toolTip">
-           <string>Restore slice views with the referenced volume node</string>
-          </property>
-          <property name="text">
-           <string>...</string>
           </property>
          </widget>
         </item>
@@ -364,9 +427,6 @@ If specified, the regular tube diameter above is ignored.</string>
          <property name="value">
           <number>100</number>
          </property>
-         <property name="SlicerParameterName" stdset="0">
-          <string notr="true">intensityTolerance</string>
-         </property>
         </widget>
        </item>
        <item row="1" column="0">
@@ -400,9 +460,6 @@ If specified, the regular tube diameter above is ignored.</string>
          <property name="value">
           <double>2.000000000000000</double>
          </property>
-         <property name="SlicerParameterName" stdset="0">
-          <string notr="true">neighbourhoodSize</string>
-         </property>
         </widget>
        </item>
       </layout>
@@ -429,9 +486,6 @@ If specified, the regular tube diameter above is ignored.</string>
     <widget class="QCheckBox" name="extractCenterlinesCheckBox">
      <property name="text">
       <string>Extract centerlines</string>
-     </property>
-     <property name="SlicerParameterName" stdset="0">
-      <string notr="true">extractCenterlines</string>
      </property>
     </widget>
    </item>
@@ -543,6 +597,22 @@ If centerlines are extracted, optionally replace the segment by its largest regi
     <hint type="destinationlabel">
      <x>240</x>
      <y>114</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>GuidedArterySegmentation</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>parameterSetSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>247</x>
+     <y>354</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>276</x>
+     <y>23</y>
     </hint>
    </hints>
   </connection>
