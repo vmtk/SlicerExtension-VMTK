@@ -42,7 +42,7 @@ Check this to call the 'Extract centerline' module. It is optional by default be
 
 ## Notes
 
-If the centerlines are not extracted though the segmentation is good, interaction is required. Smoothing with ‘Fill holes’ at minimal kernel size helps to create centerlines (smoothing may be faster using the 3D brush). Afterwards, work should be continued directly in ‘Extract centerline’ module obviously.
+If the segment contains holes, the number of regions will be greater than one. This can be fixed with the provided function that replaces the segment with the largest identified region. If centerline extraction is requested, the latter fix can be applied on request.
 
 ## Acknowledgement
 
