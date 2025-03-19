@@ -78,8 +78,9 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
     # Track the polydata regions identified in the lumen surface.
     self._lumenRegions = []
-    # The paint effect button must not be visible by default.
+    # The paint effect and the fast fix buttons must not be visible by default.
     self.ui.surfaceInformationPaintToolButton.setVisible(False)
+    self.ui.surfaceInformationFastFixToolButton.setVisible(False)
     # Position the crosshair on a lumen region.
     self.crosshair=slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLCrosshairNode")
 
@@ -168,6 +169,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.surfaceInformationSpinBox.connect("valueChanged(int)", self.onRegionSelected)
     self.ui.surfaceInformationGoToToolButton.connect("toggled(bool)", self.onSurfaceInformationGoToToggled)
     self.ui.surfaceInformationPaintToolButton.connect("toggled(bool)", self.onSurfaceInformationPaintToggled)
+    self.ui.surfaceInformationFastFixToolButton.connect("clicked()", self.onSurfaceInformationFastFix)
 
     # Refresh Apply button state
     self.updateGUIFromParameterNode()
@@ -714,6 +716,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.checkAndSetSegmentEditor(False)
     self.ui.surfaceInformationPaintToolButton.setChecked(False)
     self.ui.surfaceInformationPaintToolButton.setVisible(False)
+    self.ui.surfaceInformationFastFixToolButton.setVisible(False)
 
   # Identify and track all regions of the lumen surface.
   def onGetRegionsButton(self):
@@ -730,6 +733,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     if (inputSurface.GetClassName() == "vtkMRMLSegmentationNode"):
       # If there's only 1 region, there's nothing to fix.
       self.ui.surfaceInformationPaintToolButton.setVisible((numberOfRegions > 1) and self.checkAndSetSegmentEditor(True))
+      self.ui.surfaceInformationFastFixToolButton.setVisible(numberOfRegions > 1)
       if (numberOfRegions == 1) and (self.checkAndSetSegmentEditor(False)):
         # Create segment editor object if needed.
         segmentEditorModuleWidget = slicer.util.getModuleWidget("SegmentEditor")
@@ -737,6 +741,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         seWidget.setActiveEffectByName(None)
     else:
       self.ui.surfaceInformationPaintToolButton.setVisible(False)
+      self.ui.surfaceInformationFastFixToolButton.setVisible(False)
 
   # Initialise the segment editor if needed.
   # If the lumen surface is a segmentation, select it in the 'Segment editor'.
@@ -826,6 +831,17 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       effect.setParameter("BrushSphere", str(1))
     else:
       seWidget.setActiveEffectByName(None)
+
+  def onSurfaceInformationFastFix(self):
+    segmentation = self.logic.lumenSurfaceNode
+    segmentID = self.logic.currentSegmentID
+    if (not segmentation) or (segmentation.GetClassName() != "vtkMRMLSegmentationNode") or (segmentID is None):
+      logging.error("Invalid segmentation or segment ID.")
+      return
+    import QuickArterySegmentation
+    qasLogic = QuickArterySegmentation.QuickArterySegmentationLogic()
+    qasLogic.replaceSegmentByLargestRegion(segmentation, segmentID)
+    self.onGetRegionsButton()
 
 #
 # CrossSectionAnalysisLogic

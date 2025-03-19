@@ -14,7 +14,7 @@ from slicer.parameterNodeWrapper import (
     WithinRange,
 )
 
-from slicer import vtkMRMLScalarVolumeNode
+from slicer import vtkMRMLVolumeNode
 
 #
 # QuickArterySegmentation
@@ -57,9 +57,11 @@ class QuickArterySegmentationParameterNode:
     optionExtractCenterlines: bool = False
     outputSegmentationNode: slicer.vtkMRMLSegmentationNode
     # These do not have widget counterparts.
+    inputVolumeNode: slicer.vtkMRMLVolumeNode
     outputCenterlineModelNode: slicer.vtkMRMLModelNode
     outputCenterlineCurveNode: slicer.vtkMRMLMarkupsCurveNode
-
+    outputSegmentID: str = ""
+    optionUseLargestSegmentRegion: bool = True
 
 #
 # QuickArterySegmentationWidget
@@ -79,6 +81,7 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
     self.logic = None
     self._parameterNode = None
     self._parameterNodeGuiTag = None
+    self._useLargestSegmentRegion = None
 
   def setup(self) -> None:
     """
@@ -102,6 +105,8 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
     self.logic = QuickArterySegmentationLogic()
 
     self.ui.floodFillingCollapsibleGroupBox.checked = False
+    self.ui.regionInfoLabel.setVisible(False)
+    self.ui.fixRegionToolButton.setVisible(False)
 
     # Connections
 
@@ -111,11 +116,21 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
 
     # Application connections
     self.ui.inputFiducialSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onFiducialNode)
+    self.ui.inputSliceNodeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSliceNode)
+    self.ui.outputSegmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSegmentationNode)
     self.ui.preFitROIToolButton.connect("clicked()", self.preFitROI)
+    self.ui.fixRegionToolButton.connect("clicked()", self.replaceSegmentByRegion)
     self.ui.restoreSliceViewToolButton.connect("clicked()", self.onRestoreSliceViews)
+
+    self.ui.applyButton.menu().clear()
+    self._useLargestSegmentRegion = qt.QAction(_("Use the largest region of the segment"))
+    self._useLargestSegmentRegion.setCheckable(True)
+    self._useLargestSegmentRegion.setChecked(True)
+    self.ui.applyButton.menu().addAction(self._useLargestSegmentRegion)
 
     # Buttons
     self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
+    self._useLargestSegmentRegion.connect("toggled(bool)", self.onUseLargestSegmentRegionToggled)
 
     # Make sure parameter node is initialized (needed for module reload)
     self.initializeParameterNode()
@@ -137,25 +152,33 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
     logging.info(message)
 
   def onFiducialNode(self, node) -> None:
-    if not self._parameterNode:
-      return
-    self._parameterNode.inputFiducialNode = node # This functions seems to be called before parameter node gets updated.
-    if node is None:
-        return
     numberOfControlPoints = node.GetNumberOfControlPoints()
     if numberOfControlPoints < 2:
         self.inform(_("Fiducial node must have at least 2 points."))
         self.ui.inputFiducialSelector.setCurrentNode(None)
-        return
-    # Update UI with previous referenced segmentation. May be changed before logic.process().
-    referencedSegmentationNode = node.GetNodeReference("OutputSegmentation")
-    if referencedSegmentationNode:
-        self.ui.outputSegmentationSelector.setCurrentNode(node.GetNodeReference("OutputSegmentation"))
-    # Show last known volume used for segmentation.
-    referencedInputVolume = node.GetNodeReference("InputVolumeNode")
-    self.updateSliceViews(referencedInputVolume)
-    # Reuse last known parameters
-    self.updateGUIParametersFromInputNode(node)
+
+  def onSliceNode(self, node):
+    self.ui.regionInfoLabel.setVisible(False)
+    self.ui.fixRegionToolButton.setVisible(False)
+    if not self._parameterNode:
+      return
+    """
+    Unless we do that, this function gets called twice,
+    with node being None the second time, if inputVolume is set.
+    This is seen with a qMRMLNodeComboBox handling vtkMRMLSliceNode only.
+    """
+    self._parameterNode.parameterNode.DisableModifiedEventOn()
+    if node:
+      sliceWidget = slicer.app.layoutManager().sliceWidget(node.GetName())
+      backgroudVolumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
+      self._parameterNode.inputVolumeNode = backgroudVolumeNode
+    else:
+      self._parameterNode.inputVolumeNode = None
+    self._parameterNode.parameterNode.DisableModifiedEventOff()
+
+  def onSegmentationNode(self, node):
+    self.ui.regionInfoLabel.setVisible(False)
+    self.ui.fixRegionToolButton.setVisible(False)
 
   # The ROI will have to be manually adjusted.
   def preFitROI(self) -> None:
@@ -192,11 +215,7 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
     sliceNode = self._parameterNode.inputSliceNode
     if not sliceNode:
         return
-    # Don't upset UI if we have the right volume node
-    sliceWidget = slicer.app.layoutManager().sliceWidget(sliceNode.GetName())
-    backgroudVolumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
-    if volumeNode == backgroudVolumeNode:
-        return
+
     views = slicer.app.layoutManager().sliceViewNames()
     for view in views:
         sliceWidget = slicer.app.layoutManager().sliceWidget(view)
@@ -208,12 +227,7 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
             sliceCompositeNode.SetBackgroundVolumeID(None)
 
   def onRestoreSliceViews(self) -> None:
-    # Show last known volume used for segmentation.
-    inputFiducialNode = self.ui.inputFiducialSelector.currentNode()
-    if not inputFiducialNode:
-        return
-    referencedInputVolume = inputFiducialNode.GetNodeReference("InputVolumeNode")
-    self.updateSliceViews(referencedInputVolume)
+    self.updateSliceViews(self._parameterNode.inputVolumeNode)
 
   def cleanup(self) -> None:
     """
@@ -276,62 +290,6 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
       # ui element that needs connection.
       self._parameterNodeGuiTag = self._parameterNode.connectGui(self.ui)
 
-  """
-  Let each one trace last used parameter values and output nodes.
-  These can be restored when an input fiducial is selected again.
-  """
-  def UpdateInputNodeWithThisOutputNode(self, outputNode, referenceID) -> None:
-    outputNodeID = ""
-    if outputNode:
-        outputNodeID = outputNode.GetID()
-    self._parameterNode.inputFiducialNode.SetNodeReferenceID(referenceID, outputNodeID)
-
-  def UpdateInputNodeWithOutputNodes(self) -> None:
-    if not self._parameterNode.inputFiducialNode:
-        return
-    wasModified = self._parameterNode.inputFiducialNode.StartModify()
-    self.UpdateInputNodeWithThisOutputNode(self._parameterNode.outputSegmentationNode, "OutputSegmentation")
-    self.UpdateInputNodeWithThisOutputNode(self._parameterNode.outputCenterlineModelNode, "OutputCenterlineModel")
-    self.UpdateInputNodeWithThisOutputNode(self._parameterNode.outputCenterlineCurveNode, "OutputCenterlineCurve")
-    self._parameterNode.inputFiducialNode.EndModify(wasModified)
-
-  def UpdateInputNodeWithParameters(self) -> None:
-    if not self._parameterNode.inputFiducialNode:
-        return
-    wasModified = self._parameterNode.inputFiducialNode.StartModify()
-
-    sliceNode = self._parameterNode.inputSliceNode
-    sliceWidget = slicer.app.layoutManager().sliceWidget(sliceNode.GetName())
-    volumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
-    self._parameterNode.inputFiducialNode.SetNodeReferenceID("InputVolumeNode", volumeNode.GetID())
-
-    inputROINodeID = self._parameterNode.inputROINode.GetID()
-    self._parameterNode.inputFiducialNode.SetNodeReferenceID("InputROINode", inputROINodeID)
-    self._parameterNode.inputFiducialNode.SetAttribute("InputIntensityTolerance", str(self.ui.intensityToleranceSpinBox.value))
-    self._parameterNode.inputFiducialNode.SetAttribute("NeighbourhoodSize", str(self.ui.neighbourhoodSizeDoubleSpinBox.value))
-    self._parameterNode.inputFiducialNode.EndModify(wasModified)
-
-  # Restore parameters from input fiducial
-  def updateGUIParametersFromInputNode(self, node) -> None:
-    if not node:
-        return
-    self.ui.inputROISelector.setCurrentNode(node.GetNodeReference("InputROINode"))
-    inputIntensityTolerance = node.GetAttribute("InputIntensityTolerance")
-    if inputIntensityTolerance:
-        self.ui.intensityToleranceSpinBox.value = int(inputIntensityTolerance)
-    inputNeighbourhoodSize = node.GetAttribute("NeighbourhoodSize")
-    if inputNeighbourhoodSize:
-        self.ui.neighbourhoodSizeDoubleSpinBox.value = float(inputNeighbourhoodSize)
-
-  # Restore output nodes in logic
-  def UpdateParameterWithOutputNodes(self) -> None:
-    if not self._parameterNode.inputFiducialNode:
-        return
-    # Here we use a segmentation specified in UI, not the one referenced in the input fiducial.
-    self._parameterNode.outputSegmentationNode = self.ui.outputSegmentationSelector.currentNode()
-    self._parameterNode.outputCenterlineModelNode = self._parameterNode.inputFiducialNode.GetNodeReference("OutputCenterlineModel")
-    self._parameterNode.outputCenterlineCurveNode = self._parameterNode.inputFiducialNode.GetNodeReference("OutputCenterlineCurve")
-
   def onApplyButton(self) -> None:
     """
     Run processing when user clicks "Apply" button.
@@ -344,43 +302,37 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
             self.inform(_("No input slice node specified."))
             return
         # Ensure there's a background volume node.
-        sliceNode = self._parameterNode.inputSliceNode
-        sliceWidget = slicer.app.layoutManager().sliceWidget(sliceNode.GetName())
-        volumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
-        if volumeNode is None:
-            self.inform(_("No volume node selected in input slice node."))
+        if self._parameterNode.inputVolumeNode is None:
+            self.inform(_("Unknown volume node."))
             return
+        self.onRestoreSliceViews()
         # We no longer preprocess input surface in 'Extract centerline', to avoid crashes. Force a ROI to reduce computation time.
         if self._parameterNode.inputROINode is None:
             self.inform(_("No input ROI node specified."))
             return
-        # Restore logic output objects relevant to the input fiducial.
-        self.UpdateParameterWithOutputNodes()
         # Compute output
         self.logic.process()
-        # Update input node with references to new output nodes.
-        self.UpdateInputNodeWithOutputNodes()
-        # Update input node with input parameters.
-        self.UpdateInputNodeWithParameters()
         # Update segmentation selector if it was none
         self.ui.outputSegmentationSelector.setCurrentNode(self._parameterNode.outputSegmentationNode)
+        # Inform about the number of regions in the output segment.
+        self.updateRegionInfo()
 
     except Exception as e:
         slicer.util.errorDisplay(_("Failed to compute results: ") + str(e))
         import traceback
         traceback.print_exc()
 
+  def onUseLargestSegmentRegionToggled(self, checked):
+    self._parameterNode.optionUseLargestSegmentRegion = checked
+
   # Handy during development
   def removeOutputNodes(self) -> None:
-    inputFiducialNode = self.ui.inputFiducialSelector.currentNode()
-    if not inputFiducialNode:
-        return
-    # Remove segment, ID is controlled.
-    segmentID = "Segment_" + inputFiducialNode.GetID()
     segmentation = self._parameterNode.outputSegmentationNode
-    segment = segmentation.GetSegmentation().GetSegment(segmentID)
-    if segment:
-        segmentation.GetSegmentation().RemoveSegment(segment)
+    if segmentation:
+      segment = segmentation.GetSegmentation().GetSegment(self._parameterNode.outputSegmentID)
+      if segment:
+          segmentation.GetSegmentation().RemoveSegment(segment)
+          self._parameterNode.outputSegmentID = ""
     # Remove child centerline curves of self.outputCenterlineCurve
     shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
     outputCurveMainId = shNode.GetItemByDataNode(self._parameterNode.outputCenterlineCurveNode)
@@ -394,8 +346,43 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
     slicer.mrmlScene.RemoveNode(self._parameterNode.outputCenterlineCurveNode)
     self._parameterNode.outputCenterlineModelNode = None
     self._parameterNode.outputCenterlineCurveNode = None
-    # Remove node references to centerlines
-    self.UpdateInputNodeWithOutputNodes()
+
+  def updateRegionInfo(self):
+    if not self._parameterNode:
+      self.ui.regionInfoLabel.setVisible(False)
+      self.ui.fixRegionToolButton.setVisible(False)
+      return
+    segmentation = self._parameterNode.outputSegmentationNode
+    segmentID = self._parameterNode.outputSegmentID
+    if (not segmentation) or (not segmentID):
+      self.inform(_("Invalid segmentation or segmentID."))
+      self.ui.regionInfoLabel.setVisible(False)
+      self.ui.fixRegionToolButton.setVisible(False)
+      return
+    
+    numberOfRegions = self.logic.getNumberOfRegionsInSegment(segmentation, segmentID)
+    if numberOfRegions == 0:
+      self.ui.regionInfoLabel.clear()
+      self.ui.regionInfoLabel.setVisible(False)
+      self.ui.fixRegionToolButton.setVisible(False)
+      return
+    regionInfo = _("Number of regions in segment: ") + str(numberOfRegions)
+    self.ui.regionInfoLabel.setText(regionInfo)
+    self.ui.regionInfoLabel.setVisible(True)
+    self.ui.fixRegionToolButton.setVisible(numberOfRegions > 1)
+
+  def replaceSegmentByRegion(self):
+    if not self._parameterNode:
+      return
+    segmentation = self._parameterNode.outputSegmentationNode
+    segmentID = self._parameterNode.outputSegmentID
+    if (not segmentation) or (not segmentID):
+      self.inform(_("Invalid segmentation or segmentID."))
+      self.ui.regionInfoLabel.setVisible(False)
+      return
+    self.logic.replaceSegmentByLargestRegion(segmentation, segmentID)
+    self.updateRegionInfo()
+
 #
 # QuickArterySegmentationLogic
 #
@@ -467,6 +454,7 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     We can reach it precisely.
     """
     segmentID = "Segment_" + self._parameterNode.inputFiducialNode.GetID()
+    self._parameterNode.outputSegmentID = segmentID
     segment = segmentation.GetSegmentation().GetSegment(segmentID)
     if segment:
         segmentColor = segment.GetColor()
@@ -547,6 +535,13 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     applyButton = ecUi.applyButton
     outputNetworkGroupBox = ecUi.CollapsibleGroupBox
 
+    # On request, fix the segment to a single region if necessary.
+    # The largest region is then used, the others are holes we want to get rid of.
+    if self._parameterNode.optionUseLargestSegmentRegion:
+      numberOfRegions = self.getNumberOfRegionsInSegment(segmentation, segmentID)
+      if (numberOfRegions > 1):
+        self.replaceSegmentByLargestRegion(segmentation, segmentID)
+
     # Set input segmentation and endpoints
     inputSurfaceComboBox.setCurrentNode(segmentation)
     inputSegmentSelectorWidget.setCurrentSegmentID(segmentID)
@@ -588,6 +583,49 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     logging.info(message)
     slicer.util.showStatusMessage(message, 5000)
     return segmentID
+
+  def getNumberOfRegionsInSegment(self, segmentation, segmentID):
+    if (not segmentation) or (not segmentID):
+      raise ValueError(_("Segmentation or segmentID is invalid."))
+    if not segmentation.GetSegmentation().GetSegment(segmentID):
+      raise ValueError(_("Segment not found in the segmentation."))
+
+    closedSurfacePolyData = vtk.vtkPolyData()
+    segmentation.CreateClosedSurfaceRepresentation()
+    segmentation.GetClosedSurfaceRepresentation(segmentID, closedSurfacePolyData)
+    regionFilter = vtk.vtkPolyDataConnectivityFilter()
+    regionFilter.SetInputData(closedSurfacePolyData)
+    regionFilter.SetExtractionModeToAllRegions()
+    regionFilter.Update()
+    return regionFilter.GetNumberOfExtractedRegions()
+
+  def replaceSegmentByLargestRegion(self, segmentation, segmentID):
+    if (not segmentation) or (not segmentID):
+      raise ValueError(_("Segmentation or segmentID is invalid."))
+    if not segmentation.GetSegmentation().GetSegment(segmentID):
+      raise ValueError(_("Segment not found in the segmentation."))
+
+    closedSurfacePolyData = vtk.vtkPolyData()
+    segmentation.CreateClosedSurfaceRepresentation()
+    segmentation.GetClosedSurfaceRepresentation(segmentID, closedSurfacePolyData)
+    regionExtrator = vtk.vtkPolyDataConnectivityFilter()
+    regionExtrator.SetExtractionModeToLargestRegion()
+    regionExtrator.SetInputData(closedSurfacePolyData)
+    regionExtrator.Update()
+
+    cleaner = vtk.vtkCleanPolyData()
+    cleaner.SetInputConnection(regionExtrator.GetOutputPort())
+    cleaner.Update()
+
+    segment = segmentation.GetSegmentation().GetSegment(segmentID)
+    segmentName = segment.GetName()
+    segmentColour = segment.GetColor()
+    segmentation.GetSegmentation().RemoveSegment(segmentID)
+    newSegmentID = segmentation.AddSegmentFromClosedSurfaceRepresentation(cleaner.GetOutput(), segmentName, segmentColour, segmentID)
+    if newSegmentID != segmentID: # A few years ago, segmentID was being ignored in AddSegmentFromClosedSurfaceRepresentation.
+      logging.warning("Mismatch between requested and created segment ids from AddSegmentFromClosedSurfaceRepresentation.")
+
+    return newSegmentID # Must be the same as segmentID.
 
 #
 # QuickArterySegmentationTest

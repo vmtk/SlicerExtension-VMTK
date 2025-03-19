@@ -15,6 +15,7 @@ from slicer.parameterNodeWrapper import (
 )
 
 from slicer import vtkMRMLScalarVolumeNode
+import QuickArterySegmentation
 
 #
 # GuidedArterySegmentation
@@ -59,9 +60,12 @@ class GuidedArterySegmentationParameterNode:
   extractCenterlines: bool = False
   outputSegmentation: slicer.vtkMRMLSegmentationNode
   # These do not have widget counterparts.
+  inputVolume: slicer.vtkMRMLScalarVolumeNode
   outputFiducialNode: slicer.vtkMRMLMarkupsFiducialNode # 'Extract centerline' endpoints
   outputCenterlineModel: slicer.vtkMRMLModelNode
   outputCenterlineCurve: slicer.vtkMRMLMarkupsCurveNode
+  outputSegmentID: str = ""
+  optionUseLargestSegmentRegion: bool = True
 
 #
 # GuidedArterySegmentationWidget
@@ -105,6 +109,8 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
 
     self.ui.floodFillingCollapsibleGroupBox.checked = False
     self.ui.extentCollapsibleGroupBox.checked = False
+    self.ui.regionInfoLabel.setVisible(False)
+    self.ui.fixRegionToolButton.setVisible(False)
 
     # Connections
 
@@ -114,11 +120,21 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
 
     # Application connections
     self.ui.inputCurveSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onCurveNode)
+    self.ui.inputSliceNodeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSliceNode)
+    self.ui.outputSegmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onSegmentationNode)
     self.ui.inputShapeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onShapeNode)
+    self.ui.fixRegionToolButton.connect("clicked()", self.replaceSegmentByRegion)
     self.ui.restoreSliceViewToolButton.connect("clicked()", self.onRestoreSliceViews)
+
+    self.ui.applyButton.menu().clear()
+    self._useLargestSegmentRegion = qt.QAction(_("Use the largest region of the segment"))
+    self._useLargestSegmentRegion.setCheckable(True)
+    self._useLargestSegmentRegion.setChecked(True)
+    self.ui.applyButton.menu().addAction(self._useLargestSegmentRegion)
 
     # Buttons
     self.ui.applyButton.connect('clicked(bool)', self.onApplyButton)
+    self._useLargestSegmentRegion.connect("toggled(bool)", self.onUseLargestSegmentRegionToggled)
 
     # Make sure parameter node is initialized (needed for module reload)
     self.initializeParameterNode()
@@ -140,25 +156,37 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     logging.info(message)
 
   def onCurveNode(self, node) -> None:
+    self.ui.regionInfoLabel.setVisible(False)
+    self.ui.fixRegionToolButton.setVisible(False)
     if not self._parameterNode:
-      return;
-    self._parameterNode.inputCurveNode = node
-    if node is None:
-        return
+      return
+
     numberOfControlPoints = node.GetNumberOfControlPoints()
     if numberOfControlPoints < 3:
         self.inform(_("Curve node must have at least 3 points."))
         self._parameterNode.inputCurveNode = None
-        return
-    # Update UI with previous referenced segmentation. May be changed before logic.process().
-    referencedSegmentationNode = node.GetNodeReference("OutputSegmentation")
-    if referencedSegmentationNode:
-        self._parameterNode.outputSegmentation = referencedSegmentationNode
-    # Show last known volume used for segmentation.
-    referencedInputVolume = node.GetNodeReference("InputVolumeNode")
-    self.updateSliceViews(referencedInputVolume)
-    # Reuse last known parameters
-    self.updateGUIParametersFromInputNode()
+
+  def onSliceNode(self, node):
+    self.ui.regionInfoLabel.setVisible(False)
+    self.ui.fixRegionToolButton.setVisible(False)
+
+    """
+    Unless we do that, this function gets called twice,
+    with node being None the second time, if inputVolume is set.
+    This is seen with a qMRMLNodeComboBox handling vtkMRMLSliceNode only.
+    """
+    self._parameterNode.parameterNode.DisableModifiedEventOn()
+    if node:
+      sliceWidget = slicer.app.layoutManager().sliceWidget(node.GetName())
+      backgroudVolumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
+      self._parameterNode.inputVolume = backgroudVolumeNode
+    else:
+      self._parameterNode.inputVolume = None
+    self._parameterNode.parameterNode.DisableModifiedEventOff()
+
+  def onSegmentationNode(self, node):
+    self.ui.regionInfoLabel.setVisible(False)
+    self.ui.fixRegionToolButton.setVisible(False)
 
   def onShapeNode(self, node) -> None:
     if node is None:
@@ -189,11 +217,6 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     sliceNode = self._parameterNode.inputSliceNode
     if not sliceNode:
         return
-    # Don't upset UI if we have the right volume node
-    sliceWidget = slicer.app.layoutManager().sliceWidget(sliceNode.GetName())
-    volumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
-    if node == volumeNode:
-        return
     views = slicer.app.layoutManager().sliceViewNames()
     for view in views:
         sliceWidget = slicer.app.layoutManager().sliceWidget(view)
@@ -205,11 +228,7 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
             sliceCompositeNode.SetBackgroundVolumeID(None)
 
   def onRestoreSliceViews(self) -> None:
-    # Show last known volume used for segmentation.
-    if not self._parameterNode.inputCurveNode:
-        return
-    referencedInputVolume = self._parameterNode.inputCurveNode.GetNodeReference("InputVolumeNode")
-    self.updateSliceViews(referencedInputVolume)
+    self.updateSliceViews(self._parameterNode.inputVolume)
 
   def cleanup(self) -> None:
     """
@@ -272,71 +291,6 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
       # ui element that needs connection.
       self._parameterNodeGuiTag = self._parameterNode.connectGui(self.ui)
 
-  """
-  Let each one trace last used parameter values and output nodes.
-  These can be restored when an input curve is selected again.
-  """
-  def UpdateInputNodeWithThisOutputNode(self, outputNode, referenceID) -> None:
-    outputNodeID = ""
-    if outputNode:
-        outputNodeID = outputNode.GetID()
-    self._parameterNode.inputCurveNode.SetNodeReferenceID(referenceID, outputNodeID)
-
-  def UpdateInputNodeWithOutputNodes(self) -> None:
-    if not self._parameterNode.inputCurveNode:
-        return
-    wasModified = self._parameterNode.inputCurveNode.StartModify()
-    self.UpdateInputNodeWithThisOutputNode(self._parameterNode.outputFiducialNode, "OutputFiducialNode")
-    self.UpdateInputNodeWithThisOutputNode(self._parameterNode.outputSegmentation, "OutputSegmentation")
-    self.UpdateInputNodeWithThisOutputNode(self._parameterNode.outputCenterlineModel, "OutputCenterlineModel")
-    self.UpdateInputNodeWithThisOutputNode(self._parameterNode.outputCenterlineCurve, "OutputCenterlineCurve")
-    self._parameterNode.inputCurveNode.EndModify(wasModified)
-
-  def UpdateInputNodeWithParameters(self) -> None:
-    if not self._parameterNode.inputCurveNode:
-        return
-    wasModified = self._parameterNode.inputCurveNode.StartModify()
-
-    sliceNode = self._parameterNode.inputSliceNode
-    sliceWidget = slicer.app.layoutManager().sliceWidget(sliceNode.GetName())
-    volumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
-    self._parameterNode.inputCurveNode.SetNodeReferenceID("InputVolumeNode", volumeNode.GetID())
-
-    shapeNode = self.logic.getShapeNode()
-    shapeNodeID = shapeNode.GetID() if shapeNode is not None else ""
-    self._parameterNode.inputCurveNode.SetNodeReferenceID("InputShapeNode", shapeNodeID)
-
-    self._parameterNode.inputCurveNode.SetAttribute("TubeDiameter", str(self._parameterNode.tubeDiameter))
-    self._parameterNode.inputCurveNode.SetAttribute("InputIntensityTolerance", str(self._parameterNode.intensityTolerance))
-    self._parameterNode.inputCurveNode.SetAttribute("NeighbourhoodSize", str(self._parameterNode.neighbourhoodSize))
-    self._parameterNode.inputCurveNode.EndModify(wasModified)
-
-  # Restore parameters from input curve
-  def updateGUIParametersFromInputNode(self) -> None:
-    if not self._parameterNode.inputCurveNode:
-        return
-    tubeDiameter = self._parameterNode.inputCurveNode.GetAttribute("TubeDiameter")
-    if tubeDiameter:
-        self.ui.tubeDiameterSpinBox.value = float(tubeDiameter)
-    intensityTolerance = self._parameterNode.inputCurveNode.GetAttribute("InputIntensityTolerance")
-    if intensityTolerance:
-        self.ui.intensityToleranceSpinBox.value = int(intensityTolerance)
-    neighbourhoodSize = self._parameterNode.inputCurveNode.GetAttribute("NeighbourhoodSize")
-    if neighbourhoodSize:
-        self.ui.neighbourhoodSizeDoubleSpinBox.value = float(neighbourhoodSize)
-    shapeNode = self._parameterNode.inputCurveNode.GetNodeReference("InputShapeNode")
-    self.ui.inputShapeSelector.setCurrentNode(shapeNode)
-
-  # Restore output nodes in logic
-  def UpdateParameterNodeWithOutputNodes(self) -> None:
-    if not self._parameterNode.inputCurveNode:
-        return
-    self._parameterNode.outputFiducialNode = self._parameterNode.inputCurveNode.GetNodeReference("OutputFiducialNode")
-    # Here we use a segmentation specified in UI, not the one referenced in the input fiducial.
-    self._parameterNode.outputSegmentation = self.ui.outputSegmentationSelector.currentNode()
-    self._parameterNode.outputCenterlineModel = self._parameterNode.inputCurveNode.GetNodeReference("OutputCenterlineModel")
-    self._parameterNode.outputCenterlineCurve = self._parameterNode.inputCurveNode.GetNodeReference("OutputCenterlineCurve")
-
   def onApplyButton(self) -> None:
     """
     Run processing when user clicks "Apply" button.
@@ -352,48 +306,80 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
             self.inform(_("No input slice node specified."))
             return
         # Ensure there's a background volume node.
-        sliceNode = self._parameterNode.inputSliceNode
-        sliceWidget = slicer.app.layoutManager().sliceWidget(sliceNode.GetName())
-        volumeNode = sliceWidget.sliceLogic().GetBackgroundLayer().GetVolumeNode()
-        if volumeNode is None:
-            self.inform(_("No volume node selected in input slice node."))
+        if self._parameterNode.inputVolume is None:
+            self.inform(_("Unknown volume node."))
             return
-        # Restore logic output objects with referenced ones.
-        self.UpdateParameterNodeWithOutputNodes()
+        self.onRestoreSliceViews()
         # Compute output
         self.logic.process()
-        # Update parameter node with references to new output nodes.
-        self.UpdateInputNodeWithOutputNodes()
-        # Update input node with input parameters.
-        self.UpdateInputNodeWithParameters()
         # Update segmentation selector if it was none
         self.ui.outputSegmentationSelector.setCurrentNode(self._parameterNode.outputSegmentation)
+        # Inform about the number of regions in the output segment.
+        self.updateRegionInfo()
 
     except Exception as e:
       slicer.util.errorDisplay(_("Failed to compute results: ") + str(e))
       import traceback
       traceback.print_exc()
 
+  def onUseLargestSegmentRegionToggled(self, checked):
+    self._parameterNode.optionUseLargestSegmentRegion = checked
+
   # Handy during development
   def removeOutputNodes(self) -> None:
-    inputCurveNode = self._parameterNode.inputCurveNode
-    if not inputCurveNode:
-        return
-    slicer.mrmlScene.RemoveNode(inputCurveNode.GetNodeReference("OutputFiducialNode"))
-    slicer.mrmlScene.RemoveNode(inputCurveNode.GetNodeReference("OutputCenterlineModel"))
-    slicer.mrmlScene.RemoveNode(inputCurveNode.GetNodeReference("OutputCenterlineCurve"))
+    slicer.mrmlScene.RemoveNode(self._parameterNode.outputFiducialNode)
+    slicer.mrmlScene.RemoveNode(self._parameterNode.outputCenterlineModel)
+    slicer.mrmlScene.RemoveNode(self._parameterNode.outputCenterlineCurve)
     self._parameterNode.outputFiducialNode = None
     self._parameterNode.outputCenterlineModel = None
     self._parameterNode.outputCenterlineCurve = None
 
     # Remove segment, ID is controlled.
-    segmentation = inputCurveNode.GetNodeReference("OutputSegmentation")
-    segmentID = "Segment_" + inputCurveNode.GetID()
-    segment = segmentation.GetSegmentation().GetSegment(segmentID)
-    if segment:
-        segmentation.GetSegmentation().RemoveSegment(segment)
-    # Remove node references to centerlines and enpoint fiducial
-    self.UpdateInputNodeWithOutputNodes()
+    segmentation = self._parameterNode.outputSegmentation
+    if segmentation:
+      segment = segmentation.GetSegmentation().GetSegment(self._parameterNode.outputSegmentID)
+      if segment:
+          segmentation.GetSegmentation().RemoveSegment(segment)
+          self._parameterNode.outputSegmentID = ""
+
+  def updateRegionInfo(self):
+    if not self._parameterNode:
+      self.ui.regionInfoLabel.setVisible(False)
+      self.ui.fixRegionToolButton.setVisible(False)
+      return
+    segmentation = self._parameterNode.outputSegmentation
+    segmentID = self._parameterNode.outputSegmentID
+    if (not segmentation) or (not segmentID):
+      self.inform(_("Invalid segmentation or segmentID."))
+      self.ui.regionInfoLabel.setVisible(False)
+      self.ui.fixRegionToolButton.setVisible(False)
+      return
+    
+    qasLogic = QuickArterySegmentation.QuickArterySegmentationLogic()
+    numberOfRegions = qasLogic.getNumberOfRegionsInSegment(segmentation, segmentID)
+    if numberOfRegions == 0:
+      self.ui.regionInfoLabel.clear()
+      self.ui.regionInfoLabel.setVisible(False)
+      self.ui.fixRegionToolButton.setVisible(False)
+      return
+    regionInfo = _("Number of regions in segment: ") + str(numberOfRegions)
+    self.ui.regionInfoLabel.setText(regionInfo)
+    self.ui.regionInfoLabel.setVisible(True)
+    self.ui.fixRegionToolButton.setVisible(numberOfRegions > 1)
+
+  def replaceSegmentByRegion(self):
+    if not self._parameterNode:
+      return
+    segmentation = self._parameterNode.outputSegmentation
+    segmentID = self._parameterNode.outputSegmentID
+    if (not segmentation) or (not segmentID):
+      self.inform(_("Invalid segmentation or segmentID."))
+      self.ui.regionInfoLabel.setVisible(False)
+      return
+    qasLogic = QuickArterySegmentation.QuickArterySegmentationLogic()
+    qasLogic.replaceSegmentByLargestRegion(segmentation, segmentID)
+    self.updateRegionInfo()
+
 #
 # GuidedArterySegmentationLogic
 #
@@ -539,6 +525,7 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     We can reach it precisely.
     """
     segmentID = "Segment_" + self._parameterNode.inputCurveNode.GetID()
+    self._parameterNode.outputSegmentID = segmentID
     segment = segmentation.GetSegmentation().GetSegment(segmentID)
     if segment:
         segmentColor = segment.GetColor()
@@ -630,6 +617,18 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     preprocessInputSurfaceModelCheckBox = ecUi.preprocessInputSurfaceModelCheckBox
     applyButton = ecUi.applyButton
     outputNetworkGroupBox = ecUi.CollapsibleGroupBox
+
+    """
+    On request, fix the segment to a single region if necessary.
+    The largest region is then used, the others are often holes we want to get rid of,
+    but may be disconnected segmented islands. The final result will not be
+    satisfactory, but will mean the study has to be reviewed.
+    """
+    if self._parameterNode.optionUseLargestSegmentRegion:
+      qasLogic = QuickArterySegmentation.QuickArterySegmentationLogic()
+      numberOfRegions = qasLogic.getNumberOfRegionsInSegment(segmentation, segmentID)
+      if (numberOfRegions > 1):
+        qasLogic.replaceSegmentByLargestRegion(segmentation, segmentID)
 
     # Set input segmentation
     inputSurfaceComboBox.setCurrentNode(segmentation)

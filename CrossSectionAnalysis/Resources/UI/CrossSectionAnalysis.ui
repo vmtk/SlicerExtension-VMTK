@@ -351,7 +351,7 @@ The input centerline is expected to be inside the lumen surface.</string>
 
 Ideally, there should be only one region. More regions may indicate the presence of holes in the lumen and/or distinct regions outside of the lumen. Holes in the lumen mean inaccurate cross-section area measurement.
 
-When unwanted regions have been fixed, typically using the 'Paint' effect of the 'Segment editor', this function may be executed again.
+When unwanted regions have been fixed, typically using the 'Paint' effect of the 'Segment editor', this function may be executed again. A 'fast fix' function is also provided.
 
 After a complete repair of the lumen surface, the centerlines must be extracted again so that the 'Maximum inscribed sphere' radius arrays get updated.</string>
                  </property>
@@ -427,6 +427,16 @@ The 'Sphere' brush is enforced. Further customisation can be performed in the 'S
                    </property>
                    <property name="checkable">
                     <bool>true</bool>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QToolButton" name="surfaceInformationFastFixToolButton">
+                   <property name="toolTip">
+                    <string>Replace the segment by the largest region.</string>
+                   </property>
+                   <property name="text">
+                    <string>fast fix</string>
                    </property>
                   </widget>
                  </item>
