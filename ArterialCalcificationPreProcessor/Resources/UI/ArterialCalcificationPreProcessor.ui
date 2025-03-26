@@ -12,97 +12,181 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <layout class="QFormLayout" name="mainLayout">
-     <item row="0" column="1">
-      <widget class="qMRMLSegmentSelectorWidget" name="segmentSelector">
-       <property name="toolTip">
-        <string>Select an input lumen segment.</string>
-       </property>
-       <property name="noneEnabled">
-        <bool>true</bool>
-       </property>
-       <property name="editEnabled">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
+    <layout class="QFormLayout" name="parameterSetLayout">
      <item row="0" column="0">
-      <widget class="QLabel" name="segmentSelectorLabel">
+      <widget class="QLabel" name="parameterSetLabel">
        <property name="text">
-        <string>Segmentation:</string>
+        <string>Parameter set:</string>
        </property>
       </widget>
      </item>
-     <item row="2" column="1">
-      <widget class="QDoubleSpinBox" name="marginSpinBox">
-       <property name="toolTip">
-        <string>Segment calcification around the lumen within this margin.</string>
+     <item row="0" column="1">
+      <layout class="QHBoxLayout" name="parameterSetHorizontalLayout">
+       <property name="spacing">
+        <number>6</number>
        </property>
-       <property name="suffix">
-        <string> mm</string>
+       <property name="sizeConstraint">
+        <enum>QLayout::SetDefaultConstraint</enum>
        </property>
-       <property name="decimals">
-        <number>1</number>
-       </property>
-       <property name="singleStep">
-        <double>0.500000000000000</double>
-       </property>
-       <property name="value">
-        <double>4.000000000000000</double>
-       </property>
-       <property name="SlicerParameterName" stdset="0">
-        <string notr="true">marginSize</string>
-       </property>
-      </widget>
-     </item>
-     <item row="2" column="0">
-      <widget class="QLabel" name="marginLabel">
-       <property name="text">
-        <string>Margin:</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="0">
-      <widget class="QLabel" name="volumeLabel">
-       <property name="text">
-        <string>Volume:</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="1">
-      <widget class="qMRMLNodeComboBox" name="volumeSelector">
-       <property name="toolTip">
-        <string>Select the source volume node of the selected segment.</string>
-       </property>
-       <property name="nodeTypes">
-        <stringlist notr="true">
-         <string>vtkMRMLScalarVolumeNode</string>
-        </stringlist>
-       </property>
-       <property name="hideChildNodeTypes">
-        <stringlist notr="true"/>
-       </property>
-       <property name="noneEnabled">
-        <bool>true</bool>
-       </property>
-       <property name="addEnabled">
-        <bool>false</bool>
-       </property>
-       <property name="editEnabled">
-        <bool>false</bool>
-       </property>
-       <property name="renameEnabled">
-        <bool>true</bool>
-       </property>
-       <property name="interactionNodeSingletonTag">
-        <string notr="true"/>
-       </property>
-       <property name="SlicerParameterName" stdset="0">
-        <string notr="true">inputVolume</string>
-       </property>
-      </widget>
+       <item>
+        <widget class="qMRMLNodeComboBox" name="parameterSetSelector">
+         <property name="enabled">
+          <bool>true</bool>
+         </property>
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+           <horstretch>1</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="toolTip">
+          <string>A parameter set groups parameters that define a named study distinctly.</string>
+         </property>
+         <property name="nodeTypes">
+          <stringlist notr="true">
+           <string>vtkMRMLScriptedModuleNode</string>
+          </stringlist>
+         </property>
+         <property name="showHidden">
+          <bool>true</bool>
+         </property>
+         <property name="hideChildNodeTypes">
+          <stringlist notr="true"/>
+         </property>
+         <property name="baseName">
+          <string notr="true">ArterialCalcificationPreProcessor</string>
+         </property>
+         <property name="noneEnabled">
+          <bool>false</bool>
+         </property>
+         <property name="renameEnabled">
+          <bool>true</bool>
+         </property>
+         <property name="interactionNodeSingletonTag">
+          <string notr="true"/>
+         </property>
+         <property name="selectNodeUponCreation">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QToolButton" name="parameterSetUpdateUIToolButton">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="toolTip">
+          <string>Update the segment editor and the slice views with the input segmentation and volume if any.</string>
+         </property>
+         <property name="text">
+          <string>↺</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
      </item>
     </layout>
+   </item>
+   <item>
+    <widget class="ctkCollapsibleButton" name="inputsCollapsibleButton">
+     <property name="text">
+      <string>Inputs</string>
+     </property>
+     <layout class="QFormLayout" name="formLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="inputSegmentSelectorLabel">
+        <property name="text">
+         <string>Segmentation:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="qMRMLSegmentSelectorWidget" name="inputSegmentSelector">
+        <property name="toolTip">
+         <string>Select an input lumen segment.</string>
+        </property>
+        <property name="noneEnabled">
+         <bool>true</bool>
+        </property>
+        <property name="editEnabled">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="inputVolumeLabel">
+        <property name="text">
+         <string>Volume:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="qMRMLNodeComboBox" name="inputVolumeSelector">
+        <property name="toolTip">
+         <string>Select the source volume node of the selected segment.</string>
+        </property>
+        <property name="nodeTypes">
+         <stringlist notr="true">
+          <string>vtkMRMLScalarVolumeNode</string>
+         </stringlist>
+        </property>
+        <property name="hideChildNodeTypes">
+         <stringlist notr="true"/>
+        </property>
+        <property name="noneEnabled">
+         <bool>true</bool>
+        </property>
+        <property name="addEnabled">
+         <bool>false</bool>
+        </property>
+        <property name="editEnabled">
+         <bool>false</bool>
+        </property>
+        <property name="renameEnabled">
+         <bool>true</bool>
+        </property>
+        <property name="interactionNodeSingletonTag">
+         <string notr="true"/>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="inputMarginLabel">
+        <property name="text">
+         <string>Margin:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QDoubleSpinBox" name="inputMarginSpinBox">
+        <property name="toolTip">
+         <string>Segment calcification around the lumen within this margin.</string>
+        </property>
+        <property name="suffix">
+         <string> mm</string>
+        </property>
+        <property name="decimals">
+         <number>1</number>
+        </property>
+        <property name="singleStep">
+         <double>0.500000000000000</double>
+        </property>
+        <property name="value">
+         <double>4.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
    </item>
    <item>
     <spacer name="verticalSpacer">
@@ -131,6 +215,12 @@
  </widget>
  <customwidgets>
   <customwidget>
+   <class>ctkCollapsibleButton</class>
+   <extends>QWidget</extends>
+   <header>ctkCollapsibleButton.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
    <class>ctkMenuButton</class>
    <extends>QPushButton</extends>
    <header>ctkMenuButton.h</header>
@@ -158,7 +248,7 @@
   <connection>
    <sender>ArterialCalcificationPreProcessor</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
-   <receiver>segmentSelector</receiver>
+   <receiver>inputSegmentSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -174,7 +264,7 @@
   <connection>
    <sender>ArterialCalcificationPreProcessor</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
-   <receiver>volumeSelector</receiver>
+   <receiver>inputVolumeSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -184,6 +274,22 @@
     <hint type="destinationlabel">
      <x>238</x>
      <y>95</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>ArterialCalcificationPreProcessor</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>parameterSetSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>176</x>
+     <y>219</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>221</x>
+     <y>22</y>
     </hint>
    </hints>
   </connection>

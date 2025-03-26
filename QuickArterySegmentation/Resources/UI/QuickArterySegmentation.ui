@@ -15,12 +15,97 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
+    <layout class="QFormLayout" name="parameterSetLayout">
+     <item row="0" column="0">
+      <widget class="QLabel" name="parameterSetLabel">
+       <property name="text">
+        <string>Parameter set:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <layout class="QHBoxLayout" name="parameterSetHorizontalLayout">
+       <property name="spacing">
+        <number>6</number>
+       </property>
+       <property name="sizeConstraint">
+        <enum>QLayout::SetDefaultConstraint</enum>
+       </property>
+       <item>
+        <widget class="qMRMLNodeComboBox" name="parameterSetSelector">
+         <property name="enabled">
+          <bool>true</bool>
+         </property>
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+           <horstretch>1</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="toolTip">
+          <string>A parameter set groups parameters that define a named study distinctly.</string>
+         </property>
+         <property name="nodeTypes">
+          <stringlist notr="true">
+           <string>vtkMRMLScriptedModuleNode</string>
+          </stringlist>
+         </property>
+         <property name="showHidden">
+          <bool>true</bool>
+         </property>
+         <property name="hideChildNodeTypes">
+          <stringlist notr="true"/>
+         </property>
+         <property name="baseName">
+          <string notr="true">QuickArterySegmentation</string>
+         </property>
+         <property name="noneEnabled">
+          <bool>false</bool>
+         </property>
+         <property name="renameEnabled">
+          <bool>true</bool>
+         </property>
+         <property name="interactionNodeSingletonTag">
+          <string notr="true"/>
+         </property>
+         <property name="selectNodeUponCreation">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QToolButton" name="parameterSetUpdateUIToolButton">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="toolTip">
+          <string>Update the segment editor and the slice views with the input segmentation and volume if any.</string>
+         </property>
+         <property name="text">
+          <string>↺</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+    </layout>
+   </item>
+   <item>
     <widget class="ctkCollapsibleButton" name="inputsCollapsibleButton">
      <property name="text">
       <string>Inputs</string>
      </property>
      <layout class="QFormLayout" name="formLayout_2">
-      <item row="0" column="1">
+      <item row="1" column="1">
        <widget class="qMRMLNodeComboBox" name="inputFiducialSelector">
         <property name="toolTip">
          <string>Pick an input markups fiducial node.
@@ -53,12 +138,9 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
         <property name="renameEnabled">
          <bool>true</bool>
         </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string notr="true">inputFiducialNode</string>
-        </property>
        </widget>
       </item>
-      <item row="4" column="1">
+      <item row="5" column="1">
        <layout class="QHBoxLayout" name="inputROILayout">
         <item>
          <widget class="qMRMLNodeComboBox" name="inputROISelector">
@@ -73,6 +155,9 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
             <string>vtkMRMLMarkupsROINode</string>
            </stringlist>
           </property>
+          <property name="baseName">
+           <string>QuickROI</string>
+          </property>
           <property name="noneEnabled">
            <bool>true</bool>
           </property>
@@ -81,9 +166,6 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
           </property>
           <property name="renameEnabled">
            <bool>true</bool>
-          </property>
-          <property name="SlicerParameterName" stdset="0">
-           <string notr="true">inputROINode</string>
           </property>
          </widget>
         </item>
@@ -102,7 +184,7 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
         </item>
        </layout>
       </item>
-      <item row="4" column="0">
+      <item row="5" column="0">
        <widget class="QLabel" name="inputROILabel">
         <property name="locale">
          <locale language="English" country="UnitedStates"/>
@@ -112,7 +194,7 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
         </property>
        </widget>
       </item>
-      <item row="0" column="0">
+      <item row="1" column="0">
        <widget class="QLabel" name="inputFiducialLabel">
         <property name="locale">
          <locale language="English" country="UnitedStates"/>
@@ -122,14 +204,14 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
         </property>
        </widget>
       </item>
-      <item row="5" column="0">
+      <item row="6" column="0">
        <widget class="QLabel" name="outputSegmentationSelectorLabel">
         <property name="text">
          <string>Segmentation:</string>
         </property>
        </widget>
       </item>
-      <item row="5" column="1">
+      <item row="6" column="1">
        <widget class="qMRMLNodeComboBox" name="outputSegmentationSelector">
         <property name="toolTip">
          <string>Select an output segmentation</string>
@@ -154,12 +236,9 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
         <property name="selectNodeUponCreation">
          <bool>true</bool>
         </property>
-        <property name="SlicerParameterName" stdset="0">
-         <string notr="true">outputSegmentationNode</string>
-        </property>
        </widget>
       </item>
-      <item row="1" column="1">
+      <item row="2" column="1">
        <layout class="QHBoxLayout" name="inputSliceNodeLayout">
         <item>
          <widget class="qMRMLNodeComboBox" name="inputSliceNodeSelector">
@@ -186,31 +265,18 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
           <property name="selectNodeUponCreation">
            <bool>false</bool>
           </property>
-          <property name="SlicerParameterName" stdset="0">
-           <string notr="true">inputSliceNode</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QToolButton" name="restoreSliceViewToolButton">
-          <property name="toolTip">
-           <string>Restore slice views with the referenced volume node</string>
-          </property>
-          <property name="text">
-           <string>...</string>
-          </property>
          </widget>
         </item>
        </layout>
       </item>
-      <item row="1" column="0">
+      <item row="2" column="0">
        <widget class="QLabel" name="inputSliceNodeLabel">
         <property name="text">
          <string>Slice node:</string>
         </property>
        </widget>
       </item>
-      <item row="6" column="1">
+      <item row="7" column="1">
        <layout class="QHBoxLayout" name="regionsHorizontalLayout">
         <item>
          <widget class="QLabel" name="regionInfoLabel">
@@ -244,6 +310,9 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
        <horstretch>0</horstretch>
        <verstretch>1</verstretch>
       </sizepolicy>
+     </property>
+     <property name="toolTip">
+      <string>Use a parameter set for a distinct study.</string>
      </property>
      <property name="title">
       <string>Flood filling parameters</string>
@@ -294,9 +363,6 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
          <property name="value">
           <number>100</number>
          </property>
-         <property name="SlicerParameterName" stdset="0">
-          <string notr="true">inputIntensityTolerance</string>
-         </property>
         </widget>
        </item>
        <item row="1" column="0">
@@ -329,9 +395,6 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
          </property>
          <property name="value">
           <double>2.000000000000000</double>
-         </property>
-         <property name="SlicerParameterName" stdset="0">
-          <string notr="true">inputNeighbourhoodSize</string>
          </property>
         </widget>
        </item>
@@ -370,9 +433,6 @@ It is recommended to generate centerlines on accurate segmentations.</string>
      </property>
      <property name="tristate">
       <bool>false</bool>
-     </property>
-     <property name="SlicerParameterName" stdset="0">
-      <string notr="true">optionExtractCenterlines</string>
      </property>
     </widget>
    </item>
@@ -484,6 +544,22 @@ If centerlines are extracted, optionally replace the segment by its largest regi
     <hint type="destinationlabel">
      <x>347</x>
      <y>206</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>QuickArterySegmentation</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>parameterSetSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>286</x>
+     <y>310</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>315</x>
+     <y>23</y>
     </hint>
    </hints>
   </connection>

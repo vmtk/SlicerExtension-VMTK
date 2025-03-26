@@ -116,30 +116,31 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
 
     # Update parameter node if the user interacts with the widgets
-    self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.setNodeReferenceInParameterNode("InputCenterline", node))
-    self.ui.segmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.setNodeReferenceInParameterNode("InputSegmentation", node))
-    self.ui.outputTableSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.setNodeReferenceInParameterNode("OutputTable", node))
-    self.ui.outputPlotSeriesSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.setNodeReferenceInParameterNode("OutputPlotSeries", node))
-    self.ui.axialSliceViewSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.setNodeReferenceInParameterNode("AxialSliceNode", node))
-    self.ui.longitudinalSliceViewSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.setNodeReferenceInParameterNode("LongitudinalSliceNode", node))
-    self.ui.segmentSelector.connect("currentSegmentChanged(QString)", lambda value: self.setValueInParameterNode("InputSegment", value))
-    self.ui.useCurrentPointAsOriginButton.connect("clicked()", lambda: self.setValueInParameterNode("OriginPointIndex", int(self.ui.moveToPointSliderWidget.value)))
-    self.ui.radioRAS.connect("clicked()", lambda: self.setValueInParameterNode("UseLPS", False))
-    self.ui.radioLPS.connect("clicked()", lambda: self.setValueInParameterNode("UseLPS", True))
-    self.ui.distinctColumnsCheckBox.connect("toggled(bool)", lambda value: self.setValueInParameterNode("DistinctColumns", "True" if value else "False"))
-    self.ui.jumpCentredInSliceNodeCheckBox.connect("toggled(bool)", lambda value: self.setValueInParameterNode("CentreInSliceView", "True" if value else "False"))
-    self.ui.orthogonalReformatInSliceNodeCheckBox.connect("toggled(bool)", lambda value: self.setValueInParameterNode("OrthogonalReformat", "True" if value else "False"))
-    self.ui.rotationSliderWidget.connect("valueChanged(double)", lambda value: self.setValueInParameterNode("RotationAngleDeg", value))
-    self.ui.axialSpinSliderWidget.connect("valueChanged(double)", lambda value: self.setValueInParameterNode("AxialSpinAngleDeg", value))
-    self.ui.longitudinalSpinSliderWidget.connect("valueChanged(double)", lambda value: self.setValueInParameterNode("LongitudinalSpinAngleDeg", value))
-    self.ui.showMISDiameterButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode("ShowMISModel", "True" if value else "False"))
-    self.ui.showCrossSectionButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode("ShowCrossSection", "True" if value else "False"))
-    self.ui.axialSliceHorizontalFlipCheckBox.connect("clicked()", lambda: self.setValueInParameterNode("AxialSliceHorizontalFlip", str(self.ui.axialSliceHorizontalFlipCheckBox.isChecked())))
-    self.ui.axialSliceVerticalFlipCheckBox.connect("clicked()", lambda : self.setValueInParameterNode("AxialSliceVerticalFlip", str(self.ui.axialSliceVerticalFlipCheckBox.isChecked())))
-    self.ui.surfaceInformationGoToToolButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode("GoToRegion", "True" if value else "False"))
+    self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.setNodeReferenceInParameterNode(ROLE_INPUT_CENTERLINE, node))
+    self.ui.segmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.setNodeReferenceInParameterNode(ROLE_INPUT_SEGMENTATION, node))
+    self.ui.outputTableSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.setNodeReferenceInParameterNode(ROLE_OUTPUT_TABLE, node))
+    self.ui.outputPlotSeriesSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.setNodeReferenceInParameterNode(ROLE_OUTPUT_PLOT_SERIES, node))
+    self.ui.axialSliceViewSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.setNodeReferenceInParameterNode(ROLE_AXIAL_SLICE_NODE, node))
+    self.ui.longitudinalSliceViewSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.setNodeReferenceInParameterNode(ROLE_LONGITUDINAL_SLICE_NODE, node))
+    self.ui.segmentSelector.connect("currentSegmentChanged(QString)", lambda value: self.setValueInParameterNode(ROLE_INPUT_SEGMENT_ID, value))
+    self.ui.useCurrentPointAsOriginButton.connect("clicked()", lambda: self.setValueInParameterNode(ROLE_ORIGIN_POINT_INDEX, int(self.ui.moveToPointSliderWidget.value)))
+    self.ui.radioRAS.connect("clicked()", lambda: self.setValueInParameterNode(ROLE_USE_LPS, False))
+    self.ui.radioLPS.connect("clicked()", lambda: self.setValueInParameterNode(ROLE_USE_LPS, True))
+    self.ui.distinctColumnsCheckBox.connect("toggled(bool)", lambda value: self.setValueInParameterNode(ROLE_USE_DISTINCT_COLUMLNS, "True" if value else "False"))
+    self.ui.jumpCentredInSliceNodeCheckBox.connect("toggled(bool)", lambda value: self.setValueInParameterNode(ROLE_CENTRE_IN_SLICE_VIEW, "True" if value else "False"))
+    self.ui.orthogonalReformatInSliceNodeCheckBox.connect("toggled(bool)", lambda value: self.setValueInParameterNode(ROLE_ORTHOGONAL_REFORMAT, "True" if value else "False"))
+    self.ui.rotationSliderWidget.connect("valueChanged(double)", lambda value: self.setValueInParameterNode(ROLE_ROTATIONAL_ANGLE, value))
+    self.ui.axialSpinSliderWidget.connect("valueChanged(double)", lambda value: self.setValueInParameterNode(ROLE_AXIAL_SPIN_ANGLE, value))
+    self.ui.longitudinalSpinSliderWidget.connect("valueChanged(double)", lambda value: self.setValueInParameterNode(ROLE_LONGITUDINAL_SPIN_ANGLE, value))
+    self.ui.showMISDiameterButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode(ROLE_SHOW_MIS_MODEL, "True" if value else "False"))
+    self.ui.showCrossSectionButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode(ROLE_SHOW_CROSS_SECTION, "True" if value else "False"))
+    self.ui.axialSliceHorizontalFlipCheckBox.connect("clicked()", lambda: self.setValueInParameterNode(ROLE_AXIAL_HORIZONTAL_FLIP, str(self.ui.axialSliceHorizontalFlipCheckBox.isChecked())))
+    self.ui.axialSliceVerticalFlipCheckBox.connect("clicked()", lambda : self.setValueInParameterNode(ROLE_AXIAL_VERTICAL_FLIP, str(self.ui.axialSliceVerticalFlipCheckBox.isChecked())))
+    self.ui.surfaceInformationGoToToolButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode(ROLE_GOTO_REGION, "True" if value else "False"))
 
     # connections
     self.ui.parameterSetSelector.connect('currentNodeChanged(vtkMRMLNode*)', self.onParameterNodeChanged)
+    self.ui.parameterSetUpdateUIToolButton.connect("clicked(bool)", self.onParameterSetUpdateUiClicked)
     self.ui.applyButton.connect('clicked(bool)', self.onApply)
 
     self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.setInputCenterlineNode)
@@ -194,12 +195,12 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
   def onParameterNodeChanged(self, parameterNode):
     # Distinguish between a new and used parameter node.
     pointIndex = 0
-    if parameterNode.HasParameter("Initialized"):
-      pointIndex = parameterNode.GetParameter("BrowsePointIndex")
+    if parameterNode.HasParameter(ROLE_INITIALIZED):
+      pointIndex = parameterNode.GetParameter(ROLE_BROWSE_POINT_INDEX)
     self.setParameterNode(parameterNode)
     self.updatePlotChartView(parameterNode)
     self.resetOutput()
-    if parameterNode.HasParameter("Initialized"):
+    if parameterNode.HasParameter(ROLE_INITIALIZED):
       self.onApply(True)
       self.ui.moveToPointSliderWidget.setValue(float(pointIndex))
 
@@ -254,7 +255,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     if self._parameterNode is not None:
       self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
       # Do not set defaults each time.
-      if not self._parameterNode.HasParameter("Initialized"):
+      if not self._parameterNode.HasParameter(ROLE_INITIALIZED):
         self.logic.setDefaultParameters(self._parameterNode)
       else:
         # Initial GUI update
@@ -301,35 +302,35 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self._updatingGUIFromParameterNode = True
     # Update the logic
 
-    self.logic.setInputCenterlineNode(self._parameterNode.GetNodeReference("InputCenterline"))
-    self.logic.setLumenSurface(self._parameterNode.GetNodeReference("InputSegmentation"), self._parameterNode.GetParameter("InputSegment"))
-    self.logic.setOutputTableNode(self._parameterNode.GetNodeReference("OutputTable"))
-    self.logic.setOutputPlotSeriesNode(self._parameterNode.GetNodeReference("OutputPlotSeries"))
-    self.logic.coordinateSystemColumnSingle = self._parameterNode.GetParameter("DistinctColumns") != "True"
-    self.logic.coordinateSystemColumnRAS = self._parameterNode.GetParameter("UseLPS") != "True"
-    self.logic.jumpCentredInSliceNode = self._parameterNode.GetParameter("CentreInSliceView") == "True"
-    self.logic.orthogonalReformatInSliceNode = self._parameterNode.GetParameter("OrthogonalReformat") == "True"
-    self.logic.axialSliceNode = self._parameterNode.GetNodeReference("AxialSliceNode")
-    self.logic.longitudinalSliceNode = self._parameterNode.GetNodeReference("LongitudinalSliceNode")
-    self.logic.rotationAngleDeg = float(self._parameterNode.GetParameter("RotationAngleDeg")) if self._parameterNode.GetParameter("RotationAngleDeg") else 0.0
-    self.logic.axialSpinAngleDeg = float(self._parameterNode.GetParameter("AxialSpinAngleDeg")) if self._parameterNode.GetParameter("AxialSpinAngleDeg") else 0.0
-    self.logic.longitudinalSpinAngleDeg = float(self._parameterNode.GetParameter("LongitudinalSpinAngleDeg")) if self._parameterNode.GetParameter("LongitudinalSpinAngleDeg") else 0.0
-    self.logic.setShowMaximumInscribedSphereDiameter(self._parameterNode.GetParameter("ShowMISModel") == "True")
-    self.logic.setShowCrossSection(self._parameterNode.GetParameter("ShowCrossSection") == "True")
-    self.logic.axialSliceHorizontalFlip = (self._parameterNode.GetParameter("AxialSliceHorizontalFlip") == "True") if self._parameterNode.GetParameter("AxialSliceHorizontalFlip") else False
-    self.logic.axialSliceVerticalFlip = (self._parameterNode.GetParameter("AxialSliceVerticalFlip") == "True") if self._parameterNode.GetParameter("AxialSliceVerticalFlip") else False
-    self.logic.relativeOriginPointIndex = int(self._parameterNode.GetParameter("OriginPointIndex")) if self._parameterNode.GetParameter("OriginPointIndex") else 0
+    self.logic.setInputCenterlineNode(self._parameterNode.GetNodeReference(ROLE_INPUT_CENTERLINE))
+    self.logic.setLumenSurface(self._parameterNode.GetNodeReference(ROLE_INPUT_SEGMENTATION), self._parameterNode.GetParameter(ROLE_INPUT_SEGMENT_ID))
+    self.logic.setOutputTableNode(self._parameterNode.GetNodeReference(ROLE_OUTPUT_TABLE))
+    self.logic.setOutputPlotSeriesNode(self._parameterNode.GetNodeReference(ROLE_OUTPUT_PLOT_SERIES))
+    self.logic.coordinateSystemColumnSingle = self._parameterNode.GetParameter(ROLE_USE_DISTINCT_COLUMLNS) != "True"
+    self.logic.coordinateSystemColumnRAS = self._parameterNode.GetParameter(ROLE_USE_LPS) != "True"
+    self.logic.jumpCentredInSliceNode = self._parameterNode.GetParameter(ROLE_CENTRE_IN_SLICE_VIEW) == "True"
+    self.logic.orthogonalReformatInSliceNode = self._parameterNode.GetParameter(ROLE_ORTHOGONAL_REFORMAT) == "True"
+    self.logic.axialSliceNode = self._parameterNode.GetNodeReference(ROLE_AXIAL_SLICE_NODE)
+    self.logic.longitudinalSliceNode = self._parameterNode.GetNodeReference(ROLE_LONGITUDINAL_SLICE_NODE)
+    self.logic.rotationAngleDeg = float(self._parameterNode.GetParameter(ROLE_ROTATIONAL_ANGLE)) if self._parameterNode.GetParameter(ROLE_ROTATIONAL_ANGLE) else 0.0
+    self.logic.axialSpinAngleDeg = float(self._parameterNode.GetParameter(ROLE_AXIAL_SPIN_ANGLE)) if self._parameterNode.GetParameter(ROLE_AXIAL_SPIN_ANGLE) else 0.0
+    self.logic.longitudinalSpinAngleDeg = float(self._parameterNode.GetParameter(ROLE_LONGITUDINAL_SPIN_ANGLE)) if self._parameterNode.GetParameter(ROLE_LONGITUDINAL_SPIN_ANGLE) else 0.0
+    self.logic.setShowMaximumInscribedSphereDiameter(self._parameterNode.GetParameter(ROLE_SHOW_MIS_MODEL) == "True")
+    self.logic.setShowCrossSection(self._parameterNode.GetParameter(ROLE_SHOW_CROSS_SECTION) == "True")
+    self.logic.axialSliceHorizontalFlip = (self._parameterNode.GetParameter(ROLE_AXIAL_HORIZONTAL_FLIP) == "True") if self._parameterNode.GetParameter(ROLE_AXIAL_HORIZONTAL_FLIP) else False
+    self.logic.axialSliceVerticalFlip = (self._parameterNode.GetParameter(ROLE_AXIAL_VERTICAL_FLIP) == "True") if self._parameterNode.GetParameter(ROLE_AXIAL_VERTICAL_FLIP) else False
+    self.logic.relativeOriginPointIndex = int(self._parameterNode.GetParameter(ROLE_ORIGIN_POINT_INDEX)) if self._parameterNode.GetParameter(ROLE_ORIGIN_POINT_INDEX) else 0
 
     # Update node selectors and sliders
 
-    self.ui.inputCenterlineSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputCenterline"))
-    self.ui.segmentationSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputSegmentation"))
-    self.ui.segmentSelector.setCurrentSegmentID(self._parameterNode.GetParameter("InputSegment"))
-    self.ui.outputTableSelector.setCurrentNode(self._parameterNode.GetNodeReference("OutputTable"))
-    self.ui.outputPlotSeriesSelector.setCurrentNode(self._parameterNode.GetNodeReference("OutputPlotSeries"))
-    self.ui.axialSliceViewSelector.setCurrentNode(self._parameterNode.GetNodeReference("AxialSliceNode"))
-    self.ui.longitudinalSliceViewSelector.setCurrentNode(self._parameterNode.GetNodeReference("LongitudinalSliceNode"))
-    if self._parameterNode.GetParameter("UseLPS") == "True":
+    self.ui.inputCenterlineSelector.setCurrentNode(self._parameterNode.GetNodeReference(ROLE_INPUT_CENTERLINE))
+    self.ui.segmentationSelector.setCurrentNode(self._parameterNode.GetNodeReference(ROLE_INPUT_SEGMENTATION))
+    self.ui.segmentSelector.setCurrentSegmentID(self._parameterNode.GetParameter(ROLE_INPUT_SEGMENT_ID))
+    self.ui.outputTableSelector.setCurrentNode(self._parameterNode.GetNodeReference(ROLE_OUTPUT_TABLE))
+    self.ui.outputPlotSeriesSelector.setCurrentNode(self._parameterNode.GetNodeReference(ROLE_OUTPUT_PLOT_SERIES))
+    self.ui.axialSliceViewSelector.setCurrentNode(self._parameterNode.GetNodeReference(ROLE_AXIAL_SLICE_NODE))
+    self.ui.longitudinalSliceViewSelector.setCurrentNode(self._parameterNode.GetNodeReference(ROLE_LONGITUDINAL_SLICE_NODE))
+    if self._parameterNode.GetParameter(ROLE_USE_LPS) == "True":
         self.ui.radioLPS.setChecked(True)
     else:
         self.ui.radioRAS.setChecked(True)
@@ -344,7 +345,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.axialSliceHorizontalFlipCheckBox.setChecked(self.logic.axialSliceHorizontalFlip)
     self.ui.axialSliceVerticalFlipCheckBox.setChecked(self.logic.axialSliceVerticalFlip)
 
-    itemIndex = self.ui.outputPlotSeriesTypeComboBox.findData(self._parameterNode.GetParameter("OutputPlotSeriesType"))
+    itemIndex = self.ui.outputPlotSeriesTypeComboBox.findData(self._parameterNode.GetParameter(ROLE_OUTPUT_PLOT_SERIES_TYPE))
     self.ui.outputPlotSeriesTypeComboBox.setCurrentIndex(itemIndex)
 
     # Update button states
@@ -363,7 +364,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.moveToMaximumAreaButton.enabled = self.logic.lumenSurfaceNode is not None
     self.ui.showCrossSectionButton.enabled = self.logic.lumenSurfaceNode is not None
 
-    self.ui.surfaceInformationGoToToolButton.setChecked(self._parameterNode.GetParameter("GoToRegion") == "True")
+    self.ui.surfaceInformationGoToToolButton.setChecked(self._parameterNode.GetParameter(ROLE_GOTO_REGION) == "True")
 
     # Update outputs
     self.updateMeasurements()
@@ -432,6 +433,22 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
     finally:
       slicer.app.restoreOverrideCursor()
+
+  def onParameterSetUpdateUiClicked(self):
+    if not self._parameterNode:
+      return
+
+    inputSegmentation = self._parameterNode.GetNodeReference(ROLE_INPUT_SEGMENTATION)
+    if (not inputSegmentation) or (inputSegmentation.GetClassName() != "vtkMRMLSegmentationNode"):
+      logging.warning("Invalid segmentation.")
+      return
+
+    # Create segment editor object if needed.
+    segmentEditorModuleWidget = slicer.util.getModuleWidget("SegmentEditor")
+    seWidget = segmentEditorModuleWidget.editor
+    seWidget.setSegmentationNode(inputSegmentation)
+    # The segmentation sets its volume in the slice views.
+    slicer.util.setSliceViewerLayers(fit = True)
 
   def onUseCurrentPointAsOrigin(self):
     slicer.app.setOverrideCursor(qt.Qt.WaitCursor)
@@ -602,7 +619,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
   def setCurrentPointIndex(self, value):
     if not self.logic.isInputCenterlineValid():
       return
-    self.setValueInParameterNode("BrowsePointIndex", value)
+    self.setValueInParameterNode(ROLE_BROWSE_POINT_INDEX, value)
     pointIndex = int(value)
 
     # Update slice view position
@@ -623,7 +640,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.updateUIWithMetrics(value)
 
   def setPlotSeriesType(self, type):
-    self.setValueInParameterNode("OutputPlotSeriesType", self.ui.outputPlotSeriesTypeComboBox.currentData)
+    self.setValueInParameterNode(ROLE_OUTPUT_PLOT_SERIES_TYPE, self.ui.outputPlotSeriesTypeComboBox.currentData)
     self.logic.setPlotSeriesType(self.ui.outputPlotSeriesTypeComboBox.currentData)
 
   def setHorizontalFlip(self):
@@ -752,7 +769,11 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       logging.error("Invalid input surface node.")
       return False;
 
-    if (inputSurface.GetClassName() == "vtkMRMLSegmentationNode") and len(self.logic.currentSegmentID) == 0:
+    if (inputSurface.GetClassName() != "vtkMRMLSegmentationNode"):
+      logging.warning("Input surface is not a segmentation; not setting the segment editor.")
+      return False
+
+    if (not self.logic.currentSegmentID) or len(self.logic.currentSegmentID) == 0:
       logging.error("Invalid input segment ID.")
       return False
 
@@ -900,16 +921,16 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     """
     Initialize parameter node with default settings.
     """
-    parameterNode.SetParameter("OriginPointIndex", "0")
-    parameterNode.SetParameter("UseLPS", "False")
-    parameterNode.SetParameter("DistinctColumns", "False")
-    parameterNode.SetParameter("CentreInSliceView", "True")
-    parameterNode.SetParameter("OrthogonalReformat", "True")
-    parameterNode.SetParameter("ShowMISModel", "False")
+    parameterNode.SetParameter(ROLE_ORIGIN_POINT_INDEX, "0")
+    parameterNode.SetParameter(ROLE_USE_LPS, "False")
+    parameterNode.SetParameter(ROLE_USE_DISTINCT_COLUMLNS, "False")
+    parameterNode.SetParameter(ROLE_CENTRE_IN_SLICE_VIEW, "True")
+    parameterNode.SetParameter(ROLE_ORTHOGONAL_REFORMAT, "True")
+    parameterNode.SetParameter(ROLE_SHOW_MIS_MODEL, "False")
     parameterNode.SetParameter("ShowCrossSectionModel", "False")
-    parameterNode.SetParameter("OutputPlotSeriesType", MIS_DIAMETER)
-    parameterNode.SetParameter("BrowsePointIndex", "0")
-    parameterNode.SetParameter("Initialized", "1")
+    parameterNode.SetParameter(ROLE_OUTPUT_PLOT_SERIES_TYPE, MIS_DIAMETER)
+    parameterNode.SetParameter(ROLE_BROWSE_POINT_INDEX, "0")
+    parameterNode.SetParameter(ROLE_INITIALIZED, "1")
 
   def resetCrossSections(self):
     self.crossSectionPolyDataCache = {}
@@ -1713,13 +1734,6 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       # Set sphere color
       sphereModelDisplayNode.SetColor(self.maximumInscribedSphereColor[0], self.maximumInscribedSphereColor[1], self.maximumInscribedSphereColor[2])
 
-  def getCurrentSegmentID(self):
-    """Get current segment ID. If invalid (not found) then the first segment of the segmentation will be used."""
-    if self.lumenSurfaceNode.GetSegmentation().GetSegment(self.currentSegmentID):
-      return self.currentSegmentID
-    else:
-      return self.lumenSurfaceNode.GetSegmentation().GetNthSegmentID(0)
-
   # This information is added because it is easily available.
   # How useful is it ?
   # In any case, it is the slice orientation in the RAS coordinate system.
@@ -1786,3 +1800,26 @@ WALL_CROSS_SECTION_AREA = "WALL_CROSS_SECTION_AREA"
 DIAMETER_STENOSIS = "DIAMETER_STENOSIS"
 SURFACE_AREA_STENOSIS = "SURFACE_AREA_STENOSIS"
 
+ROLE_INPUT_CENTERLINE = "InputCenterline"
+ROLE_INPUT_SEGMENTATION = "InputSegmentation"
+ROLE_INPUT_SEGMENT_ID = "InputSegment"
+ROLE_OUTPUT_TABLE = "OutputTable"
+ROLE_OUTPUT_PLOT_SERIES = "OutputPlotSeries"
+ROLE_AXIAL_SLICE_NODE = "AxialSliceNode"
+ROLE_LONGITUDINAL_SLICE_NODE = "LongitudinalSliceNode"
+ROLE_ORIGIN_POINT_INDEX = "OriginPointIndex"
+ROLE_USE_LPS = "UseLPS"
+ROLE_USE_DISTINCT_COLUMLNS = "DistinctColumns"
+ROLE_CENTRE_IN_SLICE_VIEW = "CentreInSliceView"
+ROLE_ORTHOGONAL_REFORMAT = "OrthogonalReformat"
+ROLE_ROTATIONAL_ANGLE = "RotationAngleDeg"
+ROLE_AXIAL_SPIN_ANGLE = "AxialSpinAngleDeg"
+ROLE_LONGITUDINAL_SPIN_ANGLE = "LongitudinalSpinAngleDeg"
+ROLE_SHOW_MIS_MODEL = "ShowMISModel"
+ROLE_SHOW_CROSS_SECTION = "ShowCrossSection"
+ROLE_AXIAL_HORIZONTAL_FLIP = "AxialSliceHorizontalFlip"
+ROLE_AXIAL_VERTICAL_FLIP = "AxialSliceVerticalFlip"
+ROLE_GOTO_REGION = "GoToRegion"
+ROLE_BROWSE_POINT_INDEX = "BrowsePointIndex"
+ROLE_OUTPUT_PLOT_SERIES_TYPE = "OutputPlotSeriesType"
+ROLE_INITIALIZED = "Initialized"
