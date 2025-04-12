@@ -13,7 +13,7 @@
 #include <vtkMRMLModelNode.h>
 #include <vtkPlane.h>
 #include <vtkCutter.h>
-#include <vtkConnectivityFilter.h>
+#include <vtkPolyDataConnectivityFilter.h>
 #include <vtkContourTriangulator.h>
 #include <vtkMassProperties.h>
 #include <vtkMath.h> // Pi()
@@ -110,7 +110,19 @@ bool vtkCrossSectionCompute::SetInputSurfaceNode(vtkMRMLNode * inputSurface, con
       vtkMRMLMarkupsShapeNode * inputShapeNode = vtkMRMLMarkupsShapeNode::SafeDownCast(this->InputSurfaceNode);
       if (inputShapeNode == NULL)
       {
-          std::cout << "Invalid surface model node." << std::endl;
+          std::cout << "Invalid surface shape node." << std::endl;
+          this->ClosedSurfacePolyData = nullptr;
+          return false;
+      }
+      if (inputShapeNode->GetShapeName() != vtkMRMLMarkupsShapeNode::Tube)
+      {
+          std::cout << "Surface shape node is not a Tube." << std::endl;
+          this->ClosedSurfacePolyData = nullptr;
+          return false;
+      }
+      if (inputShapeNode->GetNumberOfControlPoints() < 4)
+      {
+          std::cout << "The Tube surface shape node must have at least 4 control points." << std::endl;
           this->ClosedSurfacePolyData = nullptr;
           return false;
       }
@@ -144,18 +156,18 @@ void vtkCrossSectionCompute::SetInputCenterlinePolyData(vtkPolyData * inputCente
         pointData->GetAbstractArray(curveCoordinateSystemGenerator->GetTangentsArrayName()));
 }
 
-void vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray, vtkDoubleArray * ceDiameterArray)
+bool vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray, vtkDoubleArray * ceDiameterArray)
 {
     if (this->InputSurfaceNode == nullptr)
     {     
         vtkErrorMacro("Input surface is NULL.");
-        return;
+        return false;
     }
-    if (std::string(this->InputSurfaceNode->GetClassName()) != std::string("vtkMRMLMarkupsShapeNode")
+    if (std::string(this->InputSurfaceNode->GetClassName()) == std::string("vtkMRMLSegmentationNode")
         && this->InputSegmentID.empty())
     {     
         vtkErrorMacro("Input segment ID is unknown.");
-        return;
+        return false;
     }
     /*
      * Divide the number of centerline points in equal blocks per thread.
@@ -214,6 +226,7 @@ void vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
             ceDiameterArray->SetValue((int) tupleValues[0], tupleValues[2]);
         }
     }
+    return true;
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -315,8 +328,25 @@ void CrossSectionComputeWorker::ComputeCrossSectionPolydata(
         return;
     }
 
+    /*
+     * There may be holes in the cross-section although there are none in the
+     * segment itself, or branches around it. The latter will be eliminated
+     * below. If a hole is the closest region to the reference point, it will be
+     * the selected region with an inversed result.
+     * TODO: handle this case.
+    */
+    vtkNew<vtkPolyDataConnectivityFilter> regionFilter;
+    regionFilter->SetInputConnection(planeCut->GetOutputPort());
+    regionFilter->SetExtractionModeToAllRegions();
+    regionFilter->Update();
+    const int numberOfRegions = regionFilter->GetNumberOfExtractedRegions();
+    if (regionFilter->GetNumberOfExtractedRegions() != 1)
+    {
+        std:cout << "Point index: " << pointIndex << " - the number of extracted regions(" << numberOfRegions << ") in the cross-section is not exactly 1; the surface area *may* be unexpected." << endl;
+    }
+
     // Keep the closed surface around the centerline
-    vtkNew<vtkConnectivityFilter> connectivityFilter;
+    vtkNew<vtkPolyDataConnectivityFilter> connectivityFilter;
     connectivityFilter->SetInputData(planeCut->GetOutput());
     connectivityFilter->SetClosestPoint(center);
     connectivityFilter->SetExtractionModeToClosestPointRegion();
@@ -324,7 +354,7 @@ void CrossSectionComputeWorker::ComputeCrossSectionPolydata(
 
     // Triangulate the contour points
     vtkNew<vtkContourTriangulator> contourTriangulator;
-    contourTriangulator->SetInputData(connectivityFilter->GetPolyDataOutput());
+    contourTriangulator->SetInputData(connectivityFilter->GetOutput());
     contourTriangulator->Update();
 
     contourPolyData->DeepCopy(contourTriangulator->GetOutput());

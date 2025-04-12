@@ -50,7 +50,7 @@ public:
    * The cross-section area and circular equivalent diameter
    * columns of the output table are updated in parallel.
    */
-  void UpdateTable(vtkDoubleArray * crossSectionAreaArray, vtkDoubleArray * ceDiameterArray);
+  bool UpdateTable(vtkDoubleArray * crossSectionAreaArray, vtkDoubleArray * ceDiameterArray);
 
 protected:
   vtkCrossSectionCompute();
