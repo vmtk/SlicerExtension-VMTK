@@ -1216,7 +1216,8 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     if self.lumenSurfaceNode:
         crossSectionCompute.SetInputSurfaceNode(self.lumenSurfaceNode, self.currentSegmentID)
         self.showStatusMessage((_("Waiting for background jobs..."), ))
-        crossSectionCompute.UpdateTable(crossSectionAreaArray, ceDiameterArray)
+        if (not crossSectionCompute.UpdateTable(crossSectionAreaArray, ceDiameterArray)):
+          raise RuntimeError("Failed to compute cross-sections.")
 
     """
     We may also use the TubeRadius scalar array of the spline. This may prevent
@@ -1235,7 +1236,8 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       else:
         wallCrossSectionCompute.SetInputCenterlinePolyData(trimmedSpline)
       self.showStatusMessage((_("Waiting for background jobs..."), ))
-      wallCrossSectionCompute.UpdateTable(wallCrossSectionAreaArray, wallDiameterArray)
+      if (not wallCrossSectionCompute.UpdateTable(wallCrossSectionAreaArray, wallDiameterArray)):
+        raise RuntimeError("Failed to compute cross-sections.")
 
     cumArray = vtk.vtkDoubleArray()
     self.cumulateDistances(points, cumArray)
@@ -1585,7 +1587,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
 
     # Keep the closed surface around the centerline
     vCenter = [center[0], center[1], center[2]]
-    connectivityFilter = vtk.vtkConnectivityFilter()
+    connectivityFilter = vtk.vtkPolyDataConnectivityFilter()
     connectivityFilter.SetInputData(planeCut.GetOutput())
     connectivityFilter.SetClosestPoint(vCenter)
     connectivityFilter.SetExtractionModeToClosestPointRegion()
@@ -1593,7 +1595,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
 
     # Triangulate the contour points
     contourTriangulator = vtk.vtkContourTriangulator()
-    contourTriangulator.SetInputData(connectivityFilter.GetPolyDataOutput())
+    contourTriangulator.SetInputData(connectivityFilter.GetOutput())
     contourTriangulator.Update()
 
     return contourTriangulator.GetOutput()
