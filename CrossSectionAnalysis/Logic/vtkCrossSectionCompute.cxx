@@ -14,11 +14,13 @@
 #include <vtkPlane.h>
 #include <vtkCutter.h>
 #include <vtkPolyDataConnectivityFilter.h>
+#include <vtkCleanPolyData.h>
 #include <vtkContourTriangulator.h>
 #include <vtkMassProperties.h>
 #include <vtkMath.h> // Pi()
 #include <vtkParallelTransportFrame.h>
 #include <vtkPointData.h>
+#include <vtkIdList.h>
 #include <vtkMRMLMarkupsShapeNode.h>
 
 std::mutex mtx;
@@ -41,7 +43,8 @@ public:
     vtkPolyData* closedSurfacePolyData,
     vtkDoubleArray* bufferArray,
     vtkIdType startPointIndex,
-    vtkIdType endPointIndex);
+    vtkIdType endPointIndex,
+    vtkIdList* emptySectionIds = nullptr);
 
 private:
   /**
@@ -53,7 +56,8 @@ private:
     vtkDoubleArray* generatedTangents,
     vtkPolyData* closedSurfacePolyData,
     vtkIdType pointIndex,
-    vtkPolyData* contourPolyData);
+    vtkPolyData* contourPolyData,
+    vtkIdList* emptySectionIds = nullptr);
 };
 
 //------------------------------------------------------------------------------
@@ -64,19 +68,22 @@ vtkCrossSectionCompute::vtkCrossSectionCompute()
   this->ClosedSurfacePolyData = vtkSmartPointer<vtkPolyData>::New();
 }
 
+//------------------------------------------------------------------------------
 vtkCrossSectionCompute::~vtkCrossSectionCompute()
 {
 }
 
+//------------------------------------------------------------------------------
 void vtkCrossSectionCompute::PrintSelf(ostream& os, vtkIndent indent)
 {
     vtkObject::PrintSelf(os,indent);
-    
+
     os << indent << "numberOfThreads: " << this->NumberOfThreads << "\n";
     os << indent << "inputSurfaceNode: " << this->InputSurfaceNode << "\n";
     os << indent << "inputSegmentID: " << this->InputSegmentID << "\n";
 }
 
+//------------------------------------------------------------------------------
 // The surface polydata is constant. Create it once only.
 bool vtkCrossSectionCompute::SetInputSurfaceNode(vtkMRMLNode * inputSurface, const std::string& inputSegmentId)
 {
@@ -137,6 +144,7 @@ bool vtkCrossSectionCompute::SetInputSurfaceNode(vtkMRMLNode * inputSurface, con
   return true;
 }
 
+//------------------------------------------------------------------------------
 /*
  * Sources of inspiration :
  * https://github.com/Slicer/Slicer/blob/19d2cbe4cfb5cd3d651f7cdfee1958d1f159d941/Modules/Loadable/Markups/MRML/vtkMRMLMarkupsCurveNode.cxx#L915
@@ -148,15 +156,17 @@ void vtkCrossSectionCompute::SetInputCenterlinePolyData(vtkPolyData * inputCente
     vtkSmartPointer<vtkParallelTransportFrame> curveCoordinateSystemGenerator = vtkSmartPointer<vtkParallelTransportFrame>::New();
     curveCoordinateSystemGenerator->SetInputData(inputCenterlinePolyData);
     curveCoordinateSystemGenerator->Update();
-    
+
     this->GeneratedPolyData = curveCoordinateSystemGenerator->GetOutput();
-    
+
     vtkPointData* pointData = this->GeneratedPolyData->GetPointData();
     this->GeneratedTangents = vtkDoubleArray::SafeDownCast(
         pointData->GetAbstractArray(curveCoordinateSystemGenerator->GetTangentsArrayName()));
 }
 
-bool vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray, vtkDoubleArray * ceDiameterArray)
+//------------------------------------------------------------------------------
+bool vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray, vtkDoubleArray * ceDiameterArray,
+                                         vtkIdList* emptySectionIds)
 {
     if (this->InputSurfaceNode == nullptr)
     {     
@@ -176,10 +186,10 @@ bool vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
     const unsigned int numberOfValues = crossSectionAreaArray->GetNumberOfValues();
     unsigned int residual = numberOfValues % this->NumberOfThreads;
     unsigned int numberOfValuesPerBlock = (numberOfValues) / this->NumberOfThreads;
-    
+
     std::vector<std::thread> threads;
     std::vector<vtkSmartPointer<vtkDoubleArray>> bufferArrays;
-    
+
     for (unsigned int i = 0; i < this->NumberOfThreads; i++)
     {
         unsigned int startPointIndex = i * numberOfValuesPerBlock;
@@ -206,7 +216,8 @@ bool vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
                                       this->GeneratedTangents,
                                       closedSurfacePolyDataCopy,
                                       bufferArrays[i],
-                                      startPointIndex, endPointIndex));
+                                      startPointIndex, endPointIndex,
+                                      emptySectionIds));
     }
     for (unsigned int i = 0; i < threads.size(); i++)
     {
@@ -229,6 +240,100 @@ bool vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
     return true;
 }
 
+//------------------------------------------------------------------------------
+vtkCrossSectionCompute::SectionCreationResult vtkCrossSectionCompute::CreateCrossSection(
+                                vtkPolyData * result, vtkPolyData * input,
+                                vtkPlane * plane, ExtractionMode extractionMode,
+                                bool fromMainThread)
+{
+    auto consoleMessage = [&] (const std::string& message) {
+        if (!fromMainThread)
+        {
+            mtx.lock();
+        }
+        std::cout << message << endl;
+        if (!fromMainThread)
+        {
+            mtx.unlock();
+        }
+    };
+
+    if (!input)
+    {
+        consoleMessage("Input polydata is NULL.");
+        return SectionCreationResult::Abort;
+    }
+    if (!plane)
+    {
+        consoleMessage("Input cut plane is NULL.");
+        return SectionCreationResult::Abort;
+    }
+
+    double * origin = plane->GetOrigin();
+    double * normal = plane->GetNormal();
+    if (normal[0] == 0.0 && normal[1] == 0.0 && normal[2] == 0.0)
+    {
+        std::string message("Invalid normal [0, 0, 0] at [");
+        message += std::to_string(origin[0]) + std::string(", ");
+        message += std::to_string(origin[1]) + std::string(", ");
+        message += std::to_string(origin[2]) + std::string("].");
+        consoleMessage(message);
+        return SectionCreationResult::Abort;
+    }
+    // Do not copy nor clean the input. Let a caller do what seems appropriate.
+    // Cut through the closed surface and get the points of the contour.
+    vtkNew<vtkCutter> planeCut;
+    planeCut->SetInputData(input);
+    planeCut->SetCutFunction(plane);
+    planeCut->Update();
+    vtkPoints * planePoints = planeCut->GetOutput()->GetPoints();
+    if (planePoints == NULL)
+    {
+        consoleMessage("Could not cut segment. Is it visible in 3D view?");
+        return SectionCreationResult::Abort;
+    }
+    if (planePoints->GetNumberOfPoints() < 3)
+    {
+        consoleMessage("Not enough points to create surface");
+        return SectionCreationResult::Abort;
+    }
+
+    vtkNew<vtkPolyDataConnectivityFilter> regionFilter;
+    regionFilter->ColorRegionsOn();
+    regionFilter->SetInputConnection(planeCut->GetOutputPort());
+    regionFilter->SetExtractionModeToAllRegions();
+    regionFilter->Update();
+    const int numberOfRegions = regionFilter->GetNumberOfExtractedRegions();
+
+    // Triangulate the contour points
+    vtkNew<vtkContourTriangulator> contourTriangulator;
+    contourTriangulator->SetInputConnection(regionFilter->GetOutputPort());
+    contourTriangulator->Update();
+    
+    // Keep the closed surface around the centerline
+    vtkNew<vtkPolyDataConnectivityFilter> connectivityFilter;
+    connectivityFilter->SetInputConnection(contourTriangulator->GetOutputPort());
+    switch (extractionMode)
+    {
+        case vtkCrossSectionCompute::ExtractionMode::LargestRegion:
+            connectivityFilter->SetExtractionModeToLargestRegion();
+            break;
+        case vtkCrossSectionCompute::ExtractionMode::AllRegions:
+            connectivityFilter->SetExtractionModeToAllRegions();
+            break;
+        default:
+            connectivityFilter->SetClosestPoint(plane->GetOrigin());
+            connectivityFilter->SetExtractionModeToClosestPointRegion();
+    }
+    connectivityFilter->Update();
+
+    result->DeepCopy(connectivityFilter->GetOutput());
+    if (result->GetNumberOfPoints() == 0)
+    {
+        return SectionCreationResult::Empty;
+    }
+    return SectionCreationResult::Success;
+}
 /////////////////////////////////////////////////////////////////////////
 CrossSectionComputeWorker::CrossSectionComputeWorker()
 {
@@ -243,14 +348,16 @@ void CrossSectionComputeWorker::operator () (vtkPolyData * generatedPolyData,
                                                 vtkPolyData * closedSurfacePolyData,
                                                 vtkDoubleArray * bufferArray,
                                                 vtkIdType startPointIndex,
-                                                vtkIdType endPointIndex)
+                                                vtkIdType endPointIndex,
+                                                vtkIdList* emptySectionIds)
 {
     for (vtkIdType i = startPointIndex; i <= endPointIndex; i++)
     {
         // Get the contour polydata
         vtkNew<vtkPolyData> contourPolyData;
         ComputeCrossSectionPolydata(generatedPolyData, generatedTangents,
-                                    closedSurfacePolyData, i, contourPolyData);
+                                    closedSurfacePolyData, i, contourPolyData,
+                                    emptySectionIds);
         {
             // Get the surface area and circular equivalent diameter
             vtkNew<vtkMassProperties> crossSectionProperties;
@@ -269,7 +376,8 @@ void CrossSectionComputeWorker::ComputeCrossSectionPolydata(
     vtkDoubleArray * generatedTangents,
     vtkPolyData * closedSurfacePolyData,
     vtkIdType pointIndex,
-    vtkPolyData * contourPolyData)
+    vtkPolyData * contourPolyData,
+    vtkIdList* emptySectionIds)
 {
     if (generatedPolyData == nullptr)
     {
@@ -292,14 +400,22 @@ void CrossSectionComputeWorker::ComputeCrossSectionPolydata(
         mtx.unlock();
         return;
     }
-    
+
     double center[3] = {0.0, 0.0, 0.0};
     generatedPolyData->GetPoint(pointIndex, center);
-    
+
     double normal[3] = {0.0, 0.0, 0.0};
     for (unsigned int i = 0; i < 3; i++)
     {
         normal[i] = generatedTangents->GetTuple3(pointIndex)[i];
+    }
+
+    if (normal[0] == 0.0 &&  normal[1] == 0.0 &&  normal[2] == 0.0)
+    {
+        mtx.lock();
+        std::cout << "Invalid normal [0, 0, 0] at point index " << pointIndex << "." << std::endl;
+        mtx.unlock();
+        return;
     }
 
     // Place a plane perpendicular to the centerline
@@ -307,56 +423,13 @@ void CrossSectionComputeWorker::ComputeCrossSectionPolydata(
     plane->SetOrigin(center);
     plane->SetNormal(normal);
 
-    // Cut through the closed surface and get the points of the contour.
-    vtkNew<vtkCutter> planeCut;
-    planeCut->SetInputData(closedSurfacePolyData);
-    planeCut->SetCutFunction(plane);
-    planeCut->Update();
-    vtkPoints * planePoints = planeCut->GetOutput()->GetPoints();
-    if (planePoints == NULL)
+    vtkCrossSectionCompute::SectionCreationResult result = vtkCrossSectionCompute::CreateCrossSection(contourPolyData, closedSurfacePolyData, plane,
+                                                vtkCrossSectionCompute::ExtractionMode::ClosestPoint, false);
+    if (emptySectionIds && result == vtkCrossSectionCompute::SectionCreationResult::Empty)
     {
         mtx.lock();
-        std::cout << "Could not cut segment. Is it visible in 3D view?" << std::endl;
+        emptySectionIds->InsertNextId(pointIndex);
         mtx.unlock();
-        return;
     }
-    if (planePoints->GetNumberOfPoints() < 3)
-    {
-        mtx.lock();
-        std::cout << "Not enough points to create surface" << std::endl;
-        mtx.unlock();
-        return;
-    }
-
-    /*
-     * There may be holes in the cross-section although there are none in the
-     * segment itself, or branches around it. The latter will be eliminated
-     * below. If a hole is the closest region to the reference point, it will be
-     * the selected region with an inversed result.
-     * TODO: handle this case.
-    */
-    vtkNew<vtkPolyDataConnectivityFilter> regionFilter;
-    regionFilter->SetInputConnection(planeCut->GetOutputPort());
-    regionFilter->SetExtractionModeToAllRegions();
-    regionFilter->Update();
-    const int numberOfRegions = regionFilter->GetNumberOfExtractedRegions();
-    if (regionFilter->GetNumberOfExtractedRegions() != 1)
-    {
-        std:cout << "Point index: " << pointIndex << " - the number of extracted regions(" << numberOfRegions << ") in the cross-section is not exactly 1; the surface area *may* be unexpected." << endl;
-    }
-
-    // Keep the closed surface around the centerline
-    vtkNew<vtkPolyDataConnectivityFilter> connectivityFilter;
-    connectivityFilter->SetInputData(planeCut->GetOutput());
-    connectivityFilter->SetClosestPoint(center);
-    connectivityFilter->SetExtractionModeToClosestPointRegion();
-    connectivityFilter->Update();
-
-    // Triangulate the contour points
-    vtkNew<vtkContourTriangulator> contourTriangulator;
-    contourTriangulator->SetInputData(connectivityFilter->GetOutput());
-    contourTriangulator->Update();
-
-    contourPolyData->DeepCopy(contourTriangulator->GetOutput());
 }
 

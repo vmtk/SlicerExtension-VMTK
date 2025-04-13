@@ -15,6 +15,7 @@
 #include <vtkPolyData.h>
 #include <vtkSmartPointer.h>
 #include <vtkObjectFactory.h>
+#include <vtkPlane.h>
 
 /**
  * This class computes cross-section areas
@@ -50,7 +51,20 @@ public:
    * The cross-section area and circular equivalent diameter
    * columns of the output table are updated in parallel.
    */
-  bool UpdateTable(vtkDoubleArray * crossSectionAreaArray, vtkDoubleArray * ceDiameterArray);
+  bool UpdateTable(vtkDoubleArray * crossSectionAreaArray, vtkDoubleArray * ceDiameterArray,
+                   vtkIdList* emptySectionIds  = nullptr);
+
+  /**
+   * Create a cross-section polydata of the input polydata with a given plane.
+   * In ClosestPoint mode, holes nearby to the reference point are rightly
+   * excluded.
+   */
+  enum ExtractionMode{LargestRegion = 0, AllRegions, ClosestPoint};
+  enum SectionCreationResult {Success = 0, Abort, Empty};
+  static SectionCreationResult CreateCrossSection(vtkPolyData * result, vtkPolyData * input,
+                                          vtkPlane * plane,
+                                          ExtractionMode extractionMode = ExtractionMode::ClosestPoint,
+                                          bool fromMainThread = true);
 
 protected:
   vtkCrossSectionCompute();
