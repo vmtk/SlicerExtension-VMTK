@@ -638,39 +638,30 @@ class StenosisMeasurement2DLogic(ScriptedLoadableModuleLogic):
     closedSurfacePolyData = vtk.vtkPolyData()
     inputSegmentation.CreateClosedSurfaceRepresentation()
     inputSegmentation.GetClosedSurfaceRepresentation(segmentID, closedSurfacePolyData)
-    # Cut through thresholded result.
+    # Cut the segment.
     plane = vtk.vtkPlane()
     plane.SetOrigin(center)
     plane.SetNormal(normal)
-    cutter = vtk.vtkCutter()
-    cutter.SetCutFunction(plane)
-    cutter.SetInputData(closedSurfacePolyData)
-    cutter.Update()
-    # Triangulate the contour points
-    contourTriangulator = vtk.vtkContourTriangulator()
-    # Keep the closest closed surface
-    if closestIsland:
-        connectivityFilter = vtk.vtkConnectivityFilter()
-        connectivityFilter.SetInputData(cutter.GetOutput())
-        connectivityFilter.SetClosestPoint(center)
-        connectivityFilter.SetExtractionModeToClosestPointRegion()
-        connectivityFilter.Update()
-        contourTriangulator.SetInputData(connectivityFilter.GetPolyDataOutput())
-    else:
-        contourTriangulator.SetInputData(cutter.GetOutput())
-    contourTriangulator.Update()
-    # Get result
-    polydata = contourTriangulator.GetOutput()
+
+    result = vtk.vtkPolyData()
+    import vtkSlicerCrossSectionAnalysisModuleLogicPython as vtkSlicerCrossSectionAnalysisModuleLogic
+    crossSectionWorker = vtkSlicerCrossSectionAnalysisModuleLogic.vtkCrossSectionCompute()
+    ret = crossSectionWorker.CreateCrossSection(result, closedSurfacePolyData, plane,
+                                                 crossSectionWorker.ClosestPoint if closestIsland else crossSectionWorker.AllRegions,
+                                                 True)
+    if (ret != crossSectionWorker.Success):
+      logging.error("Error creating a cross-section polydata of the segment: #" + str(ret))
+
     # Get surface area
     massProperties = vtk.vtkMassProperties()
-    massProperties.SetInputData(polydata)
+    massProperties.SetInputData(result)
     massProperties.Update()
     surfaceArea = massProperties.GetSurfaceArea()
 
     # Create a model of the polydata. Hidden by default, with no lighting.
     cutModel = None
     if createModel:
-        cutModel = slicer.modules.models.logic().AddModel(polydata)
+        cutModel = slicer.modules.models.logic().AddModel(result)
         cutModel.SetDisplayVisibility(False)
         cutModel.GetDisplayNode().SetLighting(False)
         # Set model's name: control point label + segment name.
