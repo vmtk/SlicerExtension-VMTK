@@ -1246,8 +1246,10 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     if self.lumenSurfaceNode:
         crossSectionCompute.SetInputSurfaceNode(self.lumenSurfaceNode, self.currentSegmentID)
         self.showStatusMessage((_("Waiting for background jobs..."), ))
-        if (not crossSectionCompute.UpdateTable(crossSectionAreaArray, ceDiameterArray)):
+        emptySectionIds = vtk.vtkIdList()
+        if (not crossSectionCompute.UpdateTable(crossSectionAreaArray, ceDiameterArray, emptySectionIds)):
           raise RuntimeError("Failed to compute cross-sections.")
+        self._informAboutEmptySections(emptySectionIds)
 
     """
     We may also use the TubeRadius scalar array of the spline. This may prevent
@@ -1266,8 +1268,10 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       else:
         wallCrossSectionCompute.SetInputCenterlinePolyData(trimmedSpline)
       self.showStatusMessage((_("Waiting for background jobs..."), ))
-      if (not wallCrossSectionCompute.UpdateTable(wallCrossSectionAreaArray, wallDiameterArray)):
+      wallEmptySectionIds = vtk.vtkIdList()
+      if (not wallCrossSectionCompute.UpdateTable(wallCrossSectionAreaArray, wallDiameterArray, wallEmptySectionIds)):
         raise RuntimeError("Failed to compute cross-sections.")
+      self._informAboutEmptySections(wallEmptySectionIds)
 
     cumArray = vtk.vtkDoubleArray()
     self.cumulateDistances(points, cumArray)
@@ -1599,36 +1603,14 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       transformFilterToWorld.Update()
       closedSurfacePolyData = transformFilterToWorld.GetOutput()
 
-    # Cut through the closed surface and get the points of the contour.
-    planeCut = vtk.vtkCutter()
-    planeCut.SetInputData(closedSurfacePolyData)
-    planeCut.SetCutFunction(plane)
-    planeCut.Update()
-    planePoints = vtk.vtkPoints()
-    planePoints = planeCut.GetOutput().GetPoints()
-    # self.lumenSurfaceNode.GetDisplayNode().GetSegmentVisibility3D(self.currentSegmentID) doesn't work as expected. Even if the segment is hidden in 3D view, it returns True.
-    if planePoints is None:
-        msg = _("Could not cut segment. Is it visible in 3D view?")
-        slicer.util.showStatusMessage(msg, 3000)
-        raise ValueError(msg)
-    if planePoints.GetNumberOfPoints() < 3:
-        logging.info(_("Not enough points to create surface"))
-        return None
+    result = vtk.vtkPolyData()
+    import vtkSlicerCrossSectionAnalysisModuleLogicPython as vtkSlicerCrossSectionAnalysisModuleLogic
+    crossSectionWorker = vtkSlicerCrossSectionAnalysisModuleLogic.vtkCrossSectionCompute()
+    ret = crossSectionWorker.CreateCrossSection(result, closedSurfacePolyData, plane, crossSectionWorker.ClosestPoint, True)
+    if (ret == crossSectionWorker.Empty):
+      logging.error(_("Error creating a cross-section polydata of the lumen at point index {indexOfPoint}.").format(indexOfPoint=pointIndex))
 
-    # Keep the closed surface around the centerline
-    vCenter = [center[0], center[1], center[2]]
-    connectivityFilter = vtk.vtkPolyDataConnectivityFilter()
-    connectivityFilter.SetInputData(planeCut.GetOutput())
-    connectivityFilter.SetClosestPoint(vCenter)
-    connectivityFilter.SetExtractionModeToClosestPointRegion()
-    connectivityFilter.Update()
-
-    # Triangulate the contour points
-    contourTriangulator = vtk.vtkContourTriangulator()
-    contourTriangulator.SetInputData(connectivityFilter.GetOutput())
-    contourTriangulator.Update()
-
-    return contourTriangulator.GetOutput()
+    return result
 
   def updateCrossSection(self, pointIndex):
     """Create an exact-fit model representing the cross-section.
@@ -1651,6 +1633,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       crossSectionModelDisplayNode = self.crossSectionModelNode.GetDisplayNode()
       crossSectionModelDisplayNode.SetColor(self.crossSectionColor)
       crossSectionModelDisplayNode.SetOpacity(0.75)
+      crossSectionModelDisplayNode.SetLighting(False)
     else:
       self.crossSectionModelNode.SetAndObservePolyData(crossSectionPolyData)
 
@@ -1761,6 +1744,22 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     # Distance of point from start of path
     distanceFromStart = distanceArray.GetValue(int(pointIndex))
     return distanceFromStart - relativeOriginDistance
+
+  def _informAboutEmptySections(self, ids:vtk. vtkIdList):
+    numberOfIds = ids.GetNumberOfIds()
+    if numberOfIds == 0:
+      return
+    statusMessage = str(numberOfIds) + " " + _("empty sections have been detected; consider improving the input lumen." )
+    consoleMessage = "Empty sections have been created at these point ids of the centerline: "
+    idList = ""
+    sorter = vtk.vtkSortDataArray()
+    sorter.Sort(ids)
+    for i in range(numberOfIds):
+      idList = idList + ", " + str(ids.GetId(i))
+    idList = idList[2 : len(idList)]
+    consoleMessage = consoleMessage + idList + "; consider improving the input lumen."
+    self.showStatusMessage((statusMessage,))
+    logging.warning(consoleMessage)
 
 #
 # CrossSectionAnalysisTest

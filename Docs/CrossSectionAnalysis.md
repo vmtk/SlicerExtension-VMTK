@@ -34,9 +34,11 @@ If a Shape node (Tube) is used as input, its invisible axial spline is the cente
 
 ### Input centerline
 
-VMTK centerline model and VMTK centerline markups curve have MIS radius scalars attached. Helper functions relative to the maximum inscribed sphere will the be operational.
-
-This input may also be an arbitrary markups curve however. MIS scalars will not be available here.
+This can be
+ - a VMTK centerline model
+ - a VMTK centerline markups curve
+ - an arbitrary markups curve
+ - a Shape::Tune markups node
 
 ### Input surface
 
@@ -61,7 +63,7 @@ A graphical plot of MIS diameter, CE diameter or cross-section area against dist
 - When using a Shape node as a Tube :
     - the Tube should be nicely drawn, avoid kinking in particular,
     - the lumen should be cut to slightly exceed the ends of the Tube, remove all bifurcations and distant parts of the segment that are not enclosed in the Tube.
-- The quality of a segmented lumen is important. It must not contain holes. These may be misleading as the calculated surface area may concern a hole and not the segmented blood. These defects may be identified and tracked in the module. For a segmentation lumen surface, the 'Paint' effect of the 'Segment editor' may be activated in-place to fill the holes. Alternatively, the input segment may be replaced by its largest region.
+- The quality of a segmented lumen is important. It must not contain holes. These may be misleading as the calculated surface area may concern a hole and not the segmented lumen. These defects may be identified and tracked in the module. For a segmentation lumen surface, the 'Paint' effect of the 'Segment editor' may be activated in-place to fill the holes. Alternatively, the input segment may be replaced by its largest region.
 
 |                                                    |                                                    |
 |----------------------------------------------------|----------------------------------------------------|
