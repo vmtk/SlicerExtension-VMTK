@@ -571,14 +571,25 @@ class CenterlineDisassemblyLogic(ScriptedLoadableModuleLogic):
 
         # All cells from the input centerline have been processed.
         if (pointId):
-            newPolyData = vtk.vtkPolyData()
-            newPolyData.SetPoints(points)
-            newPolyData.SetLines(cellArray)
-            newPolyData.GetPointData().AddArray(radiusArray)
+            mergedPolyData = vtk.vtkPolyData()
+            mergedPolyData.SetPoints(points)
+            mergedPolyData.SetLines(cellArray)
+            mergedPolyData.GetPointData().AddArray(radiusArray)
             if masterEdgeArray:
-                newPolyData.GetPointData().AddArray(edgeArray)
+                mergedPolyData.GetPointData().AddArray(edgeArray)
             if masterEdgePCoordArray:
-                newPolyData.GetPointData().AddArray(edgePCoordArray)
+                mergedPolyData.GetPointData().AddArray(edgePCoordArray)
+            """
+            There are 2 pairs of duplicate points.
+            Each pair consists of 2 consecutive point ids with the same coordinate.
+            vtkParallelTransportFrame gives thus 2 invalid tangents of [0, 0, 0].
+            The reason is yet to be found.
+            """
+            cleaner = vtk.vtkCleanPolyData()
+            cleaner.SetInputData(mergedPolyData)
+            cleaner.Update()
+            newPolyData = vtk.vtkPolyData()
+            newPolyData.DeepCopy(cleaner.GetOutput())
 
         return newPolyData
 
