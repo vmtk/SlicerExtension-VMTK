@@ -1249,7 +1249,10 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
         emptySectionIds = vtk.vtkIdList()
         if (not crossSectionCompute.UpdateTable(crossSectionAreaArray, ceDiameterArray, emptySectionIds)):
           raise RuntimeError("Failed to compute cross-sections.")
-        self._informAboutEmptySections(emptySectionIds)
+        surfaceName = self.lumenSurfaceNode.GetName()
+        if self.lumenSurfaceNode.IsTypeOf("vtkMRMLSegmentationNode") and self.currentSegmentID:
+          surfaceName = surfaceName + " - " + self.lumenSurfaceNode.GetSegmentation().GetSegment(self.currentSegmentID).GetName()
+        self._informAboutEmptySections(emptySectionIds, surfaceName)
 
     """
     We may also use the TubeRadius scalar array of the spline. This may prevent
@@ -1271,7 +1274,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       wallEmptySectionIds = vtk.vtkIdList()
       if (not wallCrossSectionCompute.UpdateTable(wallCrossSectionAreaArray, wallDiameterArray, wallEmptySectionIds)):
         raise RuntimeError("Failed to compute cross-sections.")
-      self._informAboutEmptySections(wallEmptySectionIds)
+      self._informAboutEmptySections(wallEmptySectionIds, inputCenterline.GetName())
 
     cumArray = vtk.vtkDoubleArray()
     self.cumulateDistances(points, cumArray)
@@ -1288,8 +1291,13 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
             misDiameterArray.SetValue(i, radii[i] * 2)
       # Diameter and surface area stenosis
       if (inputCenterline.IsTypeOf("vtkMRMLMarkupsShapeNode")) and self.lumenSurfaceNode:
-        diameterStenosis = ((wallDiameterArray.GetValue(i) - ceDiameterArray.GetValue(i)) / wallDiameterArray.GetValue(i)) * 100
-        surfaceAreaStenosis = ((wallCrossSectionAreaArray.GetValue(i) - crossSectionAreaArray.GetValue(i)) / wallCrossSectionAreaArray.GetValue(i)) * 100
+        # The resolution of the Tube may be too low and can be increased.
+        diameterStenosis = -1.0
+        surfaceAreaStenosis = -1.0
+        if (wallDiameterArray.GetValue(i)) and (wallCrossSectionAreaArray.GetValue(i)):
+          diameterStenosis = ((wallDiameterArray.GetValue(i) - ceDiameterArray.GetValue(i)) / wallDiameterArray.GetValue(i)) * 100
+          surfaceAreaStenosis = ((wallCrossSectionAreaArray.GetValue(i) - crossSectionAreaArray.GetValue(i)) / wallCrossSectionAreaArray.GetValue(i)) * 100
+        # vtkCrossSectionCompute has already provided the indices; don't flood the console.
         surfaceAreaStenosisArray.SetValue(i, surfaceAreaStenosis)
         diameterStenosisArray.SetValue(i, diameterStenosis)
       # Convert each point coordinate
@@ -1745,11 +1753,11 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     distanceFromStart = distanceArray.GetValue(int(pointIndex))
     return distanceFromStart - relativeOriginDistance
 
-  def _informAboutEmptySections(self, ids:vtk. vtkIdList):
+  def _informAboutEmptySections(self, ids:vtk. vtkIdList, surfaceName):
     numberOfIds = ids.GetNumberOfIds()
     if numberOfIds == 0:
       return
-    statusMessage = str(numberOfIds) + " " + _("empty sections have been detected; consider improving the input lumen." )
+    statusMessage = str(numberOfIds) + " " + _("empty sections have been detected; consider improving the input lumen {nameOfSurface}." ).format(nameOfSurface=surfaceName)
     consoleMessage = "Empty sections have been created at these point ids of the centerline: "
     idList = ""
     sorter = vtk.vtkSortDataArray()
@@ -1757,7 +1765,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     for i in range(numberOfIds):
       idList = idList + ", " + str(ids.GetId(i))
     idList = idList[2 : len(idList)]
-    consoleMessage = consoleMessage + idList + "; consider improving the input lumen."
+    consoleMessage = consoleMessage + idList + "; consider improving the input lumen (" + surfaceName +")."
     self.showStatusMessage((statusMessage,))
     logging.warning(consoleMessage)
 
