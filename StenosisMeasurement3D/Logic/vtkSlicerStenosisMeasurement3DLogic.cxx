@@ -30,18 +30,9 @@
 #include <vtkClipClosedSurface.h>
 #include <vtkPlaneCollection.h>
 #include <vtkTriangleFilter.h>
-#include <vtkMRMLTableNode.h>
-#include <vtkTable.h>
-#include <vtkMRMLI18N.h>
-#include <vtkMassProperties.h>
 
-static const char* COLUMN_LABEL_STUDY = "Study";
-static const char* COLUMN_LABEL_WALL = "Wall";
-static const char* COLUMN_LABEL_LUMEN = "Lumen";
-static const char* COLUMN_LABEL_LESION = "Lesion";
-static const char* COLUMN_LABEL_STENOSIS = "Stenosis";
-static const char* COLUMN_LABEL_LENGTH = "Length";
-static const char* COLUMN_LABEL_NOTES = "Notes";
+// STD includes
+#include <cassert>
 
 //----------------------------------------------------------------------------
 vtkStandardNewMacro(vtkSlicerStenosisMeasurement3DLogic);
@@ -76,10 +67,6 @@ void vtkSlicerStenosisMeasurement3DLogic::SetMRMLSceneInternal(vtkMRMLScene * ne
 void vtkSlicerStenosisMeasurement3DLogic::RegisterNodes()
 {
   assert(this->GetMRMLScene() != 0);
-  if (this->GetMRMLScene())
-  {
-    this->GetMRMLScene()->RegisterNodeClass(vtkSmartPointer<vtkMRMLStenosisMeasurement3DParameterNode>::New());
-  }
 }
 
 //---------------------------------------------------------------------------
@@ -89,84 +76,58 @@ void vtkSlicerStenosisMeasurement3DLogic::UpdateFromMRMLScene()
 }
 
 //---------------------------------------------------------------------------
-void vtkSlicerStenosisMeasurement3DLogic::OnMRMLSceneNodeAdded(vtkMRMLNode* node)
+void vtkSlicerStenosisMeasurement3DLogic
+::OnMRMLSceneNodeAdded(vtkMRMLNode* vtkNotUsed(node))
 {
 }
 
 //---------------------------------------------------------------------------
-void vtkSlicerStenosisMeasurement3DLogic::OnMRMLSceneNodeRemoved(vtkMRMLNode* vtkNotUsed(node))
+void vtkSlicerStenosisMeasurement3DLogic
+::OnMRMLSceneNodeRemoved(vtkMRMLNode* vtkNotUsed(node))
 {
 }
 
 //---------------------------------------------------------------------------
-bool vtkSlicerStenosisMeasurement3DLogic::Process(vtkVariantArray * results)
+double vtkSlicerStenosisMeasurement3DLogic::Process(vtkMRMLMarkupsShapeNode * wall,
+                                            vtkMRMLSegmentationNode * lumen, std::string segmentID,
+                                            vtkMRMLMarkupsFiducialNode * boundary,
+                                            vtkPolyData * wallOpenOut, vtkPolyData * lumenOpenOut,
+                                            vtkPolyData * wallClosedOut, vtkPolyData * lumenClosedOut)
 {
-  if (!results)
-  {
-    vtkErrorMacro("Please provide a vtkVariantArray to hold the results.");
-    return false;
-  }
-  vtkMRMLStenosisMeasurement3DParameterNode * parameterNode = this->ParameterNode;
-  if (!parameterNode)
-  {
-    vtkErrorMacro("Parameter node is NULL.");
-    return false;
-  }
-  vtkMRMLMarkupsShapeNode * wallShapeNode = parameterNode->GetInputShapeNode();
-  vtkMRMLSegmentationNode * lumenSegmentationNode = parameterNode->GetInputSegmentationNode();
-  std::string segmentID = parameterNode->GetInputSegmentID();
-  vtkMRMLMarkupsFiducialNode * boundaryFiducialNode = parameterNode->GetInputFiducialNode();
-  vtkPolyData * outputWallOpenPolyData = parameterNode->GetOutputWallOpenPolyData();
-  vtkPolyData * outputLumenOpenPolyData = parameterNode->GetOutputLumenOpenPolyData();
-  vtkPolyData * outputWallClosedPolyData = parameterNode->GetOutputWallClosedPolyData();
-  vtkPolyData * outputLumenClosedPolyData = parameterNode->GetOutputLumenClosedPolyData();
-  
-  // Note: we don't call ::UpdateBoundaryControlPointPosition here.
-  if (wallShapeNode == nullptr || boundaryFiducialNode == nullptr
-    || lumenSegmentationNode == nullptr || segmentID.empty()
-    || wallShapeNode->GetNumberOfControlPoints() < 4 || boundaryFiducialNode->GetNumberOfControlPoints() < 2
-    || wallShapeNode->GetShapeName() != vtkMRMLMarkupsShapeNode::Tube
+  // N.B: we don't call ::UpdateBoundaryControlPointPosition here.
+  if (wall == nullptr || lumen == nullptr || segmentID.empty() || boundary == nullptr
+    || wall->GetNumberOfControlPoints() < 4 || boundary->GetNumberOfControlPoints() < 2
+    || wall->GetShapeName() != vtkMRMLMarkupsShapeNode::Tube
   )
   {
     vtkErrorMacro("Invalid input.");
-    return false;
+    return -1.0;
   }
-
-  if (outputWallOpenPolyData == nullptr || outputLumenOpenPolyData == nullptr
-    || outputWallClosedPolyData == nullptr || outputLumenClosedPolyData == nullptr)
-  {
-    vtkErrorMacro("Invalid output: 4 polydata objects must be provided for open/closed lumen/wall output.");
-    return false;
-  }
-
-  // Put a ficucial point on the nearest point of the wall spline.
-  this->UpdateBoundaryControlPointPosition(0, boundaryFiducialNode, wallShapeNode);
-  this->UpdateBoundaryControlPointPosition(1, boundaryFiducialNode, wallShapeNode);
-
+  
   // Get wall polydata from shape markups node.
-  vtkPolyData * wallOpenSurface = wallShapeNode->GetShapeWorld();
-  vtkPolyData * wallClosedSurface = wallShapeNode->GetCappedTubeWorld();
+  vtkPolyData * wallOpenSurface = wall->GetShapeWorld();
+  vtkPolyData * wallClosedSurface = wall->GetCappedTubeWorld();
   // Generate lumen polydata from lumen segment.
   vtkNew<vtkPolyData> lumenSurface;
-  if (!lumenSegmentationNode->GetClosedSurfaceRepresentation(segmentID, lumenSurface))
+  if (!lumen->GetClosedSurfaceRepresentation(segmentID, lumenSurface))
   {
-    if (!lumenSegmentationNode->CreateClosedSurfaceRepresentation())
+    if (!lumen->CreateClosedSurfaceRepresentation())
     {
       vtkErrorMacro("Cannot create closed surface from segmentation.");
-      return false;
+      return -1.0;
     }
-    lumenSegmentationNode->GetClosedSurfaceRepresentation(segmentID, lumenSurface);
+    lumen->GetClosedSurfaceRepresentation(segmentID, lumenSurface);
   }
   
   // The first 2 fiducial points are used to cut through the lumen and wall polydata at arbitrary positions.
   double p1[3] = { 0.0 };
   double p2[3] = { 0.0 };
-  boundaryFiducialNode->GetNthControlPointPositionWorld(0, p1);
-  boundaryFiducialNode->GetNthControlPointPositionWorld(1, p2);
+  boundary->GetNthControlPointPositionWorld(0, p1);
+  boundary->GetNthControlPointPositionWorld(1, p2);
   
   // Get spline polydata from shape markups node.
   vtkSmartPointer<vtkPolyData> spline = vtkSmartPointer<vtkPolyData>::New();
-  wallShapeNode->GetTrimmedSplineWorld(spline);
+  wall->GetTrimmedSplineWorld(spline);
   vtkPoints * splinePoints = spline->GetPoints();
   // Get boundaries where polydatas will be cut.
   const vtkIdType p1IdType = spline->FindPoint(p1);
@@ -197,59 +158,25 @@ bool vtkSlicerStenosisMeasurement3DLogic::Process(vtkVariantArray * results)
   
   // Open surface: Clip wall and lumen at p1. Clip the result at p2.
   vtkNew<vtkPolyData> wallIntermediate;
-  if (!this->Clip(wallOpenSurface, wallIntermediate, p1, startDirection, false))
-  {
-    return false;
-  }
-  if (!this->Clip(wallIntermediate, outputWallOpenPolyData, p2, endDirection, false))
-  {
-    return false;
-  }
+  this->Clip(wallOpenSurface, wallIntermediate, p1, startDirection, false);
+  this->Clip(wallIntermediate, wallOpenOut, p2, endDirection, false);
   
   vtkNew<vtkPolyData> lumenIntermediate;
-  if (!this->Clip(lumenSurface, lumenIntermediate, p1, startDirection, false))
-  {
-    return false;
-  }
-   
-  if (!this->Clip(lumenIntermediate, outputLumenOpenPolyData, p2, endDirection, false))
-  {
-    return false;
-  }
+  this->Clip(lumenSurface, lumenIntermediate, p1, startDirection, false);
+  this->Clip(lumenIntermediate, lumenOpenOut, p2, endDirection, false);
   
   // Closed surface
-  if (!this->ClipClosed(wallClosedSurface, outputWallClosedPolyData, p1, startDirection, p2, endDirection))
-  {
-    return false;
-  }
-  if (!this->ClipClosed(lumenSurface, outputLumenClosedPolyData, p1, startDirection, p2, endDirection))
-  {
-    return false;
-  }
-
-  if (!this->ComputeResults(results))
-  {
-    vtkErrorMacro("Failed to compute the results.");
-    return false;
-  }   
-  vtkMRMLTableNode * outputTableNode = this->ParameterNode->GetOutputTableNode();
-  if (results && outputTableNode)
-  {
-    if (this->DefineOutputTable())
-    {
-      outputTableNode->GetTable()->InsertNextRow(results);
-      outputTableNode->Modified();
-    }
-  }
-
-  return true;
+  this->ClipClosed(wallClosedSurface, wallClosedOut, p1, startDirection, p2, endDirection);
+  this->ClipClosed(lumenSurface, lumenClosedOut, p1, startDirection, p2, endDirection);
+  
+  return this->CalculateClippedSplineLength(boundary, wall);
 }
 
 //---------------------------------------------------------------------------
 bool vtkSlicerStenosisMeasurement3DLogic::Clip(vtkPolyData * input, vtkPolyData * output,
                                                double * origin, double * normal, bool clipped)
 {
-  if (input == nullptr || origin == nullptr || normal == nullptr || output == nullptr)
+  if (input == nullptr || origin == NULL || normal == NULL)
   {
     vtkErrorMacro("Can't clip, invalid parameters.");
     return false;
@@ -264,7 +191,6 @@ bool vtkSlicerStenosisMeasurement3DLogic::Clip(vtkPolyData * input, vtkPolyData 
   clipper->GenerateClippedOutputOn();
   clipper->Update();
   
-  output->Initialize();
   if (clipped)
   {
     output->DeepCopy(clipper->GetClippedOutput());
@@ -282,8 +208,7 @@ bool vtkSlicerStenosisMeasurement3DLogic::UpdateBoundaryControlPointPosition
 {
   // Put a ficucial point on the nearest point of the wall spline.
   if (pointIndex < 0 || fiducialNode == nullptr || shapeNode == nullptr
-    || pointIndex > (fiducialNode->GetNumberOfControlPoints() - 1)
-    || (shapeNode && shapeNode->GetShapeName() != vtkMRMLMarkupsShapeNode::Tube))
+    || pointIndex > (fiducialNode->GetNumberOfControlPoints() - 1) )
   {
     vtkErrorMacro("Can't update control point position, invalid parameters.");
     return false;
@@ -307,11 +232,11 @@ bool vtkSlicerStenosisMeasurement3DLogic::UpdateBoundaryControlPointPosition
 bool vtkSlicerStenosisMeasurement3DLogic::ClipClosed(vtkPolyData * input, vtkPolyData * output,
             double * startOrigin, double * startNormal, double * endOrigin, double * endNormal)
 {
-  if (input == nullptr || startOrigin == nullptr || startNormal == nullptr
-    || endOrigin == nullptr || endNormal == nullptr || output == nullptr
+  if (input == nullptr || startOrigin == NULL || startNormal == NULL
+    || endOrigin == NULL || endNormal == NULL
   )
   {
-    vtkErrorMacro("Can't clip closed surface, invalid parameters.");
+    vtkErrorMacro("Can't clip, invalid parameters.");
     return false;
   }
   vtkNew<vtkPlane> startPlane;
@@ -333,7 +258,6 @@ bool vtkSlicerStenosisMeasurement3DLogic::ClipClosed(vtkPolyData * input, vtkPol
   vtkNew<vtkTriangleFilter> triangleFilter;
   triangleFilter->SetInputData(clipper->GetOutput());
   triangleFilter->Update();
-  output->Initialize();
   output->DeepCopy(triangleFilter->GetOutput());
   
   return true;
@@ -381,167 +305,4 @@ double vtkSlicerStenosisMeasurement3DLogic::CalculateClippedSplineLength(vtkMRML
     length += std::sqrt(vtkMath::Distance2BetweenPoints(p1, p2));
   }
   return length;
-}
-
-//-----------------------------------------------------------------------------
-void vtkSlicerStenosisMeasurement3DLogic::ProcessMRMLNodesEvents(vtkObject* caller, unsigned long event, void* callData)
-{
-  if (!this->ParameterNode)
-  {
-    return;
-  }
-  vtkMRMLMarkupsFiducialNode * inputFiducialNode = vtkMRMLMarkupsFiducialNode::SafeDownCast(this->ParameterNode->GetInputFiducialNode());
-  vtkMRMLMarkupsShapeNode * inputShapeNode = vtkMRMLMarkupsShapeNode::SafeDownCast(this->ParameterNode->GetInputShapeNode());
-  if (inputFiducialNode && inputShapeNode)
-  {
-    vtkMRMLMarkupsDisplayNode * fiducialDisplayNode = inputFiducialNode->GetMarkupsDisplayNode();
-    if (!fiducialDisplayNode)
-    {
-      return;
-    }
-    this->UpdateBoundaryControlPointPosition(0, inputFiducialNode, inputShapeNode);
-    this->UpdateBoundaryControlPointPosition(1, inputFiducialNode, inputShapeNode);
-  }
-}
-
-//-----------------------------------------------------------------------------
-void vtkSlicerStenosisMeasurement3DLogic::SetParameterNode(vtkMRMLStenosisMeasurement3DParameterNode* parameterNode)
-{
-  if (this->ParameterNode)
-  {
-    vtkUnObserveMRMLNodeMacro(this->ParameterNode->GetInputFiducialNode());
-    vtkUnObserveMRMLNodeMacro(this->ParameterNode->GetInputShapeNode());
-  }
-  this->ParameterNode = parameterNode;
-  if (!this->ParameterNode)
-  {
-    return;
-  }
-  // Needed for python scripting.
-  if (!this->ParameterNode->GetScene())
-  {
-    this->ParameterNode->SetScene(this->GetMRMLScene());
-  }
-  // Put p1 and p2 ficucial points on the tube spline at nearest point when the fiducial or tube nodes are updated.
-  vtkNew<vtkIntArray> events;
-  events->InsertNextValue(vtkMRMLMarkupsFiducialNode::PointEndInteractionEvent);
-  vtkObserveMRMLNodeEventsMacro(this->ParameterNode->GetInputFiducialNode(), events.GetPointer());
-  vtkObserveMRMLNodeEventsMacro(this->ParameterNode->GetInputShapeNode(), events.GetPointer());
-  // Move p1 and p2 now.
-  vtkMRMLMarkupsFiducialNode * inputFiducialNode = this->ParameterNode->GetInputFiducialNode();
-  vtkMRMLMarkupsShapeNode * inputShapeNode = this->ParameterNode->GetInputShapeNode();
-  if (inputFiducialNode && inputShapeNode && inputShapeNode->GetShapeName() == vtkMRMLMarkupsShapeNode::Tube)
-  {
-    this->UpdateBoundaryControlPointPosition(0, inputFiducialNode, inputShapeNode);
-    this->UpdateBoundaryControlPointPosition(1, inputFiducialNode, inputShapeNode);
-  }
-}
-
-//-----------------------------------------------------------------------------
-bool vtkSlicerStenosisMeasurement3DLogic::DefineOutputTable()
-{
-  /*
-   * Define an input table structure to store the results in append mode only.
-   */
-  if (!this->ParameterNode or (this->ParameterNode && !this->ParameterNode->GetOutputTableNode()))
-  {
-    return false;
-  }
-  
-  vtkMRMLTableNode * outputTableNode = this->ParameterNode->GetOutputTableNode();
-  
-  if (outputTableNode->GetNumberOfColumns() == 0)
-  {
-    vtkNew<vtkStringArray> studyColumn;
-    vtkNew<vtkDoubleArray> wallColumn;
-    vtkNew<vtkDoubleArray> lumenColumn;
-    vtkNew<vtkDoubleArray> lesionColumn;
-    vtkNew<vtkDoubleArray> stenosisColumn;
-    vtkNew<vtkDoubleArray> lengthColumn;
-    vtkNew<vtkStringArray> notesColumn;
-
-    studyColumn->SetName(COLUMN_LABEL_STUDY);
-    wallColumn->SetName(COLUMN_LABEL_WALL);
-    lumenColumn->SetName(COLUMN_LABEL_LUMEN);
-    lesionColumn->SetName(COLUMN_LABEL_LESION);
-    stenosisColumn->SetName(COLUMN_LABEL_STENOSIS);
-    lengthColumn->SetName(COLUMN_LABEL_LENGTH);
-    notesColumn->SetName(COLUMN_LABEL_NOTES);
-
-    outputTableNode->AddColumn(studyColumn);
-    outputTableNode->AddColumn(wallColumn);
-    outputTableNode->AddColumn(lumenColumn);
-    outputTableNode->AddColumn(lesionColumn);
-    outputTableNode->AddColumn(stenosisColumn);
-    outputTableNode->AddColumn(lengthColumn);
-    outputTableNode->AddColumn(notesColumn);
-
-    outputTableNode->SetColumnTitle(COLUMN_LABEL_STUDY, vtkMRMLTr("vtkSlicerStenosisMeasurement3DLogic", "Study"));
-    outputTableNode->SetColumnTitle(COLUMN_LABEL_WALL, vtkMRMLTr("vtkSlicerStenosisMeasurement3DLogic", "Wall"));
-    outputTableNode->SetColumnTitle(COLUMN_LABEL_LUMEN, vtkMRMLTr("vtkSlicerStenosisMeasurement3DLogic", "Lumen"));
-    outputTableNode->SetColumnTitle(COLUMN_LABEL_LESION, vtkMRMLTr("vtkSlicerStenosisMeasurement3DLogic", "Lesion"));
-    outputTableNode->SetColumnTitle(COLUMN_LABEL_STENOSIS, vtkMRMLTr("vtkSlicerStenosisMeasurement3DLogic", "Stenosis"));
-    outputTableNode->SetColumnTitle(COLUMN_LABEL_LENGTH, vtkMRMLTr("vtkSlicerStenosisMeasurement3DLogic", "Length"));
-    outputTableNode->SetColumnTitle(COLUMN_LABEL_NOTES, vtkMRMLTr("vtkSlicerStenosisMeasurement3DLogic", "Notes"));
-
-    outputTableNode->SetUseColumnTitleAsColumnHeader(true);
-    outputTableNode->Modified();
-  }
-  return true;
-}
-
-//-----------------------------------------------------------------------------
-bool vtkSlicerStenosisMeasurement3DLogic::ComputeResults(vtkVariantArray * results)
-{
-  if (!this->ParameterNode || !results)
-  {
-    return false;
-  }
-  results->Initialize();
-  vtkPolyData * wallClosedPolyData = this->ParameterNode->GetOutputWallClosedPolyData();
-  if (!wallClosedPolyData)
-  {
-    vtkErrorMacro("Unexpected empty wall closed surface.");
-    return false;
-  }
-  vtkPolyData * lumenClosedPolyData = this->ParameterNode->GetOutputLumenClosedPolyData();
-  if (!lumenClosedPolyData)
-  {
-    vtkErrorMacro("Unexpected empty lumen closed surface.");
-    return false;
-  }
-  vtkNew<vtkMassProperties> wallMassProperties;
-  wallMassProperties->SetInputData(wallClosedPolyData);
-  wallMassProperties->Update();
-  vtkNew<vtkMassProperties> lumenMassProperties;
-  lumenMassProperties->SetInputData(lumenClosedPolyData);
-  lumenMassProperties->Update();
-  // Get the volumes.
-  const double wallVolume = wallMassProperties->GetVolume();
-  const double lumenVolume = lumenMassProperties->GetVolume();
-  const double lesionVolume = wallVolume - lumenVolume;
-  // Calculate stenosis degree.
-  double degree = -1.0;
-  if (wallVolume)
-  {
-    degree = (lesionVolume / wallVolume);
-  }
-  // Get the spline length between boundary points.
-  double length = -1.0;
-  vtkMRMLMarkupsShapeNode * inputShapeNode = this->ParameterNode->GetInputShapeNode();
-  vtkMRMLMarkupsFiducialNode * inputFiducialNode = this->ParameterNode->GetInputFiducialNode();
-  if (inputShapeNode && inputFiducialNode)
-  {
-    length = this->CalculateClippedSplineLength(inputFiducialNode, inputShapeNode);
-  }
-  // Return the result in a variant array.
-  results->InsertNextValue(this->ParameterNode->GetName());
-  results->InsertNextValue(wallVolume);
-  results->InsertNextValue(lumenVolume);
-  results->InsertNextValue(lesionVolume);
-  results->InsertNextValue(degree);
-  results->InsertNextValue(length);
-  results->InsertNextValue(""); // Notes.
-
-  return true;
 }

@@ -36,8 +36,6 @@
 #include <vtkMRMLMarkupsShapeNode.h>
 #include <vtkMRMLMarkupsFiducialNode.h>
 #include <vtkMRMLSegmentationNode.h>
-#include "vtkMRMLStenosisMeasurement3DParameterNode.h"
-#include <vtkVariantArray.h>
 
 /// \ingroup Slicer_QtModules_ExtensionTemplate
 class VTK_SLICER_STENOSISMEASUREMENT3D_MODULE_LOGIC_EXPORT vtkSlicerStenosisMeasurement3DLogic :
@@ -51,16 +49,12 @@ public:
   
   bool UpdateBoundaryControlPointPosition(int pointIndex, vtkMRMLMarkupsFiducialNode * fiducialNode,
                                           vtkMRMLMarkupsShapeNode * shapeNode);
-  bool Process(vtkVariantArray * results);
+  double Process(vtkMRMLMarkupsShapeNode * wall,
+               vtkMRMLSegmentationNode * lumen, std::string segmentID,
+               vtkMRMLMarkupsFiducialNode * boundary,
+               vtkPolyData * wallOpenOut, vtkPolyData * lumenOpenOut,
+               vtkPolyData * wallClosedOut, vtkPolyData * lumenClosedOut);
 
-  
-  void ProcessMRMLNodesEvents(vtkObject *caller,
-                              unsigned long event,
-                              void *callData ) override;
-
-  vtkMRMLStenosisMeasurement3DParameterNode * GetParameterNode() {return ParameterNode;}
-  void SetParameterNode(vtkMRMLStenosisMeasurement3DParameterNode * parameterNode);
-  
 protected:
   vtkSlicerStenosisMeasurement3DLogic();
   ~vtkSlicerStenosisMeasurement3DLogic() override;
@@ -80,10 +74,6 @@ protected:
             double * startOrigin, double * startNormal, double * endOrigin, double * endNormal);
   double CalculateClippedSplineLength(vtkMRMLMarkupsFiducialNode * fiducialNode,
                                           vtkMRMLMarkupsShapeNode * shapeNode);
-  bool DefineOutputTable();
-  bool ComputeResults(vtkVariantArray * results);
-
-  vtkWeakPointer<vtkMRMLStenosisMeasurement3DParameterNode> ParameterNode;
 private:
 
   vtkSlicerStenosisMeasurement3DLogic(const vtkSlicerStenosisMeasurement3DLogic&); // Not implemented
