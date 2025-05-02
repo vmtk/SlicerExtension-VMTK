@@ -362,6 +362,7 @@ void CrossSectionComputeWorker::operator () (vtkPolyData * generatedPolyData,
             // Get the surface area and circular equivalent diameter
             vtkNew<vtkMassProperties> crossSectionProperties;
             crossSectionProperties->SetInputData(contourPolyData);
+            crossSectionProperties->Update();
             const double crossSectionSurfaceArea = crossSectionProperties->GetSurfaceArea();
             const double ceDiameter = (sqrt(crossSectionSurfaceArea / vtkMath::Pi())) * 2;
             
