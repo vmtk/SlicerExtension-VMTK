@@ -27,14 +27,20 @@
 #include <QSettings>
 #include <QMessageBox>
 
+#include <vtkMRMLScene.h>
 #include <vtkMRMLMarkupsFiducialNode.h>
 #include <vtkMRMLMarkupsDisplayNode.h>
 #include <vtkMRMLMarkupsShapeNode.h>
 #include <vtkMRMLModelNode.h>
 #include <vtkMassProperties.h>
+#include <vtkMRMLTableNode.h>
 #include <vtkMRMLMeasurementLength.h>
 #include <vtkMRMLMeasurementVolume.h>
 #include <vtkMRMLStaticMeasurement.h>
+#include <vtkVariantArray.h>
+#include <vtkTable.h>
+#include <vtkMRMLSelectionNode.h>
+#include <vtkMRMLUnitNode.h>
 #include <qSlicerExtensionsManagerModel.h>
 
 //-----------------------------------------------------------------------------
@@ -43,6 +49,7 @@ class qSlicerStenosisMeasurement3DModuleWidgetPrivate: public Ui_qSlicerStenosis
 {
 public:
   qSlicerStenosisMeasurement3DModuleWidgetPrivate();
+  vtkSmartPointer<vtkMRMLTableNode> currentTableNode = nullptr;
 };
 
 //-----------------------------------------------------------------------------
@@ -76,7 +83,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::setup()
   d->setupUi(this);
   this->Superclass::setup();
   
-  d->resultCollapsibleButton->setCollapsed(true);
+  d->outputCollapsibleButton->setCollapsed(true);
   d->modelCollapsibleButton->setCollapsed(true);
   
   QObject::connect(d->applyButton, SIGNAL(clicked()),
@@ -87,7 +94,17 @@ void qSlicerStenosisMeasurement3DModuleWidget::setup()
                    this, SLOT(onFiducialNodeChanged(vtkMRMLNode*)));
   QObject::connect(d->inputFiducialSelector, SIGNAL(nodeAddedByUser(vtkMRMLNode*)),
                    this, SLOT(onFiducialNodeChanged(vtkMRMLNode*)));
-  
+  QObject::connect(d->inputSegmentSelector, SIGNAL(currentNodeChanged(vtkMRMLNode*)),
+                   this, SLOT(onSegmentationNodeChanged(vtkMRMLNode*)));
+  QObject::connect(d->inputSegmentSelector, SIGNAL(currentSegmentChanged(QString)),
+                   this, SLOT(onSegmentIDChanged(QString)));
+  QObject::connect(d->lesionModelSelector, SIGNAL(currentNodeChanged(vtkMRMLNode*)),
+                   this, SLOT(onLesionModelNodeChanged(vtkMRMLNode*)));
+  QObject::connect(d->outputTableSelector, SIGNAL(currentNodeChanged(vtkMRMLNode*)),
+                   this, SLOT(onTableNodeChanged(vtkMRMLNode*)));
+  QObject::connect(d->updateBoundaryPointsSpinBox, SIGNAL(valueChanged(int)),
+                   this, SLOT(onUpdateBoundary(int)));
+
   // Put p1 and p2 ficucial points on the tube spline at nearest point when they are moved.
   this->fiducialObservation = vtkSmartPointer<vtkCallbackCommand>::New();
   this->fiducialObservation->SetClientData( reinterpret_cast<void *>(this) );
@@ -97,6 +114,21 @@ void qSlicerStenosisMeasurement3DModuleWidget::setup()
   this->tubeObservation = vtkSmartPointer<vtkCallbackCommand>::New();
   this->tubeObservation->SetClientData( reinterpret_cast<void *>(this) );
   this->tubeObservation->SetCallback(qSlicerStenosisMeasurement3DModuleWidget::onTubePointEndInteraction);
+
+  // We won't check the structure of the table and assume it has been created in the module.
+  const QString attributeName = QString(MODULE_TITLE) + QString(".Role");
+  d->outputTableSelector->addAttribute("vtkMRMLTableNode", attributeName, MODULE_TITLE);
+}
+
+//-----------------------------------------------------------------------------
+void qSlicerStenosisMeasurement3DModuleWidget::enter()
+{
+  Q_D(qSlicerStenosisMeasurement3DModuleWidget);
+
+  if (this->logic)
+  {
+    this->logic->SetMRMLScene(this->mrmlScene());
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -137,29 +169,45 @@ void qSlicerStenosisMeasurement3DModuleWidget::onApply()
     this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Inconsistent segmentation input."), 5000);
     return;
   }
-  
+
+  // Get the lumen enclosed in the tube once only, it may be time consuming.
+  vtkNew<vtkPolyData> enclosedSurface;
+  vtkSlicerStenosisMeasurement3DLogic::EnclosingType enclosingType = this->getEnclosedSurface(
+                          shapeNodeReal, segmentationNodeReal, currentSegmentID,enclosedSurface);
+  if (enclosingType == vtkSlicerStenosisMeasurement3DLogic::EnclosingType_Last)
+  {
+    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Error getting the enclosed lumen."), 5000);
+    return;
+  }
+  if (enclosingType == vtkSlicerStenosisMeasurement3DLogic::Distinct)
+  {
+    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Input tube and input lumen do not intersect."), 5000);
+    return;
+  }
+
   // Create output data.
   vtkSmartPointer<vtkPolyData> wallOpen = vtkSmartPointer<vtkPolyData>::New();
   vtkSmartPointer<vtkPolyData> lumenOpen = vtkSmartPointer<vtkPolyData>::New();
   vtkSmartPointer<vtkPolyData> wallClosed = vtkSmartPointer<vtkPolyData>::New();
   vtkSmartPointer<vtkPolyData> lumenClosed = vtkSmartPointer<vtkPolyData>::New();
   // Do the job.
-  double length = this->logic->Process(shapeNodeReal, segmentationNodeReal, currentSegmentID,
-                                     fiducialNodeReal, wallOpen, lumenOpen, wallClosed, lumenClosed);
-  if (length < 0.0)
+  vtkNew<vtkVariantArray> results;
+  if (!this->logic->Process(shapeNodeReal, enclosedSurface, fiducialNodeReal,
+                            wallOpen, lumenOpen, wallClosed, lumenClosed,
+                            results, d->currentTableNode))
   {
     this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Processing failed."), 5000);
     return;
   }
   // Finally show result.
-  this->showResult(wallClosed, lumenClosed, length);
+  this->showResult(wallClosed, lumenClosed, results);
   // Optionally create models.
-  this->createModels(wallOpen, lumenOpen);
+  this->createLesionModel(shapeNodeReal, enclosedSurface, fiducialNodeReal);
 }
 
 //-----------------------------------------------------------------------------
 void qSlicerStenosisMeasurement3DModuleWidget::showResult(vtkPolyData * wall, vtkPolyData * lumen,
-                                                          double length)
+                                                          vtkVariantArray * results)
 {
   Q_D(qSlicerStenosisMeasurement3DModuleWidget);
   
@@ -186,28 +234,45 @@ void qSlicerStenosisMeasurement3DModuleWidget::showResult(vtkPolyData * wall, vt
   {
     return;
   }
-  const double wallVolume = wallMassProperties->GetVolume();
-  const double lumenVolume = lumenMassProperties->GetVolume();
-  const double lesionVolume = wallVolume - lumenVolume;
-  
-  // Use the facilities of MRML measurement classes.
-  auto show = [&] (const double& volume, QLabel * widget)
+  vtkMRMLScene * scene = this->mrmlScene();
+  if (!scene)
   {
-    vtkNew<vtkMRMLMeasurementVolume> volumeMeasurement;
-    volumeMeasurement->SetValue(volume);
-    volumeMeasurement->SetDisplayCoefficient(0.001);
-    volumeMeasurement->SetPrintFormat("%-#4.4g %s");
-    volumeMeasurement->Modified();
+    return;
+  }
+  vtkMRMLNode * selectionNodeMrml = scene->GetNodeByID("vtkMRMLSelectionNodeSingleton");
+  if (!selectionNodeMrml)
+  {
+    return;
+  }
+  vtkMRMLSelectionNode * mrmlSelectionNode = vtkMRMLSelectionNode::SafeDownCast(selectionNodeMrml);
+
+  // Get the volumes.
+  const double wallVolume = results->GetValue(0).ToDouble();
+  const double lumenVolume = results->GetValue(1).ToDouble();
+  const double lesionVolume =results->GetValue(2).ToDouble();
+  const double degree =results->GetValue(3).ToDouble();
+  const double length =results->GetValue(6).ToDouble();
+
+  // Use the facilities of MRML measurement classes to format the volumes.
+  auto show = [&] (const double& value, const std::string& category, QLabel * widget)
+  {
+    const char * idUnitNode = mrmlSelectionNode->GetUnitNodeID(category.c_str());
+    vtkMRMLNode * unitNodeMrml = scene->GetNodeByID(idUnitNode);
+    if (!unitNodeMrml)
+    {
+      return;
+    }
+    vtkMRMLUnitNode * unitNode = vtkMRMLUnitNode::SafeDownCast(unitNodeMrml);
+    const char * displayString = unitNode->GetDisplayStringFromValue(value);
     
-    widget->setText(volumeMeasurement->GetValueWithUnitsAsPrintableString().c_str());
-    std::string tip = std::to_string(volume) + std::string(" mm3");
-    widget->setToolTip(tip.c_str());
+    widget->setText(displayString);
+    widget->setToolTip(std::to_string(value).c_str());
   };
   
-  d->resultCollapsibleButton->setCollapsed(false);
-  show(wallVolume, d->wallResultLabel);
-  show(lumenVolume, d->lumenResultLabel);
-  show(lesionVolume, d->lesionResultLabel);
+  d->outputCollapsibleButton->setCollapsed(false);
+  show(wallVolume, "volume", d->wallResultLabel);
+  show(lumenVolume, "volume", d->lumenResultLabel);
+  show(lesionVolume, "volume", d->lesionResultLabel);
   
   std::string stenosisDegree = "#ERR";
   if (wallVolume > 0)
@@ -225,48 +290,32 @@ void qSlicerStenosisMeasurement3DModuleWidget::showResult(vtkPolyData * wall, vt
     d->stenosisResultLabel->setToolTip(tip.c_str());
   }
   d->stenosisResultLabel->setText(stenosisDegree.c_str());
-  
-  std::string lengthMeasured = "#ERR";
-  if (length > 0)
+
+  // Show the length of the spline between boundary points.
+  if (length >= 0)
   {
-    vtkNew<vtkMRMLMeasurementLength> lengthMeasurement;
-    lengthMeasurement->SetValue(length);
-    lengthMeasurement->SetPrintFormat("%-#4.4g %s");
-    lengthMeasurement->SetUnits(" mm");
-    lengthMeasurement->Modified();
-    lengthMeasured = lengthMeasurement->GetValueWithUnitsAsPrintableString();
-    
-    std::string tip = std::to_string(length) + std::string(" mm");
-    d->lengthResultLabel->setToolTip(tip.c_str());
+    show(length, "length", d->lengthResultLabel);
   }
-  d->lengthResultLabel->setText(lengthMeasured.c_str());
 }
 
 //-----------------------------------------------------------------------------
-void qSlicerStenosisMeasurement3DModuleWidget::createModels(vtkPolyData * wall, vtkPolyData * lumen)
+void qSlicerStenosisMeasurement3DModuleWidget::createLesionModel(vtkMRMLMarkupsShapeNode * wallShapeNode,
+                                                            vtkPolyData * enclosedSurface,
+                                                            vtkMRMLMarkupsFiducialNode * boundaryFiducialNode)
 {
   Q_D(qSlicerStenosisMeasurement3DModuleWidget);
-  
-  auto createModel = [&](vtkPolyData * polydata, vtkMRMLNode * modelNodeBase)
+
+  vtkMRMLNode * modelMrml = d->lesionModelSelector->currentNode();
+  if (!modelMrml)
   {
-    if (polydata && modelNodeBase)
-    {
-      vtkMRMLModelNode * modelNodeReal = vtkMRMLModelNode::SafeDownCast(modelNodeBase);
-      if (modelNodeReal)
-      {
-        modelNodeReal->SetAndObservePolyData(polydata);
-        modelNodeReal->Modified();
-        if (!modelNodeReal->GetDisplayNode())
-        {
-          // If model is freshly created from selector.
-          modelNodeReal->CreateDefaultDisplayNodes();
-        }
-      }
-    }
-  };
-  
-  createModel(wall, d->wallModelSelector->currentNode());
-  createModel(lumen, d->lumenModelSelector->currentNode());
+    return;
+  }
+  vtkMRMLModelNode * model = vtkMRMLModelNode::SafeDownCast(modelMrml);
+  vtkNew<vtkPolyData> lesion;
+  this->logic->CreateLesion(wallShapeNode, enclosedSurface, boundaryFiducialNode,
+                          lesion);
+  model->CreateDefaultDisplayNodes();
+  model->SetAndObserveMesh(lesion);
 }
 
 //-------------------------- From util.py -------------------------------------
@@ -297,8 +346,51 @@ bool qSlicerStenosisMeasurement3DModuleWidget::showStatusMessage(const QString& 
 }
 
 //-----------------------------------------------------------------------------
+void qSlicerStenosisMeasurement3DModuleWidget::onSegmentationNodeChanged(vtkMRMLNode * node)
+{
+  Q_D(qSlicerStenosisMeasurement3DModuleWidget);
+  /*
+   * The segmentation selector is special.
+   * If we don't clear it explicitly, the last segment is selected
+   * in many scenarios, and Apply fails nevertheless.
+   * Despite this clearing, the right segment ID in the parameter node
+   * is selected.
+   */
+  QSignalBlocker blocker(d->inputSegmentSelector);
+  d->inputSegmentSelector->setCurrentSegmentID("");
+}
+
+//-----------------------------------------------------------
+void qSlicerStenosisMeasurement3DModuleWidget::onSegmentIDChanged(QString segmentID)
+{
+}
+
+//-----------------------------------------------------------------------------
+void qSlicerStenosisMeasurement3DModuleWidget::onLesionModelNodeChanged(vtkMRMLNode * node)
+{
+}
+
+//-----------------------------------------------------------------------------
+void qSlicerStenosisMeasurement3DModuleWidget::onTableNodeChanged(vtkMRMLNode * node)
+{
+  Q_D(qSlicerStenosisMeasurement3DModuleWidget);
+  if (d->currentTableNode)
+  {
+    qvtkDisconnect(d->currentTableNode, vtkCommand::ModifiedEvent, this , SLOT(onTableContentModified()));
+  }
+  d->updateBoundaryPointsSpinBox->setRange(0, 0);
+  if (node)
+  {
+    vtkMRMLTableNode * tableNode = vtkMRMLTableNode::SafeDownCast(node);
+    qvtkReconnect(tableNode, vtkCommand::ModifiedEvent, this , SLOT(onTableContentModified()));
+    d->updateBoundaryPointsSpinBox->setRange(0, tableNode->GetNumberOfRows());
+    d->currentTableNode = tableNode;
+  }
+}
+
+//-----------------------------------------------------------------------------
 void qSlicerStenosisMeasurement3DModuleWidget::onFiducialPointEndInteraction(vtkObject *caller,
-                                  unsigned long event, void *clientData, void *callData)
+                                                                             unsigned long event, void *clientData, void *callData)
 {
   qSlicerStenosisMeasurement3DModuleWidget * client = reinterpret_cast<qSlicerStenosisMeasurement3DModuleWidget*>(clientData);
   if (!client || !client->currentShapeNode)
@@ -329,7 +421,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::onFiducialPointEndInteraction(vtk
 
 //-----------------------------------------------------------------------------
 void qSlicerStenosisMeasurement3DModuleWidget::onTubePointEndInteraction(vtkObject *caller,
-                                      unsigned long event, void *clientData, void *callData)
+                                                                         unsigned long event, void *clientData, void *callData)
 {
   qSlicerStenosisMeasurement3DModuleWidget * client = reinterpret_cast<qSlicerStenosisMeasurement3DModuleWidget*>(clientData);
   if (!client || !client->currentShapeNode)
@@ -408,3 +500,109 @@ void qSlicerStenosisMeasurement3DModuleWidget::onShapeNodeChanged(vtkMRMLNode * 
   }
 }
 
+//----------------------------------------------------------------------------
+void qSlicerStenosisMeasurement3DModuleWidget::onTableContentModified()
+{
+  Q_D(qSlicerStenosisMeasurement3DModuleWidget);
+
+  if (!d->currentTableNode || d->currentTableNode->GetNumberOfRows() == 0)
+  {
+    return;
+  }
+  // Let 0 in the range, don't do anything at 0.
+  d->updateBoundaryPointsSpinBox->setRange(0, d->currentTableNode->GetNumberOfRows());
+}
+
+//----------------------------------------------------------------------------
+void qSlicerStenosisMeasurement3DModuleWidget::onUpdateBoundary(int index)
+{
+  Q_D(qSlicerStenosisMeasurement3DModuleWidget);
+
+  if (index == 0 || !d->currentTableNode)
+  {
+    return;
+  }
+
+  if (!d->currentTableNode || d->currentTableNode->GetNumberOfRows() == 0)
+  {
+    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Invalid or empty table."), 5000);
+    return;
+  }
+  vtkMRMLNode * tubeNodeMrml = d->inputShapeSelector->currentNode();
+  vtkMRMLMarkupsShapeNode * tubeNode = vtkMRMLMarkupsShapeNode::SafeDownCast(tubeNodeMrml);
+  vtkMRMLNode * boundaryNodeMrml = d->inputFiducialSelector->currentNode();
+  vtkMRMLMarkupsFiducialNode * boundaryNode = vtkMRMLMarkupsFiducialNode::SafeDownCast(boundaryNodeMrml);
+
+  vtkNew<vtkPolyData> spline;
+  if (!tubeNode->GetTrimmedSplineWorld(spline))
+  {
+    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("The tube does not have a valid spline."), 5000);
+    return;
+  }
+  if (!tubeNode || !boundaryNode || boundaryNode->GetNumberOfControlPoints() < 2)
+  {
+    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Invalid tube or boundary node."), 5000);
+    return;
+  }
+
+  const int startSplineId = d->currentTableNode->GetTable()->GetValueByName(index - 1, "StartSplineId").ToInt();
+  const int endSplineId = d->currentTableNode->GetTable()->GetValueByName(index - 1, "EndSplineId").ToInt();
+  double p1[3] = {0.0};
+  double p2[3] = {0.0};
+  spline->GetPoint(startSplineId, p1);
+  spline->GetPoint(endSplineId, p2);
+  boundaryNode->SetNthControlPointPositionWorld(0, p1);
+  boundaryNode->SetNthControlPointPositionWorld(1, p2);
+}
+
+//-----------------------------------------------------------------------------
+vtkSlicerStenosisMeasurement3DLogic::EnclosingType qSlicerStenosisMeasurement3DModuleWidget::getEnclosedSurface(
+                                                                vtkMRMLMarkupsShapeNode * wallShapeNode,
+                                                                vtkMRMLSegmentationNode * lumenSegmentationNode,
+                                                                std::string segmentID, vtkPolyData * enclosedSurface
+                                                                )
+{
+  if (!wallShapeNode || !lumenSegmentationNode || !enclosedSurface)
+  {
+    std::cerr << "Invalid input, cannot get the enclosed lumen surface." << std::endl;
+    return vtkSlicerStenosisMeasurement3DLogic::EnclosingType_Last;
+  }
+  // Get wall polydata from shape markups node.
+  vtkPolyData * wallClosedSurface = wallShapeNode->GetCappedTubeWorld();
+  // Generate lumen polydata from lumen segment.
+  vtkNew<vtkPolyData> inputLumenSurface;
+  if (!lumenSegmentationNode->GetClosedSurfaceRepresentation(segmentID, inputLumenSurface))
+  {
+    if (!lumenSegmentationNode->CreateClosedSurfaceRepresentation())
+    {
+      std::cerr << "Cannot create closed surface from segmentation." << std::endl;
+      return vtkSlicerStenosisMeasurement3DLogic::EnclosingType_Last;
+    }
+    if (!lumenSegmentationNode->GetClosedSurfaceRepresentation(segmentID, inputLumenSurface))
+    {
+      std::cerr << "Cannot get closed surface from segmentation." << std::endl;
+      return vtkSlicerStenosisMeasurement3DLogic::EnclosingType_Last;
+    }
+  }
+  
+  vtkNew<vtkPolyData> inputLumenEnclosed;
+  vtkSlicerStenosisMeasurement3DLogic::EnclosingType enclosingType =
+                  this->logic->GetClosedSurfaceEnclosingType(wallClosedSurface, inputLumenSurface, inputLumenEnclosed);
+  if (enclosingType == vtkSlicerStenosisMeasurement3DLogic::EnclosingType_Last)
+  {
+    return vtkSlicerStenosisMeasurement3DLogic::EnclosingType_Last; // Logging has been done.
+  }
+  if (enclosingType == vtkSlicerStenosisMeasurement3DLogic::Distinct)
+  {
+    std::cerr << "Input tube and input lumen do not intersect." << std::endl;
+    return enclosingType;
+  }
+  
+  if (!this->logic->UpdateClosedSurfaceMesh(inputLumenEnclosed, enclosedSurface))
+  {
+    std::cerr << "Error updating the clipped lumen; continuing with the raw clipped surface." << endl;
+    enclosedSurface->Initialize();
+    enclosedSurface->DeepCopy(inputLumenEnclosed);
+  }
+  return enclosingType;
+}
