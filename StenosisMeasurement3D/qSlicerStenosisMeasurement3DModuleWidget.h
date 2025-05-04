@@ -47,29 +47,41 @@ public:
 
 public slots:
   void onApply();
+
+protected slots:
   void onShapeNodeChanged(vtkMRMLNode * node);
   void onFiducialNodeChanged(vtkMRMLNode * node);
+  void onSegmentationNodeChanged(vtkMRMLNode * node);
+  void onSegmentIDChanged(QString segmentID);
+  void onLesionModelNodeChanged(vtkMRMLNode * node);
+  void onTableNodeChanged(vtkMRMLNode * node);
+  void onTableContentModified();
+  void onUpdateBoundary(int index);
 
 protected:
   QScopedPointer<qSlicerStenosisMeasurement3DModuleWidgetPrivate> d_ptr;
 
   void setup() override;
+  void enter() override;
   bool showStatusMessage(const QString& message, int duration = 0);
-  void showResult(vtkPolyData * wall, vtkPolyData * lumen, double lenght);
-  void createModels(vtkPolyData * wall, vtkPolyData * lumen);
-  
+  void showResult(vtkPolyData * wall, vtkPolyData * lumen, vtkVariantArray * results);
+  void createModels(vtkMRMLMarkupsShapeNode * wallShapeNode,
+                    vtkMRMLSegmentationNode * lumenSegmentationNode, std::string segmentID,
+                    vtkMRMLMarkupsFiducialNode * boundaryFiducialNode,
+                    vtkPolyData * outputWallOpenPolyData, vtkPolyData * outputLumenOpenPolyData);
+
+  vtkWeakPointer<vtkMRMLNode> currentFiducialNode;
+  vtkWeakPointer<vtkMRMLNode> currentShapeNode;
+  vtkSmartPointer<vtkSlicerStenosisMeasurement3DLogic> logic;
+
   vtkSmartPointer<vtkCallbackCommand> fiducialObservation;
   static void onFiducialPointEndInteraction(vtkObject *caller,
-                               unsigned long event, void *clientData, void *callData);
+                                            unsigned long event, void *clientData, void *callData);
   
   vtkSmartPointer<vtkCallbackCommand> tubeObservation;
   static void onTubePointEndInteraction(vtkObject *caller,
-                               unsigned long event, void *clientData, void *callData);
-  
-  vtkWeakPointer<vtkMRMLNode> currentShapeNode;
-  vtkWeakPointer<vtkMRMLNode> currentFiducialNode;
-  vtkSmartPointer<vtkSlicerStenosisMeasurement3DLogic> logic;
-  
+                                        unsigned long event, void *clientData, void *callData);
+
 private:
   Q_DECLARE_PRIVATE(qSlicerStenosisMeasurement3DModuleWidget);
   Q_DISABLE_COPY(qSlicerStenosisMeasurement3DModuleWidget);

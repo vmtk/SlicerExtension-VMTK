@@ -14,13 +14,12 @@ Segment a diseased arterial lumen using the segment editor. Draw a best fit arte
 
  - use '[Edit centerline](https://github.com/vmtk/SlicerExtension-VMTK/blob/master/Docs/EditCenterline.md)' module.
 
-The lumen should be manually cut to the zone of study. Otherwise, the result may be meaningless, if surrounding far away parts of the segment are included in the calculation. There should remain the drawn Tube surrounding a lumen that extends a little beyond the Tube.
-
-Place 2 points of a fidicial node to further limit the extent of the study.
+Place 2 points of a fidicial node to limit the extent of the study.
 
 **Options**
 
-Show models of the surfaces being cut down and measured.
+ - Show a model of the surfaces being cut down and measured.
+ - Store the results in a table
 
 
 ![Usage](StenosisMeasurement3D_0.png)
@@ -28,5 +27,10 @@ Show models of the surfaces being cut down and measured.
 **Notes**
 
  - A small part of the drawn tube is excluded at each end during processing; the boundary points do not extend in the excluded parts.
- - The usefulness of evaluating arterial stenosis by volume in clinical practice is yet to be determined.
-
+ - This project is tentative: arterial stenosis evaluation by volume is not a current clinical practice. Modern digital tools allow such measurements. The meaning of the calculated results may yet be researched:
+     - wall volume
+     - lumen volume
+     - lesion volume
+     - stenosis degree by volume
+     - lesion volume per cm
+     - stenosis per cm.
