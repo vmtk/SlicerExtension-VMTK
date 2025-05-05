@@ -41,6 +41,7 @@
 #include <vtkTable.h>
 #include <vtkMRMLSelectionNode.h>
 #include <vtkMRMLUnitNode.h>
+#include <vtkMRMLStenosisMeasurement3DParameterNode.h>
 #include <qSlicerExtensionsManagerModel.h>
 
 //-----------------------------------------------------------------------------
@@ -49,7 +50,7 @@ class qSlicerStenosisMeasurement3DModuleWidgetPrivate: public Ui_qSlicerStenosis
 {
 public:
   qSlicerStenosisMeasurement3DModuleWidgetPrivate();
-  vtkSmartPointer<vtkMRMLTableNode> currentTableNode = nullptr;
+  vtkSmartPointer<vtkMRMLStenosisMeasurement3DParameterNode> parameterNode = nullptr;
 };
 
 //-----------------------------------------------------------------------------
@@ -82,7 +83,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::setup()
   Q_D(qSlicerStenosisMeasurement3DModuleWidget);
   d->setupUi(this);
   this->Superclass::setup();
-  
+
   d->outputCollapsibleButton->setCollapsed(true);
   d->modelCollapsibleButton->setCollapsed(true);
   
@@ -104,6 +105,10 @@ void qSlicerStenosisMeasurement3DModuleWidget::setup()
                    this, SLOT(onTableNodeChanged(vtkMRMLNode*)));
   QObject::connect(d->updateBoundaryPointsSpinBox, SIGNAL(valueChanged(int)),
                    this, SLOT(onUpdateBoundary(int)));
+  QObject::connect(d->parameterSetSelector, SIGNAL(nodeAddedByUser(vtkMRMLNode*)),
+                   this, SLOT(onParameterNodeAddedByUser(vtkMRMLNode*)));
+  QObject::connect(d->parameterSetSelector, SIGNAL(currentNodeChanged(vtkMRMLNode*)),
+                   this, SLOT(onParameterNodeChanged(vtkMRMLNode*)));
 
   // Put p1 and p2 ficucial points on the tube spline at nearest point when they are moved.
   this->fiducialObservation = vtkSmartPointer<vtkCallbackCommand>::New();
@@ -118,6 +123,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::setup()
   // We won't check the structure of the table and assume it has been created in the module.
   const QString attributeName = QString(MODULE_TITLE) + QString(".Role");
   d->outputTableSelector->addAttribute("vtkMRMLTableNode", attributeName, MODULE_TITLE);
+  d->parameterSetSelector->addAttribute("vtkMRMLStenosisMeasurement3DParameterNode", attributeName, MODULE_TITLE);
 }
 
 //-----------------------------------------------------------------------------
@@ -129,17 +135,26 @@ void qSlicerStenosisMeasurement3DModuleWidget::enter()
   {
     this->logic->SetMRMLScene(this->mrmlScene());
   }
+  if (d->parameterSetSelector->nodeCount() == 0)
+  {
+    vtkMRMLNode * nodeMrml = d->parameterSetSelector->addNode("vtkMRMLStenosisMeasurement3DParameterNode");
+    d->parameterNode = vtkMRMLStenosisMeasurement3DParameterNode::SafeDownCast(nodeMrml);
+  }
 }
 
 //-----------------------------------------------------------------------------
 void qSlicerStenosisMeasurement3DModuleWidget::onApply()
 {
   Q_D(qSlicerStenosisMeasurement3DModuleWidget);
-  
-  vtkMRMLNode * shapeNode = d->inputShapeSelector->currentNode();
-  vtkMRMLNode * fiducialNode = d->inputFiducialSelector->currentNode();
-  vtkMRMLNode * segmentationNode = d->inputSegmentSelector->currentNode();
-  const std::string currentSegmentID = d->inputSegmentSelector->currentSegmentID().toStdString();
+  if (!d->parameterNode)
+  {
+    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Invalid parameter node."), 5000);
+    return;
+  }
+  vtkMRMLNode * shapeNode = d->parameterNode->GetInputShapeNode();
+  vtkMRMLNode * fiducialNode = d->parameterNode->GetInputFiducialNode();
+  vtkMRMLNode * segmentationNode = d->parameterNode->GetInputSegmentationNode();
+  const std::string currentSegmentID = d->parameterNode->GetInputSegmentID();
   
   if (!shapeNode || !fiducialNode || !segmentationNode || currentSegmentID.empty())
   {
@@ -194,7 +209,8 @@ void qSlicerStenosisMeasurement3DModuleWidget::onApply()
   vtkNew<vtkVariantArray> results;
   if (!this->logic->Process(shapeNodeReal, enclosedSurface, fiducialNodeReal,
                             wallOpen, lumenOpen, wallClosed, lumenClosed,
-                            results, d->currentTableNode))
+                            results, d->parameterNode ? d->parameterNode->GetName() : "Study",
+                            d->parameterNode->GetOutputTableNode()))
   {
     this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Processing failed."), 5000);
     return;
@@ -247,11 +263,11 @@ void qSlicerStenosisMeasurement3DModuleWidget::showResult(vtkPolyData * wall, vt
   vtkMRMLSelectionNode * mrmlSelectionNode = vtkMRMLSelectionNode::SafeDownCast(selectionNodeMrml);
 
   // Get the volumes.
-  const double wallVolume = results->GetValue(0).ToDouble();
-  const double lumenVolume = results->GetValue(1).ToDouble();
-  const double lesionVolume =results->GetValue(2).ToDouble();
-  const double degree =results->GetValue(3).ToDouble();
-  const double length =results->GetValue(6).ToDouble();
+  const double wallVolume = results->GetValue(1).ToDouble();
+  const double lumenVolume = results->GetValue(2).ToDouble();
+  const double lesionVolume =results->GetValue(3).ToDouble();
+  const double degree =results->GetValue(4).ToDouble();
+  const double length =results->GetValue(7).ToDouble();
 
   // Use the facilities of MRML measurement classes to format the volumes.
   auto show = [&] (const double& value, const std::string& category, QLabel * widget)
@@ -352,31 +368,47 @@ void qSlicerStenosisMeasurement3DModuleWidget::onSegmentationNodeChanged(vtkMRML
   /*
    * The segmentation selector is special.
    * If we don't clear it explicitly, the last segment is selected
-   * in many scenarios, and Apply fails nevertheless.
-   * Despite this clearing, the right segment ID in the parameter node
-   * is selected.
+   * in many scenarios.
    */
   QSignalBlocker blocker(d->inputSegmentSelector);
   d->inputSegmentSelector->setCurrentSegmentID("");
+  if (d->parameterNode)
+  {
+    d->parameterNode->SetInputSegmentationNodeID(node ? node->GetID() : nullptr);
+  }
 }
 
 //-----------------------------------------------------------
 void qSlicerStenosisMeasurement3DModuleWidget::onSegmentIDChanged(QString segmentID)
 {
+  Q_D(qSlicerStenosisMeasurement3DModuleWidget);
+  if (d->parameterNode)
+  {
+    d->parameterNode->SetInputSegmentID(segmentID.toStdString().c_str());
+  }
 }
 
 //-----------------------------------------------------------------------------
 void qSlicerStenosisMeasurement3DModuleWidget::onLesionModelNodeChanged(vtkMRMLNode * node)
 {
+  Q_D(qSlicerStenosisMeasurement3DModuleWidget);
+  if (d->parameterNode)
+  {
+    d->parameterNode->SetOutputLesionModelNodeID(node ? node->GetID() : nullptr);
+  }
 }
 
 //-----------------------------------------------------------------------------
 void qSlicerStenosisMeasurement3DModuleWidget::onTableNodeChanged(vtkMRMLNode * node)
 {
   Q_D(qSlicerStenosisMeasurement3DModuleWidget);
-  if (d->currentTableNode)
+  if (!d->parameterNode)
   {
-    qvtkDisconnect(d->currentTableNode, vtkCommand::ModifiedEvent, this , SLOT(onTableContentModified()));
+    return;
+  }
+  if (d->parameterNode->GetOutputTableNode())
+  {
+    qvtkDisconnect(d->parameterNode->GetOutputTableNode(), vtkCommand::ModifiedEvent, this , SLOT(onTableContentModified()));
   }
   d->updateBoundaryPointsSpinBox->setRange(0, 0);
   if (node)
@@ -384,8 +416,8 @@ void qSlicerStenosisMeasurement3DModuleWidget::onTableNodeChanged(vtkMRMLNode * 
     vtkMRMLTableNode * tableNode = vtkMRMLTableNode::SafeDownCast(node);
     qvtkReconnect(tableNode, vtkCommand::ModifiedEvent, this , SLOT(onTableContentModified()));
     d->updateBoundaryPointsSpinBox->setRange(0, tableNode->GetNumberOfRows());
-    d->currentTableNode = tableNode;
   }
+  d->parameterNode->SetOutputTableNodeID(node ? node->GetID() : nullptr);
 }
 
 //-----------------------------------------------------------------------------
@@ -393,17 +425,17 @@ void qSlicerStenosisMeasurement3DModuleWidget::onFiducialPointEndInteraction(vtk
                                                                              unsigned long event, void *clientData, void *callData)
 {
   qSlicerStenosisMeasurement3DModuleWidget * client = reinterpret_cast<qSlicerStenosisMeasurement3DModuleWidget*>(clientData);
-  if (!client || !client->currentShapeNode)
+  if (!client || !client->d_ptr || !client->d_ptr->parameterNode)
   {
     return;
   }
-  vtkMRMLMarkupsShapeNode * shapeNode = vtkMRMLMarkupsShapeNode::SafeDownCast(client->currentShapeNode);
+  vtkMRMLMarkupsShapeNode * shapeNode = vtkMRMLMarkupsShapeNode::SafeDownCast(client->d_ptr->parameterNode->GetInputShapeNode());
   // React only if shape is a tube.
   if (!shapeNode || shapeNode->GetShapeName() != vtkMRMLMarkupsShapeNode::Tube)
   {
     return;
   }
-  vtkMRMLMarkupsFiducialNode * fiducialNode = vtkMRMLMarkupsFiducialNode::SafeDownCast(client->currentFiducialNode);
+  vtkMRMLMarkupsFiducialNode * fiducialNode = vtkMRMLMarkupsFiducialNode::SafeDownCast(client->d_ptr->parameterNode->GetInputFiducialNode());
   if (!fiducialNode)
   {
     return;
@@ -424,16 +456,16 @@ void qSlicerStenosisMeasurement3DModuleWidget::onTubePointEndInteraction(vtkObje
                                                                          unsigned long event, void *clientData, void *callData)
 {
   qSlicerStenosisMeasurement3DModuleWidget * client = reinterpret_cast<qSlicerStenosisMeasurement3DModuleWidget*>(clientData);
-  if (!client || !client->currentShapeNode)
+  if (!client || !client->d_ptr || !client->d_ptr->parameterNode)
   {
     return;
   }
-  vtkMRMLMarkupsShapeNode * shapeNode = vtkMRMLMarkupsShapeNode::SafeDownCast(client->currentShapeNode);
+  vtkMRMLMarkupsShapeNode * shapeNode = vtkMRMLMarkupsShapeNode::SafeDownCast(client->d_ptr->parameterNode->GetInputShapeNode());
   if (!shapeNode || shapeNode->GetShapeName() != vtkMRMLMarkupsShapeNode::Tube)
   {
     return;
   }
-  vtkMRMLMarkupsFiducialNode * fiducialNode = vtkMRMLMarkupsFiducialNode::SafeDownCast(client->currentFiducialNode);
+  vtkMRMLMarkupsFiducialNode * fiducialNode = vtkMRMLMarkupsFiducialNode::SafeDownCast(client->d_ptr->parameterNode->GetInputFiducialNode());
   if (!fiducialNode)
   {
     return;
@@ -447,26 +479,27 @@ void qSlicerStenosisMeasurement3DModuleWidget::onTubePointEndInteraction(vtkObje
 //-----------------------------------------------------------------------------
 void qSlicerStenosisMeasurement3DModuleWidget::onFiducialNodeChanged(vtkMRMLNode * node)
 {
-  if (this->currentFiducialNode == node)
+  Q_D(qSlicerStenosisMeasurement3DModuleWidget);
+  if (!d->parameterNode || (d->parameterNode->GetInputFiducialNode() == node))
   {
     return;
   }
-  if (this->currentFiducialNode)
+  if (d->parameterNode->GetInputFiducialNode())
   {
     // Disconnect the currently observed node.
-    this->currentFiducialNode->RemoveObserver(this->fiducialObservation);
+    d->parameterNode->GetInputFiducialNode()->RemoveObserver(this->fiducialObservation);
   }
-  this->currentFiducialNode = node;
-  if (this->currentFiducialNode)
+  d->parameterNode->SetInputFiducialNodeID(node ? node->GetID() : nullptr);
+  vtkMRMLMarkupsFiducialNode * fiducialNode = vtkMRMLMarkupsFiducialNode::SafeDownCast(node);
+  if (fiducialNode)
   {
     // Connect the current node.
-    this->currentFiducialNode->AddObserver(vtkMRMLMarkupsNode::PointEndInteractionEvent, this->fiducialObservation);
+    fiducialNode->AddObserver(vtkMRMLMarkupsNode::PointEndInteractionEvent, this->fiducialObservation);
   }
   // Move control points to closest point on spline.
-  if (this->currentShapeNode && this->currentFiducialNode)
+  vtkMRMLMarkupsShapeNode * shapeNode = vtkMRMLMarkupsShapeNode::SafeDownCast(d->parameterNode->GetInputShapeNode());
+  if (shapeNode && fiducialNode)
   {
-    vtkMRMLMarkupsFiducialNode * fiducialNode = vtkMRMLMarkupsFiducialNode::SafeDownCast(this->currentFiducialNode);
-    vtkMRMLMarkupsShapeNode * shapeNode = vtkMRMLMarkupsShapeNode::SafeDownCast(this->currentShapeNode);
     this->logic->UpdateBoundaryControlPointPosition(0, fiducialNode, shapeNode);
     this->logic->UpdateBoundaryControlPointPosition(1, fiducialNode, shapeNode);
   }
@@ -475,26 +508,27 @@ void qSlicerStenosisMeasurement3DModuleWidget::onFiducialNodeChanged(vtkMRMLNode
 //-----------------------------------------------------------------------------
 void qSlicerStenosisMeasurement3DModuleWidget::onShapeNodeChanged(vtkMRMLNode * node)
 {
-  if (this->currentShapeNode == node)
+  Q_D(qSlicerStenosisMeasurement3DModuleWidget);
+  if (!d->parameterNode || (d->parameterNode->GetInputShapeNode() == node))
   {
     return;
   }
-  if (this->currentShapeNode)
+  if (d->parameterNode->GetInputShapeNode())
   {
     // Disconnect the currently observed node.
-    this->currentShapeNode->RemoveObserver(this->tubeObservation);
+    d->parameterNode->GetInputShapeNode()->RemoveObserver(this->tubeObservation);
   }
-  this->currentShapeNode = node;
-  if (currentShapeNode)
+  d->parameterNode->SetInputShapeNodeID(node ? node->GetID() : nullptr);
+  vtkMRMLMarkupsShapeNode * shapeNode = vtkMRMLMarkupsShapeNode::SafeDownCast(node);
+  if (shapeNode)
   {
     // Connect the current node.
-    this->currentShapeNode->AddObserver(vtkMRMLMarkupsNode::PointEndInteractionEvent, this->tubeObservation);
+    shapeNode->AddObserver(vtkMRMLMarkupsNode::PointEndInteractionEvent, this->tubeObservation);
   }
   // Move control points to closest point on spline.
-  if (this->currentShapeNode && this->currentFiducialNode)
+  vtkMRMLMarkupsFiducialNode * fiducialNode = vtkMRMLMarkupsFiducialNode::SafeDownCast(d->parameterNode->GetInputFiducialNode());
+  if (shapeNode && fiducialNode)
   {
-    vtkMRMLMarkupsFiducialNode * fiducialNode = vtkMRMLMarkupsFiducialNode::SafeDownCast(this->currentFiducialNode);
-    vtkMRMLMarkupsShapeNode * shapeNode = vtkMRMLMarkupsShapeNode::SafeDownCast(this->currentShapeNode);
     this->logic->UpdateBoundaryControlPointPosition(0, fiducialNode, shapeNode);
     this->logic->UpdateBoundaryControlPointPosition(1, fiducialNode, shapeNode);
   }
@@ -504,26 +538,34 @@ void qSlicerStenosisMeasurement3DModuleWidget::onShapeNodeChanged(vtkMRMLNode * 
 void qSlicerStenosisMeasurement3DModuleWidget::onTableContentModified()
 {
   Q_D(qSlicerStenosisMeasurement3DModuleWidget);
-
-  if (!d->currentTableNode || d->currentTableNode->GetNumberOfRows() == 0)
+  if (!d->parameterNode)
+  {
+    return;
+  }
+  vtkMRMLTableNode * currentTableNode = d->parameterNode->GetOutputTableNode();
+  if (!currentTableNode || currentTableNode->GetNumberOfRows() == 0)
   {
     return;
   }
   // Let 0 in the range, don't do anything at 0.
-  d->updateBoundaryPointsSpinBox->setRange(0, d->currentTableNode->GetNumberOfRows());
+  d->updateBoundaryPointsSpinBox->setRange(0, currentTableNode->GetNumberOfRows());
 }
 
 //----------------------------------------------------------------------------
 void qSlicerStenosisMeasurement3DModuleWidget::onUpdateBoundary(int index)
 {
   Q_D(qSlicerStenosisMeasurement3DModuleWidget);
-
-  if (index == 0 || !d->currentTableNode)
+  if (!d->parameterNode)
   {
     return;
   }
-
-  if (!d->currentTableNode || d->currentTableNode->GetNumberOfRows() == 0)
+  d->parameterNode->SetOutputTableRowId(index); // Always.
+  vtkMRMLTableNode * currentTableNode = d->parameterNode->GetOutputTableNode();
+  if (index == 0 || !currentTableNode)
+  {
+    return;
+  }
+  if (!currentTableNode || currentTableNode->GetNumberOfRows() == 0)
   {
     this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Invalid or empty table."), 5000);
     return;
@@ -545,8 +587,8 @@ void qSlicerStenosisMeasurement3DModuleWidget::onUpdateBoundary(int index)
     return;
   }
 
-  const int startSplineId = d->currentTableNode->GetTable()->GetValueByName(index - 1, "StartSplineId").ToInt();
-  const int endSplineId = d->currentTableNode->GetTable()->GetValueByName(index - 1, "EndSplineId").ToInt();
+  const int startSplineId = currentTableNode->GetTable()->GetValueByName(index - 1, "StartSplineId").ToInt();
+  const int endSplineId = currentTableNode->GetTable()->GetValueByName(index - 1, "EndSplineId").ToInt();
   double p1[3] = {0.0};
   double p2[3] = {0.0};
   spline->GetPoint(startSplineId, p1);
@@ -559,8 +601,8 @@ void qSlicerStenosisMeasurement3DModuleWidget::onUpdateBoundary(int index)
 vtkSlicerStenosisMeasurement3DLogic::EnclosingType qSlicerStenosisMeasurement3DModuleWidget::getEnclosedSurface(
                                                                 vtkMRMLMarkupsShapeNode * wallShapeNode,
                                                                 vtkMRMLSegmentationNode * lumenSegmentationNode,
-                                                                std::string segmentID, vtkPolyData * enclosedSurface
-                                                                )
+                                                                std::string segmentID, vtkPolyData * enclosedSurface,
+                                                                bool updateMesh)
 {
   if (!wallShapeNode || !lumenSegmentationNode || !enclosedSurface)
   {
@@ -597,12 +639,106 @@ vtkSlicerStenosisMeasurement3DLogic::EnclosingType qSlicerStenosisMeasurement3DM
     std::cerr << "Input tube and input lumen do not intersect." << std::endl;
     return enclosingType;
   }
-  
-  if (!this->logic->UpdateClosedSurfaceMesh(inputLumenEnclosed, enclosedSurface))
+  enclosedSurface->Initialize();
+  enclosedSurface->DeepCopy(inputLumenEnclosed);
+
+  if (updateMesh)
   {
-    std::cerr << "Error updating the clipped lumen; continuing with the raw clipped surface." << endl;
-    enclosedSurface->Initialize();
-    enclosedSurface->DeepCopy(inputLumenEnclosed);
+    // enclosedSurface is Initialize()d there and is not modified on abort.
+    if (!this->logic->UpdateClosedSurfaceMesh(inputLumenEnclosed, enclosedSurface))
+    {
+      std::cerr << "Error updating the clipped lumen; continuing with the raw clipped surface." << endl;
+    }
   }
   return enclosingType;
+}
+
+//-----------------------------------------------------------------------------
+void qSlicerStenosisMeasurement3DModuleWidget::setDefaultParameters(vtkMRMLNode * node)
+{
+  if (!node)
+  {
+    return;
+  }
+  vtkMRMLStenosisMeasurement3DParameterNode * downcastNode = vtkMRMLStenosisMeasurement3DParameterNode::SafeDownCast(node);
+  if (!downcastNode)
+  {
+    return;
+  }
+  downcastNode->SetOutputTableRowId(0);
+}
+
+//-----------------------------------------------------------------------------
+void qSlicerStenosisMeasurement3DModuleWidget::onParameterNodeAddedByUser(vtkMRMLNode * node)
+{
+  Q_D(qSlicerStenosisMeasurement3DModuleWidget);
+  if (!node)
+  {
+    return;
+  }
+  vtkMRMLStenosisMeasurement3DParameterNode * downcastNode = vtkMRMLStenosisMeasurement3DParameterNode::SafeDownCast(node);
+  if (!downcastNode)
+  {
+    return;
+  }
+  d->parameterNode = downcastNode;
+  this->setDefaultParameters(d->parameterNode);
+}
+
+//-----------------------------------------------------------------------------
+void qSlicerStenosisMeasurement3DModuleWidget::updateGuiFromParameterNode()
+{
+  Q_D(qSlicerStenosisMeasurement3DModuleWidget);
+  if (!d->parameterNode)
+  {
+    return;
+  }
+
+  d->inputShapeSelector->setCurrentNode(d->parameterNode->GetInputShapeNode());
+  QSignalBlocker blocker(d->inputSegmentSelector);
+  d->inputSegmentSelector->setCurrentNode(d->parameterNode->GetInputSegmentationNode());
+  d->inputSegmentSelector->setCurrentSegmentID(d->parameterNode->GetInputSegmentID());
+  d->inputFiducialSelector->setCurrentNode(d->parameterNode->GetInputFiducialNode());
+  d->lesionModelSelector->setCurrentNode(d->parameterNode->GetOutputLesionModelNode());
+  d->outputTableSelector->setCurrentNode(d->parameterNode->GetOutputTableNode());
+  const int tableRowId = d->parameterNode->GetOutputTableRowId();
+  d->updateBoundaryPointsSpinBox->setValue(tableRowId >= 0 ? tableRowId : 0);
+
+  // Clear results.
+  d->wallResultLabel->clear();
+  d->lumenResultLabel->clear();
+  d->lesionResultLabel->clear();
+  d->stenosisResultLabel->clear();
+  d->lengthResultLabel->clear();
+}
+
+//-----------------------------------------------------------------------------
+void qSlicerStenosisMeasurement3DModuleWidget::onParameterNodeChanged(vtkMRMLNode * node)
+{
+  Q_D(qSlicerStenosisMeasurement3DModuleWidget);
+  vtkMRMLStenosisMeasurement3DParameterNode * downcastNode = vtkMRMLStenosisMeasurement3DParameterNode::SafeDownCast(node);
+  if (!downcastNode)
+  {
+    return;
+  }
+  d->parameterNode = downcastNode;
+
+  this->updateGuiFromParameterNode();
+}
+
+//-----------------------------------------------------------
+bool qSlicerStenosisMeasurement3DModuleWidget::setEditedNode(vtkMRMLNode* node,
+                                                             QString role /* = QString()*/,
+                                                             QString context /* = QString()*/)
+{
+  Q_D(qSlicerStenosisMeasurement3DModuleWidget);
+  Q_UNUSED(role);
+  Q_UNUSED(context);
+
+  if (vtkMRMLStenosisMeasurement3DParameterNode::SafeDownCast(node))
+  {
+    d->parameterSetSelector->setCurrentNode(node);
+    return true;
+  }
+  return false;
 }
