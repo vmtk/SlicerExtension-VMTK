@@ -17,6 +17,7 @@
 
 // StenosisMeasurement3D Logic includes
 #include "vtkSlicerStenosisMeasurement3DLogic.h"
+#include "vtkMRMLStenosisMeasurement3DParameterNode.h"
 
 // MRML includes
 #include <vtkMRMLScene.h>
@@ -91,6 +92,10 @@ void vtkSlicerStenosisMeasurement3DLogic::SetMRMLSceneInternal(vtkMRMLScene * ne
 void vtkSlicerStenosisMeasurement3DLogic::RegisterNodes()
 {
   assert(this->GetMRMLScene() != 0);
+  if (this->GetMRMLScene())
+  {
+    this->GetMRMLScene()->RegisterNodeClass(vtkSmartPointer<vtkMRMLStenosisMeasurement3DParameterNode>::New());
+  }
 }
 
 //---------------------------------------------------------------------------
@@ -116,7 +121,8 @@ bool vtkSlicerStenosisMeasurement3DLogic::Process(vtkMRMLMarkupsShapeNode * wall
                                                   vtkMRMLMarkupsFiducialNode * boundaryFiducialNode,
                                                   vtkPolyData * outputWallOpenPolyData, vtkPolyData * outputLumenOpenPolyData,
                                                   vtkPolyData * outputWallClosedPolyData, vtkPolyData * outputLumenClosedPolyData,
-                                                  vtkVariantArray * results, vtkMRMLTableNode * outputTableNode)
+                                                  vtkVariantArray * results, const std::string& studyName,
+                                                  vtkMRMLTableNode * outputTableNode)
 {
   if (!results)
   {
@@ -213,7 +219,7 @@ bool vtkSlicerStenosisMeasurement3DLogic::Process(vtkMRMLMarkupsShapeNode * wall
 
   if (!this->ComputeResults(wallShapeNode, boundaryFiducialNode,
         outputWallClosedPolyData, outputLumenClosedPolyData,
-        results))
+        results, studyName))
   {
     vtkErrorMacro("Failed to compute the results.");
     return false;
@@ -416,6 +422,7 @@ bool vtkSlicerStenosisMeasurement3DLogic::DefineOutputTable(vtkMRMLTableNode * o
   }
   if (outputTableNode->GetNumberOfColumns() == 0)
   {
+    vtkNew<vtkStringArray> studyColumn;
     vtkNew<vtkDoubleArray> wallVolumeColumn;
     vtkNew<vtkDoubleArray> lumenVolumeColumn;
     vtkNew<vtkDoubleArray> lesionVolumeColumn;
@@ -427,6 +434,7 @@ bool vtkSlicerStenosisMeasurement3DLogic::DefineOutputTable(vtkMRMLTableNode * o
     vtkNew<vtkDoubleArray> stenosisPerCmColumn;
     vtkNew<vtkStringArray> notesColumn;
 
+    studyColumn->SetName(COLUMN_NAME_STUDY);
     wallVolumeColumn->SetName(COLUMN_NAME_WALL);
     lumenVolumeColumn->SetName(COLUMN_NAME_LUMEN);
     lesionVolumeColumn->SetName(COLUMN_NAME_LESION);
@@ -438,6 +446,7 @@ bool vtkSlicerStenosisMeasurement3DLogic::DefineOutputTable(vtkMRMLTableNode * o
     stenosisPerCmColumn->SetName(COLUMN_NAME_STENOSIS_PER_CM);
     notesColumn->SetName(COLUMN_NAME_NOTES);
 
+    outputTableNode->AddColumn(studyColumn);
     outputTableNode->AddColumn(wallVolumeColumn);
     outputTableNode->AddColumn(lumenVolumeColumn);
     outputTableNode->AddColumn(lesionVolumeColumn);
@@ -449,6 +458,7 @@ bool vtkSlicerStenosisMeasurement3DLogic::DefineOutputTable(vtkMRMLTableNode * o
     outputTableNode->AddColumn(stenosisPerCmColumn);
     outputTableNode->AddColumn(notesColumn);
 
+    outputTableNode->SetColumnTitle(COLUMN_NAME_STUDY, vtkMRMLTr("vtkSlicerStenosisMeasurement3DLogic", "Study"));
     outputTableNode->SetColumnTitle(COLUMN_NAME_WALL, vtkMRMLTr("vtkSlicerStenosisMeasurement3DLogic", "Wall volume"));
     outputTableNode->SetColumnTitle(COLUMN_NAME_LUMEN, vtkMRMLTr("vtkSlicerStenosisMeasurement3DLogic", "Lumen volume"));
     outputTableNode->SetColumnTitle(COLUMN_NAME_LESION, vtkMRMLTr("vtkSlicerStenosisMeasurement3DLogic", "Lesion"));
@@ -471,7 +481,7 @@ bool vtkSlicerStenosisMeasurement3DLogic::ComputeResults(vtkMRMLMarkupsShapeNode
                                                          vtkMRMLMarkupsFiducialNode * inputFiducialNode,
                                                          vtkPolyData * wallClosedPolyData,
                                                          vtkPolyData * lumenClosedPolyData,
-                                                         vtkVariantArray * results)
+                                                         vtkVariantArray * results, const std::string& studyName)
 {
   if (!inputShapeNode || !inputFiducialNode || !results)
   {
@@ -515,6 +525,7 @@ bool vtkSlicerStenosisMeasurement3DLogic::ComputeResults(vtkMRMLMarkupsShapeNode
   }
   // Return the result in a variant array.
   const double length = splineBounds->GetValue(2);
+  results->InsertNextValue(studyName.c_str());
   results->InsertNextValue(wallVolume);
   results->InsertNextValue(lumenVolume);
   results->InsertNextValue(lesionVolume);
@@ -648,6 +659,7 @@ bool vtkSlicerStenosisMeasurement3DLogic::UpdateClosedSurfaceMesh(vtkPolyData* i
 
   const std::string segmentId = segmentationNode->AddSegmentFromClosedSurfaceRepresentation(inMesh, this->GetMRMLScene()->GenerateUniqueName("MeshInput"));
   // The mesh is recreated here.
+  outMesh->Initialize();
   segmentationNode->GetSegmentation()->RemoveRepresentation(preferred3DRepresentationName);
   segmentationNode->GetSegmentation()->CreateRepresentation(preferred3DRepresentationName);
   segmentationNode->GetClosedSurfaceRepresentation(segmentId, outMesh);
