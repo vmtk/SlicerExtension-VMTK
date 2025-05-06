@@ -103,7 +103,6 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.togglePlotLayoutButton.setIcon(qt.QIcon(':/Icons/Medium/SlicerVisibleInvisible.png'))
     self.ui.toolsTabWidget.setTabText(0, _("Regions"))
     self.ui.toolsTabWidget.setTabText(1, _("Coordinates"))
-    self.ui.clipLumenToolButton.setVisible(False)
 
     layoutManager = slicer.app.layoutManager()
     if layoutManager is not None: # NOTE: We need the check because some tests can run without main window
@@ -172,7 +171,6 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.surfaceInformationGoToToolButton.connect("toggled(bool)", self.onSurfaceInformationGoToToggled)
     self.ui.surfaceInformationPaintToolButton.connect("toggled(bool)", self.onSurfaceInformationPaintToggled)
     self.ui.surfaceInformationFastFixToolButton.connect("clicked()", self.onSurfaceInformationFastFix)
-    self.ui.clipLumenToolButton.connect("clicked()", self.createClippedLumen)
 
     # Ensure the combo is populated and restored when loading a saved scene.
     self.updatePlotOptions()
@@ -373,8 +371,6 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     # Update outputs
     self.updateMeasurements()
 
-    self.updateClipButtonVisibility()
-
     # All the GUI updates are done
     self._updatingGUIFromParameterNode = False
 
@@ -397,11 +393,15 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.updatePlotChartNode(self._parameterNode)
 
   def onApply(self, replay = False):
-    with slicer.util.tryWithErrorDisplay(_("Failed to compute results."), waitCursor=True):
+    if not self.logic.isInputCenterlineValid():
+        msg = _("Input is invalid.")
+        slicer.util.showStatusMessage(msg, 3000)
+        logging.info(msg)
+        return # Just don't do anything
 
-      if not self.logic.isInputCenterlineValid():
-        raise ValueError(_("Input is invalid."))
+    try:
 
+      slicer.app.setOverrideCursor(qt.Qt.WaitCursor)
       if not replay:
         self.previousLayoutId = slicer.app.layoutManager().layout
         self.clearMetrics()
@@ -433,15 +433,16 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       if self.logic.plotChartNode and self.logic.outputPlotSeriesNode:
         self.updatePlotChartView()
 
+    finally:
+      slicer.app.restoreOverrideCursor()
+
   def onParameterSetUpdateUiClicked(self):
     if not self._parameterNode:
       return
 
     inputSegmentation = self._parameterNode.GetNodeReference(ROLE_INPUT_SEGMENTATION)
-    if (not inputSegmentation):
+    if (not inputSegmentation) or (inputSegmentation.GetClassName() != "vtkMRMLSegmentationNode"):
       logging.warning("Invalid segmentation.")
-      return
-    if (inputSegmentation.GetClassName() == "vtkMRMLModelNode"):
       return
 
     # Create segment editor object if needed.
@@ -670,14 +671,12 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.logic.setInputCenterlineNode(centerlineNode)
     self.updatePlotOptions()
     self.updateWallLabelsVisibility()
-    self.updateClipButtonVisibility()
 
   def onInputSegmentationNode(self):
     self.resetOutput()
     self.updatePlotOptions()
     self.updateWallLabelsVisibility()
     self.resetLumenRegions()
-    self.updateClipButtonVisibility()
 
   # The output table columns vary according to the input types; this defines what can be plotted.
   def updatePlotOptions(self):
@@ -705,36 +704,6 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       itemIndex = self.ui.outputPlotSeriesTypeComboBox.findData(self._parameterNode.GetParameter("OutputPlotSeriesType"))
       if itemIndex > -1:
         self.ui.outputPlotSeriesTypeComboBox.setCurrentIndex(itemIndex)
-
-  def updateClipButtonVisibility(self):
-    self.ui.clipLumenToolButton.setVisible(
-      self.logic.inputCenterlineNode
-      and self.logic.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode")
-      and self.logic.lumenSurfaceNode)
-
-  def createClippedLumen(self):
-    if not (
-        self.logic.inputCenterlineNode
-        and self.logic.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode")
-        and self.logic.lumenSurfaceNode):
-      self.logic.showStatusMessage(_(("Invalid centerline or lumen surface: cannot clip the lumen.",)))
-      return
-
-    with slicer.util.tryWithErrorDisplay(_("Failed to clip lumen in tube."), waitCursor=True):
-      clippedLumen = vtk.vtkPolyData()
-      if not self.logic.clipLumenInTube(clippedLumen):
-        self.logic.showStatusMessage(_(("Failed to clip the lumen inside the tube.",)))
-        return
-
-      clippedLumenName = slicer.mrmlScene.GenerateUniqueName("Clipped lumen")
-      if self.logic.lumenSurfaceNode.IsTypeOf("vtkMRMLSegmentationNode"):
-        segmentId = self.logic.lumenSurfaceNode.AddSegmentFromClosedSurfaceRepresentation(clippedLumen,
-                                    clippedLumenName)
-        self.ui.segmentSelector.setCurrentSegmentID(segmentId)
-      else:
-        clippedModel = slicer.modules.models.logic().AddModel(clippedLumen)
-        clippedModel.SetName(clippedLumenName)
-        self.ui.segmentationSelector.setCurrentNode(clippedModel)
 
   def updateWallLabelsVisibility(self):
     visibility = self.logic.inputCenterlineNode and self.logic.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode")
@@ -810,7 +779,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       return False;
 
     if (inputSurface.GetClassName() != "vtkMRMLSegmentationNode"):
-      return False # Silently
+      logging.warning("Input surface is not a segmentation; not setting the segment editor.")
+      return False
 
     if (not self.logic.currentSegmentID) or len(self.logic.currentSegmentID) == 0:
       logging.error("Invalid input segment ID.")
@@ -1603,55 +1573,6 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       self.inputCenterlineNode.GetCurvePointToWorldTransformAtPointIndex(pointIndex, curvePointToWorld)
 
     return curvePointToWorld
-
-  def clipLumenInTube(self, clippedSurface : vtk.vtkPolyData):
-    if not self.inputCenterlineNode or not self.lumenSurfaceNode:
-      raise ValueError(_("Input centerline node or input lumen surface node is None."))
-    if not self.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode"):
-      raise ValueError(_("Input centerline node is not a Shape node."))
-    lumenSurface = vtk.vtkPolyData()
-    self.getClosedSurfacePolyData(lumenSurface)
-    if lumenSurface.GetNumberOfPoints() == 0:
-      raise ValueError(_("Empty lumen surface retrieved."))
-    tubeSurface = self.inputCenterlineNode.GetCappedTubeWorld()
-
-    sm3Logic = slicer.modules.stenosismeasurement3d.logic()
-    clippedLumenRaw = vtk.vtkPolyData()
-    clipped = sm3Logic.GetClosedSurfaceEnclosingType(
-                  tubeSurface, lumenSurface, clippedLumenRaw)
-    if (clipped == sm3Logic.Distinct) or (clipped == sm3Logic.EnclosingType_Last):
-      return False
-    else:
-      # Clip any excess from vtkBooleanOperationPolyDataFilter at each end.
-      # If the lumen is a loop, the result may be curious.
-      spline = self.inputCenterlineNode.GetSplineWorld()
-      curveCoordinateSystemGenerator = slicer.vtkParallelTransportFrame()
-      curveCoordinateSystemGenerator.SetInputData(spline)
-      curveCoordinateSystemGenerator.Update()
-      curvePoly = curveCoordinateSystemGenerator.GetOutput()
-      pointData = curvePoly.GetPointData()
-      tangents = pointData.GetAbstractArray(curveCoordinateSystemGenerator.GetTangentsArrayName())
-      startTangent = tangents.GetTuple3(0)
-      lastTangent = tangents.GetTuple3(spline.GetNumberOfPoints() - 1)
-      endTangent = [lastTangent[0] * -1, lastTangent[1] * -1, lastTangent[2] * -1]
-      startPoint = curvePoly.GetPoints().GetPoint(0)
-      endPoint = curvePoly.GetPoints().GetPoint(spline.GetNumberOfPoints() - 1)
-
-      clippedLumenFixed = vtk.vtkPolyData()
-      if sm3Logic.ClipClosedSurfaceWithClosedOutput(clippedLumenRaw, clippedLumenFixed,
-                                                 startPoint, startTangent,
-                                                 endPoint, endTangent):
-        # Remesh the polydata using a segmentation.
-        if not sm3Logic.UpdateClosedSurfaceMesh(clippedLumenFixed, clippedSurface):
-          clippedSurface.Initialize()
-          clippedSurface.DeepCopy(clippedLumenFixed)
-          return False
-      else:
-        clippedSurface.Initialize()
-        clippedSurface.DeepCopy(clippedLumenRaw)
-        return False
-
-    return True
 
   def getClosedSurfacePolyData(self, closedSurfacePolyData):
     if (not self.lumenSurfaceNode):

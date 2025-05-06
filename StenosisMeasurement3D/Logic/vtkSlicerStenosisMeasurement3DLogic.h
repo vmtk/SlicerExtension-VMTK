@@ -36,8 +36,6 @@
 #include <vtkMRMLMarkupsShapeNode.h>
 #include <vtkMRMLMarkupsFiducialNode.h>
 #include <vtkMRMLSegmentationNode.h>
-#include <vtkVariantArray.h>
-#include <vtkMRMLTableNode.h>
 
 /// \ingroup Slicer_QtModules_ExtensionTemplate
 class VTK_SLICER_STENOSISMEASUREMENT3D_MODULE_LOGIC_EXPORT vtkSlicerStenosisMeasurement3DLogic :
@@ -51,29 +49,11 @@ public:
   
   bool UpdateBoundaryControlPointPosition(int pointIndex, vtkMRMLMarkupsFiducialNode * fiducialNode,
                                           vtkMRMLMarkupsShapeNode * shapeNode);
-  bool Process(vtkMRMLMarkupsShapeNode * wallShapeNode,
-               vtkMRMLSegmentationNode * lumenSegmentationNode, std::string segmentID,
-               vtkMRMLMarkupsFiducialNode * boundaryFiducialNode,
-               vtkPolyData * outputWallOpenPolyData, vtkPolyData * outputLumenOpenPolyData,
-               vtkPolyData * outputWallClosedPolyData, vtkPolyData * outputLumenClosedPolyData,
-               vtkVariantArray * results, vtkMRMLTableNode * outputTableNode = nullptr);
-  bool CreateLesion(vtkMRMLMarkupsShapeNode * wallShapeNode,
-                    vtkMRMLSegmentationNode * lumenSegmentationNode, std::string segmentID,
-                    vtkMRMLMarkupsFiducialNode * boundaryFiducialNode,
-                    vtkPolyData * outputWallOpenPolyData, vtkPolyData * outputLumenOpenPolyData,
-                    vtkPolyData * lesion);
-
-  enum EnclosingType{Distinct = 0, Intersection, FirstIsEnclosed, SecondIsEnclosed, EnclosingType_Last};
-  // Both input surfaces *must* be closed.
-  EnclosingType GetClosedSurfaceEnclosingType(vtkPolyData * first, vtkPolyData * second, vtkPolyData * enclosed = nullptr);
-
-  bool UpdateClosedSurfaceMesh(vtkPolyData * inMesh, vtkPolyData * outMesh);
-  // Cut the input using a plane; either part may be in output. Create open polydata for display.
-  bool ClipClosedSurface(vtkPolyData * input, vtkPolyData * output,
-            double * origin, double * normal, bool clipped = false);
-  // Create closed clipped polydata, suitable for vtkMassProperties.
-  bool ClipClosedSurfaceWithClosedOutput(vtkPolyData * input, vtkPolyData * output,
-                  double * startOrigin, double * startNormal, double * endOrigin, double * endNormal);
+  double Process(vtkMRMLMarkupsShapeNode * wall,
+               vtkMRMLSegmentationNode * lumen, std::string segmentID,
+               vtkMRMLMarkupsFiducialNode * boundary,
+               vtkPolyData * wallOpenOut, vtkPolyData * lumenOpenOut,
+               vtkPolyData * wallClosedOut, vtkPolyData * lumenClosedOut);
 
 protected:
   vtkSlicerStenosisMeasurement3DLogic();
@@ -86,15 +66,14 @@ protected:
   void OnMRMLSceneNodeAdded(vtkMRMLNode* node) override;
   void OnMRMLSceneNodeRemoved(vtkMRMLNode* node) override;
   
-  bool CalculateClippedSplineLength(vtkMRMLMarkupsFiducialNode * fiducialNode,
-                                    vtkMRMLMarkupsShapeNode * shapeNode,
-                                    vtkDoubleArray * result);
-  bool DefineOutputTable(vtkMRMLTableNode * outputTableNode);
-  bool ComputeResults(vtkMRMLMarkupsShapeNode * inputShapeNode,
-                      vtkMRMLMarkupsFiducialNode * inputFiducialNode,
-                      vtkPolyData * wallClosedPolyData,
-                      vtkPolyData * lumenClosedPolyData,
-                      vtkVariantArray * results);
+  // Cut the input using a plane; either part may be in output. Create open polydata for display.
+  bool Clip(vtkPolyData * input, vtkPolyData * output,
+            double * origin, double * normal, bool clipped = false);
+  // Create closed clipped polydata, suitable for vtkMassProperties.
+  bool ClipClosed(vtkPolyData * input, vtkPolyData * output,
+            double * startOrigin, double * startNormal, double * endOrigin, double * endNormal);
+  double CalculateClippedSplineLength(vtkMRMLMarkupsFiducialNode * fiducialNode,
+                                          vtkMRMLMarkupsShapeNode * shapeNode);
 private:
 
   vtkSlicerStenosisMeasurement3DLogic(const vtkSlicerStenosisMeasurement3DLogic&); // Not implemented
