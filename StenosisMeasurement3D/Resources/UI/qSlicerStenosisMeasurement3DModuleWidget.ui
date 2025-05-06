@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>371</width>
+    <width>619</width>
     <height>685</height>
    </rect>
   </property>
@@ -15,125 +15,120 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <widget class="ctkCollapsibleButton" name="inputsCollapsibleButton">
-     <property name="text">
-      <string>Inputs</string>
-     </property>
-     <layout class="QFormLayout" name="formLayout_2">
-      <item row="0" column="0">
-       <widget class="QLabel" name="inputShapeLabel">
-        <property name="text">
-         <string>Wall surface:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="qMRMLNodeComboBox" name="inputShapeSelector">
-        <property name="toolTip">
-         <string>Select an input shape (tube) node, drawn to represent the vascular wall.</string>
-        </property>
-        <property name="nodeTypes">
-         <stringlist notr="true">
-          <string>vtkMRMLMarkupsShapeNode</string>
-         </stringlist>
-        </property>
-        <property name="baseName">
-         <string>Tube</string>
-        </property>
-        <property name="noneEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="addEnabled">
-         <bool>false</bool>
-        </property>
-        <property name="editEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="renameEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="selectNodeUponCreation">
-         <bool>false</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="inputFiducialLabel">
-        <property name="text">
-         <string>Boundary node:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="qMRMLNodeComboBox" name="inputFiducialSelector">
-        <property name="toolTip">
-         <string>Select an input markups fiducial node.
+    <layout class="QFormLayout" name="formLayout">
+     <item row="0" column="0">
+      <widget class="QLabel" name="inputShapeLabel">
+       <property name="text">
+        <string>Wall surface:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="qMRMLNodeComboBox" name="inputShapeSelector">
+       <property name="toolTip">
+        <string>Select an input shape (tube) node, drawn to represent the vascular wall.</string>
+       </property>
+       <property name="nodeTypes">
+        <stringlist notr="true">
+         <string>vtkMRMLMarkupsShapeNode</string>
+        </stringlist>
+       </property>
+       <property name="baseName">
+        <string>Tube</string>
+       </property>
+       <property name="noneEnabled">
+        <bool>true</bool>
+       </property>
+       <property name="addEnabled">
+        <bool>false</bool>
+       </property>
+       <property name="editEnabled">
+        <bool>true</bool>
+       </property>
+       <property name="renameEnabled">
+        <bool>true</bool>
+       </property>
+       <property name="selectNodeUponCreation">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <widget class="qMRMLNodeComboBox" name="inputFiducialSelector">
+       <property name="toolTip">
+        <string>Select an input markups fiducial node.
 
-The first and second points are the boundaries between which the analysis will be performed.</string>
-        </property>
-        <property name="nodeTypes">
-         <stringlist notr="true">
-          <string>vtkMRMLMarkupsFiducialNode</string>
-         </stringlist>
-        </property>
-        <property name="baseName">
-         <string>P</string>
-        </property>
-        <property name="noneEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="addEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="removeEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="editEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="renameEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="selectNodeUponCreation">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="inputSegmentLabel">
-        <property name="text">
-         <string>Lumen surface:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="qMRMLSegmentSelectorWidget" name="inputSegmentSelector">
-        <property name="toolTip">
-         <string>Select a segment representing the vascular lumen.
+The first and second points are the boundaries between which the analysis will be performed. They should not be at the very ends of the wall surface for accurate results.</string>
+       </property>
+       <property name="nodeTypes">
+        <stringlist notr="true">
+         <string>vtkMRMLMarkupsFiducialNode</string>
+        </stringlist>
+       </property>
+       <property name="baseName">
+        <string>P</string>
+       </property>
+       <property name="noneEnabled">
+        <bool>true</bool>
+       </property>
+       <property name="addEnabled">
+        <bool>true</bool>
+       </property>
+       <property name="removeEnabled">
+        <bool>true</bool>
+       </property>
+       <property name="editEnabled">
+        <bool>true</bool>
+       </property>
+       <property name="renameEnabled">
+        <bool>true</bool>
+       </property>
+       <property name="selectNodeUponCreation">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="0">
+      <widget class="QLabel" name="inputFiducialLabel">
+       <property name="text">
+        <string>Boundary node:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="0">
+      <widget class="QLabel" name="inputSegmentLabel">
+       <property name="text">
+        <string>Lumen surface:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="1">
+      <widget class="qMRMLSegmentSelectorWidget" name="inputSegmentSelector">
+       <property name="toolTip">
+        <string>Select a segment representing the vascular lumen.
 
-This should ideally exceed the wall surface a little.</string>
-        </property>
-        <property name="noneEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="editEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="selectNodeUponCreation">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
+This should ideally exceed the wall surface a little, and must not be bifurcated for accurate results.</string>
+       </property>
+       <property name="noneEnabled">
+        <bool>true</bool>
+       </property>
+       <property name="editEnabled">
+        <bool>true</bool>
+       </property>
+       <property name="selectNodeUponCreation">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </item>
    <item>
-    <widget class="ctkCollapsibleButton" name="outputCollapsibleButton">
+    <widget class="ctkCollapsibleButton" name="resultCollapsibleButton">
      <property name="toolTip">
       <string/>
      </property>
      <property name="text">
-      <string>Outputs</string>
+      <string>Result</string>
      </property>
      <layout class="QVBoxLayout" name="verticalLayout_2">
       <item>
@@ -222,16 +217,16 @@ This should ideally exceed the wall surface a little.</string>
          <item>
           <layout class="QFormLayout" name="modelFormLayout">
            <item row="1" column="0">
-            <widget class="QLabel" name="lesionModelLabel">
+            <widget class="QLabel" name="wallModelLabel">
              <property name="text">
-              <string>Lesion:</string>
+              <string>Wall:</string>
              </property>
             </widget>
            </item>
            <item row="1" column="1">
-            <widget class="qMRMLNodeComboBox" name="lesionModelSelector">
+            <widget class="qMRMLNodeComboBox" name="wallModelSelector">
              <property name="toolTip">
-              <string>Show the lesion between the boundary points as a model.</string>
+              <string>Show the wall between the boundary points as a model.</string>
              </property>
              <property name="nodeTypes">
               <stringlist notr="true">
@@ -239,7 +234,7 @@ This should ideally exceed the wall surface a little.</string>
               </stringlist>
              </property>
              <property name="baseName">
-              <string>Lesion</string>
+              <string>Wall</string>
              </property>
              <property name="noneEnabled">
               <bool>true</bool>
@@ -253,54 +248,35 @@ This should ideally exceed the wall surface a little.</string>
             </widget>
            </item>
            <item row="2" column="0">
-            <widget class="QLabel" name="outputTableLabel">
+            <widget class="QLabel" name="lumenModelLabel">
              <property name="text">
-              <string>Table:</string>
+              <string>Lumen:</string>
              </property>
             </widget>
            </item>
            <item row="2" column="1">
-            <layout class="QHBoxLayout" name="outputTableHorizontalLayout">
-             <item>
-              <widget class="qMRMLNodeComboBox" name="outputTableSelector">
-               <property name="toolTip">
-                <string>Specify a table to store the result in append mode.</string>
-               </property>
-               <property name="nodeTypes">
-                <stringlist notr="true">
-                 <string>vtkMRMLTableNode</string>
-                </stringlist>
-               </property>
-               <property name="hideChildNodeTypes">
-                <stringlist notr="true"/>
-               </property>
-               <property name="baseName">
-                <string>Result table</string>
-               </property>
-               <property name="noneEnabled">
-                <bool>true</bool>
-               </property>
-               <property name="editEnabled">
-                <bool>true</bool>
-               </property>
-               <property name="renameEnabled">
-                <bool>true</bool>
-               </property>
-               <property name="interactionNodeSingletonTag">
-                <string notr="true"/>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QSpinBox" name="updateBoundaryPointsSpinBox">
-               <property name="toolTip">
-                <string>Move the boundary points to the positions referenced in this table row.
-
-Note: this is intended for processing again at known locations. The study and the results stored in the table are not taken into consideration.</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
+            <widget class="qMRMLNodeComboBox" name="lumenModelSelector">
+             <property name="toolTip">
+              <string>Show the lumen between the boundary points as a model.</string>
+             </property>
+             <property name="nodeTypes">
+              <stringlist notr="true">
+               <string>vtkMRMLModelNode</string>
+              </stringlist>
+             </property>
+             <property name="baseName">
+              <string>Lumen</string>
+             </property>
+             <property name="noneEnabled">
+              <bool>true</bool>
+             </property>
+             <property name="editEnabled">
+              <bool>true</bool>
+             </property>
+             <property name="renameEnabled">
+              <bool>true</bool>
+             </property>
+            </widget>
            </item>
           </layout>
          </item>
@@ -374,23 +350,7 @@ Note: this is intended for processing again at known locations. The study and th
   <connection>
    <sender>qSlicerStenosisMeasurement3DModuleWidget</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
-   <receiver>lesionModelSelector</receiver>
-   <slot>setMRMLScene(vtkMRMLScene*)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>309</x>
-     <y>342</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>342</x>
-     <y>457</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>qSlicerStenosisMeasurement3DModuleWidget</sender>
-   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
-   <receiver>inputSegmentSelector</receiver>
+   <receiver>inputShapeSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -398,8 +358,8 @@ Note: this is intended for processing again at known locations. The study and th
      <y>159</y>
     </hint>
     <hint type="destinationlabel">
-     <x>324</x>
-     <y>130</y>
+     <x>303</x>
+     <y>25</y>
     </hint>
    </hints>
   </connection>
@@ -422,7 +382,7 @@ Note: this is intended for processing again at known locations. The study and th
   <connection>
    <sender>qSlicerStenosisMeasurement3DModuleWidget</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
-   <receiver>inputShapeSelector</receiver>
+   <receiver>inputSegmentSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -430,15 +390,15 @@ Note: this is intended for processing again at known locations. The study and th
      <y>159</y>
     </hint>
     <hint type="destinationlabel">
-     <x>303</x>
-     <y>25</y>
+     <x>324</x>
+     <y>130</y>
     </hint>
    </hints>
   </connection>
   <connection>
    <sender>qSlicerStenosisMeasurement3DModuleWidget</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
-   <receiver>outputTableSelector</receiver>
+   <receiver>wallModelSelector</receiver>
    <slot>setMRMLScene(vtkMRMLScene*)</slot>
    <hints>
     <hint type="sourcelabel">
@@ -446,8 +406,24 @@ Note: this is intended for processing again at known locations. The study and th
      <y>342</y>
     </hint>
     <hint type="destinationlabel">
-     <x>333</x>
-     <y>463</y>
+     <x>342</x>
+     <y>457</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>qSlicerStenosisMeasurement3DModuleWidget</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>lumenModelSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>309</x>
+     <y>342</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>342</x>
+     <y>501</y>
     </hint>
    </hints>
   </connection>

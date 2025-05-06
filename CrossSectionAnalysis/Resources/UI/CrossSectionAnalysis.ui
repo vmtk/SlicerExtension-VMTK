@@ -120,14 +120,14 @@
       <string>Parameters</string>
      </property>
      <layout class="QFormLayout" name="parametersFormLayout">
-      <item row="1" column="0">
+      <item row="0" column="0">
        <widget class="QLabel" name="inputCenterLineLabel">
         <property name="text">
          <string>Centerline source:</string>
         </property>
        </widget>
       </item>
-      <item row="1" column="1">
+      <item row="0" column="1">
        <widget class="qMRMLNodeComboBox" name="inputCenterlineSelector">
         <property name="toolTip">
          <string>The centerline source may be:
@@ -164,7 +164,7 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="0">
+      <item row="1" column="0">
        <widget class="QLabel" name="segmentationLabel">
         <property name="locale">
          <locale language="English" country="UnitedStates"/>
@@ -174,53 +174,39 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="1">
+      <item row="1" column="1">
        <layout class="QVBoxLayout" name="parametersVerticalLayout">
         <item>
-         <layout class="QHBoxLayout" name="clipLumenHorizontalLayout">
-          <item>
-           <widget class="qMRMLNodeComboBox" name="segmentationSelector">
-            <property name="toolTip">
-             <string>Input segmentation or model node, required for computing cross-sectional area.
+         <widget class="qMRMLNodeComboBox" name="segmentationSelector">
+          <property name="toolTip">
+           <string>Input segmentation or model node, required for computing cross-sectional area.
 The input centerline is expected to be inside the lumen surface.</string>
-            </property>
-            <property name="locale">
-             <locale language="English" country="UnitedStates"/>
-            </property>
-            <property name="nodeTypes">
-             <stringlist notr="true">
-              <string>vtkMRMLSegmentationNode</string>
-              <string>vtkMRMLModelNode</string>
-             </stringlist>
-            </property>
-            <property name="noneEnabled">
-             <bool>true</bool>
-            </property>
-            <property name="addEnabled">
-             <bool>false</bool>
-            </property>
-            <property name="removeEnabled">
-             <bool>true</bool>
-            </property>
-            <property name="editEnabled">
-             <bool>true</bool>
-            </property>
-            <property name="renameEnabled">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QToolButton" name="clipLumenToolButton">
-            <property name="toolTip">
-             <string>Clip the lumen inside the tube. A new segment or a new model is generated.</string>
-            </property>
-            <property name="text">
-             <string>...</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
+          </property>
+          <property name="locale">
+           <locale language="English" country="UnitedStates"/>
+          </property>
+          <property name="nodeTypes">
+           <stringlist notr="true">
+            <string>vtkMRMLSegmentationNode</string>
+            <string>vtkMRMLModelNode</string>
+           </stringlist>
+          </property>
+          <property name="noneEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="addEnabled">
+           <bool>false</bool>
+          </property>
+          <property name="removeEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="editEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="renameEnabled">
+           <bool>true</bool>
+          </property>
+         </widget>
         </item>
         <item>
          <widget class="qMRMLSegmentSelectorWidget" name="segmentSelector">
@@ -237,14 +223,14 @@ The input centerline is expected to be inside the lumen surface.</string>
         </item>
        </layout>
       </item>
-      <item row="3" column="0">
+      <item row="2" column="0">
        <widget class="QLabel" name="outputTableLabel">
         <property name="text">
          <string>Output table:</string>
         </property>
        </widget>
       </item>
-      <item row="3" column="1">
+      <item row="2" column="1">
        <layout class="QHBoxLayout" name="outputTableHorizontalLayout">
         <item>
          <widget class="qMRMLNodeComboBox" name="outputTableSelector">
@@ -288,14 +274,14 @@ The input centerline is expected to be inside the lumen surface.</string>
         </item>
        </layout>
       </item>
-      <item row="5" column="0">
+      <item row="4" column="0">
        <widget class="QLabel" name="outputPlotSeriesLabel">
         <property name="text">
          <string>Output plot series:</string>
         </property>
        </widget>
       </item>
-      <item row="5" column="1">
+      <item row="4" column="1">
        <layout class="QHBoxLayout" name="outputPlotSeriesHorizontalLayout">
         <item>
          <widget class="qMRMLNodeComboBox" name="outputPlotSeriesSelector">
@@ -343,7 +329,7 @@ The input centerline is expected to be inside the lumen surface.</string>
         </item>
        </layout>
       </item>
-      <item row="6" column="0" colspan="2">
+      <item row="5" column="0" colspan="2">
        <widget class="ctkCollapsibleGroupBox" name="optionsCollapsibleGroupBox">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
@@ -581,7 +567,7 @@ The 'Sphere' brush is enforced. Further customisation can be performed in the 'S
         </layout>
        </widget>
       </item>
-      <item row="7" column="0" colspan="2">
+      <item row="6" column="0" colspan="2">
        <widget class="QPushButton" name="applyButton">
         <property name="enabled">
          <bool>false</bool>
