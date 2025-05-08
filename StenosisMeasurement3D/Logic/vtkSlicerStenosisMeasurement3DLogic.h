@@ -75,6 +75,9 @@ public:
   bool ClipClosedSurfaceWithClosedOutput(vtkPolyData * input, vtkPolyData * output,
                   double * startOrigin, double * startNormal, double * endOrigin, double * endNormal);
 
+  bool DumpAggregateVolumes(vtkMRMLMarkupsShapeNode * wallShapeNode, vtkPolyData * enclosedSurface,
+                           std::string filepath);
+
 protected:
   vtkSlicerStenosisMeasurement3DLogic();
   ~vtkSlicerStenosisMeasurement3DLogic() override;
