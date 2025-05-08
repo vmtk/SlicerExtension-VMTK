@@ -21,7 +21,6 @@
 
 // MRML includes
 #include <vtkMRMLScene.h>
-
 // VTK includes
 #include <vtkIntArray.h>
 #include <vtkNew.h>
@@ -46,6 +45,9 @@
 #include <vtkPointData.h>
 #include <vtkPolyDataNormals.h>
 #include <vtkDataArray.h>
+#include <vtkSQLiteDatabase.h>
+#include <vtkTableToSQLiteWriter.h>
+#include <vtkSQLiteQuery.h>
 
 static const char* COLUMN_NAME_STUDY = "Study";
 static const char* COLUMN_NAME_WALL = "WallVolume";
@@ -58,6 +60,35 @@ static const char* COLUMN_NAME_LENGTH = "Length";
 static const char* COLUMN_NAME_LESION_VOLUME_PER_CM = "LesionVolumePerCm";
 static const char* COLUMN_NAME_STENOSIS_PER_CM = "StenosisPerCm";
 static const char* COLUMN_NAME_NOTES = "Notes";
+
+//------------------------------------------------------------------------------
+#include <mutex>
+
+std::mutex mtx;
+//------------------------------------------------------------------------------
+/**
+ * Each thread has one instance of this class running.
+ * It computes volumes and distances from startBlockId to endBlockId.
+ */
+class VolumeComputeWorker
+{
+public:
+
+  VolumeComputeWorker();
+  virtual ~VolumeComputeWorker();
+
+  void operator () (vtkSlicerStenosisMeasurement3DLogic * logic,
+                    int ID, vtkPolyData * wallSurface, // Closed
+                    vtkPolyData * lumenSurface, // Clipped in tube and closed
+                    vtkPolyData * spline, vtkDoubleArray* bufferArray,
+                    vtkIdType startBlockId, vtkIdType endBlockId);
+
+  int GetId() { return Id;}
+  double CalculateSplineDistance(vtkPolyData * spline, vtkIdType startId, vtkIdType endId);
+
+private:
+  int Id = 0;
+};
 
 //----------------------------------------------------------------------------
 vtkStandardNewMacro(vtkSlicerStenosisMeasurement3DLogic);
@@ -685,7 +716,7 @@ bool vtkSlicerStenosisMeasurement3DLogic::CreateLesion(vtkMRMLMarkupsShapeNode *
     || wallShapeNode->GetShapeName() != vtkMRMLMarkupsShapeNode::Tube
   )
   {
-    vtkErrorMacro("Invalid input.");
+    vtkErrorMacro("Invalid input, cannot create lesion.");
     return false;
   }
 
@@ -802,3 +833,321 @@ bool vtkSlicerStenosisMeasurement3DLogic::CreateLesion(vtkMRMLMarkupsShapeNode *
 
   return true;
 }
+//------------------------------------------------------------------------------
+bool vtkSlicerStenosisMeasurement3DLogic::DumpAggregateVolumes(vtkMRMLMarkupsShapeNode* wallShapeNode,
+                                                              vtkPolyData* enclosedSurface,
+                                                              std::string filepath)
+{
+  /* 
+   * There may be marginal differences with the result from ::Process(), mainly
+   * with the lumen volume. These are inversely proportional to the spline
+   * resolution. The surface resolution influences less.
+   * 
+   * Chop the surfaces in blocks, one thread for each block.
+   * Calculate volumes from the first spline id of a block to the next until the last id.
+   * Append the array from each thread in the 'result' table.
+   * Cross join the table in SQLite and create a new aggregate table.
+   * Each row is crossed with the entire table.
+   */
+  if (wallShapeNode == nullptr || enclosedSurface == nullptr || filepath.empty()
+    || wallShapeNode->GetShapeName() != vtkMRMLMarkupsShapeNode::Tube
+    || wallShapeNode->GetNumberOfControlPoints() < 4
+  )
+  {
+    vtkErrorMacro("Invalid input, cannot continue.");
+    return false;
+  }
+
+  vtkNew<vtkPolyData> trimmedSpline;
+  if (!wallShapeNode->GetTrimmedSplineWorld(trimmedSpline))
+  {
+    vtkErrorMacro("The tube does not have a valid spline.");
+    return false;
+  }
+
+  vtkNew<vtkMRMLTableNode> result;
+
+  // Exclude the last point to remain within bounds. 851 spline points -> 850 measurements.
+  const int numberOfPoints = trimmedSpline->GetNumberOfPoints() - 1;
+  int numberOfThreads = std::thread::hardware_concurrency(); // Does not mean number of cores/cpus.
+  if (numberOfThreads < 1 || numberOfPoints < numberOfThreads)
+  {
+    numberOfThreads = 1;
+  }
+  const int residual = numberOfPoints % numberOfThreads;
+  const int numberOfPointsPerBlock = numberOfPoints / numberOfThreads;
+  std::vector<std::thread> threads;
+  std::vector<vtkSmartPointer<vtkDoubleArray>> bufferArrays;
+
+  for (int i = 0; i < numberOfThreads; i++)
+  {
+    const vtkIdType startBlockId = i * numberOfPointsPerBlock;
+    vtkIdType endBlockId = ((i + 1) * numberOfPointsPerBlock) - 1;
+    if (i == (numberOfThreads - 1))
+    {
+      endBlockId += residual;
+    }
+    vtkSmartPointer<vtkDoubleArray> bufferArray = vtkSmartPointer<vtkDoubleArray> ::New();
+    bufferArray->SetNumberOfComponents(5);
+    bufferArrays.push_back(bufferArray);
+
+    vtkSmartPointer<vtkPolyData> wallSurfaceCopy = vtkSmartPointer<vtkPolyData>::New();
+    vtkSmartPointer<vtkPolyData> lumenSurfaceCopy = vtkSmartPointer<vtkPolyData>::New();
+    vtkSmartPointer<vtkPolyData> trimmedSplineCopy = vtkSmartPointer<vtkPolyData>::New();
+    wallSurfaceCopy->DeepCopy(wallShapeNode->GetCappedTubeWorld());
+    lumenSurfaceCopy->DeepCopy(enclosedSurface);
+    vtkNew<vtkPolyData> threadTrimmedSpline;
+    wallShapeNode->GetTrimmedSplineWorld(threadTrimmedSpline);
+    trimmedSplineCopy->DeepCopy(threadTrimmedSpline);
+    threads.push_back(std::thread(
+                        VolumeComputeWorker(),
+                        this, i,
+                        wallSurfaceCopy, lumenSurfaceCopy, trimmedSplineCopy,
+                        bufferArray, startBlockId, endBlockId
+                          ) // std::thread
+                      );    // threads
+
+  }
+  for (int i = 0; i < numberOfThreads; i++)
+  {
+    threads[i].join();
+  }
+
+  vtkTable * table = result->GetTable();
+  vtkNew<vtkDoubleArray> splineIdColumn;
+  vtkNew<vtkDoubleArray> distanceColumn;
+  vtkNew<vtkDoubleArray> wallVolumeColumn;
+  vtkNew<vtkDoubleArray> lumenVolumeColumn;
+  splineIdColumn->SetName("SplineId");
+  distanceColumn->SetName("Distance");
+  wallVolumeColumn->SetName("WallVolume");
+  lumenVolumeColumn->SetName("LumenVolume");
+  table->AddColumn(splineIdColumn);
+  table->AddColumn(distanceColumn);
+  table->AddColumn(wallVolumeColumn);
+  table->AddColumn(lumenVolumeColumn);
+  table->InsertNextBlankRow();
+
+  double totalCumulated[3] = {0.0};
+  for (int i = 0; i < numberOfThreads; i++)
+  {
+    vtkDoubleArray * bufferArray = bufferArrays[i];
+    for (int t = 0; t < bufferArray->GetNumberOfTuples(); t++)
+    {
+      double * currentTuple = bufferArray->GetTuple(t);
+      vtkNew<vtkVariantArray> cumulated;
+      cumulated->InsertNextValue(currentTuple[1]); // endBlockId, startBlockId is always 0
+      cumulated->InsertNextValue(currentTuple[2] + totalCumulated[0]); // distance
+      cumulated->InsertNextValue(currentTuple[3] + totalCumulated[1]); // wallVolume
+      cumulated->InsertNextValue(currentTuple[4] + totalCumulated[2]); // lumenVolume
+      table->InsertNextRow(cumulated);
+    }
+
+    vtkVariantArray * lastCumulatedTuple = table->GetRow(table->GetNumberOfRows() - 1);
+    totalCumulated[0] = lastCumulatedTuple->GetValue(1).ToDouble(); // distance
+    totalCumulated[1] = lastCumulatedTuple->GetValue(2).ToDouble(); // wallVolume
+    totalCumulated[2] = lastCumulatedTuple->GetValue(3).ToDouble(); // lumenVolume
+  }
+
+  vtkNew<vtkSQLiteDatabase> db;
+  db->SetDatabaseFileName(filepath.c_str());
+  if (!db->Open(nullptr, vtkSQLiteDatabase::CREATE)) // CREATE - Create new, fail if file exists.
+  {
+    vtkErrorMacro("File exists, aborting.");
+    return false;
+  }
+  vtkNew<vtkTableToSQLiteWriter> dbWriter;
+  // Cumulative volumes from spline id 0 to the last one.
+  dbWriter->SetTableName("CumulativeVolumes");
+  dbWriter->SetDatabase(db);
+  dbWriter->SetInputData(result->GetTable());
+  dbWriter->Update();
+
+  // Using an intermediate for easier read/write of SQL expressions.
+  // Volumes between spline points, from id1 to id2.
+  std::string sql = "CREATE TABLE Intermediate AS" 
+  " SELECT V1.SplineId StartId, V2.SplineId EndId,"
+  " CAST((V2.Distance - V1.Distance) AS REAL) Distance,"
+  " CAST((V2.WallVolume - V1.WallVolume) AS REAL ) WallVolume,"
+  " CAST((V2.LumenVolume - V1.LumenVolume) AS REAL ) LumenVolume,"
+  " CAST(((V2.WallVolume - V1.WallVolume) - (V2.LumenVolume - V1.LumenVolume)) AS REAL) LesionVolume"
+  " FROM CumulativeVolumes V1 CROSS JOIN CumulativeVolumes V2"
+  " WHERE V1.SplineId < V2.SplineId"
+  " ORDER BY V1.SplineId, V2.SplineId";
+  // query must be explicitly deleted.
+  vtkSQLiteQuery * query = static_cast<vtkSQLiteQuery*> (db->GetQueryInstance());
+  query->SetQuery(sql.c_str());
+  if (!query->Execute())
+  {
+    vtkErrorMacro("Error creating 'Intermediate' table, aborting.");
+    return false;
+  }
+  /*
+   * Final table for volumes between spline points, from id 'p' to id 'p + n'.
+   */
+
+  sql = "CREATE TABLE BoundVolumes AS"
+  " SELECT *,"
+  " CAST((LesionVolume / WallVolume)  * 100 AS REAL) Stenosis,"
+  " CAST((LesionVolume / Distance) * 10 AS REAL) LesionVolumePerCm,"
+  " CAST(((LesionVolume / WallVolume) / Distance) * 10 AS REAL) StenosisPerCm"
+  " FROM Intermediate";
+  query->SetQuery(sql.c_str());
+  if (!query->Execute())
+  {
+    vtkErrorMacro("Error creating 'BoundVolumes' table, aborting.");
+    return false;
+  }
+  sql = "DROP TABLE Intermediate";
+  query->SetQuery(sql.c_str());
+  if (!query->Execute())
+  {
+    vtkErrorMacro("Error deleting 'Intermediate' table."); // Don't return.
+  }
+  query->Delete();
+
+  auto createIndices = [&] (vtkStringArray * queries)
+  {
+    if (!queries)
+    {
+      vtkErrorMacro("Invalid queries array, aborting.");
+      return false;
+    }
+    bool noError = true;
+    vtkSQLiteQuery * indexQuery = static_cast<vtkSQLiteQuery*> (db->GetQueryInstance());
+    for (int i = 0; i < queries->GetNumberOfValues(); i++)
+    {
+      vtkStdString indexSql = queries->GetValue(i);
+      indexQuery->SetQuery(indexSql.c_str());
+      if (!indexQuery->Execute())
+      {
+        noError = false;
+      }
+    }
+    indexQuery->Delete();
+    return noError;
+  };
+
+  vtkNew<vtkStringArray> indexSql;
+  indexSql->InsertNextValue("CREATE INDEX CumulativeVolumes_SplineId ON CumulativeVolumes(SplineId)");
+  indexSql->InsertNextValue("CREATE INDEX CumulativeVolumes_Distance ON CumulativeVolumes(Distance)");
+  indexSql->InsertNextValue("CREATE INDEX CumulativeVolumes_WallVolume ON CumulativeVolumes(WallVolume)");
+  indexSql->InsertNextValue("CREATE INDEX CumulativeVolumes_LumenVolume ON CumulativeVolumes(LumenVolume)");
+  if (!createIndices(indexSql))
+  {
+    vtkErrorMacro("Error creating indices on CumulativeVolumes table.");
+  }
+
+  indexSql->Initialize();
+  indexSql->InsertNextValue("CREATE INDEX BoundVolumes_StartId ON BoundVolumes(StartId)");
+  indexSql->InsertNextValue("CREATE INDEX BoundVolumes_EndId ON BoundVolumes(EndId)");
+  indexSql->InsertNextValue("CREATE INDEX BoundVolumes_StartId_EndId ON BoundVolumes(StartId, EndId)");
+  indexSql->InsertNextValue("CREATE INDEX BoundVolumes_Distance ON BoundVolumes(Distance)");
+  indexSql->InsertNextValue("CREATE INDEX BoundVolumes_WallVolume ON BoundVolumes(WallVolume)");
+  indexSql->InsertNextValue("CREATE INDEX BoundVolumes_LumenVolume ON BoundVolumes(LumenVolume)");
+  indexSql->InsertNextValue("CREATE INDEX BoundVolumes_LesionVolume ON BoundVolumes(LesionVolume)");
+  indexSql->InsertNextValue("CREATE INDEX BoundVolumes_Stenosis ON BoundVolumes(Stenosis)");
+  indexSql->InsertNextValue("CREATE INDEX BoundVolumes_LesionVolumePerCm ON BoundVolumes(LesionVolumePerCm)");
+  indexSql->InsertNextValue("CREATE INDEX BoundVolumes_StenosisPerCm ON BoundVolumes(StenosisPerCm)");
+  if (!createIndices(indexSql))
+  {
+    vtkErrorMacro("Error creating indices on BoundVolumes table.");
+  }
+
+  // Proceed with specialised statistical software for further analysis.
+  // It's not even possible to get a standard deviation from <cmath>.
+  db->Close();
+
+  return true;
+}
+
+//------------------------------------------------------------------------------
+VolumeComputeWorker::VolumeComputeWorker()
+{
+}
+
+//------------------------------------------------------------------------------
+VolumeComputeWorker::~VolumeComputeWorker()
+{
+}
+
+//------------------------------------------------------------------------------
+void VolumeComputeWorker::operator()(vtkSlicerStenosisMeasurement3DLogic * logic,
+                                     int ID, vtkPolyData* wallSurface,
+                                     vtkPolyData* lumenSurface,
+                                     vtkPolyData* spline,
+                                     vtkDoubleArray* bufferArray,
+                                     vtkIdType startBlockId,
+                                     vtkIdType endBlockId)
+{
+  this->Id = ID;
+  double startPoint[3] = { 0.0 };
+  double startPointNeighbour[3] = { 0.0 };
+  double startNormal[3] = { 0.0 };
+  spline->GetPoint(startBlockId, startPoint);
+  spline->GetPoint(startBlockId + 1, startPointNeighbour);
+  vtkMath::Subtract(startPointNeighbour, startPoint, startNormal);
+
+  for (vtkIdType i = startBlockId + 1; i <= endBlockId + 1; i++) // +1, +1
+  {
+    double p2[3] = { 0.0 };
+    double p2Neighbour[3] = { 0.0 };
+    double endNormal[3] = { 0.0 };
+    spline->GetPoint(i, p2);
+    spline->GetPoint(i - 1, p2Neighbour);
+    vtkMath::Subtract(p2Neighbour, p2, endNormal);
+
+    vtkNew<vtkPolyData> clippedWall;
+    if (!logic->ClipClosedSurfaceWithClosedOutput(wallSurface, clippedWall,
+                                             startPoint, startNormal,
+                                             p2, endNormal))
+    {
+      std::cerr << "Error clipping wall surface from id " << startBlockId
+              << " to " << i << "." << std::endl;
+      continue;
+    }
+    vtkNew<vtkPolyData> clippedLumen;
+    if (!logic->ClipClosedSurfaceWithClosedOutput(lumenSurface, clippedLumen,
+                                              startPoint, startNormal,
+                                              p2, endNormal))
+    {
+      std::cerr << "Error clipping lumen surface from id " << startBlockId
+      << " to " << i << "." << std::endl;
+      continue;
+    }
+    double distance = this->CalculateSplineDistance(spline, startBlockId, i);
+
+    vtkNew<vtkMassProperties> wallProperties;
+    wallProperties->SetInputData(clippedWall);
+    wallProperties->Update();
+    vtkNew<vtkMassProperties> lumenProperties;
+    lumenProperties->SetInputData(clippedLumen);
+    lumenProperties->Update();
+    double tuple[5] = {(double) startBlockId, (double) i, distance,
+                wallProperties->GetVolume(), lumenProperties->GetVolume()};
+    bufferArray->InsertNextTuple(tuple);
+  }
+}
+
+//------------------------------------------------------------------------------
+double VolumeComputeWorker::CalculateSplineDistance(vtkPolyData* spline, vtkIdType startId, vtkIdType endId)
+{
+  if (!spline || startId < 0 || endId < 0 || startId > endId)
+  {
+    mtx.lock();
+    std::cerr << "Invalid input, cannot calculate spline distance." << std::endl;
+    mtx.unlock();
+    return -1.0;
+  }
+  double length = 0.0;
+  for (vtkIdType splineId = startId; splineId < endId; splineId++)
+  {
+    double p1[3] = { 0.0 };
+    double p2[3] = { 0.0 };
+    spline->GetPoint(splineId, p1);
+    spline->GetPoint(splineId + 1, p2);
+    length += std::sqrt(vtkMath::Distance2BetweenPoints(p1, p2));
+  }
+  return length;
+}
+

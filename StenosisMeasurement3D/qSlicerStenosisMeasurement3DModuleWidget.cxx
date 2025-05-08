@@ -26,6 +26,8 @@
 #include <qstatusbar.h>
 #include <QAction>
 #include <QMenu>
+#include <QStandardPaths>
+#include <QDateTime>
 
 #include <vtkMRMLScene.h>
 #include <vtkMRMLMarkupsFiducialNode.h>
@@ -142,18 +144,39 @@ void qSlicerStenosisMeasurement3DModuleWidget::setup()
   this->segmentationRepresentationObservation->SetClientData( reinterpret_cast<void *>(this) );
   this->segmentationRepresentationObservation->SetCallback(qSlicerStenosisMeasurement3DModuleWidget::onSegmentationRepresentationModified);
 
-  QMenu * applyButtonMenu = new QMenu(d->applyButton);
-  d->applyButton->setMenu(applyButtonMenu);
-  QAction * actionClearCache = applyButtonMenu->addAction(qSlicerStenosisMeasurement3DModuleWidget::tr("Clear the enclosed lumen cache"));
-  actionClearCache->setData(0);
-  actionClearCache->setObjectName("ActionClearEnclosedLumenCache");
-  QObject::connect(actionClearCache, SIGNAL(triggered()),
-                   this, SLOT(clearLumenCache()));
+  this->addMenu();
 
   // We won't check the structure of the table and assume it has been created in the module.
   const QString attributeName = QString(MODULE_TITLE) + QString(".Role");
   d->outputTableSelector->addAttribute("vtkMRMLTableNode", attributeName, MODULE_TITLE);
   d->parameterSetSelector->addAttribute("vtkMRMLStenosisMeasurement3DParameterNode", attributeName, MODULE_TITLE);
+}
+
+//-----------------------------------------------------------------------------
+
+void qSlicerStenosisMeasurement3DModuleWidget::addMenu()
+{
+  Q_D(qSlicerStenosisMeasurement3DModuleWidget);
+
+  QMenu * applyButtonMenu = new QMenu(d->applyButton);
+  d->applyButton->setMenu(applyButtonMenu);
+
+  // Actions.
+  QAction * actionClearCache = applyButtonMenu->addAction(qSlicerStenosisMeasurement3DModuleWidget::tr("Clear the enclosed lumen cache"));
+  actionClearCache->setData(0);
+  actionClearCache->setObjectName("ActionClearEnclosedLumenCache");
+
+  applyButtonMenu->addSeparator();
+
+  QAction * actionDumpVolumes = applyButtonMenu->addAction(qSlicerStenosisMeasurement3DModuleWidget::tr("Dump aggregate volumes to database"));
+  actionDumpVolumes->setData(1);
+  actionDumpVolumes->setObjectName("ActionDumpAggregateVolumesToDatabase");
+  actionDumpVolumes->setToolTip(qSlicerStenosisMeasurement3DModuleWidget::tr("Attempt to save a database containing aggregate volumes of the study in your document directory."));
+  
+  QObject::connect(actionClearCache, SIGNAL(triggered()),
+                   this, SLOT(clearLumenCache()));
+  QObject::connect(actionDumpVolumes, SIGNAL(triggered()),
+                   this, SLOT(dumpAggregateVolumes()));
 }
 
 //-----------------------------------------------------------------------------
@@ -241,6 +264,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::onApply()
   this->showResult(wallClosed, lumenClosed, results);
   // Optionally create models.
   this->createLesionModel(shapeNodeReal, enclosedSurface, fiducialNodeReal);
+
   // Cache the enclosed surface of the lumen if all is ok.
   d->setLumenCache(enclosedSurface);
 }
@@ -736,6 +760,7 @@ bool qSlicerStenosisMeasurement3DModuleWidget::getEnclosedSurface(vtkMRMLMarkups
       this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Input tube and input lumen do not intersect."), 5000);
       return false;
     }
+    // The caller must cache the enclosed surface.
   }
   return true;
 }
@@ -837,4 +862,38 @@ void qSlicerStenosisMeasurement3DModuleWidget::clearLumenCache()
 {
   Q_D(qSlicerStenosisMeasurement3DModuleWidget);
   d->setLumenCache(nullptr);
+}
+
+void qSlicerStenosisMeasurement3DModuleWidget::dumpAggregateVolumes()
+{
+  Q_D(qSlicerStenosisMeasurement3DModuleWidget);
+  if (!d->parameterNode)
+  {
+    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Parameter node is invalid."), 5000);
+    return;
+  }
+  QString documentPath = QStandardPaths::standardLocations(QStandardPaths::DocumentsLocation).at(0);
+  QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd-hhmmss");
+  QString dbName = d->parameterNode->GetName() + QString("-") + timestamp + QString(".db");
+  QString dbPath = documentPath + QString("/") + dbName;
+  vtkMRMLMarkupsShapeNode * wallShapeNode = vtkMRMLMarkupsShapeNode::SafeDownCast(d->parameterNode->GetInputShapeNode());
+  vtkMRMLSegmentationNode * segmentationNode = vtkMRMLSegmentationNode::SafeDownCast(d->parameterNode->GetInputSegmentationNode());
+  std::string segmentID = d->parameterNode->GetInputSegmentID();
+  vtkNew<vtkPolyData> enclosedSurface;
+  if (!this->getEnclosedSurface(wallShapeNode, segmentationNode, segmentID, enclosedSurface, true))
+  {
+    return;
+  }
+
+  // Cache the enclosed surface of the lumen if all is ok.
+  d->setLumenCache(enclosedSurface);
+
+  this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Processing, this can be long running, please wait..."));
+  if (!this->logic->DumpAggregateVolumes(wallShapeNode, enclosedSurface, dbPath.toStdString()))
+  {
+    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Error dumping aggregate volumes to database."), 10000);
+    return;
+  }
+  QString successMessage = dbName + QString(qSlicerStenosisMeasurement3DModuleWidget::tr(" is saved in your document directory."));
+  this->showStatusMessage(successMessage.toStdString().c_str(), 5000);
 }

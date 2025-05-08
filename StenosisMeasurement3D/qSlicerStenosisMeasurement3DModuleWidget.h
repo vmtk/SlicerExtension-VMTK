@@ -63,6 +63,7 @@ protected slots:
   void onParameterNodeAddedByUser(vtkMRMLNode * node);
   void onParameterNodeChanged(vtkMRMLNode * node);
   void clearLumenCache();
+  void dumpAggregateVolumes();
 
 protected:
   QScopedPointer<qSlicerStenosisMeasurement3DModuleWidgetPrivate> d_ptr;
@@ -96,6 +97,7 @@ protected:
 
   void setDefaultParameters(vtkMRMLNode * node);
   void updateGuiFromParameterNode();
+  void addMenu();
 
 private:
   Q_DECLARE_PRIVATE(qSlicerStenosisMeasurement3DModuleWidget);
