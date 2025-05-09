@@ -56,7 +56,8 @@ public:
                vtkMRMLMarkupsFiducialNode * boundaryFiducialNode,
                vtkPolyData * outputWallOpenPolyData, vtkPolyData * outputLumenOpenPolyData,
                vtkPolyData * outputWallClosedPolyData, vtkPolyData * outputLumenClosedPolyData,
-               vtkVariantArray * results, vtkMRMLTableNode * outputTableNode = nullptr);
+               vtkVariantArray * results, const std::string& studyName,
+               vtkMRMLTableNode * outputTableNode = nullptr);
   // The caller must pass in an enclosed surface.
   bool CreateLesion(vtkMRMLMarkupsShapeNode * wallShapeNode, vtkPolyData * enclosedSurface,
                     vtkMRMLMarkupsFiducialNode * boundaryFiducialNode,
@@ -93,7 +94,7 @@ protected:
                       vtkMRMLMarkupsFiducialNode * inputFiducialNode,
                       vtkPolyData * wallClosedPolyData,
                       vtkPolyData * lumenClosedPolyData,
-                      vtkVariantArray * results);
+                      vtkVariantArray * results, const std::string& studyName);
 private:
 
   vtkSlicerStenosisMeasurement3DLogic(const vtkSlicerStenosisMeasurement3DLogic&); // Not implemented

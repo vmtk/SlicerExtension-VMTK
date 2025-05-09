@@ -47,6 +47,9 @@ public:
 
 public slots:
   void onApply();
+  void setup() override;
+  void enter() override;
+  bool setEditedNode(vtkMRMLNode * node, QString role, QString context) override;
 
 protected slots:
   void onShapeNodeChanged(vtkMRMLNode * node);
@@ -57,15 +60,16 @@ protected slots:
   void onTableNodeChanged(vtkMRMLNode * node);
   void onTableContentModified();
   void onUpdateBoundary(int index);
+  void onParameterNodeAddedByUser(vtkMRMLNode * node);
+  void onParameterNodeChanged(vtkMRMLNode * node);
 
 protected:
   QScopedPointer<qSlicerStenosisMeasurement3DModuleWidgetPrivate> d_ptr;
 
-  void setup() override;
-  void enter() override;
   bool showStatusMessage(const QString& message, int duration = 0);
   vtkSlicerStenosisMeasurement3DLogic::EnclosingType getEnclosedSurface(vtkMRMLMarkupsShapeNode * wallShapeNode,
-                                                                        vtkMRMLSegmentationNode * lumenSegmentationNode, std::string segmentID, vtkPolyData * enclosedSurface);
+                                                                        vtkMRMLSegmentationNode * lumenSegmentationNode, std::string segmentID, vtkPolyData * enclosedSurface,
+                                                                        bool updateMesh = true);
   void showResult(vtkPolyData * wall, vtkPolyData * lumen, vtkVariantArray * results);
   void createLesionModel(vtkMRMLMarkupsShapeNode * wallShapeNode, vtkPolyData * enclosedSurface,
                     vtkMRMLMarkupsFiducialNode * boundaryFiducialNode);
@@ -81,6 +85,9 @@ protected:
   vtkSmartPointer<vtkCallbackCommand> tubeObservation;
   static void onTubePointEndInteraction(vtkObject *caller,
                                         unsigned long event, void *clientData, void *callData);
+
+  void setDefaultParameters(vtkMRMLNode * node);
+  void updateGuiFromParameterNode();
 
 private:
   Q_DECLARE_PRIVATE(qSlicerStenosisMeasurement3DModuleWidget);
