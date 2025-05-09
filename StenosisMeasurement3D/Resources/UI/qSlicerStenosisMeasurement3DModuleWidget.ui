@@ -368,10 +368,7 @@ Note: this is intended for processing again at known locations. The study and th
     </spacer>
    </item>
    <item>
-    <widget class="QPushButton" name="applyButton">
-     <property name="enabled">
-      <bool>true</bool>
-     </property>
+    <widget class="ctkMenuButton" name="applyButton">
      <property name="toolTip">
       <string>Run the algorithm.</string>
      </property>
@@ -388,6 +385,11 @@ Note: this is intended for processing again at known locations. The study and th
    <extends>QWidget</extends>
    <header>ctkCollapsibleButton.h</header>
    <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ctkMenuButton</class>
+   <extends>QPushButton</extends>
+   <header>ctkMenuButton.h</header>
   </customwidget>
   <customwidget>
    <class>qMRMLNodeComboBox</class>

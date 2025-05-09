@@ -34,3 +34,4 @@ Place 2 points of a fidicial node to limit the extent of the study.
      - stenosis degree by volume
      - lesion volume per cm
      - stenosis per cm.
+ - A cache of the enclosed lumen is used for faster subsequent processing. It is transparently invalidated on many events. However, Undo/Redo operations, whether in the 'Segment editor' or application-wide, are not detected. In such circumstances, the cache *must* be explicitly cleared, either using the provided menu action or by changing any input node back and forth.

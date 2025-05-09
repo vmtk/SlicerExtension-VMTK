@@ -48,7 +48,7 @@ public:
   static vtkSlicerStenosisMeasurement3DLogic *New();
   vtkTypeMacro(vtkSlicerStenosisMeasurement3DLogic, vtkSlicerModuleLogic);
   void PrintSelf(ostream& os, vtkIndent indent) override;
-  
+
   bool UpdateBoundaryControlPointPosition(int pointIndex, vtkMRMLMarkupsFiducialNode * fiducialNode,
                                           vtkMRMLMarkupsShapeNode * shapeNode);
   // The caller must pass in an enclosed surface.
@@ -85,7 +85,7 @@ protected:
   void UpdateFromMRMLScene() override;
   void OnMRMLSceneNodeAdded(vtkMRMLNode* node) override;
   void OnMRMLSceneNodeRemoved(vtkMRMLNode* node) override;
-  
+
   bool CalculateClippedSplineLength(vtkMRMLMarkupsFiducialNode * fiducialNode,
                                     vtkMRMLMarkupsShapeNode * shapeNode,
                                     vtkDoubleArray * result);

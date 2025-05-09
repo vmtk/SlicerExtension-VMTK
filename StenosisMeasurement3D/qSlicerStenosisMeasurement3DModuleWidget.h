@@ -62,14 +62,20 @@ protected slots:
   void onUpdateBoundary(int index);
   void onParameterNodeAddedByUser(vtkMRMLNode * node);
   void onParameterNodeChanged(vtkMRMLNode * node);
+  void clearLumenCache();
 
 protected:
   QScopedPointer<qSlicerStenosisMeasurement3DModuleWidgetPrivate> d_ptr;
 
   bool showStatusMessage(const QString& message, int duration = 0);
-  vtkSlicerStenosisMeasurement3DLogic::EnclosingType getEnclosedSurface(vtkMRMLMarkupsShapeNode * wallShapeNode,
-                                                                        vtkMRMLSegmentationNode * lumenSegmentationNode, std::string segmentID, vtkPolyData * enclosedSurface,
-                                                                        bool updateMesh = true);
+  vtkSlicerStenosisMeasurement3DLogic::EnclosingType
+  createEnclosedSurface(vtkMRMLMarkupsShapeNode * wallShapeNode,
+                        vtkMRMLSegmentationNode * lumenSegmentationNode, std::string segmentID,
+                        vtkPolyData * enclosedSurface, bool updateMesh = true);
+  bool getEnclosedSurface(vtkMRMLMarkupsShapeNode * wallShapeNode,
+                          vtkMRMLSegmentationNode * lumenSegmentationNode, std::string segmentID,
+                          vtkPolyData * enclosedSurface, bool updateMesh = true); // From cache or create.
+
   void showResult(vtkPolyData * wall, vtkPolyData * lumen, vtkVariantArray * results);
   void createLesionModel(vtkMRMLMarkupsShapeNode * wallShapeNode, vtkPolyData * enclosedSurface,
                     vtkMRMLMarkupsFiducialNode * boundaryFiducialNode);
@@ -79,9 +85,13 @@ protected:
   vtkSmartPointer<vtkCallbackCommand> fiducialObservation;
   static void onFiducialPointEndInteraction(vtkObject *caller,
                                             unsigned long event, void *clientData, void *callData);
-  
+
   vtkSmartPointer<vtkCallbackCommand> tubeObservation;
   static void onTubePointEndInteraction(vtkObject *caller,
+                                        unsigned long event, void *clientData, void *callData);
+
+  vtkSmartPointer<vtkCallbackCommand> segmentationRepresentationObservation;
+  static void onSegmentationRepresentationModified(vtkObject *caller,
                                         unsigned long event, void *clientData, void *callData);
 
   void setDefaultParameters(vtkMRMLNode * node);

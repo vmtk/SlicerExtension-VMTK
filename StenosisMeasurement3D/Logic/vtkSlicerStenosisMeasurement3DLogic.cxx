@@ -156,12 +156,12 @@ bool vtkSlicerStenosisMeasurement3DLogic::Process(vtkMRMLMarkupsShapeNode * wall
   double p2[3] = { 0.0 };
   boundaryFiducialNode->GetNthControlPointPositionWorld(0, p1);
   boundaryFiducialNode->GetNthControlPointPositionWorld(1, p2);
-  
+
   vtkPoints * splinePoints = spline->GetPoints();
   // Get boundaries where polydatas will be cut.
   const vtkIdType p1IdType = spline->FindPoint(p1);
   const vtkIdType p2IdType = spline->FindPoint(p2);
-  
+
   // Get adjacent points to boundaries to calculate normals.
   /*
    * N.B: GetPoint() has a nasty documented version,
@@ -184,7 +184,7 @@ bool vtkSlicerStenosisMeasurement3DLogic::Process(vtkMRMLMarkupsShapeNode * wall
   // The normal 'looks' at the first parameter.
   vtkMath::Subtract(p1Neighbour, p1, startDirection);
   vtkMath::Subtract(p2Neighbour, p2, endDirection);
-  
+
   // Open surface: Clip wall and lumen at p1. Clip the result at p2.
   vtkNew<vtkPolyData> wallIntermediate;
   if (!this->ClipClosedSurface(wallOpenSurface, wallIntermediate, p1, startDirection, false))
@@ -195,18 +195,18 @@ bool vtkSlicerStenosisMeasurement3DLogic::Process(vtkMRMLMarkupsShapeNode * wall
   {
     return false;
   }
-  
+
   vtkNew<vtkPolyData> lumenIntermediate;
   if (!this->ClipClosedSurface(enclosedSurface, lumenIntermediate, p1, startDirection, false))
   {
     return false;
   }
-   
+
   if (!this->ClipClosedSurface(lumenIntermediate, outputLumenOpenPolyData, p2, endDirection, false))
   {
     return false;
   }
-  
+
   // Closed surface
   if (!this->ClipClosedSurfaceWithClosedOutput(wallClosedSurface, outputWallClosedPolyData, p1, startDirection, p2, endDirection))
   {
@@ -253,13 +253,13 @@ bool vtkSlicerStenosisMeasurement3DLogic::ClipClosedSurface(vtkPolyData * input,
   vtkNew<vtkPlane> plane;
   plane->SetOrigin(origin);
   plane->SetNormal(normal);
-  
+
   vtkNew<vtkClipPolyData> clipper;
   clipper->SetClipFunction(plane);
   clipper->SetInputData(input);
   clipper->GenerateClippedOutputOn();
   clipper->Update();
-  
+
   if (clipped)
   {
     output->DeepCopy(clipper->GetClippedOutput());
@@ -341,17 +341,17 @@ bool vtkSlicerStenosisMeasurement3DLogic::ClipClosedSurfaceWithClosedOutput(vtkP
   planes->AddItem(startPlane);
   planes->AddItem(endPlane);
   planes->Modified();
-  
+
   vtkNew<vtkClipClosedSurface> clipper;
   clipper->SetClippingPlanes(planes);
   clipper->SetInputData(input);
   clipper->Update();
-  
+
   vtkNew<vtkTriangleFilter> triangleFilter;
   triangleFilter->SetInputData(clipper->GetOutput());
   triangleFilter->Update();
   output->DeepCopy(triangleFilter->GetOutput());
-  
+
   return true;
 }
 
@@ -360,7 +360,7 @@ bool vtkSlicerStenosisMeasurement3DLogic::CalculateClippedSplineLength(vtkMRMLMa
                                                                          vtkMRMLMarkupsShapeNode* shapeNode,
                                                                          vtkDoubleArray * result)
 {
-  
+
   if (fiducialNode == nullptr || shapeNode == nullptr
     || (fiducialNode->GetNumberOfControlPoints() < 2) || !result)
   {
@@ -379,22 +379,22 @@ bool vtkSlicerStenosisMeasurement3DLogic::CalculateClippedSplineLength(vtkMRMLMa
   vtkIdType p1SplineId = spline->FindPoint(p1Fiducial);
   double p1Spline[3] = { 0.0 };
   spline->GetPoint(p1SplineId, p1Spline);
-  
+
   double p2Fiducial[3] = { 0.0 };
   fiducialNode->GetNthControlPointPositionWorld(1, p2Fiducial);
   vtkIdType p2SplineId = spline->FindPoint(p2Fiducial);
   double p2Spline[3] = { 0.0 };
   spline->GetPoint(p2SplineId, p2Spline);
-  
+
   if (p1SplineId == p2SplineId)
   {
     vtkErrorMacro("Identical spline ids.");
     return false;
   }
-  
+
   vtkIdType startSplineId = vtkMath::Min(p1SplineId, p2SplineId);
   vtkIdType endSplineId = vtkMath::Max(p1SplineId, p2SplineId);
-  
+
   double length = 0.0;
   for (vtkIdType splineId = startSplineId; splineId < endSplineId; splineId++)
   {
@@ -700,7 +700,7 @@ bool vtkSlicerStenosisMeasurement3DLogic::CreateLesion(vtkMRMLMarkupsShapeNode *
   // Put a ficucial point on the nearest point of the wall spline.
   this->UpdateBoundaryControlPointPosition(0, boundaryFiducialNode, wallShapeNode);
   this->UpdateBoundaryControlPointPosition(1, boundaryFiducialNode, wallShapeNode);
-  
+
   // Get wall polydata from shape markups node.
   vtkPolyData * wallOpenSurface = wallShapeNode->GetShapeWorld();
   vtkPolyData * wallClosedSurface = wallShapeNode->GetCappedTubeWorld();
@@ -710,12 +710,12 @@ bool vtkSlicerStenosisMeasurement3DLogic::CreateLesion(vtkMRMLMarkupsShapeNode *
   double p2[3] = { 0.0 };
   boundaryFiducialNode->GetNthControlPointPositionWorld(0, p1);
   boundaryFiducialNode->GetNthControlPointPositionWorld(1, p2);
-  
+
   vtkPoints * splinePoints = spline->GetPoints();
   // Get boundaries where polydatas will be cut.
   const vtkIdType p1IdType = spline->FindPoint(p1);
   const vtkIdType p2IdType = spline->FindPoint(p2);
-  
+
   // Get adjacent points to boundaries to calculate normals.
   /*
    * N.B: GetPoint() has a nasty documented version,
@@ -738,7 +738,7 @@ bool vtkSlicerStenosisMeasurement3DLogic::CreateLesion(vtkMRMLMarkupsShapeNode *
   // The normal 'looks' at the first parameter.
   vtkMath::Subtract(p1Neighbour, p1, startDirection);
   vtkMath::Subtract(p2Neighbour, p2, endDirection);
-  
+
   // Open surface: Clip wall and lumen at p1. Clip the result at p2.
   vtkNew<vtkPolyData> wallIntermediate;
   vtkNew<vtkPolyData> wallOpenInBounds;
@@ -750,14 +750,14 @@ bool vtkSlicerStenosisMeasurement3DLogic::CreateLesion(vtkMRMLMarkupsShapeNode *
   {
     return false;
   }
-  
+
   vtkNew<vtkPolyData> lumenIntermediate;
   vtkNew<vtkPolyData> lumenOpenInBounds;
   if (!this->ClipClosedSurface(enclosedSurface, lumenIntermediate, p1, startDirection, false))
   {
     return false;
   }
-  
+
   if (!this->ClipClosedSurface(lumenIntermediate, lumenOpenInBounds, p2, endDirection, false))
   {
     return false;
@@ -799,6 +799,6 @@ bool vtkSlicerStenosisMeasurement3DLogic::CreateLesion(vtkMRMLMarkupsShapeNode *
 
   lesion->Initialize();
   lesion->DeepCopy(normals->GetOutput());
-  
+
   return true;
 }
