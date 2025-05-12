@@ -87,8 +87,9 @@ protected:
   static void onFiducialPointEndInteraction(vtkObject *caller,
                                             unsigned long event, void *clientData, void *callData);
 
-  vtkSmartPointer<vtkCallbackCommand> tubeObservation;
-  static void onTubePointEndInteraction(vtkObject *caller,
+  vtkSmartPointer<vtkCallbackCommand> tubePointEndInteractionObservation;
+  vtkSmartPointer<vtkCallbackCommand> tubeModifiedObservation;
+  static void onTubeModified(vtkObject *caller,
                                         unsigned long event, void *clientData, void *callData);
 
   vtkSmartPointer<vtkCallbackCommand> segmentationRepresentationObservation;

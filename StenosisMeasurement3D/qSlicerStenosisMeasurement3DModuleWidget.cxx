@@ -136,9 +136,12 @@ void qSlicerStenosisMeasurement3DModuleWidget::setup()
   this->fiducialObservation->SetCallback(qSlicerStenosisMeasurement3DModuleWidget::onFiducialPointEndInteraction);
 
   // Put p1 and p2 ficucial points on the tube spline at nearest point when the tube is updated.
-  this->tubeObservation = vtkSmartPointer<vtkCallbackCommand>::New();
-  this->tubeObservation->SetClientData( reinterpret_cast<void *>(this) );
-  this->tubeObservation->SetCallback(qSlicerStenosisMeasurement3DModuleWidget::onTubePointEndInteraction);
+  this->tubePointEndInteractionObservation = vtkSmartPointer<vtkCallbackCommand>::New();
+  this->tubePointEndInteractionObservation->SetClientData( reinterpret_cast<void *>(this) );
+  this->tubePointEndInteractionObservation->SetCallback(qSlicerStenosisMeasurement3DModuleWidget::onTubeModified);
+  this->tubeModifiedObservation = vtkSmartPointer<vtkCallbackCommand>::New();
+  this->tubeModifiedObservation->SetClientData( reinterpret_cast<void *>(this) );
+  this->tubeModifiedObservation->SetCallback(qSlicerStenosisMeasurement3DModuleWidget::onTubeModified);
 
   this->segmentationRepresentationObservation = vtkSmartPointer<vtkCallbackCommand>::New();
   this->segmentationRepresentationObservation->SetClientData( reinterpret_cast<void *>(this) );
@@ -426,7 +429,9 @@ void qSlicerStenosisMeasurement3DModuleWidget::onSegmentationNodeChanged(vtkMRML
   }
   this->clearLumenCache();
   if (node)
-  node->AddObserver(vtkSegmentation::RepresentationModified, this->segmentationRepresentationObservation);
+  {
+    node->AddObserver(vtkSegmentation::RepresentationModified, this->segmentationRepresentationObservation);
+  }
 }
 
 //-----------------------------------------------------------
@@ -505,7 +510,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::onFiducialPointEndInteraction(vtk
 }
 
 //-----------------------------------------------------------------------------
-void qSlicerStenosisMeasurement3DModuleWidget::onTubePointEndInteraction(vtkObject *caller,
+void qSlicerStenosisMeasurement3DModuleWidget::onTubeModified(vtkObject *caller,
                                                                          unsigned long event, void *clientData, void *callData)
 {
   qSlicerStenosisMeasurement3DModuleWidget * client = reinterpret_cast<qSlicerStenosisMeasurement3DModuleWidget*>(clientData);
@@ -593,14 +598,16 @@ void qSlicerStenosisMeasurement3DModuleWidget::onShapeNodeChanged(vtkMRMLNode * 
   if (d->parameterNode->GetInputShapeNode())
   {
     // Disconnect the currently observed node.
-    d->parameterNode->GetInputShapeNode()->RemoveObserver(this->tubeObservation);
+    d->parameterNode->GetInputShapeNode()->RemoveObserver(this->tubePointEndInteractionObservation);
+    d->parameterNode->GetInputShapeNode()->RemoveObserver(this->tubeModifiedObservation);
   }
   d->parameterNode->SetInputShapeNodeID(node ? node->GetID() : nullptr);
   vtkMRMLMarkupsShapeNode * shapeNode = vtkMRMLMarkupsShapeNode::SafeDownCast(node);
   if (shapeNode)
   {
     // Connect the current node.
-    shapeNode->AddObserver(vtkMRMLMarkupsNode::PointEndInteractionEvent, this->tubeObservation);
+    shapeNode->AddObserver(vtkMRMLMarkupsNode::PointEndInteractionEvent, this->tubePointEndInteractionObservation);
+    shapeNode->AddObserver(vtkCommand::ModifiedEvent, this->tubeModifiedObservation);
   }
   // Move control points to closest point on spline.
   vtkMRMLMarkupsFiducialNode * fiducialNode = vtkMRMLMarkupsFiducialNode::SafeDownCast(d->parameterNode->GetInputFiducialNode());
