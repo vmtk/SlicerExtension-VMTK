@@ -21,7 +21,6 @@ public:
     void PrintSelf(ostream& os, vtkIndent indent) override;
     
     vtkMRMLNode* CreateNodeInstance() override;
-    void SetScene(vtkMRMLScene * scene) override;
 
     /// Set node attributes from XML attributes
     void ReadXMLAttributes( const char** atts) override;
@@ -30,7 +29,7 @@ public:
     void WriteXML(ostream& of, int indent) override;
     
     vtkMRMLCopyContentMacro(vtkMRMLStenosisMeasurement3DParameterNode);
-    const char* GetNodeTagName() override {return "Parameter set";}
+    const char* GetNodeTagName() override {return "Study";}
 
     void SetInputShapeNodeID(const char *nodeID);
     const char *GetInputShapeNodeID();

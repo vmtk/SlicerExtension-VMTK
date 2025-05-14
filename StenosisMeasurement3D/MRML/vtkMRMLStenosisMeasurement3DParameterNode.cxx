@@ -37,23 +37,12 @@ vtkMRMLStenosisMeasurement3DParameterNode::vtkMRMLStenosisMeasurement3DParameter
 vtkMRMLStenosisMeasurement3DParameterNode::~vtkMRMLStenosisMeasurement3DParameterNode() = default;
 
 //----------------------------------------------------------------------------
-void vtkMRMLStenosisMeasurement3DParameterNode::SetScene(vtkMRMLScene* scene)
-{
-  Superclass::SetScene(scene);
-  if (scene && !this->GetName())
-  {
-    const std::string name = scene->GenerateUniqueName(this->GetNodeTagName());
-    this->SetName(name.c_str());
-  }
-}
-
-
-//----------------------------------------------------------------------------
 void vtkMRMLStenosisMeasurement3DParameterNode::PrintSelf(ostream& os, vtkIndent indent)
 {
   Superclass::PrintSelf(os,indent);
   vtkMRMLPrintBeginMacro(os, indent);
   vtkMRMLPrintStdStringMacro(InputSegmentID);
+  vtkMRMLPrintIntMacro(OutputTableRowId);
   vtkMRMLPrintEndMacro();
 }
 
@@ -67,6 +56,7 @@ void vtkMRMLStenosisMeasurement3DParameterNode::ReadXMLAttributes(const char** a
   
   vtkMRMLReadXMLBeginMacro(atts);
   vtkMRMLReadXMLStringMacro(segmentID, InputSegmentID);
+  vtkMRMLReadXMLIntMacro(tableRowId, OutputTableRowId)
   vtkMRMLReadXMLEndMacro();
   
   this->EndModify(disabledModify);
@@ -78,6 +68,7 @@ void vtkMRMLStenosisMeasurement3DParameterNode::WriteXML(ostream& of, int nInden
   Superclass::WriteXML(of, nIndent);
   vtkMRMLWriteXMLBeginMacro(of);
   vtkMRMLWriteXMLStringMacro(segmentID, InputSegmentID);
+  vtkMRMLWriteXMLIntMacro(tableRowId, OutputTableRowId);
   vtkMRMLWriteXMLEndMacro();
 }
 
@@ -89,6 +80,7 @@ void vtkMRMLStenosisMeasurement3DParameterNode::CopyContent(vtkMRMLNode* anode, 
   
   vtkMRMLCopyBeginMacro(anode);
   vtkMRMLCopyStringMacro(InputSegmentID);
+  vtkMRMLCopyIntMacro(OutputTableRowId);
   vtkMRMLCopyEndMacro();
 }
 
