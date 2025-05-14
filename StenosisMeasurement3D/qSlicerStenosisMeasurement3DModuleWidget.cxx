@@ -725,7 +725,8 @@ qSlicerStenosisMeasurement3DModuleWidget::createEnclosedSurface(vtkMRMLMarkupsSh
   }
   if (enclosingType == vtkSlicerStenosisMeasurement3DLogic::Distinct)
   {
-    std::cerr << "Input tube and input lumen do not intersect." << std::endl;
+    // They don't intersect or vtkBooleanOperationPolyDataFilter could not handle them.
+    std::cerr << "Input tube and input lumen could not be intersected." << std::endl;
     return enclosingType;
   }
   enclosedSurface->Initialize();
@@ -764,7 +765,8 @@ bool qSlicerStenosisMeasurement3DModuleWidget::getEnclosedSurface(vtkMRMLMarkups
     }
     if (enclosingType == vtkSlicerStenosisMeasurement3DLogic::Distinct)
     {
-      this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Input tube and input lumen do not intersect."), 5000);
+      // They don't intersect or vtkBooleanOperationPolyDataFilter could not handle them.
+      this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Error: input tube and input lumen could not be intersected."), 5000);
       return false;
     }
     // The caller must cache the enclosed surface.

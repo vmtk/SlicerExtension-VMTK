@@ -33,6 +33,7 @@
 #include <vtkTable.h>
 #include <vtkMRMLI18N.h>
 #include <vtkMassProperties.h>
+#include <vtkPolyDataConnectivityFilter.h>
 #include <vtkExtractEnclosedPoints.h>
 #include <vtkBooleanOperationPolyDataFilter.h>
 #include <vtkCleanPolyData.h>
@@ -40,7 +41,6 @@
 #include <vtkSegmentationConverter.h>
 #include <vtkContourTriangulator.h>
 #include <vtkAppendPolyData.h>
-#include <vtkCleanPolyData.h>
 #include <vtkFeatureEdges.h>
 #include <vtkPointData.h>
 #include <vtkPolyDataNormals.h>
@@ -597,27 +597,50 @@ vtkSlicerStenosisMeasurement3DLogic::GetClosedSurfaceEnclosingType(vtkPolyData* 
   int intersectionPointCount = 0;
 
   vtkNew<vtkTriangleFilter> triangulatorFirst;
-  triangulatorFirst->SetInputData(first);;
+  triangulatorFirst->SetInputData(first);
   triangulatorFirst->Update();
 
+  /*
+   * Using the largest region prevents crashes when there are holes in the
+   * segment. A segment with a detached largest region outside of the tube is
+   * considered out of purpose for the module.
+   */
+  vtkNew<vtkPolyDataConnectivityFilter> regionExtractorFirst;
+  regionExtractorFirst->SetExtractionModeToLargestRegion();
+  regionExtractorFirst->SetInputConnection(triangulatorFirst->GetOutputPort());
+  regionExtractorFirst->Update();
+
   vtkNew<vtkTriangleFilter> triangulatorSecond;
-  triangulatorSecond->SetInputData(second);;
+  triangulatorSecond->SetInputData(second);
   triangulatorSecond->Update();
 
+  vtkNew<vtkPolyDataConnectivityFilter> regionExtractorSecond;
+  regionExtractorSecond->SetExtractionModeToLargestRegion();
+  regionExtractorSecond->SetInputConnection(triangulatorSecond->GetOutputPort());
+  regionExtractorSecond->Update();
+
+  vtkNew<vtkCleanPolyData> cleanerFirst;
+  cleanerFirst->SetInputConnection(regionExtractorFirst->GetOutputPort());
+  cleanerFirst->Update();
+
+  vtkNew<vtkCleanPolyData> cleanerSecond;
+  cleanerSecond->SetInputConnection(regionExtractorSecond->GetOutputPort());
+  cleanerSecond->Update();
+
   {
-    vtkNew<vtkExtractEnclosedPoints> extractor;
-    extractor->SetInputData(first);
-    extractor->SetSurfaceData(second);
-    extractor->Update();
-    firstInSecondPointCount = extractor->GetOutput()->GetNumberOfPoints();
+    vtkNew<vtkExtractEnclosedPoints> pointExtractor;
+    pointExtractor->SetInputConnection(cleanerFirst->GetOutputPort());
+    pointExtractor->SetSurfaceConnection(cleanerSecond->GetOutputPort());
+    pointExtractor->Update();
+    firstInSecondPointCount = pointExtractor->GetOutput()->GetNumberOfPoints();
   }
 
   {
-    vtkNew<vtkExtractEnclosedPoints> extractor;
-    extractor->SetInputData(second);
-    extractor->SetSurfaceData(first);
-    extractor->Update();
-    secondInFirstPointCount = extractor->GetOutput()->GetNumberOfPoints();
+    vtkNew<vtkExtractEnclosedPoints> pointExtractor;
+    pointExtractor->SetInputConnection(cleanerSecond->GetOutputPort());
+    pointExtractor->SetSurfaceConnection(cleanerFirst->GetOutputPort());
+    pointExtractor->Update();
+    secondInFirstPointCount = pointExtractor->GetOutput()->GetNumberOfPoints();
   }
 
   /*
@@ -629,8 +652,8 @@ vtkSlicerStenosisMeasurement3DLogic::GetClosedSurfaceEnclosingType(vtkPolyData* 
    */
   vtkNew<vtkBooleanOperationPolyDataFilter> boolFilter;
   boolFilter->SetOperationToIntersection();
-  boolFilter->SetInputConnection(triangulatorFirst->GetOutputPort());
-  boolFilter->AddInputConnection(1, triangulatorSecond->GetOutputPort());
+  boolFilter->SetInputConnection(regionExtractorFirst->GetOutputPort());
+  boolFilter->AddInputConnection(1, regionExtractorSecond->GetOutputPort());
   boolFilter->Update();
   // 0 means completely distinct or one is completely enclosed in the other.
   intersectionPointCount = boolFilter->GetOutput()->GetNumberOfPoints();
