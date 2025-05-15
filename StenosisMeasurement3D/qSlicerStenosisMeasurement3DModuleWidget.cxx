@@ -557,7 +557,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::onSegmentationRepresentationModif
 void qSlicerStenosisMeasurement3DModuleWidget::onFiducialNodeChanged(vtkMRMLNode * node)
 {
   Q_D(qSlicerStenosisMeasurement3DModuleWidget);
-  if (!d->parameterNode || (d->parameterNode->GetInputFiducialNode() == node))
+  if (!d->parameterNode)
   {
     return;
   }
@@ -580,10 +580,6 @@ void qSlicerStenosisMeasurement3DModuleWidget::onFiducialNodeChanged(vtkMRMLNode
     this->logic->UpdateBoundaryControlPointPosition(0, fiducialNode, shapeNode);
     this->logic->UpdateBoundaryControlPointPosition(1, fiducialNode, shapeNode);
   }
-  if (d->parameterNode)
-  {
-    d->parameterNode->SetInputFiducialNodeID(node ? node->GetID() : nullptr);
-  }
   this->clearLumenCache();
 }
 
@@ -591,7 +587,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::onFiducialNodeChanged(vtkMRMLNode
 void qSlicerStenosisMeasurement3DModuleWidget::onShapeNodeChanged(vtkMRMLNode * node)
 {
   Q_D(qSlicerStenosisMeasurement3DModuleWidget);
-  if (!d->parameterNode || (d->parameterNode->GetInputShapeNode() == node))
+  if (!d->parameterNode)
   {
     return;
   }
@@ -615,10 +611,6 @@ void qSlicerStenosisMeasurement3DModuleWidget::onShapeNodeChanged(vtkMRMLNode * 
   {
     this->logic->UpdateBoundaryControlPointPosition(0, fiducialNode, shapeNode);
     this->logic->UpdateBoundaryControlPointPosition(1, fiducialNode, shapeNode);
-  }
-  if (d->parameterNode)
-  {
-    d->parameterNode->SetInputShapeNodeID(node ? node->GetID() : nullptr);
   }
   this->clearLumenCache();
 }
