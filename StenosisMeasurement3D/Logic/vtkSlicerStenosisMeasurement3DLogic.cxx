@@ -18,6 +18,7 @@
 // StenosisMeasurement3D Logic includes
 #include "vtkSlicerStenosisMeasurement3DLogic.h"
 #include "vtkMRMLStenosisMeasurement3DParameterNode.h"
+#include <vtkMRMLStenosisMeasurement3DLesionModelDisplayNode.h>
 
 // MRML includes
 #include <vtkMRMLScene.h>
@@ -126,6 +127,7 @@ void vtkSlicerStenosisMeasurement3DLogic::RegisterNodes()
   if (this->GetMRMLScene())
   {
     this->GetMRMLScene()->RegisterNodeClass(vtkSmartPointer<vtkMRMLStenosisMeasurement3DParameterNode>::New());
+    this->GetMRMLScene()->RegisterNodeClass(vtkSmartPointer<vtkMRMLStenosisMeasurement3DLesionModelDisplayNode>::New());
   }
 }
 

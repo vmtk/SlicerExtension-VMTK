@@ -44,6 +44,7 @@
 #include <vtkMRMLSelectionNode.h>
 #include <vtkMRMLUnitNode.h>
 #include <vtkMRMLStenosisMeasurement3DParameterNode.h>
+#include <vtkMRMLStenosisMeasurement3DLesionModelDisplayNode.h>
 #include <qSlicerExtensionsManagerModel.h>
 
 //-----------------------------------------------------------------------------
@@ -383,6 +384,23 @@ void qSlicerStenosisMeasurement3DModuleWidget::createLesionModel(vtkMRMLMarkupsS
                           lesion);
   model->CreateDefaultDisplayNodes();
   model->SetAndObserveMesh(lesion);
+
+  vtkMRMLNode * defaultNode = this->mrmlScene()->GetDefaultNodeByClass("vtkMRMLStenosisMeasurement3DLesionModelDisplayNode");
+  if (!defaultNode)
+  {
+    return;
+  }
+  vtkMRMLStenosisMeasurement3DLesionModelDisplayNode * defaultDisplayNode
+    = vtkMRMLStenosisMeasurement3DLesionModelDisplayNode::SafeDownCast(defaultNode);
+  if (!defaultDisplayNode)
+  {
+    return;
+  }
+  // Apply the template display node once only to keep any user modifications after creation.
+  if (model->GetDisplayNode() && defaultDisplayNode->RegisterModel(model->GetID()))
+  {
+    model->GetDisplayNode()->CopyContent(defaultDisplayNode);
+  }
 }
 
 //-------------------------- From util.py -------------------------------------
