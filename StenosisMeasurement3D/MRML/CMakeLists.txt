@@ -11,6 +11,8 @@ set(${KIT}_INCLUDE_DIRECTORIES
 set(${KIT}_SRCS
   vtkMRML${MODULE_NAME}ParameterNode.cxx
   vtkMRML${MODULE_NAME}ParameterNode.h
+  vtkMRML${MODULE_NAME}LesionModelDisplayNode.cxx
+  vtkMRML${MODULE_NAME}LesionModelDisplayNode.h
   )
 
 set(${KIT}_TARGET_LIBRARIES
