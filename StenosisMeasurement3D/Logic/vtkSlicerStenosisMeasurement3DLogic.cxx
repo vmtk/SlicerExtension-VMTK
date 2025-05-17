@@ -654,8 +654,8 @@ vtkSlicerStenosisMeasurement3DLogic::GetClosedSurfaceEnclosingType(vtkPolyData* 
    */
   vtkNew<vtkBooleanOperationPolyDataFilter> boolFilter;
   boolFilter->SetOperationToIntersection();
-  boolFilter->SetInputConnection(regionExtractorFirst->GetOutputPort());
-  boolFilter->AddInputConnection(1, regionExtractorSecond->GetOutputPort());
+  boolFilter->SetInputConnection(cleanerFirst->GetOutputPort());
+  boolFilter->AddInputConnection(1, cleanerSecond->GetOutputPort());
   boolFilter->Update();
   // 0 means completely distinct or one is completely enclosed in the other.
   intersectionPointCount = boolFilter->GetOutput()->GetNumberOfPoints();
