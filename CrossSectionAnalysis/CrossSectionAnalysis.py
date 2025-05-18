@@ -205,8 +205,9 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.updatePlotChartView(parameterNode)
     self.resetOutput()
     if parameterNode.HasParameter(ROLE_INITIALIZED):
-      self.onApply(True)
-      self.ui.moveToPointSliderWidget.setValue(float(pointIndex))
+      if parameterNode.GetNodeReference(ROLE_INPUT_CENTERLINE):
+        self.onApply(True)
+    self.ui.moveToPointSliderWidget.setValue(float(pointIndex))
 
   def cleanup(self):
     """
@@ -398,7 +399,6 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
   def onApply(self, replay = False):
     with slicer.util.tryWithErrorDisplay(_("Failed to compute results."), waitCursor=True):
-
       if not self.logic.isInputCenterlineValid():
         raise ValueError(_("Input is invalid."))
 
