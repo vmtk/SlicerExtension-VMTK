@@ -319,19 +319,6 @@ The input centerline is expected to be inside the lumen surface.</string>
          </widget>
         </item>
         <item>
-         <widget class="QComboBox" name="outputPlotSeriesTypeComboBox">
-          <property name="toolTip">
-           <string>Select the plot's Y axis</string>
-          </property>
-          <property name="currentIndex">
-           <number>-1</number>
-          </property>
-          <property name="sizeAdjustPolicy">
-           <enum>QComboBox::AdjustToContents</enum>
-          </property>
-         </widget>
-        </item>
-        <item>
          <widget class="QToolButton" name="togglePlotLayoutButton">
           <property name="toolTip">
            <string>Toggle between the plot layout and the previous one.</string>
@@ -343,7 +330,7 @@ The input centerline is expected to be inside the lumen surface.</string>
         </item>
        </layout>
       </item>
-      <item row="6" column="0" colspan="2">
+      <item row="7" column="0" colspan="2">
        <widget class="ctkCollapsibleGroupBox" name="optionsCollapsibleGroupBox">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
@@ -581,7 +568,7 @@ The 'Sphere' brush is enforced. Further customisation can be performed in the 'S
         </layout>
        </widget>
       </item>
-      <item row="7" column="0" colspan="2">
+      <item row="8" column="0" colspan="2">
        <widget class="QPushButton" name="applyButton">
         <property name="enabled">
          <bool>false</bool>
@@ -591,6 +578,25 @@ The 'Sphere' brush is enforced. Further customisation can be performed in the 'S
         </property>
         <property name="text">
          <string>Apply</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="1">
+       <widget class="QComboBox" name="outputPlotSeriesTypeComboBox">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="toolTip">
+         <string>Select the plot's Y axis</string>
+        </property>
+        <property name="currentIndex">
+         <number>-1</number>
+        </property>
+        <property name="sizeAdjustPolicy">
+         <enum>QComboBox::AdjustToContents</enum>
         </property>
        </widget>
       </item>
