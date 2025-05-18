@@ -717,13 +717,13 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.logic.inputCenterlineNode
         and self.logic.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode")
         and self.logic.lumenSurfaceNode):
-      self.logic.showStatusMessage(_(("Invalid centerline or lumen surface: cannot clip the lumen.",)))
+      self.logic.showStatusMessage((_("Invalid centerline or lumen surface: cannot clip the lumen."),))
       return
 
     with slicer.util.tryWithErrorDisplay(_("Failed to clip lumen in tube."), waitCursor=True):
       clippedLumen = vtk.vtkPolyData()
       if not self.logic.clipLumenInTube(clippedLumen):
-        self.logic.showStatusMessage(_(("Failed to clip the lumen inside the tube.",)))
+        self.logic.showStatusMessage((_("Failed to clip the lumen inside the tube."),))
         return
 
       clippedLumenName = slicer.mrmlScene.GenerateUniqueName("Clipped lumen")
@@ -1620,7 +1620,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     clipped = sm3Logic.GetClosedSurfaceEnclosingType(
                   tubeSurface, lumenSurface, clippedLumenRaw)
     if (clipped == sm3Logic.Distinct) or (clipped == sm3Logic.EnclosingType_Last):
-      return False
+      raise RuntimeError(_("The input wall surface and the input lumen surfaces could not be intersected."))
     else:
       # Clip any excess from vtkBooleanOperationPolyDataFilter at each end.
       # If the lumen is a loop, the result may be curious.
@@ -1645,11 +1645,9 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
         if not sm3Logic.UpdateClosedSurfaceMesh(clippedLumenFixed, clippedSurface):
           clippedSurface.Initialize()
           clippedSurface.DeepCopy(clippedLumenFixed)
-          return False
       else:
         clippedSurface.Initialize()
         clippedSurface.DeepCopy(clippedLumenRaw)
-        return False
 
     return True
 
@@ -1836,7 +1834,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     numberOfIds = ids.GetNumberOfIds()
     if numberOfIds == 0:
       return
-    statusMessage = str(numberOfIds) + " " + _("empty sections have been detected; consider improving the input lumen {nameOfSurface}." ).format(nameOfSurface=surfaceName)
+    statusMessage = str(numberOfIds) + " " + _("empty sections have been detected; consider improving the input surface {nameOfSurface}." ).format(nameOfSurface=surfaceName)
     consoleMessage = "Empty sections have been created at these point ids of the centerline: "
     idList = ""
     sorter = vtk.vtkSortDataArray()
@@ -1844,7 +1842,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     for i in range(numberOfIds):
       idList = idList + ", " + str(ids.GetId(i))
     idList = idList[2 : len(idList)]
-    consoleMessage = consoleMessage + idList + "; consider improving the input lumen (" + surfaceName +")."
+    consoleMessage = consoleMessage + idList + "; consider improving the input surface (" + surfaceName +")."
     self.showStatusMessage((statusMessage,))
     logging.warning(consoleMessage)
 
