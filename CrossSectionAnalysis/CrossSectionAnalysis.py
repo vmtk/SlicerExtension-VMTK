@@ -1047,7 +1047,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
   # Identify the regions of the input lumen based on polydata connectivity.
   def getRegionsOfLumenSurface(self):
     closedSurfacePolyData = vtk.vtkPolyData()
-    self.getClosedSurfacePolyData(closedSurfacePolyData)
+    self.getLumenClosedSurfacePolyData(closedSurfacePolyData)
     if (closedSurfacePolyData.GetNumberOfPoints() == 0):
       logging.error(_("Invalid surface polydata."))
       return
@@ -1610,7 +1610,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     if not self.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode"):
       raise ValueError(_("Input centerline node is not a Shape node."))
     lumenSurface = vtk.vtkPolyData()
-    self.getClosedSurfacePolyData(lumenSurface)
+    self.getLumenClosedSurfacePolyData(lumenSurface)
     if lumenSurface.GetNumberOfPoints() == 0:
       raise ValueError(_("Empty lumen surface retrieved."))
     tubeSurface = self.inputCenterlineNode.GetCappedTubeWorld()
@@ -1651,7 +1651,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
 
     return True
 
-  def getClosedSurfacePolyData(self, closedSurfacePolyData):
+  def getLumenClosedSurfacePolyData(self, closedSurfacePolyData):
     if (not self.lumenSurfaceNode):
       logging.error(_("Lumen surface node is not set."))
       return
@@ -1676,7 +1676,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     plane.SetNormal(normal)
 
     closedSurfacePolyData = vtk.vtkPolyData()
-    self.getClosedSurfacePolyData(closedSurfacePolyData)
+    self.getLumenClosedSurfacePolyData(closedSurfacePolyData)
 
     # If segmentation is transformed, apply it to the cross-section model. All computations are performed in the world coordinate system.
     if self.lumenSurfaceNode.GetParentTransformNode():
