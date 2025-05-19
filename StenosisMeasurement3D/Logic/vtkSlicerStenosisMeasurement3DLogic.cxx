@@ -602,31 +602,24 @@ vtkSlicerStenosisMeasurement3DLogic::GetClosedSurfaceEnclosingType(vtkPolyData* 
   triangulatorFirst->SetInputData(first);
   triangulatorFirst->Update();
 
-  /*
-   * Using the largest region prevents crashes when there are holes in the
-   * segment. A segment with a detached largest region outside of the tube is
-   * considered out of purpose for the module.
-   */
-  vtkNew<vtkPolyDataConnectivityFilter> regionExtractorFirst;
-  regionExtractorFirst->SetExtractionModeToLargestRegion();
-  regionExtractorFirst->SetInputConnection(triangulatorFirst->GetOutputPort());
-  regionExtractorFirst->Update();
-
   vtkNew<vtkTriangleFilter> triangulatorSecond;
   triangulatorSecond->SetInputData(second);
   triangulatorSecond->Update();
 
-  vtkNew<vtkPolyDataConnectivityFilter> regionExtractorSecond;
-  regionExtractorSecond->SetExtractionModeToLargestRegion();
-  regionExtractorSecond->SetInputConnection(triangulatorSecond->GetOutputPort());
-  regionExtractorSecond->Update();
-
+  /*
+   * Cleaning is seen sufficient to prevent crashes when there are holes in the
+   * segment.
+   * The largest region was previously used, but this generates too many
+   * artifacts at the ends or in an arch. A segment with a detached largest 
+   * region outside of the tube is considered out of purpose for the module.
+   */
+  
   vtkNew<vtkCleanPolyData> cleanerFirst;
-  cleanerFirst->SetInputConnection(regionExtractorFirst->GetOutputPort());
+  cleanerFirst->SetInputConnection(triangulatorFirst->GetOutputPort());
   cleanerFirst->Update();
 
   vtkNew<vtkCleanPolyData> cleanerSecond;
-  cleanerSecond->SetInputConnection(regionExtractorSecond->GetOutputPort());
+  cleanerSecond->SetInputConnection(triangulatorSecond->GetOutputPort());
   cleanerSecond->Update();
 
   {
