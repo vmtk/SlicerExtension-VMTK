@@ -277,11 +277,11 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.browseCollapsibleButton.collapsed = True
 
   def updatePlotChartNode(self, parameterNode):
-    plotChartNode = parameterNode.GetNodeReference("PlotChartNode")
+    plotChartNode = parameterNode.GetNodeReference(ROLE_OUTPUT_PLOT_CHART_NODE)
     if not plotChartNode:
       plotChartNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLPlotChartNode")
       plotChartNode.SetName(parameterNode.GetName()) # Name in the parameter set combobox.
-      parameterNode.SetNodeReferenceID("PlotChartNode", plotChartNode.GetID())
+      parameterNode.SetNodeReferenceID(ROLE_OUTPUT_PLOT_CHART_NODE, plotChartNode.GetID())
     self.logic.plotChartNode = plotChartNode
 
   def updatePlotChartView(self, parameterNode = None):
@@ -1891,6 +1891,7 @@ ROLE_INPUT_CENTERLINE = "InputCenterline"
 ROLE_INPUT_SEGMENTATION = "InputSegmentation"
 ROLE_INPUT_SEGMENT_ID = "InputSegment"
 ROLE_OUTPUT_TABLE = "OutputTable"
+ROLE_OUTPUT_PLOT_CHART_NODE = "OutputPlotChartNode"
 ROLE_OUTPUT_PLOT_SERIES = "OutputPlotSeries"
 ROLE_AXIAL_SLICE_NODE = "AxialSliceNode"
 ROLE_LONGITUDINAL_SLICE_NODE = "LongitudinalSliceNode"
