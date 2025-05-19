@@ -728,9 +728,17 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
       clippedLumenName = slicer.mrmlScene.GenerateUniqueName("Clipped lumen")
       if self.logic.lumenSurfaceNode.IsTypeOf("vtkMRMLSegmentationNode"):
-        segmentId = self.logic.lumenSurfaceNode.AddSegmentFromClosedSurfaceRepresentation(clippedLumen,
+        inputSegmentation = self.logic.lumenSurfaceNode
+        segmentId = inputSegmentation.AddSegmentFromClosedSurfaceRepresentation(clippedLumen,
                                     clippedLumenName)
         self.ui.segmentSelector.setCurrentSegmentID(segmentId)
+
+        preferredRepresentationName = slicer.vtkSegmentationConverter.GetSegmentationClosedSurfaceRepresentationName()
+        inputSegmentation.GetSegmentation().RemoveRepresentation(preferredRepresentationName)
+        if inputSegmentation.GetSegmentation().CreateRepresentation(preferredRepresentationName):
+          inputSegmentation.GetDisplayNode().SetPreferredDisplayRepresentationName3D(preferredRepresentationName)
+        else:
+          raise RuntimeError(_("Error creating the segmentation's preferred representation."))
       else:
         clippedModel = slicer.modules.models.logic().AddModel(clippedLumen)
         clippedModel.SetName(clippedLumenName)
@@ -1622,30 +1630,8 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     if (clipped == sm3Logic.Distinct) or (clipped == sm3Logic.EnclosingType_Last):
       raise RuntimeError(_("The input wall surface and the input lumen surfaces could not be intersected."))
     else:
-      # Clip any excess from vtkBooleanOperationPolyDataFilter at each end.
-      # If the lumen is a loop, the result may be curious.
-      spline = self.inputCenterlineNode.GetSplineWorld()
-      curveCoordinateSystemGenerator = slicer.vtkParallelTransportFrame()
-      curveCoordinateSystemGenerator.SetInputData(spline)
-      curveCoordinateSystemGenerator.Update()
-      curvePoly = curveCoordinateSystemGenerator.GetOutput()
-      pointData = curvePoly.GetPointData()
-      tangents = pointData.GetAbstractArray(curveCoordinateSystemGenerator.GetTangentsArrayName())
-      startTangent = tangents.GetTuple3(0)
-      lastTangent = tangents.GetTuple3(spline.GetNumberOfPoints() - 1)
-      endTangent = [lastTangent[0] * -1, lastTangent[1] * -1, lastTangent[2] * -1]
-      startPoint = curvePoly.GetPoints().GetPoint(0)
-      endPoint = curvePoly.GetPoints().GetPoint(spline.GetNumberOfPoints() - 1)
-
-      clippedLumenFixed = vtk.vtkPolyData()
-      if sm3Logic.ClipClosedSurfaceWithClosedOutput(clippedLumenRaw, clippedLumenFixed,
-                                                 startPoint, startTangent,
-                                                 endPoint, endTangent):
-        # Remesh the polydata using a segmentation.
-        if not sm3Logic.UpdateClosedSurfaceMesh(clippedLumenFixed, clippedSurface):
-          clippedSurface.Initialize()
-          clippedSurface.DeepCopy(clippedLumenFixed)
-      else:
+      # Remesh the polydata using a segmentation. (Even for an input model.)
+      if not sm3Logic.UpdateClosedSurfaceMesh(clippedLumenRaw, clippedSurface):
         clippedSurface.Initialize()
         clippedSurface.DeepCopy(clippedLumenRaw)
 

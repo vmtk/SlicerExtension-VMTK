@@ -213,7 +213,9 @@ The input centerline is expected to be inside the lumen surface.</string>
           <item>
            <widget class="QToolButton" name="clipLumenToolButton">
             <property name="toolTip">
-             <string>Clip the lumen inside the tube. A new segment or a new model is generated.</string>
+             <string>Clip the lumen inside the tube. A new segment or a new model is generated.
+
+There may be artifacts at the ends of the tube, or in the midst of a loop or arch. These should be manually fixed if necessary.</string>
             </property>
             <property name="text">
              <string>...</string>
