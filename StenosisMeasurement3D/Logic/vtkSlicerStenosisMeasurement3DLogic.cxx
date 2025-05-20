@@ -592,8 +592,6 @@ vtkSlicerStenosisMeasurement3DLogic::GetClosedSurfaceEnclosingType(vtkPolyData* 
     return EnclosingType::EnclosingType_Last;
   }
 
-  const int firstPointCount = first->GetNumberOfPoints();
-  const int secondPointCount = second->GetNumberOfPoints();
   int firstInSecondPointCount = 0;
   int secondInFirstPointCount = 0;
   int intersectionPointCount = 0;
@@ -621,6 +619,17 @@ vtkSlicerStenosisMeasurement3DLogic::GetClosedSurfaceEnclosingType(vtkPolyData* 
   vtkNew<vtkCleanPolyData> cleanerSecond;
   cleanerSecond->SetInputConnection(triangulatorSecond->GetOutputPort());
   cleanerSecond->Update();
+
+  int firstPointCount = -1;
+  if (cleanerFirst->GetOutput())
+  {
+    firstPointCount = cleanerFirst->GetOutput()->GetNumberOfPoints();
+  }
+  int secondPointCount = -1;
+  if (cleanerSecond->GetOutput())
+  {
+    secondPointCount = cleanerSecond->GetOutput()->GetNumberOfPoints();
+  }
 
   {
     vtkNew<vtkExtractEnclosedPoints> pointExtractor;
