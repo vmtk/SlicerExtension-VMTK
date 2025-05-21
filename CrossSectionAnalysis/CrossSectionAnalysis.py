@@ -199,12 +199,11 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
   def onParameterNodeChanged(self, parameterNode):
     # Distinguish between a new and used parameter node.
     pointIndex = 0
-    if parameterNode.HasParameter(ROLE_INITIALIZED):
-      pointIndex = parameterNode.GetParameter(ROLE_BROWSE_POINT_INDEX)
     self.setParameterNode(parameterNode)
     self.updatePlotChartView(parameterNode)
     self.resetOutput()
-    if parameterNode.HasParameter(ROLE_INITIALIZED):
+    if parameterNode and parameterNode.HasParameter(ROLE_INITIALIZED):
+      pointIndex = parameterNode.GetParameter(ROLE_BROWSE_POINT_INDEX)
       if parameterNode.GetNodeReference(ROLE_INPUT_CENTERLINE):
         self.onApply(True)
     self.ui.moveToPointSliderWidget.setValue(float(pointIndex))
