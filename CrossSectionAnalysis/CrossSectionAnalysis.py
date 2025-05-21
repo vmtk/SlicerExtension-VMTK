@@ -1438,7 +1438,6 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     outputPlotSeries.SetColor(0, 0.6, 1.0)
 
   def showTable(self):
-    # Create chart and add plot
     if not self.outputTableNode:
       return
     layoutWithTable = slicer.modules.tables.logic().GetLayoutWithTable(slicer.app.layoutManager().layout)
@@ -1447,7 +1446,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     slicer.app.applicationLogic().PropagateTableSelection()
 
   def isTableVisible(self):
-    if not self.outputPlotSeriesNode:
+    if not self.outputTableNode:
       return False
     # Find the table in the displayed views
     layoutManager = slicer.app.layoutManager()
