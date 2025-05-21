@@ -52,6 +52,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.logic = None
     self.crossSectionModelNode = None
     self.crossSectionColor = [0.2, 0.2, 1.0]
+    self.maximumInscribedSphereModelNode = None
+    self.maximumInscribedSphereColor = [0.2, 1.0, 0.4]
     self._parameterNode = None
     self._updatingGUIFromParameterNode = False
 
@@ -241,6 +243,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     Called just after the scene is closed.
     """
     self.crossSectionModelNode = None
+    self.maximumInscribedSphereModelNode = None
 
   def setParameterNode(self, inputParameterNode):
     """
@@ -321,7 +324,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.logic.rotationAngleDeg = float(self._parameterNode.GetParameter(ROLE_ROTATIONAL_ANGLE)) if self._parameterNode.GetParameter(ROLE_ROTATIONAL_ANGLE) else 0.0
     self.logic.axialSpinAngleDeg = float(self._parameterNode.GetParameter(ROLE_AXIAL_SPIN_ANGLE)) if self._parameterNode.GetParameter(ROLE_AXIAL_SPIN_ANGLE) else 0.0
     self.logic.longitudinalSpinAngleDeg = float(self._parameterNode.GetParameter(ROLE_LONGITUDINAL_SPIN_ANGLE)) if self._parameterNode.GetParameter(ROLE_LONGITUDINAL_SPIN_ANGLE) else 0.0
-    self.logic.setShowMaximumInscribedSphereDiameter(self._parameterNode.GetParameter(ROLE_SHOW_MIS_MODEL) == "True")
+    self.setShowMaximumInscribedSphereDiameter(self._parameterNode.GetParameter(ROLE_SHOW_MIS_MODEL) == "True")
     self.setShowCrossSection(self._parameterNode.GetParameter(ROLE_SHOW_CROSS_SECTION_MODEL) == "True")
     self.logic.axialSliceHorizontalFlip = (self._parameterNode.GetParameter(ROLE_AXIAL_HORIZONTAL_FLIP) == "True") if self._parameterNode.GetParameter(ROLE_AXIAL_HORIZONTAL_FLIP) else False
     self.logic.axialSliceVerticalFlip = (self._parameterNode.GetParameter(ROLE_AXIAL_VERTICAL_FLIP) == "True") if self._parameterNode.GetParameter(ROLE_AXIAL_VERTICAL_FLIP) else False
@@ -629,9 +632,9 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
     # Update maximum inscribed radius sphere model
     if self.logic.isCenterlineRadiusAvailable():
-      self.logic.updateMaximumInscribedSphereModel(pointIndex)
+      self.updateMaximumInscribedSphereModel(pointIndex)
     else:
-      self.logic.hideMaximumInscribedSphere()
+      self.deleteMaximumInscribedSphere()
 
     # Update cross-section model
     if self.ui.showCrossSectionButton.checked and self.logic.lumenSurfaceNode:
@@ -936,6 +939,50 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       slicer.mrmlScene.RemoveNode(self.crossSectionModelNode)
     self.crossSectionModelNode = None
 
+  def setShowMaximumInscribedSphereDiameter(self, checked):
+    self.logic.showMaximumInscribedSphere = checked
+    if self.maximumInscribedSphereModelNode and self.maximumInscribedSphereModelNode.GetDisplayNode() :
+      self.maximumInscribedSphereModelNode.GetDisplayNode().SetVisibility(self.logic.showMaximumInscribedSphere)
+    if not checked:
+      self.deleteMaximumInscribedSphere()
+
+  def deleteMaximumInscribedSphere(self):
+    if self.maximumInscribedSphereModelNode and self.maximumInscribedSphereModelNode.GetDisplayNode():
+      slicer.mrmlScene.RemoveNode(self.maximumInscribedSphereModelNode)
+    self.maximumInscribedSphereModelNode = None
+
+  def updateMaximumInscribedSphereModel(self, value):
+    if self.logic.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode"):
+      # 'Centerline' is an invisible spline of a Tube, not a lumen centerline.
+      return
+    pointIndex = int(value)
+    position, radius = self.logic.getPositionMaximumInscribedSphereRadius(pointIndex)
+
+    sphere = vtk.vtkSphereSource()
+    sphere.SetRadius(radius)
+    sphere.SetCenter(position)
+    sphere.SetPhiResolution(30)
+    sphere.SetThetaResolution(30)
+    sphere.Update()
+
+    if self.maximumInscribedSphereModelNode:
+      self.maximumInscribedSphereModelNode.SetAndObservePolyData(sphere.GetOutput())
+    else:
+      self.maximumInscribedSphereModelNode = slicer.modules.models.logic().AddModel(sphere.GetOutput())
+      self.maximumInscribedSphereModelNode.SetSaveWithScene(False)
+      # Set model visibility
+      sphereModelDisplayNode = self.maximumInscribedSphereModelNode.GetDisplayNode()
+      sphereModelDisplayNode.SetOpacity(0.33)
+      sphereModelDisplayNode.SetVisibility(self.logic.showMaximumInscribedSphere)
+      sphereModelDisplayNode.SetVisibility2D(True)
+      sphereModelDisplayNode.SetVisibility3D(True)
+      # Set model name
+      basename = _("Maximum inscribed sphere")
+      name = slicer.mrmlScene.GenerateUniqueName(basename)
+      self.maximumInscribedSphereModelNode.SetName(name)
+      # Set model color
+      sphereModelDisplayNode.SetColor(self.maximumInscribedSphereColor)
+
 #
 # CrossSectionAnalysisLogic
 #
@@ -965,9 +1012,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.currentSegmentID = ""
     self.crossSectionPolyDataCache = {}
     self.showCrossSection = False
-    self.maximumInscribedSphereModelNode = None
     self.showMaximumInscribedSphere = False
-    self.maximumInscribedSphereColor = [0.2, 1.0, 0.4]
     self.relativeOriginPointIndex = 0
     self.outputPlotSeriesType = MIS_DIAMETER
     # Slice browsing
@@ -1049,19 +1094,6 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
         self.updatePlot(self.outputPlotSeriesNode, self.outputTableNode)
     if self.isPlotVisible():
         self.showPlot()
-
-  def setShowMaximumInscribedSphereDiameter(self, checked):
-    self.showMaximumInscribedSphere = checked
-    if self.maximumInscribedSphereModelNode is not None:
-        self.maximumInscribedSphereModelNode.GetDisplayNode().SetVisibility(self.showMaximumInscribedSphere)
-    if not checked:
-      self.hideMaximumInscribedSphere()
-
-  def hideMaximumInscribedSphere(self):
-    if self.maximumInscribedSphereModelNode is not None:
-        displayNode = self.maximumInscribedSphereModelNode.GetDisplayNode()
-        if (displayNode): # ?
-          displayNode.SetVisibility(False)
 
   # Identify the regions of the input lumen based on polydata connectivity.
   def getRegionsOfLumenSurface(self):
@@ -1758,38 +1790,6 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       radiusB = controlPointRadiusValues.GetValue(controlPointIndexB)
       radius = radiusA * (controlPointFloatIndex - controlPointIndexA) + radiusB * (controlPointIndexB - controlPointFloatIndex)
     return position, radius
-
-  def updateMaximumInscribedSphereModel(self, value):
-    if self.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode"):
-      # 'Centerline' is an invisible spline of a Tube, not a lumen centerline.
-      return
-    pointIndex = int(value)
-
-    position, radius = self.getPositionMaximumInscribedSphereRadius(pointIndex)
-
-    sphere = vtk.vtkSphereSource()
-    sphere.SetRadius(radius)
-    sphere.SetCenter(position)
-    sphere.SetPhiResolution(30)
-    sphere.SetThetaResolution(30)
-    sphere.Update()
-
-    if self.maximumInscribedSphereModelNode:
-      self.maximumInscribedSphereModelNode.SetAndObservePolyData(sphere.GetOutput())
-    else:
-      self.maximumInscribedSphereModelNode = slicer.modules.models.logic().AddModel(sphere.GetOutput())
-      # Set model visibility
-      sphereModelDisplayNode = self.maximumInscribedSphereModelNode.GetDisplayNode()
-      sphereModelDisplayNode.SetOpacity(0.33)
-      sphereModelDisplayNode.SetVisibility(self.showMaximumInscribedSphere)
-      sphereModelDisplayNode.SetVisibility2D(True)
-      sphereModelDisplayNode.SetVisibility3D(True)
-      # Set model name
-      basename = _("Maximum inscribed sphere")
-      name = slicer.mrmlScene.GenerateUniqueName(basename)
-      self.maximumInscribedSphereModelNode.SetName(name)
-      # Set sphere color
-      sphereModelDisplayNode.SetColor(self.maximumInscribedSphereColor[0], self.maximumInscribedSphereColor[1], self.maximumInscribedSphereColor[2])
 
   # This information is added because it is easily available.
   # How useful is it ?
