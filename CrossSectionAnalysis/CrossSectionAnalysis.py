@@ -50,6 +50,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     ScriptedLoadableModuleWidget.__init__(self, parent)
     VTKObservationMixin.__init__(self)  # needed for parameter node observation
     self.logic = None
+    self.crossSectionModelNode = None
+    self.crossSectionColor = [0.2, 0.2, 1.0]
     self._parameterNode = None
     self._updatingGUIFromParameterNode = False
 
@@ -238,7 +240,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     """
     Called just after the scene is closed.
     """
-    # Clean up logic variables first. Avoids some Python console errors.
+    self.crossSectionModelNode = None
 
   def setParameterNode(self, inputParameterNode):
     """
@@ -320,7 +322,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.logic.axialSpinAngleDeg = float(self._parameterNode.GetParameter(ROLE_AXIAL_SPIN_ANGLE)) if self._parameterNode.GetParameter(ROLE_AXIAL_SPIN_ANGLE) else 0.0
     self.logic.longitudinalSpinAngleDeg = float(self._parameterNode.GetParameter(ROLE_LONGITUDINAL_SPIN_ANGLE)) if self._parameterNode.GetParameter(ROLE_LONGITUDINAL_SPIN_ANGLE) else 0.0
     self.logic.setShowMaximumInscribedSphereDiameter(self._parameterNode.GetParameter(ROLE_SHOW_MIS_MODEL) == "True")
-    self.logic.setShowCrossSection(self._parameterNode.GetParameter(ROLE_SHOW_CROSS_SECTION_MODEL) == "True")
+    self.setShowCrossSection(self._parameterNode.GetParameter(ROLE_SHOW_CROSS_SECTION_MODEL) == "True")
     self.logic.axialSliceHorizontalFlip = (self._parameterNode.GetParameter(ROLE_AXIAL_HORIZONTAL_FLIP) == "True") if self._parameterNode.GetParameter(ROLE_AXIAL_HORIZONTAL_FLIP) else False
     self.logic.axialSliceVerticalFlip = (self._parameterNode.GetParameter(ROLE_AXIAL_VERTICAL_FLIP) == "True") if self._parameterNode.GetParameter(ROLE_AXIAL_VERTICAL_FLIP) else False
     self.logic.relativeOriginPointIndex = int(self._parameterNode.GetParameter(ROLE_ORIGIN_POINT_INDEX)) if self._parameterNode.GetParameter(ROLE_ORIGIN_POINT_INDEX) else 0
@@ -633,9 +635,21 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
     # Update cross-section model
     if self.ui.showCrossSectionButton.checked and self.logic.lumenSurfaceNode:
-      self.logic.updateCrossSection(pointIndex)
+      crossSectionPolyData = self.logic.updateCrossSection(pointIndex)
+      if self.crossSectionModelNode is None:
+        self.crossSectionModelNode = slicer.modules.models.logic().AddModel(crossSectionPolyData)
+        basename = _("Cross-section")
+        name = slicer.mrmlScene.GenerateUniqueName(basename)
+        self.crossSectionModelNode.SetName(name)
+        self.crossSectionModelNode.SetSaveWithScene(False) # Is not a real output node.
+        crossSectionModelDisplayNode = self.crossSectionModelNode.GetDisplayNode()
+        crossSectionModelDisplayNode.SetColor(self.crossSectionColor)
+        crossSectionModelDisplayNode.SetOpacity(0.75)
+        crossSectionModelDisplayNode.SetLighting(False)
+      else:
+        self.crossSectionModelNode.SetAndObservePolyData(crossSectionPolyData)
     else:
-      self.logic.deleteCrossSection()
+      self.deleteCrossSection()
 
     self.updateUIWithMetrics(value)
 
@@ -910,6 +924,18 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     qasLogic.replaceSegmentByLargestRegion(segmentation, segmentID)
     self.onGetRegionsButton()
 
+  def setShowCrossSection(self, checked):
+    self.logic.showCrossSection = checked
+    if self.crossSectionModelNode and self.crossSectionModelNode.GetDisplayNode():
+      self.crossSectionModelNode.GetDisplayNode().SetVisibility(self.logic.showCrossSection)
+    if not checked:
+      self.deleteCrossSection()
+
+  def deleteCrossSection(self):
+    if self.crossSectionModelNode is not None:
+      slicer.mrmlScene.RemoveNode(self.crossSectionModelNode)
+    self.crossSectionModelNode = None
+
 #
 # CrossSectionAnalysisLogic
 #
@@ -938,9 +964,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.lumenSurfaceNode = None
     self.currentSegmentID = ""
     self.crossSectionPolyDataCache = {}
-    self.crossSectionColor = [0.2, 0.2, 1.0]
     self.showCrossSection = False
-    self.crossSectionModelNode = None
     self.maximumInscribedSphereModelNode = None
     self.showMaximumInscribedSphere = False
     self.maximumInscribedSphereColor = [0.2, 1.0, 0.4]
@@ -1018,13 +1042,6 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       return
     self.outputPlotSeriesNode = plotSeriesNode
 
-  def setShowCrossSection(self, checked):
-    self.showCrossSection = checked
-    if self.crossSectionModelNode is not None:
-        self.crossSectionModelNode.GetDisplayNode().SetVisibility(self.showCrossSection)
-    if not checked:
-      self.deleteCrossSection()
-
   # type is item data of QComboBox, not item index
   def setPlotSeriesType(self, type):
     self.outputPlotSeriesType = type
@@ -1032,11 +1049,6 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
         self.updatePlot(self.outputPlotSeriesNode, self.outputTableNode)
     if self.isPlotVisible():
         self.showPlot()
-
-  def deleteCrossSection(self):
-    if self.crossSectionModelNode is not None:
-        slicer.mrmlScene.RemoveNode(self.crossSectionModelNode)
-    self.crossSectionModelNode = None
 
   def setShowMaximumInscribedSphereDiameter(self, checked):
     self.showMaximumInscribedSphere = checked
@@ -1694,18 +1706,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       crossSectionPolyData = self.computeCrossSectionPolydata(pointIndex)
       self.crossSectionPolyDataCache[pointIndex] = crossSectionPolyData
 
-    # Finally create/update the model node
-    if self.crossSectionModelNode is None:
-      self.crossSectionModelNode = slicer.modules.models.logic().AddModel(crossSectionPolyData)
-      basename = _("Cross-section")
-      name = slicer.mrmlScene.GenerateUniqueName(basename)
-      self.crossSectionModelNode.SetName(name)
-      crossSectionModelDisplayNode = self.crossSectionModelNode.GetDisplayNode()
-      crossSectionModelDisplayNode.SetColor(self.crossSectionColor)
-      crossSectionModelDisplayNode.SetOpacity(0.75)
-      crossSectionModelDisplayNode.SetLighting(False)
-    else:
-      self.crossSectionModelNode.SetAndObservePolyData(crossSectionPolyData)
+    return crossSectionPolyData
 
   def getCrossSectionArea(self, pointIndex):
     """Get the pre-computed cross-section surface area"""
