@@ -25,6 +25,7 @@ For an arbitrary curve:
 
  - For tiny targets, resampling the volume to increase the resolution may help.
  - The input curve should represent the axis of the artery.
+ - The control points of the input curve should preferably be evenly spaced.
  - For diseased arteries, the more the curve passes through calcifications and soft lesions, the better for the segment mask.
  - An output segmentation node can be specified to view the segment mask.
 
