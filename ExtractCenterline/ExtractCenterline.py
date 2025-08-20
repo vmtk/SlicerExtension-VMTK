@@ -973,7 +973,7 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
                 # Parse name, if it ends with a number in a parenthesis ("branch (1)") then assume it contains
                 # the cell index and remove it to get the base name
                 import re
-                matched = re.match("(.+) \([0-9]+\)", baseName)
+                matched = re.match(r"(.+) \([0-9]+\)", baseName)
                 if matched:
                     baseName = matched[1]
             curveNode.SetName("{0} ({1})".format(baseName, cellId))
@@ -1198,3 +1198,4 @@ class ExtractCenterlineTest(ScriptedLoadableModuleTest):
         # self.assertEqual(outputScalarRange[1], inputScalarRange[1])
 
         self.delayDisplay('Test passed')
+
