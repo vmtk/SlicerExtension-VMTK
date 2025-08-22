@@ -359,8 +359,12 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.axialSliceHorizontalFlipCheckBox.setChecked(self.logic.axialSliceHorizontalFlip)
     self.ui.axialSliceVerticalFlipCheckBox.setChecked(self.logic.axialSliceVerticalFlip)
 
-    itemIndex = self.ui.outputPlotSeriesTypeComboBox.findData(self._parameterNode.GetParameter(ROLE_OUTPUT_PLOT_SERIES_TYPE))
-    self.ui.outputPlotSeriesTypeComboBox.setCurrentIndex(itemIndex)
+    plotSeriesTypeComboBox = self.ui.outputPlotSeriesTypeComboBox
+    itemIndex = plotSeriesTypeComboBox.findData(self._parameterNode.GetParameter(ROLE_OUTPUT_PLOT_SERIES_TYPE))
+    if itemIndex < 0:
+      itemIndex = 0
+    plotSeriesTypeComboBox.setCurrentIndex(itemIndex)
+    self.logic.setPlotSeriesType(plotSeriesTypeComboBox.currentData)
 
     # Update button states
 
@@ -681,7 +685,9 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.updateUIWithMetrics(value)
 
   def setPlotSeriesType(self, type):
+    wasBlocked = self.ui.outputPlotSeriesTypeComboBox.blockSignals(True)
     self.setValueInParameterNode(ROLE_OUTPUT_PLOT_SERIES_TYPE, self.ui.outputPlotSeriesTypeComboBox.currentData)
+    self.ui.outputPlotSeriesTypeComboBox.blockSignals(wasBlocked)
     self.logic.setPlotSeriesType(self.ui.outputPlotSeriesTypeComboBox.currentData)
 
   def setHorizontalFlip(self):
@@ -744,7 +750,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     if self._parameterNode:
       itemIndex = self.ui.outputPlotSeriesTypeComboBox.findData(self._parameterNode.GetParameter("OutputPlotSeriesType"))
       if itemIndex > -1:
-        self.ui.outputPlotSeriesTypeComboBox.setCurrentIndex(itemIndex)
+        comboBox.setCurrentIndex(itemIndex)
+    self.logic.setPlotSeriesType(comboBox.currentData)
 
   def updateClipButtonVisibility(self):
     self.ui.clipLumenToolButton.setVisible(
