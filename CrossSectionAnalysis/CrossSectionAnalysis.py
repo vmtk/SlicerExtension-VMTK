@@ -404,6 +404,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     if not self.ui.outputTableSelector.currentNode():
       outputTableNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode")
       self.ui.outputTableSelector.setCurrentNode(outputTableNode)
+    self.ui.outputTableSelector.currentNode().SetUseColumnTitleAsColumnHeader(True)
     if not self.ui.outputPlotSeriesSelector.currentNode():
       outputPlotSeriesNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLPlotSeriesNode")
       self.ui.outputPlotSeriesSelector.setCurrentNode(outputPlotSeriesNode)
