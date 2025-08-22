@@ -52,6 +52,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.logic = None
     self.crossSectionModelNode = None
     self.crossSectionColor = [0.2, 0.2, 1.0]
+    self.wallCrossSectionModelNode = None
+    self.wallCrossSectionColor = [0.8, 0.75, 0.7]
     self.maximumInscribedSphereModelNode = None
     self.maximumInscribedSphereColor = [0.2, 1.0, 0.4]
     self._parameterNode = None
@@ -139,6 +141,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.longitudinalSpinSliderWidget.connect("valueChanged(double)", lambda value: self.setValueInParameterNode(ROLE_LONGITUDINAL_SPIN_ANGLE, value))
     self.ui.showMISDiameterButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode(ROLE_SHOW_MIS_MODEL, "True" if value else "False"))
     self.ui.showCrossSectionButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode(ROLE_SHOW_CROSS_SECTION_MODEL, "True" if value else "False"))
+    self.ui.showWallCrossSectionButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode(ROLE_SHOW_WALL_CROSS_SECTION_MODEL, "True" if value else "False"))
     self.ui.axialSliceHorizontalFlipCheckBox.connect("clicked()", lambda: self.setValueInParameterNode(ROLE_AXIAL_HORIZONTAL_FLIP, str(self.ui.axialSliceHorizontalFlipCheckBox.isChecked())))
     self.ui.axialSliceVerticalFlipCheckBox.connect("clicked()", lambda : self.setValueInParameterNode(ROLE_AXIAL_VERTICAL_FLIP, str(self.ui.axialSliceVerticalFlipCheckBox.isChecked())))
     self.ui.surfaceInformationGoToToolButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode(ROLE_GOTO_REGION, "True" if value else "False"))
@@ -326,6 +329,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.logic.longitudinalSpinAngleDeg = float(self._parameterNode.GetParameter(ROLE_LONGITUDINAL_SPIN_ANGLE)) if self._parameterNode.GetParameter(ROLE_LONGITUDINAL_SPIN_ANGLE) else 0.0
     self.setShowMaximumInscribedSphereDiameter(self._parameterNode.GetParameter(ROLE_SHOW_MIS_MODEL) == "True")
     self.setShowCrossSection(self._parameterNode.GetParameter(ROLE_SHOW_CROSS_SECTION_MODEL) == "True")
+    self.setShowWallCrossSection(self._parameterNode.GetParameter(ROLE_SHOW_WALL_CROSS_SECTION_MODEL) == "True")
     self.logic.axialSliceHorizontalFlip = (self._parameterNode.GetParameter(ROLE_AXIAL_HORIZONTAL_FLIP) == "True") if self._parameterNode.GetParameter(ROLE_AXIAL_HORIZONTAL_FLIP) else False
     self.logic.axialSliceVerticalFlip = (self._parameterNode.GetParameter(ROLE_AXIAL_VERTICAL_FLIP) == "True") if self._parameterNode.GetParameter(ROLE_AXIAL_VERTICAL_FLIP) else False
     self.logic.relativeOriginPointIndex = int(self._parameterNode.GetParameter(ROLE_ORIGIN_POINT_INDEX)) if self._parameterNode.GetParameter(ROLE_ORIGIN_POINT_INDEX) else 0
@@ -351,6 +355,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.longitudinalSpinSliderWidget.setValue(self.logic.longitudinalSpinAngleDeg)
     self.ui.showMISDiameterButton.setChecked(self.logic.showMaximumInscribedSphere)
     self.ui.showCrossSectionButton.setChecked(self.logic.showCrossSection)
+    self.ui.showWallCrossSectionButton.setChecked(self.logic.showWallCrossSection)
     self.ui.axialSliceHorizontalFlipCheckBox.setChecked(self.logic.axialSliceHorizontalFlip)
     self.ui.axialSliceVerticalFlipCheckBox.setChecked(self.logic.axialSliceVerticalFlip)
 
@@ -636,7 +641,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     else:
       self.deleteMaximumInscribedSphere()
 
-    # Update cross-section model
+    # Update the lumen cross-section model
     if self.ui.showCrossSectionButton.checked and self.logic.lumenSurfaceNode:
       crossSectionPolyData = self.logic.updateCrossSection(pointIndex)
       if self.crossSectionModelNode is None:
@@ -653,6 +658,25 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         self.crossSectionModelNode.SetAndObservePolyData(crossSectionPolyData)
     else:
       self.deleteCrossSection()
+
+    # Update the wall cross-section model
+    if self.ui.showWallCrossSectionButton.checked and self.logic.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode"):
+      wallCrossSectionPolyData = self.logic.updateWallCrossSection(pointIndex)
+      if self.wallCrossSectionModelNode is None:
+        self.wallCrossSectionModelNode = slicer.modules.models.logic().AddModel(wallCrossSectionPolyData)
+        basename = _("Wall cross-section")
+        name = slicer.mrmlScene.GenerateUniqueName(basename)
+        self.wallCrossSectionModelNode.SetName(name)
+        self.wallCrossSectionModelNode.SetSaveWithScene(False) # Is not a real output node.
+        wallCrossSectionModelDisplayNode = self.wallCrossSectionModelNode.GetDisplayNode()
+        wallCrossSectionModelDisplayNode.SetColor(self.wallCrossSectionColor)
+        wallCrossSectionModelDisplayNode.SetOpacity(0.20)
+        wallCrossSectionModelDisplayNode.SetLighting(False)
+        wallCrossSectionModelDisplayNode.SetScalarVisibility(False)
+      else:
+        self.wallCrossSectionModelNode.SetAndObservePolyData(wallCrossSectionPolyData)
+    else:
+      self.deleteWallCrossSection()
 
     self.updateUIWithMetrics(value)
 
@@ -939,6 +963,18 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       slicer.mrmlScene.RemoveNode(self.crossSectionModelNode)
     self.crossSectionModelNode = None
 
+  def setShowWallCrossSection(self, checked):
+    self.logic.showWallCrossSection = checked
+    if self.wallCrossSectionModelNode and self.wallCrossSectionModelNode.GetDisplayNode():
+      self.wallCrossSectionModelNode.GetDisplayNode().SetVisibility(self.logic.showWallCrossSection)
+    if not checked:
+      self.deleteWallCrossSection()
+
+  def deleteWallCrossSection(self):
+    if self.wallCrossSectionModelNode is not None:
+      slicer.mrmlScene.RemoveNode(self.wallCrossSectionModelNode)
+    self.wallCrossSectionModelNode = None
+
   def setShowMaximumInscribedSphereDiameter(self, checked):
     self.logic.showMaximumInscribedSphere = checked
     if self.maximumInscribedSphereModelNode and self.maximumInscribedSphereModelNode.GetDisplayNode() :
@@ -1011,7 +1047,9 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.lumenSurfaceNode = None
     self.currentSegmentID = ""
     self.crossSectionPolyDataCache = {}
+    self.wallCrossSectionPolyDataCache = {}
     self.showCrossSection = False
+    self.showWallCrossSection = False
     self.showMaximumInscribedSphere = False
     self.relativeOriginPointIndex = 0
     self.outputPlotSeriesType = MIS_DIAMETER
@@ -1049,6 +1087,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
 
   def resetCrossSections(self):
     self.crossSectionPolyDataCache = {}
+    self.wallCrossSectionPolyDataCache = {}
 
   def setInputCenterlineNode(self, centerlineNode):
     if self.inputCenterlineNode == centerlineNode:
@@ -1690,7 +1729,10 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     else:
       closedSurfacePolyData.DeepCopy(self.lumenSurfaceNode.GetPolyData())
 
+  # For the lumen.
   def computeCrossSectionPolydata(self, pointIndex):
+    if (not self.lumenSurfaceNode):
+      raise ValueError(_("Input surface node is None."))
     curvePointToWorld = self.getCurvePointToWorldTransformAtPointIndex(pointIndex)
     center = np.zeros(3)
     normal = np.zeros(3)
@@ -1725,6 +1767,86 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
 
     return result
 
+
+  # For the wall.
+  def computeWallCrossSectionPolydata(self, pointIndex):
+    if (not self.inputCenterlineNode) or (not self.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode")):
+      raise ValueError(_("Input centerline node is not a Shape node."))
+    curvePointToWorld = self.getCurvePointToWorldTransformAtPointIndex(pointIndex)
+    center = np.zeros(3)
+    normal = np.zeros(3)
+    for i in range(3):
+      center[i] = curvePointToWorld.GetElement(i, 3)
+      normal[i] = curvePointToWorld.GetElement(i, 2)
+
+    # Place a plane perpendicular to the centerline
+    plane = vtk.vtkPlane()
+    plane.SetOrigin(center)
+    plane.SetNormal(normal)
+
+    closedSurfacePolyData = self.inputCenterlineNode.GetShapeWorld()
+
+    # If segmentation is transformed, apply it to the cross-section model. All computations are performed in the world coordinate system.
+    if self.inputCenterlineNode.GetParentTransformNode():
+      surfaceTransformToWorld = vtk.vtkGeneralTransform()
+      slicer.vtkMRMLTransformNode.GetTransformBetweenNodes(self.inputCenterlineNode.GetParentTransformNode(), None, surfaceTransformToWorld)
+      transformFilterToWorld = vtk.vtkTransformPolyDataFilter()
+      transformFilterToWorld.SetTransform(surfaceTransformToWorld)
+      transformFilterToWorld.SetInputData(closedSurfacePolyData)
+      transformFilterToWorld.Update()
+      closedSurfacePolyData = transformFilterToWorld.GetOutput()
+
+    # Create the wall cross-section using the same method as that of the lumen's cross-section.'
+    wallCrossSection = vtk.vtkPolyData()
+    import vtkSlicerCrossSectionAnalysisModuleLogicPython as vtkSlicerCrossSectionAnalysisModuleLogic
+    crossSectionWorker = vtkSlicerCrossSectionAnalysisModuleLogic.vtkCrossSectionCompute()
+    ret = crossSectionWorker.CreateCrossSection(wallCrossSection, closedSurfacePolyData, plane, crossSectionWorker.ClosestPoint, True)
+    if (ret == crossSectionWorker.Empty):
+      logging.error(_("Error creating a cross-section polydata of the wall at point index {indexOfPoint}.").format(indexOfPoint=pointIndex))
+      return wallCrossSection
+
+    # If there is no lumen, there is nothing more to process.
+    if (not self.lumenSurfaceNode):
+      return wallCrossSection
+
+    '''
+    There is a lumen. We want to subtract the lumen from the wall cross-section.
+    If the lumen exceeds beyond the bounds of the wall, the result will be a curious one.
+    The lumen may be clipped with createClippedLumen() or clipLumenInTube() .
+    '''
+    # Get the rim of the wall cross-section.
+    wallEdgeExtractor = vtk.vtkFeatureEdges()
+    wallEdgeExtractor.SetInputData(wallCrossSection) # It has been processed by vtkContourTriangulator.
+    wallEdgeExtractor.BoundaryEdgesOn()
+    wallEdgeExtractor.FeatureEdgesOff()
+    wallEdgeExtractor.ManifoldEdgesOff()
+    wallEdgeExtractor.NonManifoldEdgesOff()
+    wallEdgeExtractor.Update()
+
+    # Get the rim of the lumen cross-section; create if has not been done yet.
+    lumenCrossSection = self.updateCrossSection(pointIndex)
+    lumenEdgeExtractor = vtk.vtkFeatureEdges()
+    lumenEdgeExtractor.SetInputData(lumenCrossSection) # It has been processed by vtkContourTriangulator.
+    lumenEdgeExtractor.BoundaryEdgesOn()
+    lumenEdgeExtractor.FeatureEdgesOff()
+    lumenEdgeExtractor.ManifoldEdgesOff()
+    lumenEdgeExtractor.NonManifoldEdgesOff()
+    lumenEdgeExtractor.Update()
+
+    # Append both rims, they are in the same plane.
+    appender = vtk.vtkAppendPolyData()
+    appender.AddInputConnection(wallEdgeExtractor.GetOutputPort())
+    appender.AddInputConnection(lumenEdgeExtractor.GetOutputPort())
+    appender.Update()
+
+    # Fill the surface between both rims.
+    surfaceFill = vtk.vtkContourTriangulator()
+    surfaceFill.SetInputConnection(appender.GetOutputPort())
+    surfaceFill.Update()
+
+    return surfaceFill.GetOutput()
+
+  # For the lumen.
   def updateCrossSection(self, pointIndex):
     """Create an exact-fit model representing the cross-section.
     """
@@ -1736,6 +1858,21 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       # cross-section is not found in the cache, compute it now and store in cache
       crossSectionPolyData = self.computeCrossSectionPolydata(pointIndex)
       self.crossSectionPolyDataCache[pointIndex] = crossSectionPolyData
+
+    return crossSectionPolyData
+
+  # For the wall.
+  def updateWallCrossSection(self, pointIndex):
+    """Create an exact-fit model representing the cross-section of the wall.
+    """
+
+    if pointIndex in self.wallCrossSectionPolyDataCache:
+      # found polydata cached
+      crossSectionPolyData = self.wallCrossSectionPolyDataCache[pointIndex]
+    else:
+      # cross-section is not found in the cache, compute it now and store in cache
+      crossSectionPolyData = self.computeWallCrossSectionPolydata(pointIndex)
+      self.wallCrossSectionPolyDataCache[pointIndex] = crossSectionPolyData
 
     return crossSectionPolyData
 
@@ -1890,6 +2027,7 @@ ROLE_AXIAL_SPIN_ANGLE = "AxialSpinAngleDeg"
 ROLE_LONGITUDINAL_SPIN_ANGLE = "LongitudinalSpinAngleDeg"
 ROLE_SHOW_MIS_MODEL = "ShowMISModel"
 ROLE_SHOW_CROSS_SECTION_MODEL = "ShowCrossSectionModel"
+ROLE_SHOW_WALL_CROSS_SECTION_MODEL = "ShowWallCrossSectionModel"
 ROLE_AXIAL_HORIZONTAL_FLIP = "AxialSliceHorizontalFlip"
 ROLE_AXIAL_VERTICAL_FLIP = "AxialSliceVerticalFlip"
 ROLE_GOTO_REGION = "GoToRegion"
