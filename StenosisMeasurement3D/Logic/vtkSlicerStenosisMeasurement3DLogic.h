@@ -67,7 +67,20 @@ public:
 
   enum EnclosingType{Distinct = 0, Intersection, FirstIsEnclosed, SecondIsEnclosed, EnclosingType_Last};
   // Both input surfaces *must* be closed. This may be time consuming.
-  EnclosingType GetClosedSurfaceEnclosingType(vtkPolyData * first, vtkPolyData * second, vtkPolyData * enclosed = nullptr);
+  EnclosingType GetClosedSurfaceEnclosingType(vtkPolyData * first, vtkPolyData * second,
+                                              vtkPolyData * enclosed = nullptr,
+                                              bool firstIsPreProcessed = false,
+                                              bool secondIsPreProcessed = false);
+  /*
+   * vtkBooleanOperationPolyDataFilter in GetClosedSurfaceEnclosingType()
+   * fails *less* often when a tube is decimated.
+   * This is not applied to a lumen model in CrossSectionAnalysis.
+   */
+  bool DecimateClosedSurface(vtkPolyData * input, vtkPolyData * output,
+                             double targetReduction = 0.1,
+                             bool regularize = false, double regularization = 0.05,
+                             bool mapPointData = true, bool volumePreservation = false,
+                             bool attributeErrorMetric = false);
 
   // Cut the input using a plane; either part may be in output. Create open polydata for display.
   bool ClipClosedSurface(vtkPolyData * input, vtkPolyData * output,

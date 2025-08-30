@@ -127,43 +127,6 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="1">
-       <widget class="qMRMLNodeComboBox" name="inputCenterlineSelector">
-        <property name="toolTip">
-         <string>The centerline source may be:
-
-- a centerline curve created by 'Extract centerline' module,
-- a centerline model created by 'Extract centerline' module,
-- an arbitrary open markups curve,
-- an invisible centerline of a shape markups node used as a tube.</string>
-        </property>
-        <property name="nodeTypes">
-         <stringlist notr="true">
-          <string>vtkMRMLModelNode</string>
-          <string>vtkMRMLMarkupsCurveNode</string>
-          <string>vtkMRMLMarkupsShapeNode</string>
-         </stringlist>
-        </property>
-        <property name="showChildNodeTypes">
-         <bool>false</bool>
-        </property>
-        <property name="noneEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="addEnabled">
-         <bool>false</bool>
-        </property>
-        <property name="removeEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="editEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="renameEnabled">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
       <item row="2" column="0">
        <widget class="QLabel" name="segmentationLabel">
         <property name="locale">
@@ -177,9 +140,15 @@
       <item row="2" column="1">
        <layout class="QVBoxLayout" name="parametersVerticalLayout">
         <item>
-         <layout class="QHBoxLayout" name="clipLumenHorizontalLayout">
+         <layout class="QHBoxLayout" name="lumenHorizontalLayout">
           <item>
            <widget class="qMRMLNodeComboBox" name="segmentationSelector">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="toolTip">
              <string>Input segmentation or model node, required for computing cross-sectional area.
 The input centerline is expected to be inside the lumen surface.</string>
@@ -212,10 +181,14 @@ The input centerline is expected to be inside the lumen surface.</string>
           </item>
           <item>
            <widget class="QToolButton" name="clipLumenToolButton">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
             <property name="toolTip">
-             <string>Clip the lumen inside the tube. A new segment or a new model is generated.
-
-There may be artifacts at the ends of the tube, or in the midst of a loop or arch. These should be manually fixed if necessary.</string>
+             <string>Clip the lumen inside the tube. A new segment or a new model is generated. </string>
             </property>
             <property name="text">
              <string>...</string>
@@ -331,6 +304,25 @@ There may be artifacts at the ends of the tube, or in the midst of a loop or arc
          </widget>
         </item>
        </layout>
+      </item>
+      <item row="6" column="1">
+       <widget class="QComboBox" name="outputPlotSeriesTypeComboBox">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="toolTip">
+         <string>Select the plot's Y axis</string>
+        </property>
+        <property name="currentIndex">
+         <number>-1</number>
+        </property>
+        <property name="sizeAdjustPolicy">
+         <enum>QComboBox::AdjustToContents</enum>
+        </property>
+       </widget>
       </item>
       <item row="7" column="0" colspan="2">
        <widget class="ctkCollapsibleGroupBox" name="optionsCollapsibleGroupBox">
@@ -638,24 +630,59 @@ The result must be inspected before use. If it is not satisfactory, the source s
         </property>
        </widget>
       </item>
-      <item row="6" column="1">
-       <widget class="QComboBox" name="outputPlotSeriesTypeComboBox">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="toolTip">
-         <string>Select the plot's Y axis</string>
-        </property>
-        <property name="currentIndex">
-         <number>-1</number>
-        </property>
-        <property name="sizeAdjustPolicy">
-         <enum>QComboBox::AdjustToContents</enum>
-        </property>
-       </widget>
+      <item row="1" column="1">
+       <layout class="QHBoxLayout" name="centerlineHorizontalLayout">
+        <item>
+         <widget class="qMRMLNodeComboBox" name="inputCenterlineSelector">
+          <property name="toolTip">
+           <string>The centerline source may be:
+
+- a centerline curve created by 'Extract centerline' module,
+- a centerline model created by 'Extract centerline' module,
+- an arbitrary open markups curve,
+- an invisible centerline of a shape markups node used as a tube.</string>
+          </property>
+          <property name="nodeTypes">
+           <stringlist notr="true">
+            <string>vtkMRMLModelNode</string>
+            <string>vtkMRMLMarkupsCurveNode</string>
+            <string>vtkMRMLMarkupsShapeNode</string>
+           </stringlist>
+          </property>
+          <property name="showChildNodeTypes">
+           <bool>false</bool>
+          </property>
+          <property name="noneEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="addEnabled">
+           <bool>false</bool>
+          </property>
+          <property name="removeEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="editEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="renameEnabled">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QToolButton" name="tubeDecimateToolButton">
+          <property name="toolTip">
+           <string>Decimate the input Tube surface.</string>
+          </property>
+          <property name="text">
+           <string>⭭</string>
+          </property>
+          <property name="checkable">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </item>
      </layout>
     </widget>

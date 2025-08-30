@@ -58,6 +58,7 @@ public:
 
   vtkSmartPointer<vtkPolyData> lumenCache = nullptr;
   bool isLumenCacheValid = false;
+
 };
 
 //-----------------------------------------------------------------------------
@@ -126,6 +127,8 @@ void qSlicerStenosisMeasurement3DModuleWidget::setup()
                    this, SLOT(onTableNodeChanged(vtkMRMLNode*)));
   QObject::connect(d->updateBoundaryPointsSpinBox, SIGNAL(valueChanged(int)),
                    this, SLOT(onUpdateBoundary(int)));
+  QObject::connect(d->preProcessWallToolButton, SIGNAL(toggled(bool)),
+                   this, SLOT(onPreProcessWallChanged(bool)));
   QObject::connect(d->parameterSetSelector, SIGNAL(nodeAddedByUser(vtkMRMLNode*)),
                    this, SLOT(onParameterNodeAddedByUser(vtkMRMLNode*)));
   QObject::connect(d->parameterSetSelector, SIGNAL(currentNodeChanged(vtkMRMLNode*)),
@@ -173,14 +176,14 @@ void qSlicerStenosisMeasurement3DModuleWidget::addMenu()
   QAction * actionClearCache = applyButtonMenu->addAction(qSlicerStenosisMeasurement3DModuleWidget::tr("Clear the enclosed lumen cache"));
   actionClearCache->setData(0);
   actionClearCache->setObjectName("ActionClearEnclosedLumenCache");
-
+  
   applyButtonMenu->addSeparator();
 
   QAction * actionDumpVolumes = applyButtonMenu->addAction(qSlicerStenosisMeasurement3DModuleWidget::tr("Dump aggregate volumes to database"));
   actionDumpVolumes->setData(1);
   actionDumpVolumes->setObjectName("ActionDumpAggregateVolumesToDatabase");
   actionDumpVolumes->setToolTip(qSlicerStenosisMeasurement3DModuleWidget::tr("Attempt to save a database containing aggregate volumes of the study in your document directory."));
-  
+
   QObject::connect(actionClearCache, SIGNAL(triggered()),
                    this, SLOT(clearLumenCache()));
   QObject::connect(actionDumpVolumes, SIGNAL(triggered()),
@@ -216,6 +219,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::onApply()
   vtkMRMLNode * fiducialNode = d->parameterNode->GetInputFiducialNode();
   vtkMRMLNode * segmentationNode = d->parameterNode->GetInputSegmentationNode();
   const std::string currentSegmentID = d->parameterNode->GetInputSegmentID();
+  bool preProcessWallSurface = d->parameterNode->GetPreProcessWallSurface();
 
   if (!shapeNode || !fiducialNode || !segmentationNode || currentSegmentID.empty())
   {
@@ -248,7 +252,8 @@ void qSlicerStenosisMeasurement3DModuleWidget::onApply()
 
   // Get the lumen enclosed in the tube once only, it may be time consuming.
   vtkNew<vtkPolyData> enclosedSurface;
-  if (!this->getEnclosedSurface(shapeNodeReal, segmentationNodeReal, currentSegmentID, enclosedSurface))
+  if (!this->getEnclosedSurface(shapeNodeReal, segmentationNodeReal, currentSegmentID, enclosedSurface,
+                              preProcessWallSurface))
   {
     return;
   }
@@ -706,15 +711,35 @@ void qSlicerStenosisMeasurement3DModuleWidget::onUpdateBoundary(int index)
 vtkSlicerStenosisMeasurement3DLogic::EnclosingType
 qSlicerStenosisMeasurement3DModuleWidget::createEnclosedSurface(vtkMRMLMarkupsShapeNode * wallShapeNode,
                                                                 vtkMRMLSegmentationNode * lumenSegmentationNode,
-                                                                std::string segmentID, vtkPolyData * enclosedSurface)
+                                                                std::string segmentID, vtkPolyData * enclosedSurface,
+                                                                bool preProcessWallSurface)
 {
   if (!wallShapeNode || !lumenSegmentationNode || !enclosedSurface)
   {
     std::cerr << "Invalid input, cannot get the enclosed lumen surface." << std::endl;
     return vtkSlicerStenosisMeasurement3DLogic::EnclosingType_Last;
   }
-  // Get wall polydata from shape markups node.
-  vtkPolyData * wallClosedSurface = wallShapeNode->GetCappedTubeWorld();
+  // Get the wall polydata from the shape markups node.
+  vtkPolyData * _wallClosedSurface = wallShapeNode->GetCappedTubeWorld();
+  vtkNew<vtkPolyData> wallClosedSurface;
+  if (preProcessWallSurface)
+  {
+    /* Here, we use the minimal default parameters of DecimateClosedSurface() for
+     * the tube, since the result is not passed to
+     * vtkCrossSectionCompute::CreateCrossSection() in CrossSectionAnalysis.
+     * See comments in CrossSectionAnalysis.py.
+     */
+    if (!this->logic->DecimateClosedSurface(_wallClosedSurface, wallClosedSurface))
+    {
+      std::cerr << "Error decimating the wall surface; continuing with the raw wall surface." << endl;
+      wallClosedSurface->DeepCopy(_wallClosedSurface);
+    }
+  }
+  else
+  {
+    wallClosedSurface->DeepCopy(_wallClosedSurface);
+  }
+
   // Generate lumen polydata from lumen segment.
   vtkNew<vtkPolyData> inputLumenSurface;
   if (!lumenSegmentationNode->GetClosedSurfaceRepresentation(segmentID, inputLumenSurface))
@@ -733,7 +758,8 @@ qSlicerStenosisMeasurement3DModuleWidget::createEnclosedSurface(vtkMRMLMarkupsSh
 
   vtkNew<vtkPolyData> inputLumenEnclosed;
   vtkSlicerStenosisMeasurement3DLogic::EnclosingType enclosingType =
-                  this->logic->GetClosedSurfaceEnclosingType(wallClosedSurface, inputLumenSurface, inputLumenEnclosed);
+                  this->logic->GetClosedSurfaceEnclosingType(wallClosedSurface, inputLumenSurface,
+                                                             inputLumenEnclosed, preProcessWallSurface);
   if (enclosingType == vtkSlicerStenosisMeasurement3DLogic::EnclosingType_Last)
   {
     return vtkSlicerStenosisMeasurement3DLogic::EnclosingType_Last; // Logging has been done.
@@ -753,7 +779,8 @@ qSlicerStenosisMeasurement3DModuleWidget::createEnclosedSurface(vtkMRMLMarkupsSh
 //-----------------------------------------------------------------------------
 bool qSlicerStenosisMeasurement3DModuleWidget::getEnclosedSurface(vtkMRMLMarkupsShapeNode * wallShapeNode,
                                                                   vtkMRMLSegmentationNode * lumenSegmentationNode, std::string segmentID,
-                                                                  vtkPolyData * enclosedSurface)
+                                                                  vtkPolyData * enclosedSurface,
+                                                                  bool preProcessWallSurface)
 {
   Q_D(qSlicerStenosisMeasurement3DModuleWidget);
   if (d->isLumenCacheValid)
@@ -764,7 +791,8 @@ bool qSlicerStenosisMeasurement3DModuleWidget::getEnclosedSurface(vtkMRMLMarkups
   else
   {
     vtkSlicerStenosisMeasurement3DLogic::EnclosingType enclosingType = this->createEnclosedSurface(
-              wallShapeNode, lumenSegmentationNode, segmentID, enclosedSurface);
+              wallShapeNode, lumenSegmentationNode, segmentID, enclosedSurface,
+              preProcessWallSurface);
     if (enclosingType == vtkSlicerStenosisMeasurement3DLogic::EnclosingType_Last)
     {
       this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Error getting the enclosed lumen."), 5000);
@@ -831,6 +859,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::updateGuiFromParameterNode()
   d->inputFiducialSelector->setCurrentNode(d->parameterNode->GetInputFiducialNode());
   d->lesionModelSelector->setCurrentNode(d->parameterNode->GetOutputLesionModelNode());
   d->outputTableSelector->setCurrentNode(d->parameterNode->GetOutputTableNode());
+  d->preProcessWallToolButton->setChecked(d->parameterNode->GetPreProcessWallSurface());
   const int tableRowId = d->parameterNode->GetOutputTableRowId();
   d->updateBoundaryPointsSpinBox->setValue(tableRowId >= 0 ? tableRowId : 0);
   d->kernelSizeSpinBox->setValue(d->parameterNode->GetSmoothingKernelSize());
@@ -865,8 +894,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::onSmoothingKernelSizeChanged(doub
   Q_D(qSlicerStenosisMeasurement3DModuleWidget);
   if (!d->parameterNode)
   {
-    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Parameter node is invalid."), 5000);
-    return;
+    return; // Silently.
   }
   d->parameterNode->SetSmoothingKernelSize(value);
 }
@@ -895,6 +923,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::clearLumenCache()
   d->setLumenCache(nullptr);
 }
 
+//-----------------------------------------------------------------------------
 void qSlicerStenosisMeasurement3DModuleWidget::dumpAggregateVolumes()
 {
   Q_D(qSlicerStenosisMeasurement3DModuleWidget);
@@ -903,6 +932,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::dumpAggregateVolumes()
     this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Parameter node is invalid."), 5000);
     return;
   }
+  bool preProcessWallSurface = d->parameterNode->GetPreProcessWallSurface();
   QString documentPath = QStandardPaths::standardLocations(QStandardPaths::DocumentsLocation).at(0);
   QString timestamp = QDateTime::currentDateTime().toString("yyyyMMdd-hhmmss");
   QString dbName = d->parameterNode->GetName() + QString("-") + timestamp + QString(".db");
@@ -911,7 +941,8 @@ void qSlicerStenosisMeasurement3DModuleWidget::dumpAggregateVolumes()
   vtkMRMLSegmentationNode * segmentationNode = vtkMRMLSegmentationNode::SafeDownCast(d->parameterNode->GetInputSegmentationNode());
   std::string segmentID = d->parameterNode->GetInputSegmentID();
   vtkNew<vtkPolyData> enclosedSurface;
-  if (!this->getEnclosedSurface(wallShapeNode, segmentationNode, segmentID, enclosedSurface))
+  if (!this->getEnclosedSurface(wallShapeNode, segmentationNode, segmentID, enclosedSurface,
+                                preProcessWallSurface))
   {
     return;
   }
@@ -935,7 +966,6 @@ void qSlicerStenosisMeasurement3DModuleWidget::updateRegionInfo()
   Q_D(qSlicerStenosisMeasurement3DModuleWidget);
   if (!d->parameterNode)
   {
-    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Parameter node is invalid."), 5000);
     d->regionInfoLabel->setVisible(false);
     d->fixRegionToolButton->setVisible(false);
     d->kernelSizeSpinBox->setVisible(false);
@@ -995,4 +1025,17 @@ void qSlicerStenosisMeasurement3DModuleWidget::updateSegmentBySmoothClosing()
   // The segment is removed, then moved to its index after creation. The first segment is selected otherwise.
   d->inputSegmentSelector->setCurrentSegmentID(segmentID.c_str());
   this->updateRegionInfo();
+}
+
+//-----------------------------------------------------------------------------
+void qSlicerStenosisMeasurement3DModuleWidget::onPreProcessWallChanged(bool checked)
+{
+  Q_D(qSlicerStenosisMeasurement3DModuleWidget);
+  if (!d->parameterNode)
+  {
+    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Parameter node is invalid."), 5000);
+    return;
+  }
+  d->parameterNode->SetPreProcessWallSurface(checked);
+  this->clearLumenCache();
 }

@@ -32,7 +32,6 @@
 #include <vtkPlaneCollection.h>
 #include <vtkTriangleFilter.h>
 #include <vtkTable.h>
-#include <vtkMRMLI18N.h>
 #include <vtkMassProperties.h>
 #include <vtkPolyDataConnectivityFilter.h>
 #include <vtkExtractEnclosedPoints.h>
@@ -53,6 +52,7 @@
 #include <vtkSQLiteDatabase.h>
 #include <vtkTableToSQLiteWriter.h>
 #include <vtkSQLiteQuery.h>
+#include <vtkQuadricDecimation.h>
 
 static const char* COLUMN_NAME_STUDY = "Study";
 static const char* COLUMN_NAME_WALL = "WallVolume";
@@ -581,7 +581,8 @@ bool vtkSlicerStenosisMeasurement3DLogic::ComputeResults(vtkMRMLMarkupsShapeNode
 // Both input surfaces *must* be closed.
 vtkSlicerStenosisMeasurement3DLogic::EnclosingType
 vtkSlicerStenosisMeasurement3DLogic::GetClosedSurfaceEnclosingType(vtkPolyData* first, vtkPolyData* second,
-                                                                   vtkPolyData * enclosed)
+                                                                   vtkPolyData * enclosed,
+                                                                   bool firstIsPreProcessed, bool secondIsPreProcessed)
 {
   // vtkIntersectionPolyDataFilter on its own is not bullet proof.
   // It is nevertheless used in vtkBooleanOperationPolyDataFilter.
@@ -599,54 +600,53 @@ vtkSlicerStenosisMeasurement3DLogic::GetClosedSurfaceEnclosingType(vtkPolyData* 
   int firstInSecondPointCount = 0;
   int secondInFirstPointCount = 0;
   int intersectionPointCount = 0;
-
-  vtkNew<vtkTriangleFilter> triangulatorFirst;
-  triangulatorFirst->SetInputData(first);
-  triangulatorFirst->Update();
-
-  vtkNew<vtkTriangleFilter> triangulatorSecond;
-  triangulatorSecond->SetInputData(second);
-  triangulatorSecond->Update();
-
-  /*
-   * Cleaning is seen sufficient to prevent crashes when there are holes in the
-   * segment.
-   * The largest region was previously used, but this generates too many
-   * artifacts at the ends or in an arch. A segment with a detached largest 
-   * region outside of the tube is considered out of purpose for the module.
-   */
-  
-  vtkNew<vtkCleanPolyData> cleanerFirst;
-  cleanerFirst->SetInputConnection(triangulatorFirst->GetOutputPort());
-  cleanerFirst->Update();
-
-  vtkNew<vtkCleanPolyData> cleanerSecond;
-  cleanerSecond->SetInputConnection(triangulatorSecond->GetOutputPort());
-  cleanerSecond->Update();
-
   int firstPointCount = -1;
-  if (cleanerFirst->GetOutput())
-  {
-    firstPointCount = cleanerFirst->GetOutput()->GetNumberOfPoints();
-  }
   int secondPointCount = -1;
-  if (cleanerSecond->GetOutput())
+  vtkNew<vtkPolyData> _first;
+  vtkNew<vtkPolyData> _second;
+
+  auto process = [] (vtkPolyData * input, vtkPolyData * _input, bool& inputIsPreProcessed, int& pointCount)
   {
-    secondPointCount = cleanerSecond->GetOutput()->GetNumberOfPoints();
-  }
+    if (!inputIsPreProcessed) // Not decimated.
+    {
+      vtkNew<vtkTriangleFilter> triangulatorFirst;
+      triangulatorFirst->SetInputData(input);
+      triangulatorFirst->Update();
+      /*
+       * Cleaning is seen sufficient to prevent crashes when there are holes in the
+       * segment.
+       * The largest region was previously used, but this generates too many
+       * artifacts at the ends or in an arch. A segment with a detached largest 
+       * region outside of the tube is considered out of purpose for the module.
+       */
+      vtkNew<vtkCleanPolyData> cleanerFirst;
+      cleanerFirst->SetInputConnection(triangulatorFirst->GetOutputPort());
+      cleanerFirst->Update();
+      _input->DeepCopy(cleanerFirst->GetOutput());
+      pointCount = _input->GetNumberOfPoints();
+    }
+    else // Already decimated.
+    {
+      pointCount = input->GetNumberOfPoints();
+      _input->DeepCopy(input);
+    }
+  };
+
+  process(first, _first, firstIsPreProcessed, firstPointCount);
+  process(second, _second, secondIsPreProcessed, secondPointCount);
 
   {
     vtkNew<vtkExtractEnclosedPoints> pointExtractor;
-    pointExtractor->SetInputConnection(cleanerFirst->GetOutputPort());
-    pointExtractor->SetSurfaceConnection(cleanerSecond->GetOutputPort());
+    pointExtractor->SetInputData(_first);
+    pointExtractor->SetSurfaceData(_second);
     pointExtractor->Update();
     firstInSecondPointCount = pointExtractor->GetOutput()->GetNumberOfPoints();
   }
 
   {
     vtkNew<vtkExtractEnclosedPoints> pointExtractor;
-    pointExtractor->SetInputConnection(cleanerSecond->GetOutputPort());
-    pointExtractor->SetSurfaceConnection(cleanerFirst->GetOutputPort());
+    pointExtractor->SetInputData(_second);
+    pointExtractor->SetSurfaceData(_first);
     pointExtractor->Update();
     secondInFirstPointCount = pointExtractor->GetOutput()->GetNumberOfPoints();
   }
@@ -660,8 +660,8 @@ vtkSlicerStenosisMeasurement3DLogic::GetClosedSurfaceEnclosingType(vtkPolyData* 
    */
   vtkNew<vtkBooleanOperationPolyDataFilter> boolFilter;
   boolFilter->SetOperationToIntersection();
-  boolFilter->SetInputConnection(cleanerFirst->GetOutputPort());
-  boolFilter->AddInputConnection(1, cleanerSecond->GetOutputPort());
+  boolFilter->SetInputData(_first);
+  boolFilter->AddInputData(1, _second);
   boolFilter->Update();
   // 0 means completely distinct or one is completely enclosed in the other.
   intersectionPointCount = boolFilter->GetOutput()->GetNumberOfPoints();
@@ -697,6 +697,38 @@ vtkSlicerStenosisMeasurement3DLogic::GetClosedSurfaceEnclosingType(vtkPolyData* 
   }
 
   return EnclosingType::Distinct;
+}
+
+//-----------------------------------------------------------------------------
+bool vtkSlicerStenosisMeasurement3DLogic::DecimateClosedSurface(vtkPolyData * input, vtkPolyData * output,
+                           double targetReduction ,
+                           bool regularize, double regularization,
+                           bool mapPointData, bool volumePreservation,
+                           bool attributeErrorMetric)
+{
+  if (!input || !output)
+  {
+    vtkErrorMacro("Parameter 'input' or 'output' is NULL.");
+    return false;
+  }
+  // vtkQuadricDecimation needs that.
+  vtkNew<vtkTriangleFilter> triangleFilter;
+  triangleFilter->SetInputData(input);
+  triangleFilter->Update();
+
+  output->Initialize();
+  vtkNew<vtkQuadricDecimation> decimator;
+  decimator->SetTargetReduction(targetReduction);
+  decimator->SetRegularize(regularize);
+  decimator->SetRegularization(regularization);
+  decimator->SetMapPointData(mapPointData);
+  decimator->SetVolumePreservation(volumePreservation);
+  decimator->SetAttributeErrorMetric(attributeErrorMetric);
+  decimator->SetInputConnection(triangleFilter->GetOutputPort());
+  decimator->Update();
+  output->DeepCopy(decimator->GetOutput());
+
+  return true;
 }
 
 //---------------------------------------------------------------------------
@@ -1120,7 +1152,12 @@ bool vtkSlicerStenosisMeasurement3DLogic::UpdateSegmentBySmoothClosing(vtkMRMLSe
     // From python file: size rounded to nearest odd number. If kernel size is even then image gets shifted.
     kernelSizePixel[i] = (int) (std::round((kernelSize / spacing[i] + 1) / 2) * 2) - 1;
   }
-  
+
+  // Create a snapshot of the display node, it is found to be reset somewhere below.
+  vtkMRMLSegmentationDisplayNode * displayNode = vtkMRMLSegmentationDisplayNode::SafeDownCast(segmentation->GetDisplayNode());
+  vtkNew<vtkMRMLSegmentationDisplayNode> clicheDisplayNode;
+  clicheDisplayNode->CopyContent(displayNode);
+
   double labelValue = 1.0;
   double backgroundValue = 0.0;
   vtkNew<vtkImageThreshold> thresh;
@@ -1172,10 +1209,9 @@ bool vtkSlicerStenosisMeasurement3DLogic::UpdateSegmentBySmoothClosing(vtkMRMLSe
   }
   segmentation->Modified();
 
-  segmentation->CreateDefaultDisplayNodes();
-  vtkMRMLSegmentationDisplayNode * displayNode = vtkMRMLSegmentationDisplayNode::SafeDownCast(segmentation->GetDisplayNode());
   if (displayNode)
   {
+    displayNode->CopyContent(clicheDisplayNode);
     displayNode->Modified();
   }
 
