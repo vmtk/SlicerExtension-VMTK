@@ -168,6 +168,30 @@ This should ideally exceed the wall surface a little.</string>
         </property>
        </widget>
       </item>
+      <item row="3" column="1">
+       <layout class="QHBoxLayout" name="regionsHorizontalLayout">
+        <item>
+         <widget class="QLabel" name="regionInfoLabel">
+          <property name="toolTip">
+           <string>Ideally, there should be only one region in the input segment.</string>
+          </property>
+          <property name="text">
+           <string/>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QToolButton" name="fixRegionToolButton">
+          <property name="toolTip">
+           <string>If the segment has more than one region, this function replaces the input segment by a new segment having a single region. It is created from the largest region of the input segment.</string>
+          </property>
+          <property name="text">
+           <string>Fix</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
      </layout>
     </widget>
    </item>

@@ -383,8 +383,9 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
       self.ui.regionInfoLabel.setVisible(False)
       self.ui.fixRegionToolButton.setVisible(False)
       return
-    
-    numberOfRegions = self.logic.getNumberOfRegionsInSegment(segmentation, segmentID)
+
+    sm3Logic = slicer.modules.stenosismeasurement3d.logic()
+    numberOfRegions = sm3Logic.GetNumberOfRegionsInSegment(segmentation, segmentID)
     if numberOfRegions == 0:
       self.ui.regionInfoLabel.clear()
       self.ui.regionInfoLabel.setVisible(False)
@@ -404,7 +405,8 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
       self.inform(_("Invalid segmentation or segmentID."))
       self.ui.regionInfoLabel.setVisible(False)
       return
-    self.logic.replaceSegmentByLargestRegion(segmentation, segmentID)
+    sm3Logic = slicer.modules.stenosismeasurement3d.logic()
+    sm3Logic.ReplaceSegmentByLargestRegion(segmentation, segmentID)
     self.updateRegionInfo()
 #
 # QuickArterySegmentationLogic
@@ -567,9 +569,10 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     # The largest region is then used, the others are holes we want to get rid of.
     optionUseLargestRegion = int(self._parameterNode.GetParameter(ROLE_OPTION_USE_LARGEST_REGION))
     if optionUseLargestRegion:
-      numberOfRegions = self.getNumberOfRegionsInSegment(segmentation, segmentID)
+      sm3Logic = slicer.modules.stenosismeasurement3d.logic()
+      numberOfRegions = sm3Logic.GetNumberOfRegionsInSegment(segmentation, segmentID)
       if (numberOfRegions > 1):
-        self.replaceSegmentByLargestRegion(segmentation, segmentID)
+        sm3Logic.ReplaceSegmentByLargestRegion(segmentation, segmentID)
 
     # Set input segmentation and endpoints
     inputSurfaceComboBox.setCurrentNode(segmentation)
@@ -613,49 +616,6 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
     logging.info(message)
     slicer.util.showStatusMessage(message, 5000)
     return segmentID
-
-  def getNumberOfRegionsInSegment(self, segmentation, segmentID):
-    if (not segmentation) or (not segmentID):
-      raise ValueError(_("Segmentation or segmentID is invalid."))
-    if not segmentation.GetSegmentation().GetSegment(segmentID):
-      raise ValueError(_("Segment not found in the segmentation."))
-
-    closedSurfacePolyData = vtk.vtkPolyData()
-    segmentation.CreateClosedSurfaceRepresentation()
-    segmentation.GetClosedSurfaceRepresentation(segmentID, closedSurfacePolyData)
-    regionFilter = vtk.vtkPolyDataConnectivityFilter()
-    regionFilter.SetInputData(closedSurfacePolyData)
-    regionFilter.SetExtractionModeToAllRegions()
-    regionFilter.Update()
-    return regionFilter.GetNumberOfExtractedRegions()
-
-  def replaceSegmentByLargestRegion(self, segmentation, segmentID):
-    if (not segmentation) or (not segmentID):
-      raise ValueError(_("Segmentation or segmentID is invalid."))
-    if not segmentation.GetSegmentation().GetSegment(segmentID):
-      raise ValueError(_("Segment not found in the segmentation."))
-
-    closedSurfacePolyData = vtk.vtkPolyData()
-    segmentation.CreateClosedSurfaceRepresentation()
-    segmentation.GetClosedSurfaceRepresentation(segmentID, closedSurfacePolyData)
-    regionExtrator = vtk.vtkPolyDataConnectivityFilter()
-    regionExtrator.SetExtractionModeToLargestRegion()
-    regionExtrator.SetInputData(closedSurfacePolyData)
-    regionExtrator.Update()
-
-    cleaner = vtk.vtkCleanPolyData()
-    cleaner.SetInputConnection(regionExtrator.GetOutputPort())
-    cleaner.Update()
-
-    segment = segmentation.GetSegmentation().GetSegment(segmentID)
-    segmentName = segment.GetName()
-    segmentColour = segment.GetColor()
-    segmentation.GetSegmentation().RemoveSegment(segmentID)
-    newSegmentID = segmentation.AddSegmentFromClosedSurfaceRepresentation(cleaner.GetOutput(), segmentName, segmentColour, segmentID)
-    if newSegmentID != segmentID: # A few years ago, segmentID was being ignored in AddSegmentFromClosedSurfaceRepresentation.
-      logging.warning("Mismatch between requested and created segment ids from AddSegmentFromClosedSurfaceRepresentation.")
-
-    return newSegmentID # Must be the same as segmentID.
 
 #
 # QuickArterySegmentationTest

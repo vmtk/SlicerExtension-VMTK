@@ -15,7 +15,6 @@ from slicer.parameterNodeWrapper import (
 )
 
 from slicer import vtkMRMLScalarVolumeNode
-import QuickArterySegmentation
 
 #
 # GuidedArterySegmentation
@@ -370,8 +369,8 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
       self.ui.fixRegionToolButton.setVisible(False)
       return
 
-    qasLogic = QuickArterySegmentation.QuickArterySegmentationLogic()
-    numberOfRegions = qasLogic.getNumberOfRegionsInSegment(segmentation, segmentID)
+    sm3Logic = slicer.modules.stenosismeasurement3d.logic()
+    numberOfRegions = sm3Logic.GetNumberOfRegionsInSegment(segmentation, segmentID)
     if numberOfRegions == 0:
       self.ui.regionInfoLabel.clear()
       self.ui.regionInfoLabel.setVisible(False)
@@ -391,8 +390,8 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
       self.inform(_("Invalid segmentation or segmentID."))
       self.ui.regionInfoLabel.setVisible(False)
       return
-    qasLogic = QuickArterySegmentation.QuickArterySegmentationLogic()
-    qasLogic.replaceSegmentByLargestRegion(segmentation, segmentID)
+    sm3Logic = slicer.modules.stenosismeasurement3d.logic()
+    sm3Logic.ReplaceSegmentByLargestRegion(segmentation, segmentID)
     self.updateRegionInfo()
 
 #
@@ -632,10 +631,10 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
     """
     optionUseLargestRegion = int(self._parameterNode.GetParameter(ROLE_OPTION_USE_LARGEST_REGION))
     if optionUseLargestRegion:
-      qasLogic = QuickArterySegmentation.QuickArterySegmentationLogic()
-      numberOfRegions = qasLogic.getNumberOfRegionsInSegment(segmentation, segmentID)
+      sm3Logic = slicer.modules.stenosismeasurement3d.logic()
+      numberOfRegions = sm3Logic.GetNumberOfRegionsInSegment(segmentation, segmentID)
       if (numberOfRegions > 1):
-        qasLogic.replaceSegmentByLargestRegion(segmentation, segmentID)
+        sm3Logic.ReplaceSegmentByLargestRegion(segmentation, segmentID)
 
     # Set input segmentation
     inputSurfaceComboBox.setCurrentNode(segmentation)

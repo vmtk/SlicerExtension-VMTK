@@ -78,6 +78,9 @@ public:
   bool DumpAggregateVolumes(vtkMRMLMarkupsShapeNode * wallShapeNode, vtkPolyData * enclosedSurface,
                            std::string filepath);
 
+  int GetNumberOfRegionsInSegment(vtkMRMLSegmentationNode * segmentation, const std::string& segmentID);
+  std::string ReplaceSegmentByLargestRegion(vtkMRMLSegmentationNode * segmentation, const std::string& segmentID);
+
 protected:
   vtkSlicerStenosisMeasurement3DLogic();
   ~vtkSlicerStenosisMeasurement3DLogic() override;
