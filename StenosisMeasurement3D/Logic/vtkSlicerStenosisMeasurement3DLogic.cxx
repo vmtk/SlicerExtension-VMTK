@@ -1089,6 +1089,75 @@ bool vtkSlicerStenosisMeasurement3DLogic::DumpAggregateVolumes(vtkMRMLMarkupsSha
 }
 
 //------------------------------------------------------------------------------
+int vtkSlicerStenosisMeasurement3DLogic::GetNumberOfRegionsInSegment(vtkMRMLSegmentationNode* segmentation,
+                                                                     const std::string& segmentID)
+{
+  if (!segmentation || segmentID.empty())
+  {
+    vtkErrorMacro("Invalid input: segmentation is NULL or segmentID is empty.");
+    return -1;
+  }
+  if (!segmentation->CreateClosedSurfaceRepresentation())
+  {
+    vtkErrorMacro("Could not create a closed surface representation of the segmentation.");
+    return -1;
+  }
+  vtkNew<vtkPolyData> closedSurfacePolyData;
+  if (!segmentation->GetClosedSurfaceRepresentation(segmentID, closedSurfacePolyData))
+  {
+    vtkErrorMacro("Could not get a closed surface representation of the segmentation.");
+    return -1;
+  }
+  vtkNew<vtkPolyDataConnectivityFilter> regionFilter;
+  regionFilter->SetInputData(closedSurfacePolyData);
+  regionFilter->SetExtractionModeToAllRegions();
+  regionFilter->Update();
+
+  return regionFilter->GetNumberOfExtractedRegions();
+}
+
+//------------------------------------------------------------------------------
+std::string vtkSlicerStenosisMeasurement3DLogic::ReplaceSegmentByLargestRegion(vtkMRMLSegmentationNode* segmentation,
+                                                                               const std::string& segmentID)
+{
+  if (!segmentation || segmentID.empty())
+  {
+    vtkErrorMacro("Invalid input: segmentation is NULL or segmentID is empty.");
+    return "";
+  }
+  if (!segmentation->CreateClosedSurfaceRepresentation())
+  {
+    vtkErrorMacro("Could not create a closed surface representation of the segmentation.");
+    return "";
+  }
+  vtkNew<vtkPolyData> closedSurfacePolyData;
+  if (!segmentation->GetClosedSurfaceRepresentation(segmentID, closedSurfacePolyData))
+  {
+    vtkErrorMacro("Could not get a closed surface representation of the segmentation.");
+    return "";
+  }
+  vtkNew<vtkPolyDataConnectivityFilter> regionFilter;
+  regionFilter->SetInputData(closedSurfacePolyData);
+  regionFilter->SetExtractionModeToLargestRegion();
+  regionFilter->Update();
+
+  vtkNew<vtkCleanPolyData> cleaner;
+  cleaner->SetInputConnection(regionFilter->GetOutputPort());
+  cleaner->Update();
+
+  vtkSegment * _segment = segmentation->GetSegmentation()->GetSegment(segmentID);
+  std::string name = _segment->GetName();
+  double * colour = _segment->GetColor();
+  // Without a local copy, the colour is kind of a transparent grey.
+  double _colour[3] = {colour[0], colour[1], colour[2]};
+  segmentation->GetSegmentation()->RemoveSegment(segmentID);
+
+  return segmentation->AddSegmentFromClosedSurfaceRepresentation(cleaner->GetOutput(),
+                                                                 name, _colour, segmentID);
+}
+
+
+//------------------------------------------------------------------------------
 VolumeComputeWorker::VolumeComputeWorker()
 {
 }

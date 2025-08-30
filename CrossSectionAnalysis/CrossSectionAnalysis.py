@@ -954,9 +954,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     if (not segmentation) or (segmentation.GetClassName() != "vtkMRMLSegmentationNode") or (segmentID is None):
       logging.error("Invalid segmentation or segment ID.")
       return
-    import QuickArterySegmentation
-    qasLogic = QuickArterySegmentation.QuickArterySegmentationLogic()
-    qasLogic.replaceSegmentByLargestRegion(segmentation, segmentID)
+    sm3Logic = slicer.modules.stenosismeasurement3d.logic()
+    sm3Logic.ReplaceSegmentByLargestRegion(segmentation, segmentID)
     self.onGetRegionsButton()
 
   def setShowCrossSection(self, checked):

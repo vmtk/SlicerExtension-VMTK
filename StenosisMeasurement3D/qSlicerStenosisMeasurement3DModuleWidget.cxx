@@ -130,6 +130,8 @@ void qSlicerStenosisMeasurement3DModuleWidget::setup()
                    this, SLOT(onParameterNodeAddedByUser(vtkMRMLNode*)));
   QObject::connect(d->parameterSetSelector, SIGNAL(currentNodeChanged(vtkMRMLNode*)),
                    this, SLOT(onParameterNodeChanged(vtkMRMLNode*)));
+  QObject::connect(d->fixRegionToolButton, SIGNAL(clicked()),
+                   this, SLOT(replaceSegmentByRegion()));
 
   // Put p1 and p2 ficucial points on the tube spline at nearest point when they are moved.
   this->fiducialObservation = vtkSmartPointer<vtkCallbackCommand>::New();
@@ -461,6 +463,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::onSegmentIDChanged(QString segmen
     d->parameterNode->SetInputSegmentID(segmentID.toStdString().c_str());
   }
   this->clearLumenCache();
+  this->updateRegionInfo();
 }
 
 //-----------------------------------------------------------------------------
@@ -815,6 +818,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::onParameterNodeAddedByUser(vtkMRM
   d->parameterNode = downcastNode;
   this->setDefaultParameters(d->parameterNode);
   this->clearLumenCache();
+  this->updateRegionInfo();
 }
 
 //-----------------------------------------------------------------------------
@@ -915,4 +919,63 @@ void qSlicerStenosisMeasurement3DModuleWidget::dumpAggregateVolumes()
   }
   QString successMessage = dbName + QString(qSlicerStenosisMeasurement3DModuleWidget::tr(" is saved in your document directory."));
   this->showStatusMessage(successMessage.toStdString().c_str(), 5000);
+}
+
+//-----------------------------------------------------------------------------
+void qSlicerStenosisMeasurement3DModuleWidget::updateRegionInfo()
+{
+  Q_D(qSlicerStenosisMeasurement3DModuleWidget);
+  if (!d->parameterNode)
+  {
+    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Parameter node is invalid."), 5000);
+    d->regionInfoLabel->setVisible(false);
+    d->fixRegionToolButton->setVisible(false);
+    return;
+  }
+  vtkMRMLSegmentationNode * segmentation = d->parameterNode->GetInputSegmentationNode();
+  const std::string segmentID = d->parameterNode->GetInputSegmentID();
+  if (!segmentation || segmentID.empty())
+  {
+    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Invalid segmentation or segmentID."), 5000);
+    d->regionInfoLabel->setVisible(false);
+    d->fixRegionToolButton->setVisible(false);
+    return;
+  }
+  int numberOfRegions = this->logic->GetNumberOfRegionsInSegment(segmentation, segmentID);
+  if (numberOfRegions < 1)
+  {
+    d->regionInfoLabel->clear();
+    d->regionInfoLabel->setVisible(false);
+    d->fixRegionToolButton->setVisible(false);
+    return;
+  }
+  const QString regionInfo = qSlicerStenosisMeasurement3DModuleWidget::tr("Number of regions in segment: ")
+                  + QString(std::to_string(numberOfRegions).c_str());
+  d->regionInfoLabel->setText(regionInfo);
+  d->regionInfoLabel->setVisible(true);
+  d->fixRegionToolButton->setVisible(numberOfRegions > 1);
+}
+
+//-----------------------------------------------------------------------------
+void qSlicerStenosisMeasurement3DModuleWidget::replaceSegmentByRegion()
+{
+  Q_D(qSlicerStenosisMeasurement3DModuleWidget);
+  if (!d->parameterNode)
+  {
+    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Parameter node is invalid."), 5000);
+    d->regionInfoLabel->setVisible(false);
+    d->fixRegionToolButton->setVisible(false);
+    return;
+  }
+  vtkMRMLSegmentationNode * segmentation = d->parameterNode->GetInputSegmentationNode();
+  const std::string segmentID = d->parameterNode->GetInputSegmentID();
+  if (!segmentation || segmentID.empty())
+  {
+    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Invalid segmentation or segmentID."), 5000);
+    d->regionInfoLabel->setVisible(false);
+    return;
+  }
+  // Not checking the returned segmentID, which must not change.
+  this->logic->ReplaceSegmentByLargestRegion(segmentation, segmentID);
+  this->updateRegionInfo();
 }
