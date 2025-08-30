@@ -18,6 +18,7 @@ The input segment should be a contiguous segment without any holes. If these are
 
  - Show a model of the lesion.
  - Store the results in a table
+ - Decimate the input Tube surface
 
 
 ![Usage](StenosisMeasurement3D_0.png)
@@ -33,3 +34,4 @@ The input segment should be a contiguous segment without any holes. If these are
      - lesion volume per cm
      - stenosis per cm.
  - A cache of the enclosed lumen is used for faster subsequent processing. It is transparently invalidated on many events. However, Undo/Redo operations in the 'Segment editor' are not detected. In such circumstances, the cache *must* be explicitly cleared, either using the provided menu action or by changing any input node back and forth. As for the tube, any modified event invalidates the cache.
+ - If the processing fails, check the pre-processing (decimate) button for the Tube and repeat.

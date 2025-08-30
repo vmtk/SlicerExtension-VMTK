@@ -14,7 +14,8 @@ Main features:
 - show the maximum inscribed sphere
 - show the cross-section of the lumen
 - show the cross-section of a Tube
-- clip a lumen inside a Tube.
+- clip a lumen inside a Tube
+- decimate the Tube's surface.
 
 Computed metrics:
 
@@ -66,7 +67,7 @@ A graphical plot of MIS diameter, CE diameter or cross-section area against dist
     - the [Edit centerline](https://github.com/vmtk/SlicerExtension-VMTK/blob/master/Docs/EditCenterline.md) module may be helpful to *pre-define* a Tube,
     - the lumen should be cut to slightly exceed the ends of the Tube, remove all bifurcations and distant parts of the segment that are not enclosed in the Tube,
     - alternatively, the lumen can be clipped inside the Tube.
-- The quality of a segmented lumen is important. It must not contain holes. These may be misleading as the calculated surface area may concern a hole and not the segmented lumen. These defects may be identified and tracked in the module. For a segmentation lumen surface, the 'Paint' effect of the 'Segment editor' may be activated in-place to fill the holes. Alternatively, the input segment may be replaced by its largest region.
+- The quality of a segmented lumen is important. It must not contain holes. These may be misleading as the calculated surface area may concern a hole and not the segmented lumen. Holes may also adversely impact clipping a lumen segment in a Tube. These defects may be identified and tracked in the module. For a segmentation lumen surface, the 'Paint' effect of the 'Segment editor' may be activated in-place to fill the holes. Alternatively, the input segment may be smoothed in place to fill small holes.
 
 |                                                    |                                                    |
 |----------------------------------------------------|----------------------------------------------------|

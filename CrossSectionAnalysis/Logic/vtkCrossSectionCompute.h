@@ -34,12 +34,8 @@ public:
   {
     this->NumberOfThreads = number;
   }
-  /**
-   * inputSurface may be a segmentation or a model.
-   * inputSegmentId is ignored if inputSurface is a model.
-   * A member closed surface polydata is derived from the input.
-  */
-  bool SetInputSurfaceNode(vtkMRMLNode * inputSurface, const std::string& inputSegmentId);
+  
+  void SetInputSurfacePolyData(vtkPolyData * inputSurface);
   
   /**
    * Also computes GeneratedPolyData and GeneratedTangents once only.
@@ -72,10 +68,7 @@ protected:
 
 private:
   unsigned int NumberOfThreads;
-  vtkSmartPointer<vtkMRMLNode> InputSurfaceNode;
-  // Created by ::SetInputSurfaceNode.
   vtkSmartPointer<vtkPolyData> ClosedSurfacePolyData;
-  std::string InputSegmentID;
   
   /**
    * We don't need normals and binormals.

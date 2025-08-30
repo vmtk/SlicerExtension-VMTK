@@ -9,8 +9,6 @@
 #include <math.h> // sqrt
 #include <vector>
 
-#include <vtkMRMLSegmentationNode.h>
-#include <vtkMRMLModelNode.h>
 #include <vtkPlane.h>
 #include <vtkCutter.h>
 #include <vtkPolyDataConnectivityFilter.h>
@@ -21,7 +19,6 @@
 #include <vtkParallelTransportFrame.h>
 #include <vtkPointData.h>
 #include <vtkIdList.h>
-#include <vtkMRMLMarkupsShapeNode.h>
 
 std::mutex mtx;
 
@@ -64,7 +61,6 @@ private:
 vtkCrossSectionCompute::vtkCrossSectionCompute()
 {
   this->NumberOfThreads = 1;
-  this->InputSurfaceNode = nullptr;
   this->ClosedSurfacePolyData = vtkSmartPointer<vtkPolyData>::New();
 }
 
@@ -79,69 +75,20 @@ void vtkCrossSectionCompute::PrintSelf(ostream& os, vtkIndent indent)
     vtkObject::PrintSelf(os,indent);
 
     os << indent << "numberOfThreads: " << this->NumberOfThreads << "\n";
-    os << indent << "inputSurfaceNode: " << this->InputSurfaceNode << "\n";
-    os << indent << "inputSegmentID: " << this->InputSegmentID << "\n";
+    os << indent << "closedSurfacePolyData: " << this->ClosedSurfacePolyData << "\n";
 }
 
 //------------------------------------------------------------------------------
-// The surface polydata is constant. Create it once only.
-bool vtkCrossSectionCompute::SetInputSurfaceNode(vtkMRMLNode * inputSurface, const std::string& inputSegmentId)
+void vtkCrossSectionCompute::SetInputSurfacePolyData(vtkPolyData * inputSurface)
 {
-  this->InputSurfaceNode = inputSurface;
-  this->InputSegmentID = inputSegmentId;
-  if (std::string(this->InputSurfaceNode->GetClassName()) == std::string("vtkMRMLSegmentationNode"))
-  {
-    vtkMRMLSegmentationNode * inputSegmentationNode = vtkMRMLSegmentationNode::SafeDownCast(this->InputSurfaceNode);
-    if (inputSegmentationNode == NULL)
+    if (!inputSurface)
     {
-        vtkErrorMacro("Invalid surface segmentation node.");
+        vtkErrorMacro("Invalid input surface.");
         this->ClosedSurfacePolyData = nullptr;
-        return false;
+        return;
     }
-    inputSegmentationNode->CreateClosedSurfaceRepresentation();
-    inputSegmentationNode->GetClosedSurfaceRepresentation(this->InputSegmentID, this->ClosedSurfacePolyData);
-  }
-  else if (std::string(this->InputSurfaceNode->GetClassName()) == std::string("vtkMRMLModelNode"))
-  {
-    vtkMRMLModelNode * inputModelNode = vtkMRMLModelNode::SafeDownCast(this->InputSurfaceNode);
-    if (inputModelNode == NULL)
-    {
-        vtkErrorMacro("Invalid surface model node.");
-        this->ClosedSurfacePolyData = nullptr;
-        return false;
-    }
-    this->ClosedSurfacePolyData->DeepCopy(inputModelNode->GetPolyData());
-  }
-  else if (std::string(this->InputSurfaceNode->GetClassName()) == std::string("vtkMRMLMarkupsShapeNode"))
-  {
-      vtkMRMLMarkupsShapeNode * inputShapeNode = vtkMRMLMarkupsShapeNode::SafeDownCast(this->InputSurfaceNode);
-      if (inputShapeNode == NULL)
-      {
-          std::cout << "Invalid surface shape node." << std::endl;
-          this->ClosedSurfacePolyData = nullptr;
-          return false;
-      }
-      if (inputShapeNode->GetShapeName() != vtkMRMLMarkupsShapeNode::Tube)
-      {
-          std::cout << "Surface shape node is not a Tube." << std::endl;
-          this->ClosedSurfacePolyData = nullptr;
-          return false;
-      }
-      if (inputShapeNode->GetNumberOfControlPoints() < 4)
-      {
-          std::cout << "The Tube surface shape node must have at least 4 control points." << std::endl;
-          this->ClosedSurfacePolyData = nullptr;
-          return false;
-      }
-      this->ClosedSurfacePolyData->DeepCopy(inputShapeNode->GetShapeWorld());
-  }
-  else
-  {
-    vtkErrorMacro("Invalid closed surface.");
-    this->ClosedSurfacePolyData = nullptr;
-    return false;
-  }
-  return true;
+
+    this->ClosedSurfacePolyData->DeepCopy(inputSurface);
 }
 
 //------------------------------------------------------------------------------
@@ -168,15 +115,9 @@ void vtkCrossSectionCompute::SetInputCenterlinePolyData(vtkPolyData * inputCente
 bool vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray, vtkDoubleArray * ceDiameterArray,
                                          vtkIdList* emptySectionIds)
 {
-    if (this->InputSurfaceNode == nullptr)
+    if (this->ClosedSurfacePolyData == nullptr)
     {     
         vtkErrorMacro("Input surface is NULL.");
-        return false;
-    }
-    if (std::string(this->InputSurfaceNode->GetClassName()) == std::string("vtkMRMLSegmentationNode")
-        && this->InputSegmentID.empty())
-    {     
-        vtkErrorMacro("Input segment ID is unknown.");
         return false;
     }
     /*
@@ -204,7 +145,7 @@ bool vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
          * Give each thread a copy of the closed surface.
          */
         vtkSmartPointer<vtkPolyData> closedSurfacePolyDataCopy = vtkSmartPointer<vtkPolyData>::New();
-        closedSurfacePolyDataCopy->DeepCopy(this->ClosedSurfacePolyData.Get());
+        closedSurfacePolyDataCopy->DeepCopy(this->ClosedSurfacePolyData);
         
         // Each thread stores the results in this array.
         vtkSmartPointer<vtkDoubleArray> bufferArray = vtkSmartPointer<vtkDoubleArray>::New();

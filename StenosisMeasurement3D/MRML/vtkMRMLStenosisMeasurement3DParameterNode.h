@@ -59,6 +59,9 @@ public:
 
     vtkGetMacro(SmoothingKernelSize, double);
     vtkSetMacro(SmoothingKernelSize, double);
+    vtkGetMacro(PreProcessWallSurface, bool);
+    vtkSetMacro(PreProcessWallSurface, bool);
+    vtkBooleanMacro(PreProcessWallSurface, bool);
 
 protected:
     vtkMRMLStenosisMeasurement3DParameterNode();
@@ -70,6 +73,7 @@ protected:
     std::string InputSegmentID;
     int OutputTableRowId = 0;
     double SmoothingKernelSize = 1.1;
+    bool PreProcessWallSurface = false; // Decimate wall.
 };
 
 #endif // __vtkmrmlstenosismeasurement3dparameternode_h_

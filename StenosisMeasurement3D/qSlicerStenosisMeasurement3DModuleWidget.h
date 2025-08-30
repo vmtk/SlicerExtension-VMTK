@@ -63,6 +63,7 @@ protected slots:
   void onParameterNodeAddedByUser(vtkMRMLNode * node);
   void onParameterNodeChanged(vtkMRMLNode * node);
   void onSmoothingKernelSizeChanged(double value);
+  void onPreProcessWallChanged(bool checked);
   void clearLumenCache();
   void dumpAggregateVolumes();
   void updateSegmentBySmoothClosing();
@@ -74,10 +75,12 @@ protected:
   vtkSlicerStenosisMeasurement3DLogic::EnclosingType
   createEnclosedSurface(vtkMRMLMarkupsShapeNode * wallShapeNode,
                         vtkMRMLSegmentationNode * lumenSegmentationNode, std::string segmentID,
-                        vtkPolyData * enclosedSurface);
+                        vtkPolyData * enclosedSurface,
+                        bool preProcessWallSurface = false);
   bool getEnclosedSurface(vtkMRMLMarkupsShapeNode * wallShapeNode,
                           vtkMRMLSegmentationNode * lumenSegmentationNode, std::string segmentID,
-                          vtkPolyData * enclosedSurface); // From cache or create.
+                          vtkPolyData * enclosedSurface,
+                          bool preProcessWallSurface = false); // From cache or create.
 
   void showResult(vtkPolyData * wall, vtkPolyData * lumen, vtkVariantArray * results);
   void createLesionModel(vtkMRMLMarkupsShapeNode * wallShapeNode, vtkPolyData * enclosedSurface,

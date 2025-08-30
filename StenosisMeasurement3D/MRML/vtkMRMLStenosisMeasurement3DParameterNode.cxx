@@ -43,6 +43,7 @@ void vtkMRMLStenosisMeasurement3DParameterNode::PrintSelf(ostream& os, vtkIndent
   vtkMRMLPrintBeginMacro(os, indent);
   vtkMRMLPrintStdStringMacro(InputSegmentID);
   vtkMRMLPrintIntMacro(OutputTableRowId);
+  vtkMRMLPrintBooleanMacro(PreProcessWallSurface);
   vtkMRMLPrintEndMacro();
 }
 
@@ -57,6 +58,7 @@ void vtkMRMLStenosisMeasurement3DParameterNode::ReadXMLAttributes(const char** a
   vtkMRMLReadXMLBeginMacro(atts);
   vtkMRMLReadXMLStringMacro(segmentID, InputSegmentID);
   vtkMRMLReadXMLIntMacro(tableRowId, OutputTableRowId)
+  vtkMRMLReadXMLBooleanMacro(preProcessWallSurface, PreProcessWallSurface);
   vtkMRMLReadXMLEndMacro();
   
   this->EndModify(disabledModify);
@@ -69,6 +71,7 @@ void vtkMRMLStenosisMeasurement3DParameterNode::WriteXML(ostream& of, int nInden
   vtkMRMLWriteXMLBeginMacro(of);
   vtkMRMLWriteXMLStringMacro(segmentID, InputSegmentID);
   vtkMRMLWriteXMLIntMacro(tableRowId, OutputTableRowId);
+  vtkMRMLWriteXMLBooleanMacro(preProcessWallSurface, PreProcessWallSurface);
   vtkMRMLWriteXMLEndMacro();
 }
 
@@ -81,6 +84,7 @@ void vtkMRMLStenosisMeasurement3DParameterNode::CopyContent(vtkMRMLNode* anode, 
   vtkMRMLCopyBeginMacro(anode);
   vtkMRMLCopyStringMacro(InputSegmentID);
   vtkMRMLCopyIntMacro(OutputTableRowId);
+  vtkMRMLCopyBooleanMacro(PreProcessWallSurface);
   vtkMRMLCopyEndMacro();
 }
 
