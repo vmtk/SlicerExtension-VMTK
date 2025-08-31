@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>532</width>
-    <height>933</height>
+    <height>1041</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -478,7 +478,9 @@ The 'Sphere' brush is enforced. Further customisation can be performed in the 'S
                  <item>
                   <widget class="QToolButton" name="surfaceInformationFastFixToolButton">
                    <property name="toolTip">
-                    <string>Replace the segment by the largest region.</string>
+                    <string>If the segment has more than one region, this function replaces the input segment by a new segment having a single region. It is created from the largest region of the input segment.
+
+The result must be inspected before use. If it is not satisfactory, the segment should be updated by any other means.</string>
                    </property>
                    <property name="text">
                     <string>fast fix</string>

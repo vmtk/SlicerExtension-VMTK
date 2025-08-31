@@ -183,7 +183,9 @@ This should ideally exceed the wall surface a little.</string>
         <item>
          <widget class="QToolButton" name="fixRegionToolButton">
           <property name="toolTip">
-           <string>If the segment has more than one region, this function replaces the input segment by a new segment having a single region. It is created from the largest region of the input segment.</string>
+           <string>If the segment has more than one region, this function replaces the input segment by a new segment having a single region. It is created from the largest region of the input segment.
+
+The result must be inspected before use. If it is not satisfactory, the source segment should be updated by any other means.</string>
           </property>
           <property name="text">
            <string>Fix</string>
