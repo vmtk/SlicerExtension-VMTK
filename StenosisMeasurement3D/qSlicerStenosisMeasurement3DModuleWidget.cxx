@@ -861,6 +861,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::onParameterNodeChanged(vtkMRMLNod
 
   this->updateGuiFromParameterNode();
   this->clearLumenCache();
+  this->updateRegionInfo();
 }
 
 //-----------------------------------------------------------------------------
@@ -936,7 +937,6 @@ void qSlicerStenosisMeasurement3DModuleWidget::updateRegionInfo()
   const std::string segmentID = d->parameterNode->GetInputSegmentID();
   if (!segmentation || segmentID.empty())
   {
-    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Invalid segmentation or segmentID."), 5000);
     d->regionInfoLabel->setVisible(false);
     d->fixRegionToolButton->setVisible(false);
     return;
