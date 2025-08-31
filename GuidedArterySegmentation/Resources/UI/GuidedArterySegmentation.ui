@@ -277,7 +277,9 @@ If a Shape::Tube node is specified below, this parameter is ignored.</string>
         <item>
          <widget class="QToolButton" name="fixRegionToolButton">
           <property name="toolTip">
-           <string>If the segment has more than one region, this function replaces the input segment by a new segment having a single region. It is created from the largest region of the input segment.</string>
+           <string>If the segment has more than one region, this function replaces the output segment by a new segment having a single region. It is created from the largest region of the input segment.
+
+The result must be inspected before use. If it is not satisfactory, the segment should be updated by any other means.</string>
           </property>
           <property name="text">
            <string>Fix</string>

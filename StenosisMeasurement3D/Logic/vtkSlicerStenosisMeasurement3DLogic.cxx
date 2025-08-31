@@ -39,6 +39,7 @@
 #include <vtkBooleanOperationPolyDataFilter.h>
 #include <vtkCleanPolyData.h>
 #include <vtkMRMLSegmentationNode.h>
+#include <vtkMRMLSegmentationDisplayNode.h>
 #include <vtkSegmentationConverter.h>
 #include <vtkContourTriangulator.h>
 #include <vtkAppendPolyData.h>
@@ -1152,8 +1153,22 @@ std::string vtkSlicerStenosisMeasurement3DLogic::ReplaceSegmentByLargestRegion(v
   double _colour[3] = {colour[0], colour[1], colour[2]};
   segmentation->GetSegmentation()->RemoveSegment(segmentID);
 
-  return segmentation->AddSegmentFromClosedSurfaceRepresentation(cleaner->GetOutput(),
+  // id should be segmentID.
+  std::string id = segmentation->AddSegmentFromClosedSurfaceRepresentation(cleaner->GetOutput(),
                                                                  name, _colour, segmentID);
+
+  // Update the display.
+  const std::string preferred3DRepresentationName = vtkSegmentationConverter::GetSegmentationClosedSurfaceRepresentationName();
+  segmentation->GetSegmentation()->RemoveRepresentation(preferred3DRepresentationName);
+  if (segmentation->GetSegmentation()->CreateRepresentation(preferred3DRepresentationName))
+  {
+    vtkMRMLSegmentationDisplayNode * displayNode = vtkMRMLSegmentationDisplayNode::SafeDownCast(segmentation->GetDisplayNode());
+    if (displayNode)
+    {
+      displayNode->SetPreferredDisplayRepresentationName3D(preferred3DRepresentationName.c_str());
+    }
+  }
+  return id;
 }
 
 
