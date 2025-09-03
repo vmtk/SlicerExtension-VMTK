@@ -725,6 +725,14 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.updateWallLabelsVisibility()
     self.resetLumenRegions()
     self.updateClipButtonVisibility()
+    """
+    Small hack to ensure that the segmentID in logic is synchronised with the
+    parameter node.
+    NOTE: segmentationSelector and segmentSelector are connected in designer.
+    """
+    if (self._parameterNode):
+      if (self.logic.currentSegmentID != self._parameterNode.GetParameter(ROLE_INPUT_SEGMENT_ID)):
+        self.setValueInParameterNode(ROLE_INPUT_SEGMENT_ID, self.ui.segmentSelector.currentSegmentID())
 
   # The output table columns vary according to the input types; this defines what can be plotted.
   def updatePlotOptions(self):
