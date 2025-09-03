@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>371</width>
+    <width>391</width>
     <height>685</height>
    </rect>
   </property>
@@ -169,8 +169,8 @@ This should ideally exceed the wall surface a little.</string>
        </widget>
       </item>
       <item row="3" column="1">
-       <layout class="QHBoxLayout" name="regionsHorizontalLayout">
-        <item>
+       <layout class="QFormLayout" name="RegionsFormLayout">
+        <item row="1" column="0">
          <widget class="QLabel" name="regionInfoLabel">
           <property name="toolTip">
            <string>Ideally, there should be only one region in the input segment.</string>
@@ -180,15 +180,42 @@ This should ideally exceed the wall surface a little.</string>
           </property>
          </widget>
         </item>
-        <item>
+        <item row="2" column="1">
+         <widget class="QDoubleSpinBox" name="kernelSizeSpinBox">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="toolTip">
+           <string>This value is used to calculate the gap pixel size. High values mean longer processing time.</string>
+          </property>
+          <property name="suffix">
+           <string> mm</string>
+          </property>
+          <property name="minimum">
+           <double>0.000000000000000</double>
+          </property>
+          <property name="singleStep">
+           <double>0.100000000000000</double>
+          </property>
+          <property name="value">
+           <double>1.100000000000000</double>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
          <widget class="QToolButton" name="fixRegionToolButton">
           <property name="toolTip">
-           <string>If the segment has more than one region, this function replaces the input segment by a new segment having a single region. It is created from the largest region of the input segment.
+           <string>Remove holes in a contiguous segment. There should remain 1 region ideally. Complex segments may not always be reduced to a single region.
+
+This function cannot be undone, proceed with small increments.
 
 The result must be inspected before use. If it is not satisfactory, the source segment should be updated by any other means.</string>
           </property>
           <property name="text">
-           <string>Fix</string>
+           <string>Smoothing gap size:</string>
           </property>
          </widget>
         </item>

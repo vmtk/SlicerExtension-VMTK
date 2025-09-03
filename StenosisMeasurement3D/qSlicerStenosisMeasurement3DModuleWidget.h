@@ -62,9 +62,10 @@ protected slots:
   void onUpdateBoundary(int index);
   void onParameterNodeAddedByUser(vtkMRMLNode * node);
   void onParameterNodeChanged(vtkMRMLNode * node);
+  void onSmoothingKernelSizeChanged(double value);
   void clearLumenCache();
   void dumpAggregateVolumes();
-  void replaceSegmentByRegion();
+  void updateSegmentBySmoothClosing();
 
 protected:
   QScopedPointer<qSlicerStenosisMeasurement3DModuleWidgetPrivate> d_ptr;

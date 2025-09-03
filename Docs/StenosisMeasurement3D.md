@@ -12,7 +12,7 @@ Segment a diseased arterial lumen using the segment editor. Draw a best fit arte
 
 Place 2 points of a fiducial node to limit the extent of the study.
 
-If the input segment contains may regions, it is highly recommended to fix it to the largest region with the implemented facility.
+The input segment should be a contiguous segment without any holes. If these are detected, they can removed with the provided smoothing facility.
 
 **Options**
 

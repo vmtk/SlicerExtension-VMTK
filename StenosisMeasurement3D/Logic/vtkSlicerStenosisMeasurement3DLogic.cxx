@@ -38,9 +38,12 @@
 #include <vtkExtractEnclosedPoints.h>
 #include <vtkBooleanOperationPolyDataFilter.h>
 #include <vtkCleanPolyData.h>
+#include <vtkImageThreshold.h>
+#include <vtkImageOpenClose3D.h>
 #include <vtkMRMLSegmentationNode.h>
 #include <vtkMRMLSegmentationDisplayNode.h>
 #include <vtkSegmentationConverter.h>
+#include <vtkOrientedImageData.h>
 #include <vtkContourTriangulator.h>
 #include <vtkAppendPolyData.h>
 #include <vtkFeatureEdges.h>
@@ -1118,57 +1121,95 @@ int vtkSlicerStenosisMeasurement3DLogic::GetNumberOfRegionsInSegment(vtkMRMLSegm
 }
 
 //------------------------------------------------------------------------------
-std::string vtkSlicerStenosisMeasurement3DLogic::ReplaceSegmentByLargestRegion(vtkMRMLSegmentationNode* segmentation,
-                                                                               const std::string& segmentID)
+// From SegmentEditorSmoothingEffect.py.
+bool vtkSlicerStenosisMeasurement3DLogic::UpdateSegmentBySmoothClosing(vtkMRMLSegmentationNode* segmentation,
+                                                                const std::string& segmentID, double kernelSize)
 {
   if (!segmentation || segmentID.empty())
   {
     vtkErrorMacro("Invalid input: segmentation is NULL or segmentID is empty.");
-    return "";
+    return false;
   }
-  if (!segmentation->CreateClosedSurfaceRepresentation())
+  if (!segmentation->CreateBinaryLabelmapRepresentation())
   {
-    vtkErrorMacro("Could not create a closed surface representation of the segmentation.");
-    return "";
+    vtkErrorMacro("Failed to create a binary label map from the segmentation.");
+    return false;
   }
-  vtkNew<vtkPolyData> closedSurfacePolyData;
-  if (!segmentation->GetClosedSurfaceRepresentation(segmentID, closedSurfacePolyData))
+  vtkNew<vtkOrientedImageData> segmentImage;
+  if (!segmentation->GetBinaryLabelmapRepresentation(segmentID, segmentImage))
   {
-    vtkErrorMacro("Could not get a closed surface representation of the segmentation.");
-    return "";
+    vtkErrorMacro("Failed to get a binary label map representation of the segment.");
+    return false;
   }
-  vtkNew<vtkPolyDataConnectivityFilter> regionFilter;
-  regionFilter->SetInputData(closedSurfacePolyData);
-  regionFilter->SetExtractionModeToLargestRegion();
-  regionFilter->Update();
+  
+  int kernelSizePixel[3] = {0};
+  double spacing[3] = {0.0};
+  segmentImage->GetSpacing(spacing[0], spacing[1], spacing[2]);
+  for (int i = 0; i < 3; i++)
+  {
+    // From python file: size rounded to nearest odd number. If kernel size is even then image gets shifted.
+    kernelSizePixel[i] = (int) (std::round((kernelSize / spacing[i] + 1) / 2) * 2) - 1;
+  }
+  
+  double labelValue = 1.0;
+  double backgroundValue = 0.0;
+  vtkNew<vtkImageThreshold> thresh;
+  thresh->SetInputData(segmentImage);
+  thresh->ThresholdByLower(0);
+  thresh->SetInValue(backgroundValue);
+  thresh->SetOutValue(labelValue);
+  thresh->SetOutputScalarType(segmentImage->GetScalarType());
+  thresh->Update(); // Not in python file.
 
-  vtkNew<vtkCleanPolyData> cleaner;
-  cleaner->SetInputConnection(regionFilter->GetOutputPort());
-  cleaner->Update();
+  vtkNew<vtkImageOpenClose3D> smoothingFilter;
+  smoothingFilter->SetInputConnection(thresh->GetOutputPort());
+  smoothingFilter->SetOpenValue(backgroundValue);
+  smoothingFilter->SetCloseValue(labelValue);
+  smoothingFilter->SetKernelSize(kernelSizePixel[0], kernelSizePixel[1], kernelSizePixel[2]);
+  smoothingFilter->Update();
 
+  vtkNew<vtkOrientedImageData> newSegmentImage;
+  newSegmentImage->ShallowCopy(smoothingFilter->GetOutput());
+  newSegmentImage->CopyDirections(segmentImage);
+
+  // Store segment name, colour, index and tags.
   vtkSegment * _segment = segmentation->GetSegmentation()->GetSegment(segmentID);
   std::string name = _segment->GetName();
   double * colour = _segment->GetColor();
   // Without a local copy, the colour is kind of a transparent grey.
   double _colour[3] = {colour[0], colour[1], colour[2]};
-  segmentation->GetSegmentation()->RemoveSegment(segmentID);
+  int segmentIndex = segmentation->GetSegmentation()->GetSegmentIndex(segmentID);
+  // Get tags.
+  std::map<std::string, std::string> tags;
+  _segment->GetTags(tags);
 
-  // id should be segmentID.
-  std::string id = segmentation->AddSegmentFromClosedSurfaceRepresentation(cleaner->GetOutput(),
-                                                                 name, _colour, segmentID);
-
-  // Update the display.
-  const std::string preferred3DRepresentationName = vtkSegmentationConverter::GetSegmentationClosedSurfaceRepresentationName();
-  segmentation->GetSegmentation()->RemoveRepresentation(preferred3DRepresentationName);
-  if (segmentation->GetSegmentation()->CreateRepresentation(preferred3DRepresentationName))
+  // Remove segment.
+  segmentation->RemoveSegment(segmentID);
+  segmentation->Modified();
+  // Create segment with same id, name and colour.
+  std::string id = segmentation->AddSegmentFromBinaryLabelmapRepresentation(newSegmentImage,
+                                                                           name, _colour, segmentID);
+  // Restore segment index. +++
+  segmentation->GetSegmentation()->SetSegmentIndex(id, segmentIndex);
+  // Restore custom tags.
+  _segment = segmentation->GetSegmentation()->GetSegment(segmentID);
+  for (std::pair<std::string, std::string> tag : tags)
   {
-    vtkMRMLSegmentationDisplayNode * displayNode = vtkMRMLSegmentationDisplayNode::SafeDownCast(segmentation->GetDisplayNode());
-    if (displayNode)
+    if (!_segment->HasTag(tag.first))
     {
-      displayNode->SetPreferredDisplayRepresentationName3D(preferred3DRepresentationName.c_str());
+      _segment->SetTag(tag.first, tag.second);
     }
   }
-  return id;
+  segmentation->Modified();
+
+  segmentation->CreateDefaultDisplayNodes();
+  vtkMRMLSegmentationDisplayNode * displayNode = vtkMRMLSegmentationDisplayNode::SafeDownCast(segmentation->GetDisplayNode());
+  if (displayNode)
+  {
+    displayNode->Modified();
+  }
+
+  return true;
 }
 
 

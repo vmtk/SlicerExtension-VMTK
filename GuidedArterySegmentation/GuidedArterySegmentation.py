@@ -102,8 +102,9 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     self.ui.intensityToleranceSpinBox.connect("valueChanged(int)", lambda value: self.onSpinBoxChanged(ROLE_INPUT_INTENSITY_TOLERANCE, value))
     self.ui.neighbourhoodSizeDoubleSpinBox.connect("valueChanged(double)", lambda value: self.onSpinBoxChanged(ROLE_INPUT_NEIGHBOURHOOD_SIZE, value))
     self.ui.extractCenterlinesCheckBox.connect("toggled(bool)", lambda checked: self.onBooleanToggled(ROLE_OPTION_EXTRACT_CENTERLINES, checked))
+    self.ui.kernelSizeSpinBox.connect("valueChanged(double)", lambda value: self.onSpinBoxChanged(ROLE_INPUT_KERNEL_SIZE, value))
 
-    self.ui.fixRegionToolButton.connect("clicked()", self.replaceSegmentByRegion)
+    self.ui.fixRegionToolButton.connect("clicked()", self.updateSegmentBySmoothClosing)
 
     self.ui.parameterSetSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.setParameterNode)
     self.ui.parameterSetUpdateUIToolButton.connect("clicked(bool)", self.onParameterSetUpdateUiClicked)
@@ -245,6 +246,7 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     self._parameterNode.SetParameter(ROLE_INPUT_DIAMETER, str(8.0))
     self._parameterNode.SetParameter(ROLE_INPUT_INTENSITY_TOLERANCE, str(100))
     self._parameterNode.SetParameter(ROLE_INPUT_NEIGHBOURHOOD_SIZE, str(2.0))
+    self._parameterNode.SetParameter(ROLE_INPUT_KERNEL_SIZE, str(1.1))
     self._parameterNode.SetParameter(ROLE_OPTION_EXTRACT_CENTERLINES, str(0))
     self._parameterNode.SetParameter(ROLE_OPTION_USE_LARGEST_REGION, str(1))
     self._parameterNode.SetParameter(ROLE_INITIALIZED, str(1))
@@ -327,6 +329,8 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     self.ui.tubeDiameterSpinBox.setValue(float(self._parameterNode.GetParameter(ROLE_INPUT_DIAMETER)))
     self.ui.extractCenterlinesCheckBox.setChecked(int(self._parameterNode.GetParameter(ROLE_OPTION_EXTRACT_CENTERLINES)))
     self._useLargestSegmentRegion.setChecked(int(self._parameterNode.GetParameter(ROLE_OPTION_USE_LARGEST_REGION)))
+    self.ui.kernelSizeSpinBox.setValue(float(self._parameterNode.GetParameter(ROLE_INPUT_KERNEL_SIZE))
+                                       if self._parameterNode.GetParameter(ROLE_INPUT_KERNEL_SIZE) else 1.1)
 
     self._updatingGUIFromParameterNode = False
 
@@ -360,6 +364,7 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     if not self._parameterNode:
       self.ui.regionInfoLabel.setVisible(False)
       self.ui.fixRegionToolButton.setVisible(False)
+      self.ui.kernelSizeSpinBox.setVisible(False)
       return
     segmentation = self._parameterNode.GetNodeReference(ROLE_OUTPUT_SEGMENTATION)
     segmentID = self._parameterNode.GetParameter(ROLE_OUTPUT_SEGMENT)
@@ -367,6 +372,7 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
       self.inform(_("Invalid segmentation or segmentID."))
       self.ui.regionInfoLabel.setVisible(False)
       self.ui.fixRegionToolButton.setVisible(False)
+      self.ui.kernelSizeSpinBox.setVisible(False)
       return
 
     sm3Logic = slicer.modules.stenosismeasurement3d.logic()
@@ -375,13 +381,15 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
       self.ui.regionInfoLabel.clear()
       self.ui.regionInfoLabel.setVisible(False)
       self.ui.fixRegionToolButton.setVisible(False)
+      self.ui.kernelSizeSpinBox.setVisible(False)
       return
-    regionInfo = _("Number of regions in segment: ") + str(numberOfRegions)
+    regionInfo = _("Region count: ") + str(numberOfRegions)
     self.ui.regionInfoLabel.setText(regionInfo)
     self.ui.regionInfoLabel.setVisible(True)
     self.ui.fixRegionToolButton.setVisible(numberOfRegions > 1)
+    self.ui.kernelSizeSpinBox.setVisible(numberOfRegions > 1)
 
-  def replaceSegmentByRegion(self):
+  def updateSegmentBySmoothClosing(self):
     if not self._parameterNode:
       return
     segmentation = self._parameterNode.GetNodeReference(ROLE_OUTPUT_SEGMENTATION)
@@ -390,8 +398,9 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
       self.inform(_("Invalid segmentation or segmentID."))
       self.ui.regionInfoLabel.setVisible(False)
       return
+    kernelSize = self._parameterNode.GetParameter(ROLE_INPUT_KERNEL_SIZE)
     sm3Logic = slicer.modules.stenosismeasurement3d.logic()
-    sm3Logic.ReplaceSegmentByLargestRegion(segmentation, segmentID)
+    sm3Logic.UpdateSegmentBySmoothClosing(segmentation, segmentID, float(kernelSize))
     self.updateRegionInfo()
 
 #
@@ -634,7 +643,8 @@ class GuidedArterySegmentationLogic(ScriptedLoadableModuleLogic):
       sm3Logic = slicer.modules.stenosismeasurement3d.logic()
       numberOfRegions = sm3Logic.GetNumberOfRegionsInSegment(segmentation, segmentID)
       if (numberOfRegions > 1):
-        sm3Logic.ReplaceSegmentByLargestRegion(segmentation, segmentID)
+        kernelSize = self._parameterNode.GetParameter(ROLE_INPUT_KERNEL_SIZE)
+        sm3Logic.UpdateSegmentBySmoothClosing(segmentation, segmentID, float(kernelSize))
 
     # Set input segmentation
     inputSurfaceComboBox.setCurrentNode(segmentation)
@@ -732,6 +742,7 @@ ROLE_OUTPUT_SEGMENTATION = "OutputSegmentation"
 ROLE_OUTPUT_SEGMENT = "OutputSegment" # Set in logic
 ROLE_INPUT_INTENSITY_TOLERANCE = "InputIntensityTolerance"
 ROLE_INPUT_NEIGHBOURHOOD_SIZE = "InputNeighbourhoodSize"
+ROLE_INPUT_KERNEL_SIZE = "InputKernelSize"
 ROLE_OPTION_EXTRACT_CENTERLINES = "OptionExtractCenterlines"
 ROLE_OUTPUT_CENTERLINE_MODEL = "OutputCenterlineModel" # Set in logic
 ROLE_OUTPUT_CENTERLINE_CURVE = "OutputCenterlineCurve" # Set in logic
