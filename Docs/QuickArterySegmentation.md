@@ -2,7 +2,7 @@
 
 This module is intended to create targeted (small) segmentations from a contrast enhanced CT angioscan using fiducial points, and to finally extract centerlines from the surface model. Overall, it's a small wrapper for common arterial segmentation tasks.
 
-![Texte alternatif](QuickArterySegmentationScreenshot_1.png)
+![Texte alternatif](QuickArterySegmentation_1.png)
 
 It assumes that data acquisition of the input volume is nearly perfect, and that fiducial points are placed in the contrasted lumen.
 
@@ -26,9 +26,11 @@ An ROI must be used to limit the segmentation. Using an ROI may save time, both 
 
 If no segmentation node is specified, one will be created, and it will persist across runs. An arbitrary segmentation node may also be provided. Segments will be added to the segmentation node, one for each input fiducial.
 
-**Flood filling parameters**
+**Parameters of the segment editor effects**
 
-Please refer to the manual of '[Segment editor extra effects](https://github.com/lassoan/SlicerSegmentEditorExtraEffects)' for their meaning. In brief, high values are needed for 'Intensity tolerance' with contrasted CT angiograms; increasing the value of 'Neighbourhood size' prevents leakage during segmentation.
+*Flood filling*: Please refer to the manual of '[Segment editor extra effects](https://github.com/lassoan/SlicerSegmentEditorExtraEffects)' for their meaning. In brief, high values are needed for 'Intensity tolerance' with contrasted CT angiograms; increasing the value of 'Neighbourhood size' limits leakage during segmentation.
+
+*Smoothing*: the 'Closing' operation of this effect can be optionally applied to remove holes in the segment.
 
 **Extract centerlines**
 
