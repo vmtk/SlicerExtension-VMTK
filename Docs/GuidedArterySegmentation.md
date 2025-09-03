@@ -2,7 +2,7 @@
 
 This module is intended to create targeted segmentations from a contrast enhanced CT angio scan using a markups open curve, and to finally extract centerlines from the surface model. Overall, it's a small wrapper to create *short* arterial segments as *single* tubes, with subsequent centerline extraction.
 
-![](GuidedArterySegmentationScreenshot_1.png)
+![](GuidedArterySegmentation_1.png)
 
 It assumes that a markups curve control points are placed in the contrasted lumen.
 
@@ -32,9 +32,11 @@ If no segmentation node is specified, one will be created, and it will persist a
 
 This value should be slightly greater than the maximum estimated diameter of the artery.
 
-### Flood filling parameters
+### Parameters of the segment editor effects
 
-Please refer to the manual of '[Segment editor extra effects](https://github.com/lassoan/SlicerSegmentEditorExtraEffects)' for their meaning. In brief, high values are needed for 'Intensity tolerance' with contrasted CT angiograms; increasing the value of 'Neighbourhood size' limits leakage during segmentation.
+*Flood filling*: Please refer to the manual of '[Segment editor extra effects](https://github.com/lassoan/SlicerSegmentEditorExtraEffects)' for their meaning. In brief, high values are needed for 'Intensity tolerance' with contrasted CT angiograms; increasing the value of 'Neighbourhood size' limits leakage during segmentation.
+
+*Smoothing*: the 'Closing' operation of this effect can be optionally applied to remove holes in the segment.
 
 ### Extract centerlines
 

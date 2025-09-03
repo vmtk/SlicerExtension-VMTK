@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>495</width>
+    <width>348</width>
     <height>710</height>
    </rect>
   </property>
@@ -274,45 +274,6 @@ If a Shape::Tube node is specified below, this parameter is ignored.</string>
           </property>
          </widget>
         </item>
-        <item row="2" column="1">
-         <widget class="QDoubleSpinBox" name="kernelSizeSpinBox">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="toolTip">
-           <string>This value is used to calculate the gap pixel size. High values mean longer processing time.</string>
-          </property>
-          <property name="suffix">
-           <string> mm</string>
-          </property>
-          <property name="minimum">
-           <double>0.000000000000000</double>
-          </property>
-          <property name="singleStep">
-           <double>0.100000000000000</double>
-          </property>
-          <property name="value">
-           <double>1.100000000000000</double>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="0">
-         <widget class="QToolButton" name="fixRegionToolButton">
-          <property name="toolTip">
-           <string>Remove holes in a contiguous segment. There should remain 1 region ideally. Complex segments may not always be reduced to a single region.
-
-This function cannot be undone, proceed with small increments.
-
-The result must be inspected before use. If it is not satisfactory, the source segment should be updated by any other means.</string>
-          </property>
-          <property name="text">
-           <string>Smoothing gap size:</string>
-          </property>
-         </widget>
-        </item>
        </layout>
       </item>
      </layout>
@@ -400,99 +361,153 @@ If specified, the regular tube diameter above is ignored.</string>
     </widget>
    </item>
    <item>
-    <widget class="ctkCollapsibleGroupBox" name="floodFillingCollapsibleGroupBox">
+    <widget class="ctkCollapsibleGroupBox" name="seEffectsCollapsibleGroupBox">
      <property name="sizePolicy">
       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
        <horstretch>0</horstretch>
        <verstretch>1</verstretch>
       </sizepolicy>
      </property>
-     <property name="locale">
-      <locale language="English" country="UnitedStates"/>
+     <property name="toolTip">
+      <string/>
      </property>
      <property name="title">
-      <string>Flood filling parameters</string>
+      <string>Segment editor effects</string>
      </property>
      <property name="flat">
       <bool>true</bool>
      </property>
-     <widget class="QWidget" name="layoutWidget">
-      <property name="geometry">
-       <rect>
-        <x>20</x>
-        <y>40</y>
-        <width>281</width>
-        <height>81</height>
-       </rect>
-      </property>
-      <layout class="QFormLayout" name="effectsParametersFormLayout">
-       <item row="0" column="0">
-        <widget class="QLabel" name="intensityToleranceLabel">
-         <property name="locale">
-          <locale language="English" country="UnitedStates"/>
-         </property>
-         <property name="text">
-          <string>Intensity tolerance:</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="1">
-        <widget class="QSpinBox" name="intensityToleranceSpinBox">
-         <property name="toolTip">
-          <string>Select connected voxels with intensity range between the one at a control point's position +/- this tolerance.</string>
-         </property>
-         <property name="locale">
-          <locale language="English" country="UnitedStates"/>
-         </property>
-         <property name="minimum">
-          <number>1</number>
-         </property>
-         <property name="maximum">
-          <number>9999</number>
-         </property>
-         <property name="singleStep">
-          <number>5</number>
-         </property>
-         <property name="value">
-          <number>100</number>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QLabel" name="neighbourhoodSizeLabel">
-         <property name="text">
-          <string>Neighbourhood size:</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="1">
-        <widget class="QDoubleSpinBox" name="neighbourhoodSizeDoubleSpinBox">
-         <property name="toolTip">
-          <string>Regions are added only if all voxels in the neighbourhood have similar intensities. Use higher values prevent leakage. Use lower values to allow capturing finer details.
+     <property name="collapsed">
+      <bool>false</bool>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_2">
+      <item>
+       <layout class="QFormLayout" name="effectsParametersFormLayout">
+        <item row="0" column="0">
+         <widget class="QLabel" name="floodFillingLabel">
+          <property name="text">
+           <string>Flood filling</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="intensityToleranceLabel">
+          <property name="locale">
+           <locale language="English" country="UnitedStates"/>
+          </property>
+          <property name="text">
+           <string>Intensity tolerance:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QSpinBox" name="intensityToleranceSpinBox">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="toolTip">
+           <string>Select connected voxels with intensity range between the one at a control point's position +/- this tolerance.</string>
+          </property>
+          <property name="locale">
+           <locale language="English" country="UnitedStates"/>
+          </property>
+          <property name="minimum">
+           <number>1</number>
+          </property>
+          <property name="maximum">
+           <number>9999</number>
+          </property>
+          <property name="singleStep">
+           <number>5</number>
+          </property>
+          <property name="value">
+           <number>100</number>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="neighbourhoodSizeLabel">
+          <property name="text">
+           <string>Neighbourhood size:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <widget class="QDoubleSpinBox" name="neighbourhoodSizeDoubleSpinBox">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="toolTip">
+           <string>Regions are added only if all voxels in the neighbourhood have similar intensities. Use higher values prevent leakage. Use lower values to allow capturing finer details.
 </string>
-         </property>
-         <property name="locale">
-          <locale language="English" country="UnitedStates"/>
-         </property>
-         <property name="decimals">
-          <number>1</number>
-         </property>
-         <property name="minimum">
-          <double>0.100000000000000</double>
-         </property>
-         <property name="maximum">
-          <double>25.000000000000000</double>
-         </property>
-         <property name="singleStep">
-          <double>0.200000000000000</double>
-         </property>
-         <property name="value">
-          <double>2.000000000000000</double>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </widget>
+          </property>
+          <property name="locale">
+           <locale language="English" country="UnitedStates"/>
+          </property>
+          <property name="decimals">
+           <number>1</number>
+          </property>
+          <property name="minimum">
+           <double>0.100000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>25.000000000000000</double>
+          </property>
+          <property name="singleStep">
+           <double>0.200000000000000</double>
+          </property>
+          <property name="value">
+           <double>2.000000000000000</double>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="0">
+         <widget class="QToolButton" name="smoothingToolButton">
+          <property name="toolTip">
+           <string>Remove holes in a contiguous segment. There should remain 1 region ideally. Complex segments may not always be reduced to a single region.</string>
+          </property>
+          <property name="text">
+           <string>Smoothing:</string>
+          </property>
+          <property name="checkable">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="QDoubleSpinBox" name="kernelSizeSpinBox">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="toolTip">
+           <string>This value is used to calculate the gap pixel size. Large values also mean longer processing time.</string>
+          </property>
+          <property name="suffix">
+           <string> mm</string>
+          </property>
+          <property name="minimum">
+           <double>0.000000000000000</double>
+          </property>
+          <property name="singleStep">
+           <double>0.100000000000000</double>
+          </property>
+          <property name="value">
+           <double>1.100000000000000</double>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
     </widget>
    </item>
    <item>
@@ -519,11 +534,12 @@ If specified, the regular tube diameter above is ignored.</string>
     </widget>
    </item>
    <item>
-    <widget class="ctkMenuButton" name="applyButton">
-     <property name="toolTip">
-      <string>Create a segmentation and optionally a centerline model and a centerline curve. Output nodes from the last run will be replaced.
-
-If centerlines are extracted, optionally replace the segment by its largest region if it contains more than one region.</string>
+    <widget class="QToolButton" name="applyButton">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
      </property>
      <property name="text">
       <string>Apply</string>
@@ -544,11 +560,6 @@ If centerlines are extracted, optionally replace the segment by its largest regi
    <extends>QGroupBox</extends>
    <header>ctkCollapsibleGroupBox.h</header>
    <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>ctkMenuButton</class>
-   <extends>QPushButton</extends>
-   <header>ctkMenuButton.h</header>
   </customwidget>
   <customwidget>
    <class>qMRMLNodeComboBox</class>
