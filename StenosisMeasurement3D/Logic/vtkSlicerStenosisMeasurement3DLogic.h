@@ -39,6 +39,8 @@
 #include <vtkVariantArray.h>
 #include <vtkMRMLTableNode.h>
 
+class vtkImageData;
+
 /// \ingroup Slicer_QtModules_ExtensionTemplate
 class VTK_SLICER_STENOSISMEASUREMENT3D_MODULE_LOGIC_EXPORT vtkSlicerStenosisMeasurement3DLogic :
   public vtkSlicerModuleLogic
@@ -79,7 +81,7 @@ public:
                            std::string filepath);
 
   int GetNumberOfRegionsInSegment(vtkMRMLSegmentationNode * segmentation, const std::string& segmentID);
-  std::string ReplaceSegmentByLargestRegion(vtkMRMLSegmentationNode * segmentation, const std::string& segmentID);
+  bool UpdateSegmentBySmoothClosing(vtkMRMLSegmentationNode * segmentation, const std::string& segmentID, double kernel = 1.1);
 
 protected:
   vtkSlicerStenosisMeasurement3DLogic();

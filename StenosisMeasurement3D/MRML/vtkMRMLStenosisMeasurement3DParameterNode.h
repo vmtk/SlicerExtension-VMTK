@@ -56,7 +56,10 @@ public:
 
     vtkGetMacro(OutputTableRowId, int);
     vtkSetMacro(OutputTableRowId, int);
-    
+
+    vtkGetMacro(SmoothingKernelSize, double);
+    vtkSetMacro(SmoothingKernelSize, double);
+
 protected:
     vtkMRMLStenosisMeasurement3DParameterNode();
     ~vtkMRMLStenosisMeasurement3DParameterNode() override;
@@ -66,6 +69,7 @@ protected:
 
     std::string InputSegmentID;
     int OutputTableRowId = 0;
+    double SmoothingKernelSize = 1.1;
 };
 
 #endif // __vtkmrmlstenosismeasurement3dparameternode_h_

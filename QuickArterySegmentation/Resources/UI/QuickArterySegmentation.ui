@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>573</width>
+    <width>345</width>
     <height>621</height>
    </rect>
   </property>
@@ -105,6 +105,16 @@
       <string>Inputs</string>
      </property>
      <layout class="QFormLayout" name="formLayout_2">
+      <item row="1" column="0">
+       <widget class="QLabel" name="inputFiducialLabel">
+        <property name="locale">
+         <locale language="English" country="UnitedStates"/>
+        </property>
+        <property name="text">
+         <string>Fiducial node:</string>
+        </property>
+       </widget>
+      </item>
       <item row="1" column="1">
        <widget class="qMRMLNodeComboBox" name="inputFiducialSelector">
         <property name="toolTip">
@@ -137,6 +147,54 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
         </property>
         <property name="renameEnabled">
          <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="inputSliceNodeLabel">
+        <property name="text">
+         <string>Slice node:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <layout class="QHBoxLayout" name="inputSliceNodeLayout">
+        <item>
+         <widget class="qMRMLNodeComboBox" name="inputSliceNodeSelector">
+          <property name="toolTip">
+           <string>Pick a slice view. The background volume node will be used. Please be careful to use the right volume node.</string>
+          </property>
+          <property name="locale">
+           <locale language="English" country="UnitedStates"/>
+          </property>
+          <property name="nodeTypes">
+           <stringlist notr="true">
+            <string>vtkMRMLSliceNode</string>
+           </stringlist>
+          </property>
+          <property name="noneEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="addEnabled">
+           <bool>false</bool>
+          </property>
+          <property name="removeEnabled">
+           <bool>false</bool>
+          </property>
+          <property name="selectNodeUponCreation">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item row="5" column="0">
+       <widget class="QLabel" name="inputROILabel">
+        <property name="locale">
+         <locale language="English" country="UnitedStates"/>
+        </property>
+        <property name="text">
+         <string>ROI node:</string>
         </property>
        </widget>
       </item>
@@ -184,26 +242,6 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
         </item>
        </layout>
       </item>
-      <item row="5" column="0">
-       <widget class="QLabel" name="inputROILabel">
-        <property name="locale">
-         <locale language="English" country="UnitedStates"/>
-        </property>
-        <property name="text">
-         <string>ROI node:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="inputFiducialLabel">
-        <property name="locale">
-         <locale language="English" country="UnitedStates"/>
-        </property>
-        <property name="text">
-         <string>Fiducial node:</string>
-        </property>
-       </widget>
-      </item>
       <item row="6" column="0">
        <widget class="QLabel" name="outputSegmentationSelectorLabel">
         <property name="text">
@@ -238,65 +276,54 @@ The fiducial points are assumed to be on the contrasted lumen.</string>
         </property>
        </widget>
       </item>
-      <item row="2" column="1">
-       <layout class="QHBoxLayout" name="inputSliceNodeLayout">
-        <item>
-         <widget class="qMRMLNodeComboBox" name="inputSliceNodeSelector">
-          <property name="toolTip">
-           <string>Pick a slice view. The background volume node will be used. Please be careful to use the right volume node.</string>
-          </property>
-          <property name="locale">
-           <locale language="English" country="UnitedStates"/>
-          </property>
-          <property name="nodeTypes">
-           <stringlist notr="true">
-            <string>vtkMRMLSliceNode</string>
-           </stringlist>
-          </property>
-          <property name="noneEnabled">
-           <bool>true</bool>
-          </property>
-          <property name="addEnabled">
-           <bool>false</bool>
-          </property>
-          <property name="removeEnabled">
-           <bool>false</bool>
-          </property>
-          <property name="selectNodeUponCreation">
-           <bool>false</bool>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="inputSliceNodeLabel">
-        <property name="text">
-         <string>Slice node:</string>
-        </property>
-       </widget>
-      </item>
       <item row="7" column="1">
-       <layout class="QHBoxLayout" name="regionsHorizontalLayout">
-        <item>
+       <layout class="QFormLayout" name="RegionsFormLayout">
+        <item row="1" column="0">
          <widget class="QLabel" name="regionInfoLabel">
           <property name="toolTip">
-           <string>Ideally, there should be only one region in the output segment.</string>
+           <string>Ideally, there should be only one region in the input segment.</string>
           </property>
           <property name="text">
            <string/>
           </property>
          </widget>
         </item>
-        <item>
+        <item row="2" column="1">
+         <widget class="QDoubleSpinBox" name="kernelSizeSpinBox">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="toolTip">
+           <string>This value is used to calculate the gap pixel size. High values mean longer processing time.</string>
+          </property>
+          <property name="suffix">
+           <string> mm</string>
+          </property>
+          <property name="minimum">
+           <double>0.000000000000000</double>
+          </property>
+          <property name="singleStep">
+           <double>0.100000000000000</double>
+          </property>
+          <property name="value">
+           <double>1.100000000000000</double>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
          <widget class="QToolButton" name="fixRegionToolButton">
           <property name="toolTip">
-           <string>If the segment has more than one region, this function replaces the output segment by a new segment having a single region. It is created from the largest region of the input segment.
+           <string>Remove holes in a contiguous segment. There should remain 1 region ideally. Complex segments may not always be reduced to a single region.
 
-The result must be inspected before use. If it is not satisfactory, the segment should be updated by any other means.</string>
+This function cannot be undone, proceed with small increments.
+
+The result must be inspected before use. If it is not satisfactory, the source segment should be updated by any other means.</string>
           </property>
           <property name="text">
-           <string>Fix</string>
+           <string>Smoothing gap size:</string>
           </property>
          </widget>
         </item>

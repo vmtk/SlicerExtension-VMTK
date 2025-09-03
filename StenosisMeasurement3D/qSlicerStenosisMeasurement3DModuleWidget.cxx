@@ -131,7 +131,9 @@ void qSlicerStenosisMeasurement3DModuleWidget::setup()
   QObject::connect(d->parameterSetSelector, SIGNAL(currentNodeChanged(vtkMRMLNode*)),
                    this, SLOT(onParameterNodeChanged(vtkMRMLNode*)));
   QObject::connect(d->fixRegionToolButton, SIGNAL(clicked()),
-                   this, SLOT(replaceSegmentByRegion()));
+                   this, SLOT(updateSegmentBySmoothClosing()));
+  QObject::connect(d->kernelSizeSpinBox, SIGNAL(valueChanged(double)),
+                   this, SLOT(onSmoothingKernelSizeChanged(double)));
 
   // Put p1 and p2 ficucial points on the tube spline at nearest point when they are moved.
   this->fiducialObservation = vtkSmartPointer<vtkCallbackCommand>::New();
@@ -448,6 +450,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::onSegmentationNodeChanged(vtkMRML
     d->parameterNode->SetInputSegmentationNodeID(node ? node->GetID() : nullptr);
   }
   this->clearLumenCache();
+  this->updateRegionInfo();
   if (node)
   {
     node->AddObserver(vtkSegmentation::RepresentationModified, this->segmentationRepresentationObservation);
@@ -839,6 +842,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::updateGuiFromParameterNode()
   d->outputTableSelector->setCurrentNode(d->parameterNode->GetOutputTableNode());
   const int tableRowId = d->parameterNode->GetOutputTableRowId();
   d->updateBoundaryPointsSpinBox->setValue(tableRowId >= 0 ? tableRowId : 0);
+  d->kernelSizeSpinBox->setValue(d->parameterNode->GetSmoothingKernelSize());
 
   // Clear results.
   d->wallResultLabel->clear();
@@ -862,6 +866,18 @@ void qSlicerStenosisMeasurement3DModuleWidget::onParameterNodeChanged(vtkMRMLNod
   this->updateGuiFromParameterNode();
   this->clearLumenCache();
   this->updateRegionInfo();
+}
+
+//-----------------------------------------------------------------------------
+void qSlicerStenosisMeasurement3DModuleWidget::onSmoothingKernelSizeChanged(double value)
+{
+  Q_D(qSlicerStenosisMeasurement3DModuleWidget);
+  if (!d->parameterNode)
+  {
+    this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Parameter node is invalid."), 5000);
+    return;
+  }
+  d->parameterNode->SetSmoothingKernelSize(value);
 }
 
 //-----------------------------------------------------------------------------
@@ -931,6 +947,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::updateRegionInfo()
     this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Parameter node is invalid."), 5000);
     d->regionInfoLabel->setVisible(false);
     d->fixRegionToolButton->setVisible(false);
+    d->kernelSizeSpinBox->setVisible(false);
     return;
   }
   vtkMRMLSegmentationNode * segmentation = d->parameterNode->GetInputSegmentationNode();
@@ -939,6 +956,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::updateRegionInfo()
   {
     d->regionInfoLabel->setVisible(false);
     d->fixRegionToolButton->setVisible(false);
+    d->kernelSizeSpinBox->setVisible(false);
     return;
   }
   int numberOfRegions = this->logic->GetNumberOfRegionsInSegment(segmentation, segmentID);
@@ -947,17 +965,19 @@ void qSlicerStenosisMeasurement3DModuleWidget::updateRegionInfo()
     d->regionInfoLabel->clear();
     d->regionInfoLabel->setVisible(false);
     d->fixRegionToolButton->setVisible(false);
+    d->kernelSizeSpinBox->setVisible(false);
     return;
   }
-  const QString regionInfo = qSlicerStenosisMeasurement3DModuleWidget::tr("Number of regions in segment: ")
+  const QString regionInfo = qSlicerStenosisMeasurement3DModuleWidget::tr("Region count: ")
                   + QString(std::to_string(numberOfRegions).c_str());
   d->regionInfoLabel->setText(regionInfo);
   d->regionInfoLabel->setVisible(true);
   d->fixRegionToolButton->setVisible(numberOfRegions > 1);
+  d->kernelSizeSpinBox->setVisible(numberOfRegions > 1);
 }
 
 //-----------------------------------------------------------------------------
-void qSlicerStenosisMeasurement3DModuleWidget::replaceSegmentByRegion()
+void qSlicerStenosisMeasurement3DModuleWidget::updateSegmentBySmoothClosing()
 {
   Q_D(qSlicerStenosisMeasurement3DModuleWidget);
   if (!d->parameterNode)
@@ -965,6 +985,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::replaceSegmentByRegion()
     this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Parameter node is invalid."), 5000);
     d->regionInfoLabel->setVisible(false);
     d->fixRegionToolButton->setVisible(false);
+    d->kernelSizeSpinBox->setVisible(false);
     return;
   }
   vtkMRMLSegmentationNode * segmentation = d->parameterNode->GetInputSegmentationNode();
@@ -973,9 +994,14 @@ void qSlicerStenosisMeasurement3DModuleWidget::replaceSegmentByRegion()
   {
     this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Invalid segmentation or segmentID."), 5000);
     d->regionInfoLabel->setVisible(false);
+    d->fixRegionToolButton->setVisible(false);
+    d->kernelSizeSpinBox->setVisible(false);
     return;
   }
-  // Not checking the returned segmentID, which must not change.
-  this->logic->ReplaceSegmentByLargestRegion(segmentation, segmentID);
+  double smoothingKernelSize = d->parameterNode->GetSmoothingKernelSize();
+  
+  this->logic->UpdateSegmentBySmoothClosing(segmentation, segmentID, smoothingKernelSize);
+  // The segment is removed, then moved to its index after creation. The first segment is selected otherwise.
+  d->inputSegmentSelector->setCurrentSegmentID(segmentID.c_str());
   this->updateRegionInfo();
 }

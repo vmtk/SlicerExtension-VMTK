@@ -87,6 +87,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     # The paint effect and the fast fix buttons must not be visible by default.
     self.ui.surfaceInformationPaintToolButton.setVisible(False)
     self.ui.surfaceInformationFastFixToolButton.setVisible(False)
+    self.ui.kernelSizeSpinBox.setVisible(False)
     # Position the crosshair on a lumen region.
     self.crosshair=slicer.mrmlScene.GetFirstNodeByClass("vtkMRMLCrosshairNode")
 
@@ -144,6 +145,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.showWallCrossSectionButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode(ROLE_SHOW_WALL_CROSS_SECTION_MODEL, "True" if value else "False"))
     self.ui.axialSliceHorizontalFlipCheckBox.connect("clicked()", lambda: self.setValueInParameterNode(ROLE_AXIAL_HORIZONTAL_FLIP, str(self.ui.axialSliceHorizontalFlipCheckBox.isChecked())))
     self.ui.axialSliceVerticalFlipCheckBox.connect("clicked()", lambda : self.setValueInParameterNode(ROLE_AXIAL_VERTICAL_FLIP, str(self.ui.axialSliceVerticalFlipCheckBox.isChecked())))
+    self.ui.kernelSizeSpinBox.connect("valueChanged(double)", lambda value: self.setValueInParameterNode(ROLE_INPUT_KERNEL_SIZE, value))
     self.ui.surfaceInformationGoToToolButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode(ROLE_GOTO_REGION, "True" if value else "False"))
 
     # connections
@@ -246,6 +248,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     Called just after the scene is closed.
     """
     self.crossSectionModelNode = None
+    self.wallCrossSectionModelNode = None
     self.maximumInscribedSphereModelNode = None
 
   def setParameterNode(self, inputParameterNode):
@@ -382,6 +385,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.moveToMaximumAreaButton.enabled = self.logic.lumenSurfaceNode is not None
     self.ui.showCrossSectionButton.enabled = self.logic.lumenSurfaceNode is not None
 
+    self.ui.kernelSizeSpinBox.setValue(float(self._parameterNode.GetParameter(ROLE_INPUT_KERNEL_SIZE))
+                                       if self._parameterNode.GetParameter(ROLE_INPUT_KERNEL_SIZE) else 1.1)
     self.ui.surfaceInformationGoToToolButton.setChecked(self._parameterNode.GetParameter(ROLE_GOTO_REGION) == "True")
 
     # Update outputs
@@ -838,6 +843,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.surfaceInformationPaintToolButton.setChecked(False)
     self.ui.surfaceInformationPaintToolButton.setVisible(False)
     self.ui.surfaceInformationFastFixToolButton.setVisible(False)
+    self.ui.kernelSizeSpinBox.setVisible(False)
 
   # Identify and track all regions of the lumen surface.
   def onGetRegionsButton(self):
@@ -855,6 +861,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       # If there's only 1 region, there's nothing to fix.
       self.ui.surfaceInformationPaintToolButton.setVisible((numberOfRegions > 1) and self.checkAndSetSegmentEditor(True))
       self.ui.surfaceInformationFastFixToolButton.setVisible(numberOfRegions > 1)
+      self.ui.kernelSizeSpinBox.setVisible(numberOfRegions > 1)
       if (numberOfRegions == 1) and (self.checkAndSetSegmentEditor(False)):
         # Create segment editor object if needed.
         segmentEditorModuleWidget = slicer.util.getModuleWidget("SegmentEditor")
@@ -863,6 +870,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     else:
       self.ui.surfaceInformationPaintToolButton.setVisible(False)
       self.ui.surfaceInformationFastFixToolButton.setVisible(False)
+      self.ui.kernelSizeSpinBox.setVisible(False)
 
   # Initialise the segment editor if needed.
   # If the lumen surface is a segmentation, select it in the 'Segment editor'.
@@ -962,8 +970,11 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     if (not segmentation) or (segmentation.GetClassName() != "vtkMRMLSegmentationNode") or (segmentID is None):
       logging.error("Invalid segmentation or segment ID.")
       return
+    kernelSize = self._parameterNode.GetParameter(ROLE_INPUT_KERNEL_SIZE)
     sm3Logic = slicer.modules.stenosismeasurement3d.logic()
-    sm3Logic.ReplaceSegmentByLargestRegion(segmentation, segmentID)
+    sm3Logic.UpdateSegmentBySmoothClosing(segmentation, segmentID, float(kernelSize))
+    # The segment is removed, then moved to its index after creation. The first segment is selected otherwise.
+    self.ui.segmentSelector.setCurrentSegmentID(segmentID);
     self.onGetRegionsButton()
 
   def setShowCrossSection(self, checked):
@@ -1089,6 +1100,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     """
     Initialize parameter node with default settings.
     """
+    parameterNode.SetParameter(ROLE_INPUT_SEGMENT_ID, "")
     parameterNode.SetParameter(ROLE_ORIGIN_POINT_INDEX, "0")
     parameterNode.SetParameter(ROLE_USE_LPS, "False")
     parameterNode.SetParameter(ROLE_USE_DISTINCT_COLUMLNS, "False")
@@ -1098,6 +1110,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     parameterNode.SetParameter(ROLE_SHOW_CROSS_SECTION_MODEL, "False")
     parameterNode.SetParameter(ROLE_OUTPUT_PLOT_SERIES_TYPE, MIS_DIAMETER)
     parameterNode.SetParameter(ROLE_BROWSE_POINT_INDEX, "0")
+    parameterNode.SetParameter(ROLE_INPUT_KERNEL_SIZE, str(1.1))
     parameterNode.SetParameter(ROLE_INITIALIZED, "1")
 
   def resetCrossSections(self):
@@ -2027,6 +2040,7 @@ SURFACE_AREA_STENOSIS = "SURFACE_AREA_STENOSIS"
 ROLE_INPUT_CENTERLINE = "InputCenterline"
 ROLE_INPUT_SEGMENTATION = "InputSegmentation"
 ROLE_INPUT_SEGMENT_ID = "InputSegment"
+ROLE_INPUT_KERNEL_SIZE = "InputKernelSize"
 ROLE_OUTPUT_TABLE = "OutputTable"
 ROLE_OUTPUT_PLOT_CHART_NODE = "OutputPlotChartNode"
 ROLE_OUTPUT_PLOT_SERIES = "OutputPlotSeries"

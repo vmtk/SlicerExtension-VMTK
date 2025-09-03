@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>532</width>
+    <width>471</width>
     <height>1041</height>
    </rect>
   </property>
@@ -389,6 +389,12 @@ There may be artifacts at the ends of the tube, or in the midst of a loop or arc
             <layout class="QHBoxLayout" name="horizontalLayout_6">
              <item>
               <layout class="QFormLayout" name="surfaceInformationFormLayout">
+               <property name="fieldGrowthPolicy">
+                <enum>QFormLayout::AllNonFixedFieldsGrow</enum>
+               </property>
+               <property name="labelAlignment">
+                <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+               </property>
                <item row="0" column="0">
                 <widget class="QToolButton" name="surfaceInformationGetToolButton">
                  <property name="toolTip">
@@ -475,15 +481,62 @@ The 'Sphere' brush is enforced. Further customisation can be performed in the 'S
                    </property>
                   </widget>
                  </item>
+                </layout>
+               </item>
+               <item row="1" column="1">
+                <layout class="QHBoxLayout" name="horizontalLayout_2">
+                 <property name="sizeConstraint">
+                  <enum>QLayout::SetDefaultConstraint</enum>
+                 </property>
+                 <item>
+                  <spacer name="horizontalSpacer">
+                   <property name="orientation">
+                    <enum>Qt::Horizontal</enum>
+                   </property>
+                   <property name="sizeHint" stdset="0">
+                    <size>
+                     <width>40</width>
+                     <height>20</height>
+                    </size>
+                   </property>
+                  </spacer>
+                 </item>
                  <item>
                   <widget class="QToolButton" name="surfaceInformationFastFixToolButton">
                    <property name="toolTip">
-                    <string>If the segment has more than one region, this function replaces the input segment by a new segment having a single region. It is created from the largest region of the input segment.
+                    <string>Remove holes in a contiguous segment. There should remain 1 region ideally. Complex segments may not always be reduced to a single region.
 
-The result must be inspected before use. If it is not satisfactory, the segment should be updated by any other means.</string>
+This function cannot be undone, proceed with small increments.
+
+The result must be inspected before use. If it is not satisfactory, the source segment should be updated by any other means.</string>
                    </property>
                    <property name="text">
-                    <string>fast fix</string>
+                    <string>Smoothing gap size:</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QDoubleSpinBox" name="kernelSizeSpinBox">
+                   <property name="sizePolicy">
+                    <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                     <horstretch>0</horstretch>
+                     <verstretch>0</verstretch>
+                    </sizepolicy>
+                   </property>
+                   <property name="toolTip">
+                    <string>This value is used to calculate the gap pixel size. High values mean longer processing time.</string>
+                   </property>
+                   <property name="suffix">
+                    <string> mm</string>
+                   </property>
+                   <property name="minimum">
+                    <double>0.000000000000000</double>
+                   </property>
+                   <property name="singleStep">
+                    <double>0.100000000000000</double>
+                   </property>
+                   <property name="value">
+                    <double>1.100000000000000</double>
                    </property>
                   </widget>
                  </item>
