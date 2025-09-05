@@ -69,7 +69,6 @@ public:
   // Both input surfaces *must* be closed. This may be time consuming.
   EnclosingType GetClosedSurfaceEnclosingType(vtkPolyData * first, vtkPolyData * second, vtkPolyData * enclosed = nullptr);
 
-  bool UpdateClosedSurfaceMesh(vtkPolyData * inMesh, vtkPolyData * outMesh);
   // Cut the input using a plane; either part may be in output. Create open polydata for display.
   bool ClipClosedSurface(vtkPolyData * input, vtkPolyData * output,
             double * origin, double * normal, bool clipped = false);

@@ -74,10 +74,10 @@ protected:
   vtkSlicerStenosisMeasurement3DLogic::EnclosingType
   createEnclosedSurface(vtkMRMLMarkupsShapeNode * wallShapeNode,
                         vtkMRMLSegmentationNode * lumenSegmentationNode, std::string segmentID,
-                        vtkPolyData * enclosedSurface, bool updateMesh = true);
+                        vtkPolyData * enclosedSurface);
   bool getEnclosedSurface(vtkMRMLMarkupsShapeNode * wallShapeNode,
                           vtkMRMLSegmentationNode * lumenSegmentationNode, std::string segmentID,
-                          vtkPolyData * enclosedSurface, bool updateMesh = true); // From cache or create.
+                          vtkPolyData * enclosedSurface); // From cache or create.
 
   void showResult(vtkPolyData * wall, vtkPolyData * lumen, vtkVariantArray * results);
   void createLesionModel(vtkMRMLMarkupsShapeNode * wallShapeNode, vtkPolyData * enclosedSurface,

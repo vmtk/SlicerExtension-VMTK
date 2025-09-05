@@ -248,7 +248,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::onApply()
 
   // Get the lumen enclosed in the tube once only, it may be time consuming.
   vtkNew<vtkPolyData> enclosedSurface;
-  if (!this->getEnclosedSurface(shapeNodeReal, segmentationNodeReal, currentSegmentID, enclosedSurface, true))
+  if (!this->getEnclosedSurface(shapeNodeReal, segmentationNodeReal, currentSegmentID, enclosedSurface))
   {
     return;
   }
@@ -706,8 +706,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::onUpdateBoundary(int index)
 vtkSlicerStenosisMeasurement3DLogic::EnclosingType
 qSlicerStenosisMeasurement3DModuleWidget::createEnclosedSurface(vtkMRMLMarkupsShapeNode * wallShapeNode,
                                                                 vtkMRMLSegmentationNode * lumenSegmentationNode,
-                                                                std::string segmentID, vtkPolyData * enclosedSurface,
-                                                                bool updateMesh)
+                                                                std::string segmentID, vtkPolyData * enclosedSurface)
 {
   if (!wallShapeNode || !lumenSegmentationNode || !enclosedSurface)
   {
@@ -748,21 +747,13 @@ qSlicerStenosisMeasurement3DModuleWidget::createEnclosedSurface(vtkMRMLMarkupsSh
   enclosedSurface->Initialize();
   enclosedSurface->DeepCopy(inputLumenEnclosed);
 
-  if (updateMesh)
-  {
-    // enclosedSurface is Initialize()d there and is not modified on abort.
-    if (!this->logic->UpdateClosedSurfaceMesh(inputLumenEnclosed, enclosedSurface))
-    {
-      std::cerr << "Error updating the clipped lumen; continuing with the raw clipped surface." << endl;
-    }
-  }
   return enclosingType;
 }
 
 //-----------------------------------------------------------------------------
 bool qSlicerStenosisMeasurement3DModuleWidget::getEnclosedSurface(vtkMRMLMarkupsShapeNode * wallShapeNode,
                                                                   vtkMRMLSegmentationNode * lumenSegmentationNode, std::string segmentID,
-                                                                  vtkPolyData * enclosedSurface, bool updateMesh)
+                                                                  vtkPolyData * enclosedSurface)
 {
   Q_D(qSlicerStenosisMeasurement3DModuleWidget);
   if (d->isLumenCacheValid)
@@ -773,7 +764,7 @@ bool qSlicerStenosisMeasurement3DModuleWidget::getEnclosedSurface(vtkMRMLMarkups
   else
   {
     vtkSlicerStenosisMeasurement3DLogic::EnclosingType enclosingType = this->createEnclosedSurface(
-              wallShapeNode, lumenSegmentationNode, segmentID, enclosedSurface, updateMesh);
+              wallShapeNode, lumenSegmentationNode, segmentID, enclosedSurface);
     if (enclosingType == vtkSlicerStenosisMeasurement3DLogic::EnclosingType_Last)
     {
       this->showStatusMessage(qSlicerStenosisMeasurement3DModuleWidget::tr("Error getting the enclosed lumen."), 5000);
@@ -920,7 +911,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::dumpAggregateVolumes()
   vtkMRMLSegmentationNode * segmentationNode = vtkMRMLSegmentationNode::SafeDownCast(d->parameterNode->GetInputSegmentationNode());
   std::string segmentID = d->parameterNode->GetInputSegmentID();
   vtkNew<vtkPolyData> enclosedSurface;
-  if (!this->getEnclosedSurface(wallShapeNode, segmentationNode, segmentID, enclosedSurface, true))
+  if (!this->getEnclosedSurface(wallShapeNode, segmentationNode, segmentID, enclosedSurface))
   {
     return;
   }
