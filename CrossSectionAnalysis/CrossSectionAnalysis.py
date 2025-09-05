@@ -1738,11 +1738,6 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
                   tubeSurface, lumenSurface, clippedLumenRaw)
     if (clipped == sm3Logic.Distinct) or (clipped == sm3Logic.EnclosingType_Last):
       raise RuntimeError(_("The input wall surface and the input lumen surfaces could not be intersected."))
-    else:
-      # Remesh the polydata using a segmentation. (Even for an input model.)
-      if not sm3Logic.UpdateClosedSurfaceMesh(clippedLumenRaw, clippedSurface):
-        clippedSurface.Initialize()
-        clippedSurface.DeepCopy(clippedLumenRaw)
 
     return True
 

@@ -699,36 +699,6 @@ vtkSlicerStenosisMeasurement3DLogic::GetClosedSurfaceEnclosingType(vtkPolyData* 
   return EnclosingType::Distinct;
 }
 
-//-----------------------------------------------------------------------------
-// Obtain a very nice mesh as seen in WireFrame representation.
-bool vtkSlicerStenosisMeasurement3DLogic::UpdateClosedSurfaceMesh(vtkPolyData* inMesh, vtkPolyData* outMesh)
-{
-  if (!inMesh || !outMesh)
-  {
-    vtkErrorMacro("Parameter 'inMesh' or 'outMesh' is NULL.");
-    return false;
-  }
-  if (!this->GetMRMLScene())
-  {
-    vtkErrorMacro("MRML scene is NULL.");
-    return false;
-  }
-
-  vtkNew<vtkMRMLSegmentationNode> segmentationNode;
-  segmentationNode->CreateClosedSurfaceRepresentation();
-
-  const std::string preferred3DRepresentationName = vtkSegmentationConverter::GetSegmentationClosedSurfaceRepresentationName();
-
-  const std::string segmentId = segmentationNode->AddSegmentFromClosedSurfaceRepresentation(inMesh, this->GetMRMLScene()->GenerateUniqueName("MeshInput"));
-  // The mesh is recreated here.
-  outMesh->Initialize();
-  segmentationNode->GetSegmentation()->RemoveRepresentation(preferred3DRepresentationName);
-  segmentationNode->GetSegmentation()->CreateRepresentation(preferred3DRepresentationName);
-  segmentationNode->GetClosedSurfaceRepresentation(segmentId, outMesh);
-
-  return true;
-}
-
 //---------------------------------------------------------------------------
 bool vtkSlicerStenosisMeasurement3DLogic::CreateLesion(vtkMRMLMarkupsShapeNode * wallShapeNode,
                                                        vtkPolyData * enclosedSurface,
@@ -1211,7 +1181,6 @@ bool vtkSlicerStenosisMeasurement3DLogic::UpdateSegmentBySmoothClosing(vtkMRMLSe
 
   return true;
 }
-
 
 //------------------------------------------------------------------------------
 VolumeComputeWorker::VolumeComputeWorker()
