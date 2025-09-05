@@ -782,26 +782,43 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       return
 
     with slicer.util.tryWithErrorDisplay(_("Failed to clip lumen in tube."), waitCursor=True):
-      clippedLumen = vtk.vtkPolyData()
-      if not self.logic.clipLumenInTube(clippedLumen):
-        self.logic.showStatusMessage((_("Failed to clip the lumen inside the tube."),))
-        return
-
       clippedLumenName = slicer.mrmlScene.GenerateUniqueName("Clipped lumen")
+      tubeSurface = self.logic.inputCenterlineNode.GetCappedTubeWorld()
+
       if self.logic.lumenSurfaceNode.IsTypeOf("vtkMRMLSegmentationNode"):
         inputSegmentation = self.logic.lumenSurfaceNode
-        segmentId = inputSegmentation.AddSegmentFromClosedSurfaceRepresentation(clippedLumen,
-                                    clippedLumenName)
-        self.ui.segmentSelector.setCurrentSegmentID(segmentId)
+        clippedLumenId = inputSegmentation.AddSegmentFromClosedSurfaceRepresentation(tubeSurface, clippedLumenName)
+        representationName = inputSegmentation.GetDisplayNode().GetPreferredDisplayRepresentationName3D()
+        inputSegmentation.GetSegmentation().RemoveRepresentation(representationName)
+        inputSegmentation.GetSegmentation().CreateRepresentation(representationName)
 
-        preferredRepresentationName = slicer.vtkSegmentationConverter.GetSegmentationClosedSurfaceRepresentationName()
-        inputSegmentation.GetSegmentation().RemoveRepresentation(preferredRepresentationName)
-        if inputSegmentation.GetSegmentation().CreateRepresentation(preferredRepresentationName):
-          inputSegmentation.GetDisplayNode().SetPreferredDisplayRepresentationName3D(preferredRepresentationName)
-        else:
-          raise RuntimeError(_("Error creating the segmentation's preferred representation."))
+        segmentEditorModuleWidget = slicer.util.getModuleWidget("SegmentEditor")
+        seWidget = segmentEditorModuleWidget.editor
+        seWidget.setSegmentationNode(inputSegmentation)
+        seWidget.mrmlSegmentEditorNode().SetSelectedSegmentID(clippedLumenId)
+        seWidget.setActiveEffectByName("Logical operators")
+        effect = seWidget.activeEffect()
+        effect.setParameter("Operation", "INTERSECT")
+        effect.setParameter("ModifierSegmentID", self.logic.currentSegmentID)
+        effect.self().onApply()
+        seWidget.setActiveEffectByName(None)
+        self.ui.segmentSelector.setCurrentSegmentID(clippedLumenId)
       else:
-        clippedModel = slicer.modules.models.logic().AddModel(clippedLumen)
+        lumenSurface = vtk.vtkPolyData()
+        self.logic.getLumenClosedSurfacePolyData(lumenSurface)
+        if lumenSurface.GetNumberOfPoints() == 0:
+          raise ValueError(_("Empty lumen surface retrieved."))
+
+        clippedLumen = vtk.vtkPolyData()
+        sm3Logic = slicer.modules.stenosismeasurement3d.logic()
+        clipped = sm3Logic.GetClosedSurfaceEnclosingType(
+                      tubeSurface, lumenSurface, clippedLumen)
+        if (clipped == sm3Logic.Distinct) or (clipped == sm3Logic.EnclosingType_Last):
+          raise RuntimeError(_("The input wall surface and the input lumen surfaces could not be intersected."))
+        normals = vtk.vtkPolyDataNormals()
+        normals.SetInputData(clippedLumen)
+        normals.Update()
+        clippedModel = slicer.modules.models.logic().AddModel(normals.GetOutput())
         clippedModel.SetName(clippedLumenName)
         self.ui.segmentationSelector.setCurrentNode(clippedModel)
 
@@ -1720,26 +1737,6 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       self.inputCenterlineNode.GetCurvePointToWorldTransformAtPointIndex(pointIndex, curvePointToWorld)
 
     return curvePointToWorld
-
-  def clipLumenInTube(self, clippedSurface : vtk.vtkPolyData):
-    if not self.inputCenterlineNode or not self.lumenSurfaceNode:
-      raise ValueError(_("Input centerline node or input lumen surface node is None."))
-    if not self.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode"):
-      raise ValueError(_("Input centerline node is not a Shape node."))
-    lumenSurface = vtk.vtkPolyData()
-    self.getLumenClosedSurfacePolyData(lumenSurface)
-    if lumenSurface.GetNumberOfPoints() == 0:
-      raise ValueError(_("Empty lumen surface retrieved."))
-    tubeSurface = self.inputCenterlineNode.GetCappedTubeWorld()
-
-    sm3Logic = slicer.modules.stenosismeasurement3d.logic()
-    clippedLumenRaw = vtk.vtkPolyData()
-    clipped = sm3Logic.GetClosedSurfaceEnclosingType(
-                  tubeSurface, lumenSurface, clippedLumenRaw)
-    if (clipped == sm3Logic.Distinct) or (clipped == sm3Logic.EnclosingType_Last):
-      raise RuntimeError(_("The input wall surface and the input lumen surfaces could not be intersected."))
-
-    return True
 
   def getLumenClosedSurfacePolyData(self, closedSurfacePolyData):
     if (not self.lumenSurfaceNode):
