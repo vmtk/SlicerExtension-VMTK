@@ -1429,6 +1429,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     """
     Fill in cross-section areas in C++ threads.
     """
+    lumenHasEmptySections = False
     import vtkSlicerCrossSectionAnalysisModuleLogicPython as vtkSlicerCrossSectionAnalysisModuleLogic
     crossSectionCompute = vtkSlicerCrossSectionAnalysisModuleLogic.vtkCrossSectionCompute()
     # If numberOfThreads > number of cores, excessive threads would be in infinite loop.
@@ -1456,7 +1457,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
         surfaceName = self.lumenSurfaceNode.GetName()
         if self.lumenSurfaceNode.IsTypeOf("vtkMRMLSegmentationNode") and self.currentSegmentID:
           surfaceName = surfaceName + " - " + self.lumenSurfaceNode.GetSegmentation().GetSegment(self.currentSegmentID).GetName()
-        self._informAboutEmptySections(emptySectionIds, surfaceName)
+        lumenHasEmptySections = self._informAboutEmptySections(emptySectionIds, surfaceName)
 
     """
     We may also use the TubeRadius scalar array of the spline. This may prevent
@@ -1464,6 +1465,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     We elect to slice the wall so as to use the same method of slicing the lumen.
     Good ? Bad ?
     """
+    tubeHasEmptySections = False
     if inputCenterline.IsTypeOf("vtkMRMLMarkupsShapeNode"):
       wallCrossSectionCompute = vtkSlicerCrossSectionAnalysisModuleLogic.vtkCrossSectionCompute()
       wallCrossSectionCompute.SetNumberOfThreads(numberOfThreads)
@@ -1479,7 +1481,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
       wallEmptySectionIds = vtk.vtkIdList()
       if (not wallCrossSectionCompute.UpdateTable(wallCrossSectionAreaArray, wallDiameterArray, wallEmptySectionIds)):
         raise RuntimeError("Failed to compute cross-sections.")
-      self._informAboutEmptySections(wallEmptySectionIds, inputCenterline.GetName())
+      tubeHasEmptySections = self._informAboutEmptySections(wallEmptySectionIds, inputCenterline.GetName())
 
     cumArray = vtk.vtkDoubleArray()
     self.cumulateDistances(points, cumArray)
@@ -1532,7 +1534,8 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
 
     stopTime = time.time()
     durationValue = '%.2f' % (stopTime-startTime)
-    message = _("Processing completed in {duration} seconds - {countOfPoints} points").format(duration=durationValue, countOfPoints=numberOfPoints)
+    emptySectionMessage = " Warning: empty cross-sections have been detected, please refer to the application log." if (lumenHasEmptySections or tubeHasEmptySections) else ""
+    message = _("Processing completed in {duration} seconds - {countOfPoints} points.{hasEmptySections}").format(duration=durationValue, countOfPoints=numberOfPoints, hasEmptySections=emptySectionMessage)
     logging.info(message)
     slicer.util.showStatusMessage(message, 5000)
 
@@ -2052,7 +2055,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
   def _informAboutEmptySections(self, ids:vtk. vtkIdList, surfaceName):
     numberOfIds = ids.GetNumberOfIds()
     if numberOfIds == 0:
-      return
+      return False
     statusMessage = str(numberOfIds) + " " + _("empty sections have been detected; consider improving the input surface {nameOfSurface}." ).format(nameOfSurface=surfaceName)
     consoleMessage = "Empty sections have been created at these point ids of the centerline: "
     idList = ""
@@ -2064,6 +2067,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     consoleMessage = consoleMessage + idList + "; consider improving the input surface (" + surfaceName +")."
     self.showStatusMessage((statusMessage,))
     logging.warning(consoleMessage)
+    return True
 
 #
 # CrossSectionAnalysisTest
