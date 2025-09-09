@@ -167,8 +167,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.goToOriginButton.connect("clicked()", self.onGoToOriginPoint)
     self.ui.moveToMinimumMISDiameterButton.connect("clicked()", lambda: self.moveSliceViewToExtremeMeasurement(MIS_DIAMETER_ARRAY_NAME, False))
     self.ui.moveToMaximumMISDiameterButton.connect("clicked()", lambda: self.moveSliceViewToExtremeMeasurement(MIS_DIAMETER_ARRAY_NAME, True))
-    self.ui.moveToMinimumAreaButton.connect("clicked()", lambda: self.moveSliceViewToExtremeMeasurement(CROSS_SECTION_AREA_ARRAY_NAME, False))
-    self.ui.moveToMaximumAreaButton.connect("clicked()", lambda: self.moveSliceViewToExtremeMeasurement(CROSS_SECTION_AREA_ARRAY_NAME, True))
+    self.ui.moveToMinimumAreaButton.connect("clicked()", lambda: self.moveSliceViewToExtremeMeasurement(LUMEN_CROSS_SECTION_AREA_ARRAY_NAME, False))
+    self.ui.moveToMaximumAreaButton.connect("clicked()", lambda: self.moveSliceViewToExtremeMeasurement(LUMEN_CROSS_SECTION_AREA_ARRAY_NAME, True))
     self.ui.minWallSurfaceAreaButton.connect("clicked()", lambda: self.moveSliceViewToExtremeMeasurement(WALL_CROSS_SECTION_AREA_ARRAY_NAME, False))
     self.ui.maxWallSurfaceAreaButton.connect("clicked()", lambda: self.moveSliceViewToExtremeMeasurement(WALL_CROSS_SECTION_AREA_ARRAY_NAME, True))
     self.ui.toggleTableLayoutButton.connect("clicked()", self.toggleTableLayout)
@@ -560,7 +560,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.updateSliceViewOrientationMetrics()
     # Duplicated lumen metrics for single glance understanding.
     self.showPreComputedDoubleData(value, CE_DIAMETER_ARRAY_NAME, self.ui.lumenDiameterValueLabel, "length")
-    self.showPreComputedDoubleData(value, CROSS_SECTION_AREA_ARRAY_NAME, self.ui.lumenSurfaceAreaValueLabel, "area")
+    self.showPreComputedDoubleData(value, LUMEN_CROSS_SECTION_AREA_ARRAY_NAME, self.ui.lumenSurfaceAreaValueLabel, "area")
     # Wall metrics
     self.showPreComputedDoubleData(value, WALL_DIAMETER_ARRAY_NAME, self.ui.wallDiameterValueLabel, "length")
     self.showPreComputedDoubleData(value, WALL_CROSS_SECTION_AREA_ARRAY_NAME, self.ui.wallSurfaceAreaValueLabel, "area")
@@ -766,16 +766,16 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     comboBox.clear()
 
     if self.logic.isCenterlineRadiusAvailable():
-        comboBox.addItem(_("MIS diameter"), MIS_DIAMETER)
+        comboBox.addItem(MIS_DIAMETER_ARRAY_NAME, MIS_DIAMETER)
     if self.logic.lumenSurfaceNode:
-      comboBox.addItem(_("CE diameter"), CE_DIAMETER)
-      comboBox.addItem(_("Cross-section area"), CROSS_SECTION_AREA)
+      comboBox.addItem(CE_DIAMETER_ARRAY_NAME, CE_DIAMETER)
+      comboBox.addItem(LUMEN_CROSS_SECTION_AREA_ARRAY_NAME, LUMEN_CROSS_SECTION_AREA)
     if self.logic.inputCenterlineNode and self.logic.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode"):
-      comboBox.addItem(_("Wall diameter"), WALL_CE_DIAMETER)
-      comboBox.addItem(_("Wall cross-section area"), WALL_CROSS_SECTION_AREA)
+      comboBox.addItem(WALL_DIAMETER_ARRAY_NAME, WALL_CE_DIAMETER)
+      comboBox.addItem(WALL_CROSS_SECTION_AREA_ARRAY_NAME, WALL_CROSS_SECTION_AREA)
       if self.logic.lumenSurfaceNode:
-        comboBox.addItem(_("Stenosis by diameter (CE)"), DIAMETER_STENOSIS)
-        comboBox.addItem(_("Stenosis by surface area"), SURFACE_AREA_STENOSIS)
+        comboBox.addItem(DIAMETER_STENOSIS_ARRAY_NAME, DIAMETER_STENOSIS)
+        comboBox.addItem(SURFACE_AREA_STENOSIS_ARRAY_NAME, SURFACE_AREA_STENOSIS)
 
     if (comboBox.count):
       comboBox.setCurrentIndex(0)
@@ -1355,7 +1355,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
 
     if self.lumenSurfaceNode:
         ceDiameterArray = self.getArrayFromTable(outputTable, CE_DIAMETER_ARRAY_NAME)
-        crossSectionAreaArray = self.getArrayFromTable(outputTable, CROSS_SECTION_AREA_ARRAY_NAME)
+        crossSectionAreaArray = self.getArrayFromTable(outputTable, LUMEN_CROSS_SECTION_AREA_ARRAY_NAME)
 
     if self.coordinateSystemColumnSingle:
         coordinatesArray = self.getArrayFromTable(outputTable, "RAS" if self.coordinateSystemColumnRAS else "LPS")
@@ -1548,8 +1548,8 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
         outputPlotSeries.SetYColumnName(MIS_DIAMETER_ARRAY_NAME)
     elif self.outputPlotSeriesType == CE_DIAMETER:
         outputPlotSeries.SetYColumnName(CE_DIAMETER_ARRAY_NAME)
-    elif self.outputPlotSeriesType == CROSS_SECTION_AREA:
-        outputPlotSeries.SetYColumnName(CROSS_SECTION_AREA_ARRAY_NAME)
+    elif self.outputPlotSeriesType == LUMEN_CROSS_SECTION_AREA:
+        outputPlotSeries.SetYColumnName(LUMEN_CROSS_SECTION_AREA_ARRAY_NAME)
     elif self.outputPlotSeriesType == WALL_CE_DIAMETER:
         outputPlotSeries.SetYColumnName(WALL_DIAMETER_ARRAY_NAME)
     elif self.outputPlotSeriesType == WALL_CROSS_SECTION_AREA:
@@ -1592,19 +1592,19 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     areaUnit = self.getUnitNodeUnitDisplayString(0.0, "area")
     self.plotChartNode.SetXAxisTitle("{nameOfDistanceArray} ( {unitOfLength})".format(nameOfDistanceArray=DISTANCE_ARRAY_NAME, unitOfLength=lengthUnit))
     if self.outputPlotSeriesType == MIS_DIAMETER:
-        self.plotChartNode.SetYAxisTitle(_("Diameter ({unitOfLength})").format(unitOfLength=lengthUnit))
+        self.plotChartNode.SetYAxisTitle("{yTitle} ({unitOfLength})".format(unitOfLength=lengthUnit, yTitle=MIS_DIAMETER_ARRAY_NAME))
     if self.outputPlotSeriesType == CE_DIAMETER:
-        self.plotChartNode.SetYAxisTitle(_("Diameter ({unitOfLength})").format(unitOfLength=lengthUnit))
-    elif self.outputPlotSeriesType == CROSS_SECTION_AREA:
-        self.plotChartNode.SetYAxisTitle(_("Area ({unitOfArea})").format(unitOfArea=areaUnit))
+        self.plotChartNode.SetYAxisTitle("{yTitle} ({unitOfLength})".format(unitOfLength=lengthUnit, yTitle=CE_DIAMETER_ARRAY_NAME))
+    elif self.outputPlotSeriesType == LUMEN_CROSS_SECTION_AREA:
+        self.plotChartNode.SetYAxisTitle("{yTitle} ({unitOfArea})".format(unitOfArea=areaUnit, yTitle=LUMEN_CROSS_SECTION_AREA_ARRAY_NAME))
     elif self.outputPlotSeriesType == WALL_CE_DIAMETER:
-        self.plotChartNode.SetYAxisTitle(_("Diameter ({unitOfLength})").format(unitOfLength=lengthUnit))
+        self.plotChartNode.SetYAxisTitle("{yTitle} ({unitOfLength})".format(unitOfLength=lengthUnit, yTitle=WALL_DIAMETER_ARRAY_NAME))
     elif self.outputPlotSeriesType == WALL_CROSS_SECTION_AREA:
-        self.plotChartNode.SetYAxisTitle(_("Area ({unitOfArea})").format(unitOfArea=areaUnit))
+        self.plotChartNode.SetYAxisTitle("{yTitle} ({unitOfArea})".format(unitOfArea=areaUnit, yTitle=WALL_CROSS_SECTION_AREA_ARRAY_NAME))
     elif self.outputPlotSeriesType == DIAMETER_STENOSIS:
-        self.plotChartNode.SetYAxisTitle(_("Stenosis (%)"))
+        self.plotChartNode.SetYAxisTitle("{yTitle} (%)".format(yTitle=DIAMETER_STENOSIS_ARRAY_NAME))
     elif self.outputPlotSeriesType == SURFACE_AREA_STENOSIS:
-        self.plotChartNode.SetYAxisTitle(_("Stenosis (%)"))
+        self.plotChartNode.SetYAxisTitle("{yTitle} (%)".format(yTitle=SURFACE_AREA_STENOSIS_ARRAY_NAME))
     else:
       pass
     # Reset the chart.
@@ -1981,7 +1981,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     if self.outputTableNode is None or self.lumenSurfaceNode is None:
       return 0.0
 
-    currentSurfaceAreaVariant = self.outputTableNode.GetTable().GetValueByName(int(pointIndex), CROSS_SECTION_AREA_ARRAY_NAME)
+    currentSurfaceAreaVariant = self.outputTableNode.GetTable().GetValueByName(int(pointIndex), LUMEN_CROSS_SECTION_AREA_ARRAY_NAME)
     currentSurfaceArea = currentSurfaceAreaVariant.ToDouble() if currentSurfaceAreaVariant.IsValid() else 0.0
     return currentSurfaceArea
 
@@ -2096,7 +2096,7 @@ class CrossSectionAnalysisTest(ScriptedLoadableModuleTest):
 DISTANCE_ARRAY_NAME = _("Distance")
 MIS_DIAMETER_ARRAY_NAME = _("Diameter (MIS)")
 CE_DIAMETER_ARRAY_NAME = _("Diameter (CE)")
-CROSS_SECTION_AREA_ARRAY_NAME = _("Cross-section area")
+LUMEN_CROSS_SECTION_AREA_ARRAY_NAME = _("Lumen cross-section area")
 WALL_DIAMETER_ARRAY_NAME = _("Wall diameter")
 WALL_CROSS_SECTION_AREA_ARRAY_NAME = _("Wall cross-section area")
 SURFACE_AREA_STENOSIS_ARRAY_NAME = _("Stenosis by surface area")
@@ -2106,7 +2106,7 @@ SEGMENT_TAG_NAME_CLIPPED = "ClippedInTube"
 
 MIS_DIAMETER = "MIS_DIAMETER"
 CE_DIAMETER = "CE_DIAMETER"
-CROSS_SECTION_AREA = "CROSS_SECTION_AREA"
+LUMEN_CROSS_SECTION_AREA = "LUMEN_CROSS_SECTION_AREA"
 WALL_CE_DIAMETER = "WALL_CE_DIAMETER"
 WALL_CROSS_SECTION_AREA = "WALL_CROSS_SECTION_AREA"
 DIAMETER_STENOSIS = "DIAMETER_STENOSIS"
