@@ -147,6 +147,13 @@ void qSlicerBranchClipperModuleWidget::onApply()
       this->showStatusMessage(msg, 5000);
       return;
     }
+    if (inputSegmentationNode->GetSegmentation()->GetNumberOfSegments() == 0)
+    {
+      const QString msg = qSlicerBranchClipperModuleWidget::tr("No segment found in the segmentation, aborting");
+      cerr << msg.toStdString() << endl;
+      this->showStatusMessage(msg, 5000);
+      return;
+    }
     if (inputSegmentationNode && inputSegmentationNode->CreateClosedSurfaceRepresentation())
     {
       // ID of input whole segment.
