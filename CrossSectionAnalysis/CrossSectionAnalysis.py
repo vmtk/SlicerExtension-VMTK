@@ -58,6 +58,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.maximumInscribedSphereColor = [0.2, 1.0, 0.4]
     self._parameterNode = None
     self._updatingGUIFromParameterNode = False
+    self._wallCrossSectionTypeMenu = qt.QMenu()
+    self._wallCrossSectionTypeAction = None
 
   def setup(self):
     """
@@ -88,6 +90,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.surfaceInformationFastFixToolButton.setVisible(False)
     self.ui.kernelSizeSpinBox.setVisible(False)
     self.ui.tubeDecimateToolButton.setVisible(False)
+    # Subtract the lumen cross-section from the wall cross-section model or not.
+    self._updateWallCrossSectionTypeMenu()
 
     self.initializeParameterNode()
     # Position the crosshair on a lumen region.
@@ -194,6 +198,22 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.updateWallLabelsVisibility()
     # Force visible status of tubeDecimateToolButton.
     self.setInputCenterlineNode(self.ui.inputCenterlineSelector.currentNode())
+
+  def _updateWallCrossSectionTypeMenu(self):
+    if (not self._wallCrossSectionTypeAction):
+      self._wallCrossSectionTypeAction = qt.QAction()
+      self._wallCrossSectionTypeAction.setText(_("Subtract the lumen"))
+      self._wallCrossSectionTypeAction.setCheckable(True)
+      self._wallCrossSectionTypeMenu.addAction(self._wallCrossSectionTypeAction)
+      # Update the parameter node.
+      self._wallCrossSectionTypeAction.connect("toggled(bool)", lambda value: self.setValueInParameterNode(ROLE_WALL_SUBTRACT_LUMEN_CROSSSECTION, value))
+      # And perform a selective cache reset.
+      self._wallCrossSectionTypeAction.connect("toggled(bool)", lambda value: self.updateWallCrossSectionType(value, int(self.ui.moveToPointSliderWidget.value)))
+    if (self.logic.inputCenterlineNode and self.logic.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode")
+        and self.logic.lumenSurfaceNode):
+      self.ui.showWallCrossSectionButton.setMenu(self._wallCrossSectionTypeMenu)
+    else:
+      self.ui.showWallCrossSectionButton.setMenu(None)
 
   def initializeParameterNode(self):
     """
@@ -340,6 +360,11 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.logic.axialSliceHorizontalFlip = (self._parameterNode.GetParameter(ROLE_AXIAL_HORIZONTAL_FLIP) == "True") if self._parameterNode.GetParameter(ROLE_AXIAL_HORIZONTAL_FLIP) else False
     self.logic.axialSliceVerticalFlip = (self._parameterNode.GetParameter(ROLE_AXIAL_VERTICAL_FLIP) == "True") if self._parameterNode.GetParameter(ROLE_AXIAL_VERTICAL_FLIP) else False
     self.logic.relativeOriginPointIndex = int(self._parameterNode.GetParameter(ROLE_ORIGIN_POINT_INDEX)) if self._parameterNode.GetParameter(ROLE_ORIGIN_POINT_INDEX) else 0
+    """
+    NOTE: This function is called every time the parameter node is altered.
+    logic.wallSubtractLumenCrossSection is not updated from here but in _updateWallCrossSectionTypeMenu().
+    It handles logic.wallCrossSectionPolyDataCache selectively.
+    """
 
     # Update node selectors and sliders
 
@@ -393,6 +418,9 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.kernelSizeSpinBox.setValue(float(self._parameterNode.GetParameter(ROLE_INPUT_KERNEL_SIZE))
                                        if self._parameterNode.GetParameter(ROLE_INPUT_KERNEL_SIZE) else 1.1)
     self.ui.surfaceInformationGoToToolButton.setChecked(self._parameterNode.GetParameter(ROLE_GOTO_REGION) == "True")
+
+    # Update checkable menu action state.
+    self._wallCrossSectionTypeAction.setChecked(self._parameterNode.GetParameter(ROLE_WALL_SUBTRACT_LUMEN_CROSSSECTION) == "True")
 
     # Update outputs
     self.updateMeasurements()
@@ -743,6 +771,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.updatePlotOptions()
     self.updateWallLabelsVisibility()
     self.updateClipButtonStatus()
+    # Menu action for showWallCrossSectionButton.
+    self._updateWallCrossSectionTypeMenu()
 
   def onInputSegmentationNode(self):
     self.resetOutput()
@@ -750,6 +780,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.updateWallLabelsVisibility()
     self.resetLumenRegions()
     self.updateClipButtonStatus()
+    # Menu action for showWallCrossSectionButton.
+    self._updateWallCrossSectionTypeMenu()
     """
     Small hack to ensure that the segmentID in logic is synchronised with the
     parameter node.
@@ -1053,6 +1085,15 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       slicer.mrmlScene.RemoveNode(self.wallCrossSectionModelNode)
     self.wallCrossSectionModelNode = None
 
+  # Create a wall cross-section with or without the lumen cross-section.
+  def updateWallCrossSectionType(self, value, pointIndex):
+    self.logic.wallSubtractLumenCrossSection = value
+    if not self.logic.wallCrossSectionPolyDataCache:
+      return
+    # Replace a cached cross-section at this index selectively.
+    self.logic.wallCrossSectionPolyDataCache.pop(pointIndex)
+    self.setCurrentPointIndex(pointIndex)
+
   def setShowMaximumInscribedSphereDiameter(self, checked):
     self.logic.showMaximumInscribedSphere = checked
     if self.maximumInscribedSphereModelNode and self.maximumInscribedSphereModelNode.GetDisplayNode() :
@@ -1126,6 +1167,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.currentSegmentID = ""
     self.lumenCrossSectionPolyDataCache = {}
     self.wallCrossSectionPolyDataCache = {}
+    self.wallSubtractLumenCrossSection = False
     self.decimatedWallPolyDataCache = None
     self.decimateTube = False
     self.showCrossSection = False
@@ -1908,6 +1950,9 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     # If there is no lumen, there is nothing more to process.
     if (not self.lumenSurfaceNode):
       return wallCrossSection
+    # Use the full wall cross-section if we don't subtract the lumen.
+    if (not self.wallSubtractLumenCrossSection):
+      return wallCrossSection
 
     '''
     There is a lumen. We want to subtract the lumen from the wall cross-section.
@@ -2133,6 +2178,7 @@ ROLE_LONGITUDINAL_SPIN_ANGLE = "LongitudinalSpinAngleDeg"
 ROLE_SHOW_MIS_MODEL = "ShowMISModel"
 ROLE_SHOW_CROSS_SECTION_MODEL = "ShowCrossSectionModel"
 ROLE_SHOW_WALL_CROSS_SECTION_MODEL = "ShowWallCrossSectionModel"
+ROLE_WALL_SUBTRACT_LUMEN_CROSSSECTION = "WallSubtractLumenCrossSection"
 ROLE_AXIAL_HORIZONTAL_FLIP = "AxialSliceHorizontalFlip"
 ROLE_AXIAL_VERTICAL_FLIP = "AxialSliceVerticalFlip"
 ROLE_GOTO_REGION = "GoToRegion"
