@@ -40,6 +40,7 @@ set(MODULE_TARGET_LIBRARIES
   vtkSlicer${MODULE_NAME}ModuleLogic
   qSlicer${MODULE_NAME}ModuleWidgets
   ${ITK_LIBRARIES}
+  vtkSlicerSegmentationsModuleLogic
   )
 
 set(MODULE_RESOURCES
