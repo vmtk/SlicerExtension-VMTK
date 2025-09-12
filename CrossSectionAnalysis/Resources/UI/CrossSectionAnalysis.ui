@@ -1199,7 +1199,7 @@ Concerns orthogonal reformat in axial navigation.</string>
            </widget>
           </item>
           <item>
-           <widget class="QToolButton" name="showCrossSectionButton">
+           <widget class="QToolButton" name="showLumenCrossSectionButton">
             <property name="enabled">
              <bool>false</bool>
             </property>

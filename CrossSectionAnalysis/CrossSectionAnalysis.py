@@ -148,7 +148,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.axialSpinSliderWidget.connect("valueChanged(double)", lambda value: self.setValueInParameterNode(ROLE_AXIAL_SPIN_ANGLE, value))
     self.ui.longitudinalSpinSliderWidget.connect("valueChanged(double)", lambda value: self.setValueInParameterNode(ROLE_LONGITUDINAL_SPIN_ANGLE, value))
     self.ui.showMISDiameterButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode(ROLE_SHOW_MIS_MODEL, "True" if value else "False"))
-    self.ui.showCrossSectionButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode(ROLE_SHOW_CROSS_SECTION_MODEL, "True" if value else "False"))
+    self.ui.showLumenCrossSectionButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode(ROLE_SHOW_CROSS_SECTION_MODEL, "True" if value else "False"))
     self.ui.showWallCrossSectionButton.connect("toggled(bool)", lambda value: self.setValueInParameterNode(ROLE_SHOW_WALL_CROSS_SECTION_MODEL, "True" if value else "False"))
     self.ui.axialSliceHorizontalFlipCheckBox.connect("clicked()", lambda: self.setValueInParameterNode(ROLE_AXIAL_HORIZONTAL_FLIP, str(self.ui.axialSliceHorizontalFlipCheckBox.isChecked())))
     self.ui.axialSliceVerticalFlipCheckBox.connect("clicked()", lambda : self.setValueInParameterNode(ROLE_AXIAL_VERTICAL_FLIP, str(self.ui.axialSliceVerticalFlipCheckBox.isChecked())))
@@ -389,7 +389,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.axialSpinSliderWidget.setValue(self.logic.axialSpinAngleDeg)
     self.ui.longitudinalSpinSliderWidget.setValue(self.logic.longitudinalSpinAngleDeg)
     self.ui.showMISDiameterButton.setChecked(self.logic.showMaximumInscribedSphere)
-    self.ui.showCrossSectionButton.setChecked(self.logic.showCrossSection)
+    self.ui.showLumenCrossSectionButton.setChecked(self.logic.showLumenCrossSection)
     self.ui.showWallCrossSectionButton.setChecked(self.logic.showWallCrossSection)
     self.ui.axialSliceHorizontalFlipCheckBox.setChecked(self.logic.axialSliceHorizontalFlip)
     self.ui.axialSliceVerticalFlipCheckBox.setChecked(self.logic.axialSliceVerticalFlip)
@@ -415,7 +415,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
     self.ui.moveToMinimumAreaButton.enabled = self.logic.lumenSurfaceNode is not None
     self.ui.moveToMaximumAreaButton.enabled = self.logic.lumenSurfaceNode is not None
-    self.ui.showCrossSectionButton.enabled = self.logic.lumenSurfaceNode is not None
+    self.ui.showLumenCrossSectionButton.enabled = self.logic.lumenSurfaceNode is not None
 
     self.ui.kernelSizeSpinBox.setValue(float(self._parameterNode.GetParameter(ROLE_INPUT_KERNEL_SIZE))
                                        if self._parameterNode.GetParameter(ROLE_INPUT_KERNEL_SIZE) else 1.1)
@@ -475,7 +475,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
       self.ui.moveToMinimumAreaButton.enabled = self.logic.lumenSurfaceNode is not None
       self.ui.moveToMaximumAreaButton.enabled = self.logic.lumenSurfaceNode is not None
-      self.ui.showCrossSectionButton.enabled = self.logic.lumenSurfaceNode is not None
+      self.ui.showLumenCrossSectionButton.enabled = self.logic.lumenSurfaceNode is not None
 
       if tableHasData:
         numberOfPoints = self.logic.getNumberOfPoints()
@@ -698,7 +698,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       self.deleteMaximumInscribedSphere()
 
     # Update the lumen cross-section model
-    if self.ui.showCrossSectionButton.checked and self.logic.lumenSurfaceNode:
+    if self.ui.showLumenCrossSectionButton.checked and self.logic.lumenSurfaceNode:
       crossSectionPolyData = self.logic.updateLumenCrossSection(pointIndex)
       if self.lumenCrossSectionModelNode is None:
         self.lumenCrossSectionModelNode = slicer.modules.models.logic().AddModel(crossSectionPolyData)
@@ -1064,9 +1064,9 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.onGetRegionsButton()
 
   def setShowLumenCrossSection(self, checked):
-    self.logic.showCrossSection = checked
+    self.logic.showLumenCrossSection = checked
     if self.lumenCrossSectionModelNode and self.lumenCrossSectionModelNode.GetDisplayNode():
-      self.lumenCrossSectionModelNode.GetDisplayNode().SetVisibility(self.logic.showCrossSection)
+      self.lumenCrossSectionModelNode.GetDisplayNode().SetVisibility(self.logic.showLumenCrossSection)
     if not checked:
       self.deleteLumenCrossSection()
 
@@ -1172,7 +1172,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.wallSubtractLumenCrossSection = False
     self.decimatedWallPolyDataCache = None
     self.decimateTube = False
-    self.showCrossSection = False
+    self.showLumenCrossSection = False
     self.showWallCrossSection = False
     self.showMaximumInscribedSphere = False
     self.relativeOriginPointIndex = 0
