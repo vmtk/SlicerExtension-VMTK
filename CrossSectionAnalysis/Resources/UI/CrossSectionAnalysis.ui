@@ -1609,22 +1609,6 @@ Caution: values at bifurcations may not have clinical meaning.</string>
    </hints>
   </connection>
   <connection>
-   <sender>segmentationSelector</sender>
-   <signal>currentNodeChanged(vtkMRMLNode*)</signal>
-   <receiver>segmentSelector</receiver>
-   <slot>setCurrentNode(vtkMRMLNode*)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>405</x>
-     <y>88</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>348</x>
-     <y>108</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
    <sender>CrossSectionAnalysis</sender>
    <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
    <receiver>longitudinalSliceViewSelector</receiver>

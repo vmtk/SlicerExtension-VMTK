@@ -161,8 +161,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.applyButton.connect('clicked(bool)', self.onApply)
 
     self.ui.inputCenterlineSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.setInputCenterlineNode)
-    self.ui.segmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onInputSegmentationNode)
-    self.ui.segmentSelector.connect("currentSegmentChanged(QString)", self.onInputSegmentationNode) # Need to perform the same tasks as with segmentationSelector.
+    self.ui.segmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onInputSurfaceNodeChanged)
+    self.ui.segmentSelector.connect("currentSegmentChanged(QString)", self.onInputSurfaceChanged) # Need to perform the same tasks as with segmentationSelector.
     self.ui.outputPlotSeriesSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.resetOutput)
     self.ui.outputTableSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.resetOutput)
 
@@ -198,6 +198,8 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.updateWallLabelsVisibility()
     # Force visible status of tubeDecimateToolButton.
     self.setInputCenterlineNode(self.ui.inputCenterlineSelector.currentNode())
+    # Synchronise the selected segment ID in the parameter node and in logic.
+    self.setValueInParameterNode(ROLE_INPUT_SEGMENT_ID, self.ui.segmentSelector.currentSegmentID())
 
   def _updateWallCrossSectionTypeMenu(self):
     if (not self._wallCrossSectionTypeAction):
@@ -774,7 +776,15 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     # Menu action for showWallCrossSectionButton.
     self._updateWallCrossSectionTypeMenu()
 
-  def onInputSegmentationNode(self):
+  # When segmentationSelector node changes: model or segmentation. logic is updated from updateGUIFromParameterNode().
+  def onInputSurfaceNodeChanged(self, node):
+    self.ui.segmentSelector.setCurrentNode(node)
+    if (not node) or (node.IsTypeOf("vtkMRMLModelNode")):
+      self.ui.segmentSelector.setCurrentSegmentID("") # Doesn't work, it keeps the previous segmentID.
+    self.onInputSurfaceChanged()
+
+  # When segmentationSelector node changes or when the selected segment changes.
+  def onInputSurfaceChanged(self):
     self.resetOutput()
     self.updatePlotOptions()
     self.updateWallLabelsVisibility()
@@ -782,14 +792,6 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.updateClipButtonStatus()
     # Menu action for showWallCrossSectionButton.
     self._updateWallCrossSectionTypeMenu()
-    """
-    Small hack to ensure that the segmentID in logic is synchronised with the
-    parameter node.
-    NOTE: segmentationSelector and segmentSelector are connected in designer.
-    """
-    if (self._parameterNode):
-      if (self.logic.currentSegmentID != self._parameterNode.GetParameter(ROLE_INPUT_SEGMENT_ID)):
-        self.setValueInParameterNode(ROLE_INPUT_SEGMENT_ID, self.ui.segmentSelector.currentSegmentID())
 
   # The output table columns vary according to the input types; this defines what can be plotted.
   def updatePlotOptions(self):
@@ -1221,23 +1223,10 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     self.relativeOriginPointIndex = 0
 
   def setLumenSurface(self, lumenSurfaceNode, currentSegmentID):
-    # Eliminate a None surface, whatever be its type.
-    if not lumenSurfaceNode:
-      self.lumenSurfaceNode = None
-      self.currentSegmentID = ""
-      self.resetPolyDataCaches()
+    if (self.lumenSurfaceNode == lumenSurfaceNode) and (self.currentSegmentID == currentSegmentID):
       return
-    # We may get an invalid (obsolete, empty, ...) segment ID.
-    # In this case, use the first segment.
-    verifiedSegmentID = ""
-    if lumenSurfaceNode.GetClassName() == "vtkMRMLSegmentationNode":
-      if lumenSurfaceNode.GetSegmentation().GetSegment(currentSegmentID):
-        verifiedSegmentID = currentSegmentID
-      else:
-        verifiedSegmentID = lumenSurfaceNode.GetSegmentation().GetNthSegmentID(0)
     self.lumenSurfaceNode = lumenSurfaceNode
-    self.currentSegmentID = verifiedSegmentID
-
+    self.currentSegmentID = currentSegmentID
     self.resetPolyDataCaches()
 
   def setOutputTableNode(self, tableNode):
