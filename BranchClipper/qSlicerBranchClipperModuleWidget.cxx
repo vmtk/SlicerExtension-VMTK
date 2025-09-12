@@ -29,6 +29,7 @@
 #include <vtkMRMLSubjectHierarchyNode.h>
 #include <vtkMRMLScene.h>
 #include <vtkMRMLDisplayNode.h>
+#include <vtkSlicerSegmentationsModuleLogic.h>
 #include <vtkPolyDataCollection.h>
 #include <vtkTimerLog.h>
 
@@ -260,23 +261,14 @@ void qSlicerBranchClipperModuleWidget::onApply()
       }
       if (inputSegmentationNode)
       {
-        // Control branch segment name, id and colour.
+        // Control branch segment name.
         std::string branchName = inputSegmentName + std::string("_Branch_") + std::to_string((int) i);
-        // Don't duplicate on repeat apply.
-        /*
-        * Don't use AddSegmentFromClosedSurfaceRepresentation().
-        * Parameter segmentId is marked vtkNotUsed().
-        */
-        vtkSmartPointer<vtkSegment> segment = vtkSmartPointer<vtkSegment>::New();
-        segment->SetName(branchName.c_str());
-        segment->SetTag("Segmentation.Status", "inprogress");
-        if (segment->AddRepresentation(vtkSegmentationConverter::GetClosedSurfaceRepresentationName(), branchSurface))
+        std::string branchId = inputSegmentationNode->AddSegmentFromClosedSurfaceRepresentation(branchSurface, branchName);
+        vtkSegment * segment = inputSegmentationNode->GetSegmentation()->GetSegment(branchId);
+        if (segment)
         {
-          inputSegmentationNode->GetSegmentation()->AddSegment(segment);
-        }
-        else
-        {
-          cerr << "Could not add a closed surface representation to a branch segment." << endl;
+          vtkSlicerSegmentationsModuleLogic::SetSegmentStatus(segment, vtkSlicerSegmentationsModuleLogic::InProgress);
+          // Don't call Modified().
         }
       }
       else if(inputModelNode)
