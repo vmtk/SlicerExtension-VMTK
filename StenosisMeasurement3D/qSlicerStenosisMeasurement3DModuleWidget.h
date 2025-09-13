@@ -97,8 +97,8 @@ protected:
   static void onTubeModified(vtkObject *caller,
                                         unsigned long event, void *clientData, void *callData);
 
-  vtkSmartPointer<vtkCallbackCommand> segmentationRepresentationObservation;
-  static void onSegmentationRepresentationModified(vtkObject *caller,
+  vtkSmartPointer<vtkCallbackCommand> segmentationSourceRepresentationObservation;
+  static void onSegmentationSourceRepresentationModified(vtkObject *caller,
                                         unsigned long event, void *clientData, void *callData);
 
   void setDefaultParameters(vtkMRMLNode * node);
