@@ -858,8 +858,12 @@ void qSlicerStenosisMeasurement3DModuleWidget::updateGuiFromParameterNode()
   }
 
   d->inputShapeSelector->setCurrentNode(d->parameterNode->GetInputShapeNode());
-  QSignalBlocker blocker(d->inputSegmentSelector);
-  d->inputSegmentSelector->setCurrentNode(d->parameterNode->GetInputSegmentationNode());
+  {
+    QSignalBlocker blocker(d->inputSegmentSelector);
+    d->inputSegmentSelector->setCurrentNode(d->parameterNode->GetInputSegmentationNode());
+    // Force observation of the segmentation.
+    this->onSegmentationNodeChanged(d->parameterNode->GetInputSegmentationNode());
+  }
   d->inputSegmentSelector->setCurrentSegmentID(d->parameterNode->GetInputSegmentID());
   d->inputFiducialSelector->setCurrentNode(d->parameterNode->GetInputFiducialNode());
   d->lesionModelSelector->setCurrentNode(d->parameterNode->GetOutputLesionModelNode());
