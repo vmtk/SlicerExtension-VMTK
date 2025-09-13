@@ -151,9 +151,9 @@ void qSlicerStenosisMeasurement3DModuleWidget::setup()
   this->tubeModifiedObservation->SetClientData( reinterpret_cast<void *>(this) );
   this->tubeModifiedObservation->SetCallback(qSlicerStenosisMeasurement3DModuleWidget::onTubeModified);
 
-  this->segmentationRepresentationObservation = vtkSmartPointer<vtkCallbackCommand>::New();
-  this->segmentationRepresentationObservation->SetClientData( reinterpret_cast<void *>(this) );
-  this->segmentationRepresentationObservation->SetCallback(qSlicerStenosisMeasurement3DModuleWidget::onSegmentationRepresentationModified);
+  this->segmentationSourceRepresentationObservation = vtkSmartPointer<vtkCallbackCommand>::New();
+  this->segmentationSourceRepresentationObservation->SetClientData( reinterpret_cast<void *>(this) );
+  this->segmentationSourceRepresentationObservation->SetCallback(qSlicerStenosisMeasurement3DModuleWidget::onSegmentationSourceRepresentationModified);
 
   this->addMenu();
 
@@ -452,13 +452,18 @@ void qSlicerStenosisMeasurement3DModuleWidget::onSegmentationNodeChanged(vtkMRML
   d->inputSegmentSelector->setCurrentSegmentID("");
   if (d->parameterNode)
   {
+    vtkMRMLSegmentationNode * currentSegmentationNode = d->parameterNode->GetInputSegmentationNode();
+    if (currentSegmentationNode)
+    {
+      currentSegmentationNode->RemoveObserver(this->segmentationSourceRepresentationObservation);
+    }
     d->parameterNode->SetInputSegmentationNodeID(node ? node->GetID() : nullptr);
   }
   this->clearLumenCache();
   this->updateRegionInfo();
   if (node)
   {
-    node->AddObserver(vtkSegmentation::RepresentationModified, this->segmentationRepresentationObservation);
+    node->AddObserver(vtkSegmentation::SourceRepresentationModified, this->segmentationSourceRepresentationObservation);
   }
 }
 
@@ -566,7 +571,7 @@ void qSlicerStenosisMeasurement3DModuleWidget::onTubeModified(vtkObject *caller,
 }
 
 //-----------------------------------------------------------------------------
-void qSlicerStenosisMeasurement3DModuleWidget::onSegmentationRepresentationModified(vtkObject *caller,
+void qSlicerStenosisMeasurement3DModuleWidget::onSegmentationSourceRepresentationModified(vtkObject *caller,
                                                                 unsigned long event, void *clientData, void *callData)
 {
   qSlicerStenosisMeasurement3DModuleWidget * client = reinterpret_cast<qSlicerStenosisMeasurement3DModuleWidget*>(clientData);
