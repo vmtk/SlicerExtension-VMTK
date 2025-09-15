@@ -849,9 +849,6 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         """
         inputSegmentation = self.logic.lumenSurfaceNode
         clippedLumenId = inputSegmentation.AddSegmentFromClosedSurfaceRepresentation(tubeSurface, clippedLumenName)
-        representationName = inputSegmentation.GetDisplayNode().GetPreferredDisplayRepresentationName3D()
-        inputSegmentation.GetSegmentation().RemoveRepresentation(representationName)
-        inputSegmentation.GetSegmentation().CreateRepresentation(representationName)
 
         segmentEditorModuleWidget = slicer.util.getModuleWidget("SegmentEditor")
         seWidget = segmentEditorModuleWidget.editor
