@@ -53,6 +53,7 @@
 #include <vtkTableToSQLiteWriter.h>
 #include <vtkSQLiteQuery.h>
 #include <vtkQuadricDecimation.h>
+#include <vtkMRMLI18N.h>
 
 static const char* COLUMN_NAME_STUDY = "Study";
 static const char* COLUMN_NAME_WALL = "WallVolume";
