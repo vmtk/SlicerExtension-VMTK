@@ -41,7 +41,8 @@ public:
     vtkDoubleArray* bufferArray,
     vtkIdType startPointIndex,
     vtkIdType endPointIndex,
-    vtkIdList* emptySectionIds = nullptr);
+    vtkIdList* emptySectionIds = nullptr,
+    vtkCrossSectionCompute::ExtractionMode extractionMode = vtkCrossSectionCompute::ExtractionMode::ClosestPoint);
 
 private:
   /**
@@ -54,7 +55,8 @@ private:
     vtkPolyData* closedSurfacePolyData,
     vtkIdType pointIndex,
     vtkPolyData* contourPolyData,
-    vtkIdList* emptySectionIds = nullptr);
+    vtkIdList* emptySectionIds = nullptr,
+    vtkCrossSectionCompute::ExtractionMode extractionMode = vtkCrossSectionCompute::ExtractionMode::ClosestPoint);
 };
 
 //------------------------------------------------------------------------------
@@ -113,7 +115,7 @@ void vtkCrossSectionCompute::SetInputCenterlinePolyData(vtkPolyData * inputCente
 
 //------------------------------------------------------------------------------
 bool vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray, vtkDoubleArray * ceDiameterArray,
-                                         vtkIdList* emptySectionIds)
+                                         vtkIdList* emptySectionIds, ExtractionMode extractionMode)
 {
     if (this->ClosedSurfacePolyData == nullptr)
     {     
@@ -158,7 +160,7 @@ bool vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
                                       closedSurfacePolyDataCopy,
                                       bufferArrays[i],
                                       startPointIndex, endPointIndex,
-                                      emptySectionIds));
+                                      emptySectionIds, extractionMode));
     }
     for (unsigned int i = 0; i < threads.size(); i++)
     {
@@ -290,7 +292,8 @@ void CrossSectionComputeWorker::operator () (vtkPolyData * generatedPolyData,
                                                 vtkDoubleArray * bufferArray,
                                                 vtkIdType startPointIndex,
                                                 vtkIdType endPointIndex,
-                                                vtkIdList* emptySectionIds)
+                                                vtkIdList* emptySectionIds,
+                                                vtkCrossSectionCompute::ExtractionMode extractionMode)
 {
     for (vtkIdType i = startPointIndex; i <= endPointIndex; i++)
     {
@@ -298,7 +301,7 @@ void CrossSectionComputeWorker::operator () (vtkPolyData * generatedPolyData,
         vtkNew<vtkPolyData> contourPolyData;
         ComputeCrossSectionPolydata(generatedPolyData, generatedTangents,
                                     closedSurfacePolyData, i, contourPolyData,
-                                    emptySectionIds);
+                                    emptySectionIds, extractionMode);
         {
             // Get the surface area and circular equivalent diameter
             vtkNew<vtkMassProperties> crossSectionProperties;
@@ -319,7 +322,8 @@ void CrossSectionComputeWorker::ComputeCrossSectionPolydata(
     vtkPolyData * closedSurfacePolyData,
     vtkIdType pointIndex,
     vtkPolyData * contourPolyData,
-    vtkIdList* emptySectionIds)
+    vtkIdList* emptySectionIds,
+    vtkCrossSectionCompute::ExtractionMode extractionMode)
 {
     if (generatedPolyData == nullptr)
     {
@@ -365,8 +369,10 @@ void CrossSectionComputeWorker::ComputeCrossSectionPolydata(
     plane->SetOrigin(center);
     plane->SetNormal(normal);
 
-    vtkCrossSectionCompute::SectionCreationResult result = vtkCrossSectionCompute::CreateCrossSection(contourPolyData, closedSurfacePolyData, plane,
-                                                vtkCrossSectionCompute::ExtractionMode::ClosestPoint, false);
+    vtkCrossSectionCompute::SectionCreationResult
+    result = vtkCrossSectionCompute::CreateCrossSection(contourPolyData,
+                                                closedSurfacePolyData, plane,
+                                                extractionMode, false);
     if (emptySectionIds && result == vtkCrossSectionCompute::SectionCreationResult::Empty)
     {
         mtx.lock();
