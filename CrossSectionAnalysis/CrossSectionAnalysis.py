@@ -209,7 +209,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
       self._wallCrossSectionTypeMenu.addAction(self._wallCrossSectionTypeAction)
       # Update the parameter node.
       self._wallCrossSectionTypeAction.connect("toggled(bool)", lambda value: self.setValueInParameterNode(ROLE_WALL_SUBTRACT_LUMEN_CROSSSECTION, value))
-      # And perform a selective cache reset.
+      # And reset the cross-section caches.
       self._wallCrossSectionTypeAction.connect("toggled(bool)", lambda value: self.updateWallCrossSectionType(value, int(self.ui.moveToPointSliderWidget.value)))
     if (self.logic.inputCenterlineNode and self.logic.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode")
         and self.logic.lumenSurfaceNode):
@@ -1088,10 +1088,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
   # Create a wall cross-section with or without the lumen cross-section.
   def updateWallCrossSectionType(self, value, pointIndex):
     self.logic.wallSubtractLumenCrossSection = value
-    if not self.logic.wallCrossSectionPolyDataCache:
-      return
-    # Replace a cached cross-section at this index selectively.
-    self.logic.wallCrossSectionPolyDataCache.pop(pointIndex)
+    self.logic.resetPolyDataCaches(False) # Don't reset the decimated wall cache.'
     self.setCurrentPointIndex(pointIndex)
 
   def setShowMaximumInscribedSphereDiameter(self, checked):
@@ -1208,10 +1205,11 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     parameterNode.SetParameter(ROLE_INPUT_KERNEL_SIZE, str(1.1))
     parameterNode.SetParameter(ROLE_INITIALIZED, "1")
 
-  def resetPolyDataCaches(self):
+  def resetPolyDataCaches(self, all = True):
     self.lumenCrossSectionPolyDataCache = {}
     self.wallCrossSectionPolyDataCache = {}
-    self.decimatedWallPolyDataCache = None
+    if (all):
+      self.decimatedWallPolyDataCache = None
 
   def setInputCenterlineNode(self, centerlineNode):
     if self.inputCenterlineNode == centerlineNode:
