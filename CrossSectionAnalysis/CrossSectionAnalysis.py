@@ -864,7 +864,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         # Tag the clipped segment.
         segment = inputSegmentation.GetSegmentation().GetSegment(clippedLumenId)
         # reference = vtk.reference(1)
-        segment.SetTag(TAG_NAME_CLIPPED, 1) # Not used.
+        segment.SetTag(TAG_NAME_CLIPPED, 1)
         """
         vtkMRMLSegmentationDisplayNode::SegmentDisplayProperties does not seem accessible in python.
         Can't clone the display properties of the source segment into the new segment.
@@ -1346,6 +1346,34 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
         self.outputTableNode.GetTable().RemoveColumn(0)
     self.outputTableNode.GetTable().Modified()
 
+  def getLumenExtractionMode(self):
+    import vtkSlicerCrossSectionAnalysisModuleLogicPython as vtkSlicerCrossSectionAnalysisModuleLogic
+    crossSectionCompute = vtkSlicerCrossSectionAnalysisModuleLogic.vtkCrossSectionCompute()
+    default = crossSectionCompute.ClosestPoint
+    if (not self.lumenSurfaceNode) or (not self.isInputCenterlineValid()):
+      return default
+    if (not self.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode")):
+      return default
+    # There is a Tube and a lumen.
+    clipped = None
+    if (self.lumenSurfaceNode.IsTypeOf("vtkMRMLModelNode")):
+      clipped = self.lumenSurfaceNode.GetAttribute(self.moduleName + "." + TAG_NAME_CLIPPED)
+    elif (self.lumenSurfaceNode.IsTypeOf("vtkMRMLSegmentationNode")):
+      if (self.currentSegmentID is None):
+        return default
+      segment = self.lumenSurfaceNode.GetSegmentation().GetSegment(self.currentSegmentID)
+      if (not segment):
+        return default
+      reference = vtk.reference("")
+      segment.GetTag(TAG_NAME_CLIPPED, reference)
+      clipped = reference.get()
+    else:
+      raise ValueError(_("Unknown lumen node type."))
+
+    if (clipped is None):
+        return default
+    return default if (clipped != "1") else crossSectionCompute.AllRegions
+
   def getArrayFromTable(self, outputTable, arrayName):
     columnArray = outputTable.GetTable().GetColumnByName(arrayName)
     if columnArray:
@@ -1481,7 +1509,9 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
         crossSectionCompute.SetInputSurfacePolyData(lumenSurface)
         self.showStatusMessage((_("Waiting for background jobs..."), ))
         emptySectionIds = vtk.vtkIdList()
-        if (not crossSectionCompute.UpdateTable(crossSectionAreaArray, ceDiameterArray, emptySectionIds)):
+        # If there is a Tube and a lumen (model or segment) clipped in the module, use AllRegions, else ClosestPoint.
+        extractionMode = self.getLumenExtractionMode()
+        if (not crossSectionCompute.UpdateTable(crossSectionAreaArray, ceDiameterArray, emptySectionIds, extractionMode)):
           raise RuntimeError("Failed to compute cross-sections.")
         surfaceName = self.lumenSurfaceNode.GetName()
         if self.lumenSurfaceNode.IsTypeOf("vtkMRMLSegmentationNode") and self.currentSegmentID:
@@ -1889,7 +1919,8 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     result = vtk.vtkPolyData()
     import vtkSlicerCrossSectionAnalysisModuleLogicPython as vtkSlicerCrossSectionAnalysisModuleLogic
     crossSectionWorker = vtkSlicerCrossSectionAnalysisModuleLogic.vtkCrossSectionCompute()
-    ret = crossSectionWorker.CreateCrossSection(result, closedSurfacePolyData, plane, crossSectionWorker.ClosestPoint, True)
+    extractionMode = self.getLumenExtractionMode()
+    ret = crossSectionWorker.CreateCrossSection(result, closedSurfacePolyData, plane, extractionMode, True)
     if (ret == crossSectionWorker.Empty):
       logging.error(_("Error creating a cross-section polydata of the lumen at point index {indexOfPoint}.").format(indexOfPoint=pointIndex))
 
@@ -1929,6 +1960,7 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     wallCrossSection = vtk.vtkPolyData()
     import vtkSlicerCrossSectionAnalysisModuleLogicPython as vtkSlicerCrossSectionAnalysisModuleLogic
     crossSectionWorker = vtkSlicerCrossSectionAnalysisModuleLogic.vtkCrossSectionCompute()
+    # AllRegions extractionMode is not relevent for a Tube.
     ret = crossSectionWorker.CreateCrossSection(wallCrossSection, closedSurfacePolyData, plane, crossSectionWorker.ClosestPoint, True)
     if (ret == crossSectionWorker.Empty):
       logging.error(_("Error creating a cross-section polydata of the wall at point index {indexOfPoint}.").format(indexOfPoint=pointIndex))
