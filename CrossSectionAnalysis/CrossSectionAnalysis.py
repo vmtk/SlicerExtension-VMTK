@@ -864,7 +864,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         # Tag the clipped segment.
         segment = inputSegmentation.GetSegmentation().GetSegment(clippedLumenId)
         # reference = vtk.reference(1)
-        segment.SetTag(SEGMENT_TAG_NAME_CLIPPED, 1) # Not used.
+        segment.SetTag(TAG_NAME_CLIPPED, 1) # Not used.
         """
         vtkMRMLSegmentationDisplayNode::SegmentDisplayProperties does not seem accessible in python.
         Can't clone the display properties of the source segment into the new segment.
@@ -886,6 +886,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
         normals.Update()
         clippedModel = slicer.modules.models.logic().AddModel(normals.GetOutput())
         clippedModel.SetName(clippedLumenName)
+        clippedModel.SetAttribute(self.moduleName + "." + TAG_NAME_CLIPPED, "1")
         self.ui.segmentationSelector.setCurrentNode(clippedModel)
 
   def updateWallLabelsVisibility(self):
@@ -2133,7 +2134,7 @@ WALL_CROSS_SECTION_AREA_ARRAY_NAME = _("Wall cross-section area")
 SURFACE_AREA_STENOSIS_ARRAY_NAME = _("Stenosis by surface area")
 DIAMETER_STENOSIS_ARRAY_NAME = _("Stenosis by diameter (CE)")
 
-SEGMENT_TAG_NAME_CLIPPED = "ClippedInTube"
+TAG_NAME_CLIPPED = "ClippedInTube"
 
 MIS_DIAMETER = "MIS_DIAMETER"
 CE_DIAMETER = "CE_DIAMETER"
