@@ -47,15 +47,16 @@ public:
    * The cross-section area and circular equivalent diameter
    * columns of the output table are updated in parallel.
    */
+  enum ExtractionMode{LargestRegion = 0, AllRegions, ClosestPoint};
   bool UpdateTable(vtkDoubleArray * crossSectionAreaArray, vtkDoubleArray * ceDiameterArray,
-                   vtkIdList* emptySectionIds  = nullptr);
+                   vtkIdList* emptySectionIds  = nullptr,
+                   ExtractionMode extractionMode = ExtractionMode::ClosestPoint);
 
   /**
    * Create a cross-section polydata of the input polydata with a given plane.
    * In ClosestPoint mode, holes nearby to the reference point are rightly
    * excluded.
    */
-  enum ExtractionMode{LargestRegion = 0, AllRegions, ClosestPoint};
   enum SectionCreationResult {Success = 0, Abort, Empty};
   static SectionCreationResult CreateCrossSection(vtkPolyData * result, vtkPolyData * input,
                                           vtkPlane * plane,
