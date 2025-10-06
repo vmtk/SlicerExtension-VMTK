@@ -86,6 +86,8 @@ class ArterialCalcificationPreProcessorWidget(ScriptedLoadableModuleWidget, VTKO
         self.logic = ArterialCalcificationPreProcessorLogic()
         self.ui.parameterSetSelector.addAttribute("vtkMRMLScriptedModuleNode", "ModuleName", self.moduleName)
 
+        self.ui.optionsCollapsibleButton.collapsed = True
+
         # Connections
 
         # These connections ensure that we update parameter node when scene is closed
@@ -96,8 +98,17 @@ class ArterialCalcificationPreProcessorWidget(ScriptedLoadableModuleWidget, VTKO
         self.ui.inputSegmentSelector.connect("currentSegmentChanged(QString)", lambda value: self.onStringChanged(ROLE_INPUT_SEGMENT, value))
         self.ui.inputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.onMrmlNodeChanged(ROLE_INPUT_VOLUME, node))
         self.ui.inputMarginSpinBox.connect("valueChanged(double)", lambda value: self.onSpinBoxChanged(ROLE_INPUT_MARGIN, value))
+        self.ui.intensityRangeLowerSpinBox.connect("valueChanged(double)", lambda value: self.onSpinBoxChanged(ROLE_INPUT_LOWER_INTENSITY_BOUND, value))
+        self.ui.intensityRangeUpperSpinBox.connect("valueChanged(double)", lambda value: self.onSpinBoxChanged(ROLE_INPUT_UPPER_INTENSITY_BOUND, value))
+        self.ui.intensityRangeProbeButton.connect("clicked()", lambda: self.updateDisplayedIntensityRange(False))
+        self.ui.intensityRangeResetButton.connect("clicked()", lambda: self.updateDisplayedIntensityRange(True))
         self.ui.parameterSetSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.setParameterNode)
         self.ui.parameterSetUpdateUIToolButton.connect("clicked(bool)", self.onParameterSetUpdateUiClicked)
+
+        self.ui.inputSegmentSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda: self.updateDisplayedIntensityRange(True))
+        self.ui.inputSegmentSelector.connect("currentSegmentChanged(QString)", lambda value: self.updateDisplayedIntensityRange(True))
+        self.ui.inputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.updateDisplayedIntensityRange(True))
+        self.ui.inputVolumeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateWidgetIntensityBounds)
 
         self.ui.applyButton.menu().clear()
         self._show3DAction = qt.QAction(_("Show 3D on success"))
@@ -175,12 +186,18 @@ class ArterialCalcificationPreProcessorWidget(ScriptedLoadableModuleWidget, VTKO
         if not self._parameterNode:
             return
 
-        if self._parameterNode.HasParameter(ROLE_INITIALIZED):
-            return
-
-        self._parameterNode.SetParameter(ROLE_INPUT_MARGIN, str(4.0))
-        self._parameterNode.SetParameter(ROLE_SHOW3D, str(1))
-        self._parameterNode.SetParameter(ROLE_INITIALIZED, str(1))
+        # Ensure all parameters exist in the parameter node.
+        # Existing parameters are not modified.
+        if (not self._parameterNode.HasParameter(ROLE_INPUT_MARGIN)):
+            self._parameterNode.SetParameter(ROLE_INPUT_MARGIN, str(4.0))
+        if (not self._parameterNode.HasParameter(ROLE_INPUT_LOWER_INTENSITY_BOUND)):
+            self._parameterNode.SetParameter(ROLE_INPUT_LOWER_INTENSITY_BOUND, str(0.0))
+        if (not self._parameterNode.HasParameter(ROLE_INPUT_UPPER_INTENSITY_BOUND)):
+            self._parameterNode.SetParameter(ROLE_INPUT_UPPER_INTENSITY_BOUND, str(0.0))
+        if (not self._parameterNode.HasParameter(ROLE_SHOW3D)):
+            self._parameterNode.SetParameter(ROLE_SHOW3D, str(1))
+        if (not self._parameterNode.HasParameter(ROLE_SHOW3D)):
+            self._parameterNode.SetParameter(ROLE_SHOW3D, str(1))
 
     def onApplyButton(self) -> None:
 
@@ -241,9 +258,34 @@ class ArterialCalcificationPreProcessorWidget(ScriptedLoadableModuleWidget, VTKO
         self.ui.inputSegmentSelector.setCurrentSegmentID(self._parameterNode.GetParameter(ROLE_INPUT_SEGMENT))
         self.ui.inputVolumeSelector.setCurrentNode(self._parameterNode.GetNodeReference(ROLE_INPUT_VOLUME))
         self.ui.inputMarginSpinBox.setValue(float(self._parameterNode.GetParameter(ROLE_INPUT_MARGIN)))
+        self.ui.intensityRangeLowerSpinBox.setValue(float(self._parameterNode.GetParameter(ROLE_INPUT_LOWER_INTENSITY_BOUND)))
+        self.ui.intensityRangeUpperSpinBox.setValue(float(self._parameterNode.GetParameter(ROLE_INPUT_UPPER_INTENSITY_BOUND)))
         self._show3DAction.setChecked(int(self._parameterNode.GetParameter(ROLE_SHOW3D)))
 
         self._updatingGUIFromParameterNode = False
+
+    def updateDisplayedIntensityRange(self, reset):
+        if reset:
+            self.ui.intensityRangeLowerSpinBox.setValue(0.0)
+            self.ui.intensityRangeUpperSpinBox.setValue(0.0)
+        else:
+            self.updateWidgetIntensityBounds()
+            with slicer.util.tryWithErrorDisplay(_("Failed to probe the intensity range."), waitCursor=True):
+                calcifHURange = self.logic.probeCalcificationIntensityRange()
+                self.ui.intensityRangeLowerSpinBox.setValue(calcifHURange[0])
+                self.ui.intensityRangeUpperSpinBox.setValue(calcifHURange[1])
+
+    def updateWidgetIntensityBounds(self):
+        if self._parameterNode is None:
+            return
+        with slicer.util.tryWithErrorDisplay(_("Failed to determine the intensity range."), waitCursor=True):
+            inputVolume = self._parameterNode.GetNodeReference(ROLE_INPUT_VOLUME)
+            if (inputVolume is None):
+                return
+            volumeIntensityRange = inputVolume.GetImageData().GetScalarRange()
+            self.ui.intensityRangeLowerSpinBox.setRange(volumeIntensityRange[0], volumeIntensityRange[1])
+            self.ui.intensityRangeUpperSpinBox.setRange(volumeIntensityRange[0], volumeIntensityRange[1])
+
 #
 # ArterialCalcificationPreProcessorLogic
 #
@@ -291,22 +333,13 @@ class ArterialCalcificationPreProcessorLogic(ScriptedLoadableModuleLogic):
         inputSegmentation.SetReferenceImageGeometryParameterFromVolumeNode(inputVolume)
         # Ensure the segment is visible so that SegmentStatistics can process it.
         inputSegmentation.GetDisplayNode().SetSegmentVisibility(segmentID, True)
-        
-        """
-        We need the volume to get intensity values.
-        We don't set the segment editor's volume input. They are expected to be
-        the same.
-        """
-        import SegmentStatistics
-        ssLogic = SegmentStatistics.SegmentStatisticsLogic()
-        ssLogic.getParameterNode().SetParameter("Segmentation", inputSegmentation.GetID())
-        ssLogic.getParameterNode().SetParameter("ScalarVolume", inputVolume.GetID())
-        ssLogic.computeStatistics()
-        
-        # k = ssLogic.getNonEmptyKeys()
-        medianSegmentHU = float(ssLogic.getStatisticsValueAsString(segmentID, "ScalarVolumeSegmentStatisticsPlugin.median"))
-        maxSegmentHU = float(ssLogic.getStatisticsValueAsString(segmentID, "ScalarVolumeSegmentStatisticsPlugin.max"))
-        maxVolumeHU = inputVolume.GetImageData().GetScalarRange()[1]
+
+        lowerIntensity = float(self._parameterNode.GetParameter(ROLE_INPUT_LOWER_INTENSITY_BOUND))
+        upperIntensity = float(self._parameterNode.GetParameter(ROLE_INPUT_UPPER_INTENSITY_BOUND))
+        if (lowerIntensity !=0) and (upperIntensity != 0):
+            calcifHURange = [lowerIntensity, upperIntensity]
+        else:
+            calcifHURange = self.probeCalcificationIntensityRange()
 
         seWidget.mrmlSegmentEditorNode().SetMaskMode(slicer.vtkMRMLSegmentationNode.EditAllowedEverywhere)
         seWidget.mrmlSegmentEditorNode().SourceVolumeIntensityMaskOff()
@@ -330,7 +363,6 @@ class ArterialCalcificationPreProcessorLogic(ScriptedLoadableModuleLogic):
         inputSegmentation.GetSegmentation().GetSegment(calcifSegmentID).SetName(calcifSegmentName)
         
         # Calculate and set calcification intensity range, a reasonable arbitrary range.
-        calcifHURange = ((medianSegmentHU + maxSegmentHU) / 2.0, maxVolumeHU * 0.95 )
         seWidget.mrmlSegmentEditorNode().SetMaskMode(slicer.vtkMRMLSegmentationNode.EditAllowedOutsideVisibleSegments)
         seWidget.mrmlSegmentEditorNode().SourceVolumeIntensityMaskOn()
         seWidget.mrmlSegmentEditorNode().SetSourceVolumeIntensityMaskRange(calcifHURange[0], calcifHURange[1])
@@ -364,6 +396,35 @@ class ArterialCalcificationPreProcessorLogic(ScriptedLoadableModuleLogic):
         logging.info(_("Processing completed in {duration} seconds").format(duration=durationValue))
 
         return calcifSegmentID
+
+    def probeCalcificationIntensityRange(self):
+        if not self._parameterNode:
+            raise ValueError(_("Parameter node is None."))
+
+        inputSegmentation = self._parameterNode.GetNodeReference(ROLE_INPUT_SEGMENTATION)
+        inputVolume = self._parameterNode.GetNodeReference(ROLE_INPUT_VOLUME)
+        segmentID = self._parameterNode.GetParameter(ROLE_INPUT_SEGMENT)
+
+        if not inputSegmentation or not inputVolume or not segmentID or segmentID == "":
+            raise ValueError(_("Input segmentation, volume, segment ID or margin size is invalid."))
+
+        """
+        We need the volume to get intensity values.
+        We don't set the segment editor's volume input. They are expected to be
+        the same.
+        """
+        import SegmentStatistics
+        ssLogic = SegmentStatistics.SegmentStatisticsLogic()
+        ssLogic.getParameterNode().SetParameter("Segmentation", inputSegmentation.GetID())
+        ssLogic.getParameterNode().SetParameter("ScalarVolume", inputVolume.GetID())
+        ssLogic.computeStatistics()
+        
+        # k = ssLogic.getNonEmptyKeys()
+        medianSegmentHU = float(ssLogic.getStatisticsValueAsString(segmentID, "ScalarVolumeSegmentStatisticsPlugin.median"))
+        maxSegmentHU = float(ssLogic.getStatisticsValueAsString(segmentID, "ScalarVolumeSegmentStatisticsPlugin.max"))
+        maxVolumeHU = inputVolume.GetImageData().GetScalarRange()[1]
+
+        return ((medianSegmentHU + maxSegmentHU) / 2.0, maxVolumeHU * 0.95 )
 #
 # ArterialCalcificationPreProcessorTest
 #
@@ -391,5 +452,7 @@ ROLE_INPUT_SEGMENTATION = "InputSegmentation"
 ROLE_INPUT_SEGMENT = "InputSegment"
 ROLE_INPUT_VOLUME = "InputVolume"
 ROLE_INPUT_MARGIN = "InputMargin"
+ROLE_INPUT_LOWER_INTENSITY_BOUND = "InputLowerIntensity"
+ROLE_INPUT_UPPER_INTENSITY_BOUND = "InputUpperIntensity"
 ROLE_SHOW3D = "Show3D"
 ROLE_INITIALIZED = "Initialized"

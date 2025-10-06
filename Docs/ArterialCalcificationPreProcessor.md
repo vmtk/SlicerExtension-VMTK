@@ -4,7 +4,7 @@ This module segments arterial calcifications within a specified distance around 
 
 ### Usage
 
-Segment an arterial lumen from a contrast enhanced CT scan by any means, from a diseased and calcified arterial tree. Select this segment and its source volume, choose an appropriate margin and apply.
+Segment an arterial lumen from a contrast enhanced CT scan by any means, from a diseased and calcified arterial tree. Select this segment and its source volume, choose an appropriate margin and apply. Optionally, the intensity range defining the calcifications can be probed and adjusted.
 
 
 ### Post-processing
