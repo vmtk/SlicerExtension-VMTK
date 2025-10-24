@@ -179,25 +179,8 @@ class ArterialCalcificationPreProcessorWidget(ScriptedLoadableModuleWidget, VTKO
 
         self.logic.setParameterNode(self._parameterNode)
         if self._parameterNode:
-            self.setDefaultValues()
+            self.logic.setDefaultParameters()
             self.updateGUIFromParameterNode()
-
-    def setDefaultValues(self):
-        if not self._parameterNode:
-            return
-
-        # Ensure all parameters exist in the parameter node.
-        # Existing parameters are not modified.
-        if (not self._parameterNode.HasParameter(ROLE_INPUT_MARGIN)):
-            self._parameterNode.SetParameter(ROLE_INPUT_MARGIN, str(4.0))
-        if (not self._parameterNode.HasParameter(ROLE_INPUT_LOWER_INTENSITY_BOUND)):
-            self._parameterNode.SetParameter(ROLE_INPUT_LOWER_INTENSITY_BOUND, str(0.0))
-        if (not self._parameterNode.HasParameter(ROLE_INPUT_UPPER_INTENSITY_BOUND)):
-            self._parameterNode.SetParameter(ROLE_INPUT_UPPER_INTENSITY_BOUND, str(0.0))
-        if (not self._parameterNode.HasParameter(ROLE_SHOW3D)):
-            self._parameterNode.SetParameter(ROLE_SHOW3D, str(1))
-        if (not self._parameterNode.HasParameter(ROLE_SHOW3D)):
-            self._parameterNode.SetParameter(ROLE_SHOW3D, str(1))
 
     def onApplyButton(self) -> None:
 
@@ -301,6 +284,23 @@ class ArterialCalcificationPreProcessorLogic(ScriptedLoadableModuleLogic):
 
     def setParameterNode(self, inputParameterNode):
         self._parameterNode = inputParameterNode
+
+    def setDefaultParameters(self):
+        if not self._parameterNode:
+            return
+
+        # Ensure all parameters exist in the parameter node.
+        # Existing parameters are not modified.
+        if (not self._parameterNode.HasParameter(ROLE_INPUT_MARGIN)):
+            self._parameterNode.SetParameter(ROLE_INPUT_MARGIN, str(4.0))
+        if (not self._parameterNode.HasParameter(ROLE_INPUT_LOWER_INTENSITY_BOUND)):
+            self._parameterNode.SetParameter(ROLE_INPUT_LOWER_INTENSITY_BOUND, str(0.0))
+        if (not self._parameterNode.HasParameter(ROLE_INPUT_UPPER_INTENSITY_BOUND)):
+            self._parameterNode.SetParameter(ROLE_INPUT_UPPER_INTENSITY_BOUND, str(0.0))
+        if (not self._parameterNode.HasParameter(ROLE_SHOW3D)):
+            self._parameterNode.SetParameter(ROLE_SHOW3D, str(1))
+        if (not self._parameterNode.HasParameter(ROLE_SHOW3D)):
+            self._parameterNode.SetParameter(ROLE_SHOW3D, str(1))
 
     def process(self) -> None:
 
