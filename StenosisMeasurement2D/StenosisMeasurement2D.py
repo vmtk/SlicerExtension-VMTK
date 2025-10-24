@@ -317,10 +317,10 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
     self._parameterNode = inputParameterNode
 
     if self._parameterNode:
-      self.setDefaultValues()
+      self.setDefaultParameters()
       self.updateGUIFromParameterNode()
 
-  def setDefaultValues(self):
+  def setDefaultParameters(self):
     if not self._parameterNode:
       return
 
