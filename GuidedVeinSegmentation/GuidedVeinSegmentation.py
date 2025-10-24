@@ -172,16 +172,20 @@ class GuidedVeinSegmentationWidget(ScriptedLoadableModuleWidget, VTKObservationM
         if not self._parameterNode:
             return
 
-        if self._parameterNode.HasParameter(ROLE_INITIALIZED):
-            return
-
-        self._parameterNode.SetParameter(ROLE_EXTRUSION_KERNEL_SIZE, str(5.0))
-        self._parameterNode.SetParameter(ROLE_GAUSSIAN_STANDARD_DEVIATION, str(2.0))
-        self._parameterNode.SetParameter(ROLE_SEED_RADIUS, str(1.0))
-        self._parameterNode.SetParameter(ROLE_SHELL_MARGIN, str(18.0))
-        self._parameterNode.SetParameter(ROLE_SHELL_THICKNESS, str(2.0))
-        self._parameterNode.SetParameter(ROLE_SUBTRACT_OTHER_SEGMENTS, str(1))
-        self._parameterNode.SetParameter(ROLE_INITIALIZED, str(1))
+        # Ensure all parameters exist in the parameter node.
+        # Existing parameters are not modified.
+        if (not self._parameterNode.HasParameter(ROLE_EXTRUSION_KERNEL_SIZE)):
+            self._parameterNode.SetParameter(ROLE_EXTRUSION_KERNEL_SIZE, str(5.0))
+        if (not self._parameterNode.HasParameter(ROLE_GAUSSIAN_STANDARD_DEVIATION)):
+            self._parameterNode.SetParameter(ROLE_GAUSSIAN_STANDARD_DEVIATION, str(2.0))
+        if (not self._parameterNode.HasParameter(ROLE_SEED_RADIUS)):
+            self._parameterNode.SetParameter(ROLE_SEED_RADIUS, str(1.0))
+        if (not self._parameterNode.HasParameter(ROLE_SHELL_MARGIN)):
+            self._parameterNode.SetParameter(ROLE_SHELL_MARGIN, str(18.0))
+        if (not self._parameterNode.HasParameter(ROLE_SHELL_THICKNESS)):
+            self._parameterNode.SetParameter(ROLE_SHELL_THICKNESS, str(2.0))
+        if (not self._parameterNode.HasParameter(ROLE_SUBTRACT_OTHER_SEGMENTS)):
+            self._parameterNode.SetParameter(ROLE_SUBTRACT_OTHER_SEGMENTS, str(1))
 
     def onApplyButton(self) -> None:
         """
@@ -443,4 +447,3 @@ ROLE_SEED_RADIUS = "SeedRadius"
 ROLE_SHELL_MARGIN = "ShellMargin"
 ROLE_SHELL_THICKNESS = "ShellThickness"
 ROLE_SUBTRACT_OTHER_SEGMENTS = "SubtractOtherSegments"
-ROLE_INITIALIZED = "Initialized"
