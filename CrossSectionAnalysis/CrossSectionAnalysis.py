@@ -294,15 +294,11 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self._parameterNode = inputParameterNode
     if self._parameterNode is not None:
       self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self.updateGUIFromParameterNode)
-      # Do not set defaults each time.
-      if not self._parameterNode.HasParameter(ROLE_INITIALIZED):
-        self.logic.setDefaultParameters(self._parameterNode)
-      else:
-        # Initial GUI update
-        # This comboBox would always set itself to the first item otherwise.
-        wasBlocked = self.ui.outputPlotSeriesTypeComboBox.blockSignals(True)
-        self.updateGUIFromParameterNode()
-        self.ui.outputPlotSeriesTypeComboBox.blockSignals(wasBlocked)
+      self.logic.setDefaultParameters(self._parameterNode)
+      # This comboBox would always set itself to the first item otherwise.
+      wasBlocked = self.ui.outputPlotSeriesTypeComboBox.blockSignals(True)
+      self.updateGUIFromParameterNode()
+      self.ui.outputPlotSeriesTypeComboBox.blockSignals(wasBlocked)
 
   def resetOutput(self):
     # Only UI widgets, output tables and plot chart/series are left untouched.
@@ -1190,20 +1186,31 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     slicer.app.processEvents()
 
   def setDefaultParameters(self, parameterNode):
+    if (parameterNode is None):
+      return
     """
     Initialize parameter node with default settings.
     """
-    parameterNode.SetParameter(ROLE_INPUT_SEGMENT_ID, "")
-    parameterNode.SetParameter(ROLE_ORIGIN_POINT_INDEX, "0")
-    parameterNode.SetParameter(ROLE_USE_LPS, "False")
-    parameterNode.SetParameter(ROLE_USE_DISTINCT_COLUMLNS, "False")
-    parameterNode.SetParameter(ROLE_CENTRE_IN_SLICE_VIEW, "True")
-    parameterNode.SetParameter(ROLE_ORTHOGONAL_REFORMAT, "True")
-    parameterNode.SetParameter(ROLE_SHOW_MIS_MODEL, "False")
-    parameterNode.SetParameter(ROLE_SHOW_CROSS_SECTION_MODEL, "False")
-    parameterNode.SetParameter(ROLE_OUTPUT_PLOT_SERIES_TYPE, MIS_DIAMETER)
-    parameterNode.SetParameter(ROLE_INPUT_KERNEL_SIZE, str(1.1))
-    parameterNode.SetParameter(ROLE_INITIALIZED, "1")
+    if (not parameterNode.HasParameter(ROLE_INPUT_SEGMENT_ID)):
+      parameterNode.SetParameter(ROLE_INPUT_SEGMENT_ID, "")
+    if (not parameterNode.HasParameter(ROLE_ORIGIN_POINT_INDEX)):
+      parameterNode.SetParameter(ROLE_ORIGIN_POINT_INDEX, "0")
+    if (not parameterNode.HasParameter(ROLE_USE_LPS)):
+      parameterNode.SetParameter(ROLE_USE_LPS, "False")
+    if (not parameterNode.HasParameter(ROLE_USE_DISTINCT_COLUMLNS)):
+      parameterNode.SetParameter(ROLE_USE_DISTINCT_COLUMLNS, "False")
+    if (not parameterNode.HasParameter(ROLE_CENTRE_IN_SLICE_VIEW)):
+      parameterNode.SetParameter(ROLE_CENTRE_IN_SLICE_VIEW, "True")
+    if (not parameterNode.HasParameter(ROLE_ORTHOGONAL_REFORMAT)):
+      parameterNode.SetParameter(ROLE_ORTHOGONAL_REFORMAT, "True")
+    if (not parameterNode.HasParameter(ROLE_SHOW_MIS_MODEL)):
+      parameterNode.SetParameter(ROLE_SHOW_MIS_MODEL, "False")
+    if (not parameterNode.HasParameter(ROLE_SHOW_CROSS_SECTION_MODEL)):
+      parameterNode.SetParameter(ROLE_SHOW_CROSS_SECTION_MODEL, "False")
+    if (not parameterNode.HasParameter(ROLE_OUTPUT_PLOT_SERIES_TYPE)):
+      parameterNode.SetParameter(ROLE_OUTPUT_PLOT_SERIES_TYPE, MIS_DIAMETER)
+    if (not parameterNode.HasParameter(ROLE_INPUT_KERNEL_SIZE)):
+      parameterNode.SetParameter(ROLE_INPUT_KERNEL_SIZE, str(1.1))
 
   def resetPolyDataCaches(self, all = True):
     self.lumenCrossSectionPolyDataCache = {}
@@ -2200,4 +2207,3 @@ ROLE_AXIAL_HORIZONTAL_FLIP = "AxialSliceHorizontalFlip"
 ROLE_AXIAL_VERTICAL_FLIP = "AxialSliceVerticalFlip"
 ROLE_GOTO_REGION = "GoToRegion"
 ROLE_OUTPUT_PLOT_SERIES_TYPE = "OutputPlotSeriesType"
-ROLE_INITIALIZED = "Initialized"
