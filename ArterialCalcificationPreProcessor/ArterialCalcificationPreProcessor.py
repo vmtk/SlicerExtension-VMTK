@@ -271,9 +271,9 @@ class ArterialCalcificationPreProcessorWidget(ScriptedLoadableModuleWidget, VTKO
         else:
             self.updateWidgetIntensityBounds()
             with slicer.util.tryWithErrorDisplay(_("Failed to probe the intensity range."), waitCursor=True):
-                calcifHURange = self.logic.probeCalcificationIntensityRange()
-                self.ui.intensityRangeLowerSpinBox.setValue(calcifHURange[0])
-                self.ui.intensityRangeUpperSpinBox.setValue(calcifHURange[1])
+                calcifIntensityRange = self.logic.probeCalcificationIntensityRange()
+                self.ui.intensityRangeLowerSpinBox.setValue(calcifIntensityRange[0])
+                self.ui.intensityRangeUpperSpinBox.setValue(calcifIntensityRange[1])
 
     def updateWidgetIntensityBounds(self):
         if self._parameterNode is None:
@@ -337,9 +337,9 @@ class ArterialCalcificationPreProcessorLogic(ScriptedLoadableModuleLogic):
         lowerIntensity = float(self._parameterNode.GetParameter(ROLE_INPUT_LOWER_INTENSITY_BOUND))
         upperIntensity = float(self._parameterNode.GetParameter(ROLE_INPUT_UPPER_INTENSITY_BOUND))
         if (lowerIntensity !=0) and (upperIntensity != 0):
-            calcifHURange = [lowerIntensity, upperIntensity]
+            calcifIntensityRange = [lowerIntensity, upperIntensity]
         else:
-            calcifHURange = self.probeCalcificationIntensityRange()
+            calcifIntensityRange = self.probeCalcificationIntensityRange()
 
         seWidget.mrmlSegmentEditorNode().SetMaskMode(slicer.vtkMRMLSegmentationNode.EditAllowedEverywhere)
         seWidget.mrmlSegmentEditorNode().SourceVolumeIntensityMaskOff()
@@ -365,7 +365,7 @@ class ArterialCalcificationPreProcessorLogic(ScriptedLoadableModuleLogic):
         # Calculate and set calcification intensity range, a reasonable arbitrary range.
         seWidget.mrmlSegmentEditorNode().SetMaskMode(slicer.vtkMRMLSegmentationNode.EditAllowedOutsideVisibleSegments)
         seWidget.mrmlSegmentEditorNode().SourceVolumeIntensityMaskOn()
-        seWidget.mrmlSegmentEditorNode().SetSourceVolumeIntensityMaskRange(calcifHURange[0], calcifHURange[1])
+        seWidget.mrmlSegmentEditorNode().SetSourceVolumeIntensityMaskRange(calcifIntensityRange[0], calcifIntensityRange[1])
         
         # Grow by margin within intensity range.
         seWidget.setActiveEffectByName("Margin")
@@ -420,11 +420,11 @@ class ArterialCalcificationPreProcessorLogic(ScriptedLoadableModuleLogic):
         ssLogic.computeStatistics()
         
         # k = ssLogic.getNonEmptyKeys()
-        medianSegmentHU = float(ssLogic.getStatisticsValueAsString(segmentID, "ScalarVolumeSegmentStatisticsPlugin.median"))
-        maxSegmentHU = float(ssLogic.getStatisticsValueAsString(segmentID, "ScalarVolumeSegmentStatisticsPlugin.max"))
-        maxVolumeHU = inputVolume.GetImageData().GetScalarRange()[1]
+        medianSegmentIntesity = float(ssLogic.getStatisticsValueAsString(segmentID, "ScalarVolumeSegmentStatisticsPlugin.median"))
+        maxSegmentIntensity = float(ssLogic.getStatisticsValueAsString(segmentID, "ScalarVolumeSegmentStatisticsPlugin.max"))
+        maxVolumeIntensity = inputVolume.GetImageData().GetScalarRange()[1]
 
-        return ((medianSegmentHU + maxSegmentHU) / 2.0, maxVolumeHU * 0.95 )
+        return ((medianSegmentIntesity + maxSegmentIntensity) / 2.0, maxVolumeIntensity * 0.95 )
 #
 # ArterialCalcificationPreProcessorTest
 #
