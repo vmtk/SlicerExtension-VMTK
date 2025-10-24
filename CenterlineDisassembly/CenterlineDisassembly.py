@@ -177,16 +177,20 @@ class CenterlineDisassemblyWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         if not self._parameterNode:
             return
 
-        if self._parameterNode.HasParameter(ROLE_INITIALIZED):
-            return
-        
-        self._parameterNode.SetParameter(ROLE_CREATE_MODELS, str(0))
-        self._parameterNode.SetParameter(ROLE_CREATE_CURVES, str(0))
-        self._parameterNode.SetParameter(ROLE_SHOW_CURVE_NAMES, str(0))
-        self._parameterNode.SetParameter(ROLE_CREATE_BIFURCATIONS, str(0))
-        self._parameterNode.SetParameter(ROLE_CREATE_BRANCHES, str(0))
-        self._parameterNode.SetParameter(ROLE_CREATE_CENTERLINES, str(0))
-        self._parameterNode.SetParameter(ROLE_INITIALIZED, str(1))
+        # Ensure all parameters exist in the parameter node.
+        # Existing parameters are not modified.
+        if (not self._parameterNode.HasParameter(ROLE_CREATE_MODELS)):
+            self._parameterNode.SetParameter(ROLE_CREATE_MODELS, str(0))
+        if (not self._parameterNode.HasParameter(ROLE_CREATE_CURVES)):
+            self._parameterNode.SetParameter(ROLE_CREATE_CURVES, str(0))
+        if (not self._parameterNode.HasParameter(ROLE_SHOW_CURVE_NAMES)):
+            self._parameterNode.SetParameter(ROLE_SHOW_CURVE_NAMES, str(0))
+        if (not self._parameterNode.HasParameter(ROLE_CREATE_BIFURCATIONS)):
+            self._parameterNode.SetParameter(ROLE_CREATE_BIFURCATIONS, str(0))
+        if (not self._parameterNode.HasParameter(ROLE_CREATE_BRANCHES)):
+            self._parameterNode.SetParameter(ROLE_CREATE_BRANCHES, str(0))
+        if (not self._parameterNode.HasParameter(ROLE_CREATE_CENTERLINES)):
+            self._parameterNode.SetParameter(ROLE_CREATE_CENTERLINES, str(0))
 
     def onApplyButton(self) -> None:
         """
@@ -732,4 +736,3 @@ ROLE_SHOW_CURVE_NAMES = "ShowCurveNames"
 ROLE_CREATE_BIFURCATIONS = "CreateBifurcations"
 ROLE_CREATE_BRANCHES = "CreateBranches"
 ROLE_CREATE_CENTERLINES = "CreateCenterlines"
-ROLE_INITIALIZED = "Initialized"
