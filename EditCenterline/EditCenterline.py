@@ -216,21 +216,8 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.logic.setParameterNode(self._parameterNode)
         if self._parameterNode:
-            self.setDefaultValues()
+            self.logic.setDefaultParameters()
             self.updateGUIFromParameterNode()
-
-    def setDefaultValues(self):
-        if not self._parameterNode:
-            return
-
-        # Ensure all parameters exist in the parameter node.
-        # Existing parameters are not modified.
-        if (not self._parameterNode.HasParameter(ROLE_INPUT_PRESET)):
-            self._parameterNode.SetParameter(ROLE_INPUT_PRESET, str(3))
-        if (not self._parameterNode.HasParameter(ROLE_NUMBER_OF_PAIRS)):
-            self._parameterNode.SetParameter(ROLE_NUMBER_OF_PAIRS, str(5))
-        if (not self._parameterNode.HasParameter(ROLE_RADIUS_SCALE_FACTOR_OFFSET)):
-            self._parameterNode.SetParameter(ROLE_RADIUS_SCALE_FACTOR_OFFSET, str(0.0))
 
     def onApplyButton(self) -> None:
         """Run processing when user clicks "Apply" button."""
@@ -352,6 +339,19 @@ class EditCenterlineLogic(ScriptedLoadableModuleLogic):
 
     def setParameterNode(self, inputParameterNode):
         self._parameterNode = inputParameterNode
+
+    def setDefaultParameters(self):
+        if not self._parameterNode:
+            return
+
+        # Ensure all parameters exist in the parameter node.
+        # Existing parameters are not modified.
+        if (not self._parameterNode.HasParameter(ROLE_INPUT_PRESET)):
+            self._parameterNode.SetParameter(ROLE_INPUT_PRESET, str(3))
+        if (not self._parameterNode.HasParameter(ROLE_NUMBER_OF_PAIRS)):
+            self._parameterNode.SetParameter(ROLE_NUMBER_OF_PAIRS, str(5))
+        if (not self._parameterNode.HasParameter(ROLE_RADIUS_SCALE_FACTOR_OFFSET)):
+            self._parameterNode.SetParameter(ROLE_RADIUS_SCALE_FACTOR_OFFSET, str(0.0))
 
     def getCenterlineType(self):
         if not self._parameterNode:
