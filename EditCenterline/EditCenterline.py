@@ -529,7 +529,6 @@ class EditCenterlineLogic(ScriptedLoadableModuleLogic):
         gvsParameterNode.SetParameter(GVS.ROLE_SHELL_MARGIN, str(profile["shellMargin"]))
         gvsParameterNode.SetParameter(GVS.ROLE_SHELL_THICKNESS, str(profile["shellThickness"]))
         gvsParameterNode.SetParameter(GVS.ROLE_SUBTRACT_OTHER_SEGMENTS, str(0)) # Do not account for prior work in the same segmentation.
-        gvsParameterNode.SetParameter(GVS.ROLE_INITIALIZED, str(1))
         gvsLogic.setParameterNode(gvsParameterNode)
         
         segmentID = gvsLogic.process()
