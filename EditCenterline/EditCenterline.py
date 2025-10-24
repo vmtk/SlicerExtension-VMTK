@@ -223,13 +223,14 @@ class EditCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if not self._parameterNode:
             return
 
-        if self._parameterNode.HasParameter(ROLE_INITIALIZED):
-            return
-
-        self._parameterNode.SetParameter(ROLE_INPUT_PRESET, str(3))
-        self._parameterNode.SetParameter(ROLE_NUMBER_OF_PAIRS, str(5))
-        self._parameterNode.SetParameter(ROLE_RADIUS_SCALE_FACTOR_OFFSET, str(0.0))
-        self._parameterNode.SetParameter(ROLE_INITIALIZED, str(1))
+        # Ensure all parameters exist in the parameter node.
+        # Existing parameters are not modified.
+        if (not self._parameterNode.HasParameter(ROLE_INPUT_PRESET)):
+            self._parameterNode.SetParameter(ROLE_INPUT_PRESET, str(3))
+        if (not self._parameterNode.HasParameter(ROLE_NUMBER_OF_PAIRS)):
+            self._parameterNode.SetParameter(ROLE_NUMBER_OF_PAIRS, str(5))
+        if (not self._parameterNode.HasParameter(ROLE_RADIUS_SCALE_FACTOR_OFFSET)):
+            self._parameterNode.SetParameter(ROLE_RADIUS_SCALE_FACTOR_OFFSET, str(0.0))
 
     def onApplyButton(self) -> None:
         """Run processing when user clicks "Apply" button."""
@@ -731,4 +732,3 @@ ROLE_OUTPUT_CENTERLINE_MODEL = "OutputCenterlineModel"
 ROLE_OUTPUT_CENTERLINE_CURVE = "OutputCenterlineCurve"
 ROLE_NUMBER_OF_PAIRS = "NumberOfPairs"
 ROLE_RADIUS_SCALE_FACTOR_OFFSET = "RadiusScaleFactorOffset"
-ROLE_INITIALIZED = "Initialized"
