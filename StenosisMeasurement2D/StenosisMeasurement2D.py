@@ -324,14 +324,16 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
     if not self._parameterNode:
       return
 
-    if self._parameterNode.HasParameter(ROLE_INITIALIZED):
-      return
-
-    self._parameterNode.SetParameter(ROLE_APPLY_TO_ALL_SEGMENTS, str(0))
-    self._parameterNode.SetParameter(ROLE_LIMIT_TO_CLOSEST_ISLAND, str(1))
-    self._parameterNode.SetParameter(ROLE_CREATE_OUTPUT_MODEL, str(1))
-    self._parameterNode.SetParameter(ROLE_RESET_ORIENTATION, str(0))
-    self._parameterNode.SetParameter(ROLE_INITIALIZED, str(1))
+    # Ensure all parameters exist in the parameter node.
+    # Existing parameters are not modified.
+    if (not self._parameterNode.HasParameter(ROLE_APPLY_TO_ALL_SEGMENTS)):
+      self._parameterNode.SetParameter(ROLE_APPLY_TO_ALL_SEGMENTS, str(0))
+    if (not self._parameterNode.HasParameter(ROLE_LIMIT_TO_CLOSEST_ISLAND)):
+      self._parameterNode.SetParameter(ROLE_LIMIT_TO_CLOSEST_ISLAND, str(1))
+    if (not self._parameterNode.HasParameter(ROLE_CREATE_OUTPUT_MODEL)):
+      self._parameterNode.SetParameter(ROLE_CREATE_OUTPUT_MODEL, str(1))
+    if (not self._parameterNode.HasParameter(ROLE_RESET_ORIENTATION)):
+      self._parameterNode.SetParameter(ROLE_RESET_ORIENTATION, str(0))
 
   def onApplyButton(self) -> None:
     mrmlSliceNode = self._parameterNode.GetNodeReference(ROLE_INPUT_SLICE)
@@ -745,4 +747,3 @@ ROLE_APPLY_TO_ALL_SEGMENTS = "ApplyToAllSegments"
 ROLE_LIMIT_TO_CLOSEST_ISLAND = "LimitToClosestIsland"
 ROLE_CREATE_OUTPUT_MODEL = "CreateOutputModel"
 ROLE_RESET_ORIENTATION = "ResetControlPointOrientation"
-ROLE_INITIALIZED = "Initialized"
