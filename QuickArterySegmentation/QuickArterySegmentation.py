@@ -227,27 +227,10 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
 
     self.logic.setParameterNode(self._parameterNode)
     if self._parameterNode:
-      self.setDefaultValues()
+      self.logic.setDefaultParameters()
       self.updateGUIFromParameterNode()
       self.onParameterSetUpdateUiClicked()
       self.updateRegionInfo()
-
-  def setDefaultValues(self):
-    if not self._parameterNode:
-      return
-
-    # Ensure all parameters exist in the parameter node.
-    # Existing parameters are not modified.
-    if (not self._parameterNode.HasParameter(ROLE_INPUT_INTENSITY_TOLERANCE)):
-      self._parameterNode.SetParameter(ROLE_INPUT_INTENSITY_TOLERANCE, str(100))
-    if (not self._parameterNode.HasParameter(ROLE_INPUT_NEIGHBOURHOOD_SIZE)):
-      self._parameterNode.SetParameter(ROLE_INPUT_NEIGHBOURHOOD_SIZE, str(2.0))
-    if (not self._parameterNode.HasParameter(ROLE_OPTION_SMOOTHING)):
-      self._parameterNode.SetParameter(ROLE_OPTION_SMOOTHING, str(0))
-    if (not self._parameterNode.HasParameter(ROLE_INPUT_KERNEL_SIZE)):
-      self._parameterNode.SetParameter(ROLE_INPUT_KERNEL_SIZE, str(1.1))
-    if (not self._parameterNode.HasParameter(ROLE_OPTION_EXTRACT_CENTERLINES)):
-      self._parameterNode.SetParameter(ROLE_OPTION_EXTRACT_CENTERLINES, str(0))
 
   def onApplyButton(self) -> None:
     """
@@ -412,6 +395,23 @@ class QuickArterySegmentationLogic(ScriptedLoadableModuleLogic):
 
   def setParameterNode(self, inputParameterNode):
     self._parameterNode = inputParameterNode
+
+  def setDefaultParameters(self):
+    if not self._parameterNode:
+      return
+
+    # Ensure all parameters exist in the parameter node.
+    # Existing parameters are not modified.
+    if (not self._parameterNode.HasParameter(ROLE_INPUT_INTENSITY_TOLERANCE)):
+      self._parameterNode.SetParameter(ROLE_INPUT_INTENSITY_TOLERANCE, str(100))
+    if (not self._parameterNode.HasParameter(ROLE_INPUT_NEIGHBOURHOOD_SIZE)):
+      self._parameterNode.SetParameter(ROLE_INPUT_NEIGHBOURHOOD_SIZE, str(2.0))
+    if (not self._parameterNode.HasParameter(ROLE_OPTION_SMOOTHING)):
+      self._parameterNode.SetParameter(ROLE_OPTION_SMOOTHING, str(0))
+    if (not self._parameterNode.HasParameter(ROLE_INPUT_KERNEL_SIZE)):
+      self._parameterNode.SetParameter(ROLE_INPUT_KERNEL_SIZE, str(1.1))
+    if (not self._parameterNode.HasParameter(ROLE_OPTION_EXTRACT_CENTERLINES)):
+      self._parameterNode.SetParameter(ROLE_OPTION_EXTRACT_CENTERLINES, str(0))
 
   def showStatusMessage(self, messages) -> None:
     separator = " "
