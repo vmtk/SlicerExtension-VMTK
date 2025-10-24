@@ -262,10 +262,9 @@
            <string>Probe the intensity range defining the calcifications.
 
 It is calculated as:
- - lower: (medianSegmentHU + maxSegmentHU) / 2.0
+ - lower: (medianSegmentIntensity + maxSegmentIntensity) / 2.0
  - upper: maxVolumeHU * 0.95
-
-where HU is Houndsfield Units.</string>
+</string>
           </property>
           <property name="text">
            <string>Probe</string>
