@@ -263,7 +263,7 @@
 
 It is calculated as:
  - lower: (medianSegmentIntensity + maxSegmentIntensity) / 2.0
- - upper: maxVolumeHU * 0.95
+ - upper: maxVolumeIntensity * 0.95
 </string>
           </property>
           <property name="text">
