@@ -666,12 +666,14 @@ class StenosisMeasurement2DLogic(ScriptedLoadableModuleLogic):
         cutModel = slicer.modules.models.logic().AddModel(result)
         cutModel.SetDisplayVisibility(False)
         cutModel.GetDisplayNode().SetLighting(False)
+        cutModel.GetDisplayNode().SetScalarVisibility(not closestIsland)
         # Set model's name: control point label + segment name.
         segment = inputSegmentation.GetSegmentation().GetSegment(segmentID)
         if controlPointLabel and segment:
             modelName = controlPointLabel + "_" + segment.GetName()
             cutModel.SetName(modelName)
-        # The model's color follows the segment's color.
+        # The model's color follows the segment's colour.
+        # If closestIsland is False, the displayed colour depends on the scalar value of each region.
         if segment:
             cutModel.GetDisplayNode().SetColor(segment.GetColor())
 
