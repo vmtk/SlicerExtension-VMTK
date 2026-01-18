@@ -380,7 +380,7 @@ class EditCenterlineLogic(ScriptedLoadableModuleLogic):
         for i in range(numberOfPoints):
             referencePoint = [0] * 3
             points.GetPoint(i, referencePoint)
-            for j in range(numberOfPoints):
+            for j in range(i + 1, numberOfPoints):
                 nextPoint = [0] * 3
                 points.GetPoint(j, nextPoint)
                 distance2 = vtk.vtkMath.Distance2BetweenPoints(referencePoint, nextPoint)
