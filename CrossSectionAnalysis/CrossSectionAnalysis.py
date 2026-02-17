@@ -774,9 +774,10 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
 
   # When segmentationSelector node changes: model or segmentation. logic is updated from updateGUIFromParameterNode().
   def onInputSurfaceNodeChanged(self, node):
+    wasBlocked = self.ui.segmentSelector.blockSignals(True)
     self.ui.segmentSelector.setCurrentNode(node)
-    if (not node) or (node.IsTypeOf("vtkMRMLModelNode")):
-      self.ui.segmentSelector.setCurrentSegmentID("") # Doesn't work, it keeps the previous segmentID.
+    self.ui.segmentSelector.setCurrentSegmentID("")
+    self.ui.segmentSelector.blockSignals(wasBlocked)
     self.onInputSurfaceChanged()
 
   # When segmentationSelector node changes or when the selected segment changes.

@@ -202,6 +202,9 @@ The input centerline is expected to be inside the lumen surface.</string>
           <property name="toolTip">
            <string>Select an input segment node</string>
           </property>
+          <property name="noneEnabled">
+           <bool>true</bool>
+          </property>
           <property name="segmentationNodeSelectorVisible">
            <bool>false</bool>
           </property>
