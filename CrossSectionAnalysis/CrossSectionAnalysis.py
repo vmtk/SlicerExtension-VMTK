@@ -688,7 +688,7 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.logic.updateSliceView(pointIndex)
 
     # Update maximum inscribed radius sphere model
-    if self.logic.isCenterlineRadiusAvailable():
+    if self.ui.showMISDiameterButton.checked and self.logic.isCenterlineRadiusAvailable():
       self.updateMaximumInscribedSphereModel(pointIndex)
     else:
       self.deleteMaximumInscribedSphere()
