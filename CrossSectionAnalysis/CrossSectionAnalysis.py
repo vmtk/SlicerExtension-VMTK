@@ -826,62 +826,18 @@ class CrossSectionAnalysisWidget(ScriptedLoadableModuleWidget, VTKObservationMix
     self.ui.clipLumenToolButton.setVisible(visibility)
 
   def createClippedLumen(self):
-    if not (
-        self.logic.inputCenterlineNode
-        and self.logic.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode")
-        and self.logic.lumenSurfaceNode):
-      self.logic.showStatusMessage((_("Invalid centerline or lumen surface: cannot clip the lumen."),))
-      return
-
     with slicer.util.tryWithErrorDisplay(_("Failed to clip the lumen in the tube."), waitCursor=True):
       clippedLumenName = slicer.mrmlScene.GenerateUniqueName("Clipped lumen")
       tubeSurface = vtk.vtkPolyData()
       self.logic.getWallClosedSurfacePolyData(tubeSurface, self.logic.decimateTube)
 
       if self.logic.lumenSurfaceNode.IsTypeOf("vtkMRMLSegmentationNode"):
-        """
-        Decimation of the lumen is not involved here, on the contrary of what
-        can be optionally done in StenosisMeasurement3D. Clipping the segment
-        in the tube is not performed with its polydata representation.
-        """
-        inputSegmentation = self.logic.lumenSurfaceNode
-        clippedLumenId = inputSegmentation.AddSegmentFromClosedSurfaceRepresentation(tubeSurface, clippedLumenName)
-
-        segmentEditorModuleWidget = slicer.util.getModuleWidget("SegmentEditor")
-        seWidget = segmentEditorModuleWidget.editor
-        seWidget.setSegmentationNode(inputSegmentation)
-        seWidget.mrmlSegmentEditorNode().SetSelectedSegmentID(clippedLumenId)
-        seWidget.setActiveEffectByName("Logical operators")
-        effect = seWidget.activeEffect()
-        effect.setParameter("Operation", "INTERSECT")
-        effect.setParameter("ModifierSegmentID", self.logic.currentSegmentID)
-        effect.self().onApply()
-        seWidget.setActiveEffectByName(None)
+        clippedLumenId = self.logic.clipLumenInTube()
         self.ui.segmentSelector.setCurrentSegmentID(clippedLumenId)
-        # Tag the clipped segment.
-        segment = inputSegmentation.GetSegmentation().GetSegment(clippedLumenId)
-        # reference = vtk.reference(1)
-        segment.SetTag(TAG_NAME_CLIPPED, 1)
-        """
-        vtkMRMLSegmentationDisplayNode::SegmentDisplayProperties does not seem accessible in python.
-        Can't clone the display properties of the source segment into the new segment.
-        """
+        # A tag has been applied to the clipped segment in logic.
       else:
-        lumenSurface = vtk.vtkPolyData()
-        self.logic.getLumenClosedSurfacePolyData(lumenSurface)
-        if lumenSurface.GetNumberOfPoints() == 0:
-          raise ValueError(_("Empty lumen surface retrieved."))
-
-        clippedLumen = vtk.vtkPolyData()
-        sm3Logic = slicer.modules.stenosismeasurement3d.logic()
-        clipped = sm3Logic.GetClosedSurfaceEnclosingType(
-                      tubeSurface, lumenSurface, clippedLumen, self.logic.decimateTube)
-        if (clipped == sm3Logic.Distinct) or (clipped == sm3Logic.EnclosingType_Last):
-          raise RuntimeError(_("The input wall surface and the input lumen surfaces could not be intersected."))
-        normals = vtk.vtkPolyDataNormals()
-        normals.SetInputData(clippedLumen)
-        normals.Update()
-        clippedModel = slicer.modules.models.logic().AddModel(normals.GetOutput())
+        clippedLumen = self.logic.clipLumenInTube()
+        clippedModel = slicer.modules.models.logic().AddModel(clippedLumen)
         clippedModel.SetName(clippedLumenName)
         clippedModel.SetAttribute(self.moduleName + "." + TAG_NAME_CLIPPED, "1")
         self.ui.segmentationSelector.setCurrentNode(clippedModel)
@@ -2054,6 +2010,64 @@ class CrossSectionAnalysisLogic(ScriptedLoadableModuleLogic):
     currentSurfaceAreaVariant = self.outputTableNode.GetTable().GetValueByName(int(pointIndex), LUMEN_CROSS_SECTION_AREA_ARRAY_NAME)
     currentSurfaceArea = currentSurfaceAreaVariant.ToDouble() if currentSurfaceAreaVariant.IsValid() else 0.0
     return currentSurfaceArea
+
+  def clipLumenInTube(self):
+    if not (
+        self.inputCenterlineNode
+        and self.inputCenterlineNode.IsTypeOf("vtkMRMLMarkupsShapeNode")
+        and self.lumenSurfaceNode):
+      raise ValueError(_("Invalid centerline or lumen surface: cannot clip the lumen."))
+
+    clippedLumenName = slicer.mrmlScene.GenerateUniqueName("Clipped lumen")
+    tubeSurface = vtk.vtkPolyData()
+    self.getWallClosedSurfacePolyData(tubeSurface, self.decimateTube)
+
+    if self.lumenSurfaceNode.IsTypeOf("vtkMRMLSegmentationNode"):
+      if not self.currentSegmentID:
+        raise ValueError(_("Invalid segment."))
+      """
+      Decimation of the lumen is not involved here, on the contrary of what
+      can be optionally done in StenosisMeasurement3D. Clipping the segment
+      in the tube is not performed with its polydata representation.
+      """
+      inputSegmentation = self.lumenSurfaceNode
+      clippedLumenId = inputSegmentation.AddSegmentFromClosedSurfaceRepresentation(tubeSurface, clippedLumenName)
+
+      segmentEditorModuleWidget = slicer.util.getModuleWidget("SegmentEditor")
+      seWidget = segmentEditorModuleWidget.editor
+      seWidget.setSegmentationNode(inputSegmentation)
+      seWidget.mrmlSegmentEditorNode().SetSelectedSegmentID(clippedLumenId)
+      seWidget.setActiveEffectByName("Logical operators")
+      effect = seWidget.activeEffect()
+      effect.setParameter("Operation", "INTERSECT")
+      effect.setParameter("ModifierSegmentID", self.currentSegmentID)
+      effect.self().onApply()
+      seWidget.setActiveEffectByName(None)
+      # Tag the clipped segment. Done in Logic because we rely on this in getLumenExtractionMode().
+      segment = inputSegmentation.GetSegmentation().GetSegment(clippedLumenId)
+      # reference = vtk.reference(1)
+      segment.SetTag(TAG_NAME_CLIPPED, 1)
+      """
+      vtkMRMLSegmentationDisplayNode::SegmentDisplayProperties does not seem accessible in python.
+      Can't clone the display properties of the source segment into the new segment.
+      """
+      return clippedLumenId
+    else:
+      lumenSurface = vtk.vtkPolyData()
+      self.getLumenClosedSurfacePolyData(lumenSurface)
+      if lumenSurface.GetNumberOfPoints() == 0:
+        raise ValueError(_("Empty lumen surface retrieved."))
+
+      clippedLumen = vtk.vtkPolyData()
+      sm3Logic = slicer.modules.stenosismeasurement3d.logic()
+      clipped = sm3Logic.GetClosedSurfaceEnclosingType(
+                    tubeSurface, lumenSurface, clippedLumen, self.decimateTube)
+      if (clipped == sm3Logic.Distinct) or (clipped == sm3Logic.EnclosingType_Last):
+        raise RuntimeError(_("The input wall surface and the input lumen surfaces could not be intersected."))
+      normals = vtk.vtkPolyDataNormals()
+      normals.SetInputData(clippedLumen)
+      normals.Update()
+      return normals.GetOutput()
 
   def getPositionMaximumInscribedSphereRadius(self, pointIndex):
     if not self.isCenterlineRadiusAvailable():
