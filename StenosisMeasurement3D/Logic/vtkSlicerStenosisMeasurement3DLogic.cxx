@@ -55,6 +55,8 @@
 #include <vtkQuadricDecimation.h>
 #include <vtkMRMLI18N.h>
 
+#include <iostream>
+
 static const char* COLUMN_NAME_STUDY = "Study";
 static const char* COLUMN_NAME_WALL = "WallVolume";
 static const char* COLUMN_NAME_LUMEN = "LumenVolume";
