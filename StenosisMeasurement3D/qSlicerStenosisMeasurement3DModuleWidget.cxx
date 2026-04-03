@@ -47,6 +47,8 @@
 #include <vtkMRMLStenosisMeasurement3DLesionModelDisplayNode.h>
 #include <qSlicerExtensionsManagerModel.h>
 
+#include <iostream>
+
 //-----------------------------------------------------------------------------
 /// \ingroup Slicer_QtModules_ExtensionTemplate
 class qSlicerStenosisMeasurement3DModuleWidgetPrivate: public Ui_qSlicerStenosisMeasurement3DModuleWidget
