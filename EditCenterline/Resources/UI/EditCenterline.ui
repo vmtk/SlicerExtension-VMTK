@@ -452,7 +452,7 @@ The tortuosity of the tube and the diameter distribution determine this paramete
                 <double>1.000000000000000</double>
                </property>
                <property name="singleStep">
-                <double>0.100000000000000</double>
+                <double>0.050000000000000</double>
                </property>
                <property name="value">
                 <double>0.000000000000000</double>
