@@ -146,14 +146,14 @@ void qSlicerBranchClipperModuleWidget::onApply()
     if (inputSegmentationNode->GetSegmentation() == nullptr) // Can it happen ?
     {
       const QString msg = qSlicerBranchClipperModuleWidget::tr("Segmentation is NULL in MRML node, aborting");
-      std::cerr << msg.toStdString() << endl;
+      std::cerr << msg.toStdString() << std::endl;
       this->showStatusMessage(msg, 5000);
       return;
     }
     if (inputSegmentationNode->GetSegmentation()->GetNumberOfSegments() == 0)
     {
       const QString msg = qSlicerBranchClipperModuleWidget::tr("No segment found in the segmentation, aborting");
-      std::cerr << msg.toStdString() << endl;
+      std::cerr << msg.toStdString() << std::endl;
       this->showStatusMessage(msg, 5000);
       return;
     }
@@ -175,7 +175,7 @@ void qSlicerBranchClipperModuleWidget::onApply()
     else
     {
       const QString msg = qSlicerBranchClipperModuleWidget::tr("Could not create closed surface representation.");
-      std::cerr << msg.toStdString() << endl;
+      std::cerr << msg.toStdString() << std::endl;
       this->showStatusMessage(msg, 5000);
       return;
     }
@@ -191,7 +191,7 @@ void qSlicerBranchClipperModuleWidget::onApply()
   {
     // Should not happen.
     const QString msg = qSlicerBranchClipperModuleWidget::tr("Unknown surface node");
-    std::cerr << msg.toStdString() << endl;
+    std::cerr << msg.toStdString() << std::endl;
     this->showStatusMessage(msg, 5000);
     return;
   }
@@ -209,14 +209,14 @@ void qSlicerBranchClipperModuleWidget::onApply()
   if (logic->GetOutput() == nullptr)
   {
     const QString msg = qSlicerBranchClipperModuleWidget::tr("Could not create a valid surface.");
-    std::cerr << msg.toStdString() << endl;
+    std::cerr << msg.toStdString() << std::endl;
     this->showStatusMessage(msg, 5000);
     return;
   }
   timer->StopTimer();
   QString centerlineElapsedTime = QString::asprintf("%.4f", timer->GetElapsedTime());
   const std::string elapsedMessage = "Input centerline processed in " + centerlineElapsedTime.toStdString() + "s.";
-  std::cout << elapsedMessage << endl;
+  std::cout << elapsedMessage << std::endl;
   
   mrmlScene()->StartState(vtkMRMLScene::BatchProcessState);
   
@@ -229,7 +229,7 @@ void qSlicerBranchClipperModuleWidget::onApply()
     {
       mrmlScene()->EndState(vtkMRMLScene::BatchProcessState);
       const QString msg = qSlicerBranchClipperModuleWidget::tr("No branches could be retrieved; the centerline may be invalid.");
-      std::cerr << msg.toStdString() << endl;
+      std::cerr << msg.toStdString() << std::endl;
       this->showStatusMessage(msg, 5000);
       return;
     }
@@ -255,9 +255,9 @@ void qSlicerBranchClipperModuleWidget::onApply()
       logic->GetBranch(i, branchSurface);
       if (branchSurface == nullptr)
       {
-        std::cout << endl;
+        std::cout << std::endl;
         const QString msg = qSlicerBranchClipperModuleWidget::tr("Could not retrieve branch surface ");
-        std::cerr << msg.toStdString() << i << "." << endl;
+        std::cerr << msg.toStdString() << i << "." << std::endl;
         this->showStatusMessage(msg, 5000);
         continue;
       }
@@ -280,7 +280,7 @@ void qSlicerBranchClipperModuleWidget::onApply()
         vtkMRMLNode * branchNode = this->mrmlScene()->AddNewNodeByClass("vtkMRMLModelNode");
         if (!branchNode)
         {
-          std::cerr <<  "Could not add branch model: " << i << endl;
+          std::cerr <<  "Could not add branch model: " << i << std::endl;
         }
         else
         {
@@ -299,7 +299,7 @@ void qSlicerBranchClipperModuleWidget::onApply()
       timer->StopTimer();
       QString elapsedTime = QString::asprintf("%.4f", timer->GetElapsedTime());
       const std::string elapsedMessage = ": created in " + elapsedTime.toStdString() + "s.";
-      std::cout << elapsedMessage << endl;
+      std::cout << elapsedMessage << std::endl;
     }
   }
   
@@ -311,7 +311,7 @@ void qSlicerBranchClipperModuleWidget::onApply()
     {
       mrmlScene()->EndState(vtkMRMLScene::BatchProcessState);
       const QString msg = qSlicerBranchClipperModuleWidget::tr("Could not get a valid collection of bifurcation profiles.");
-      std::cerr << msg.toStdString() << endl;
+      std::cerr << msg.toStdString() << std::endl;
       this->showStatusMessage(msg, 5000);
       return;
     }
@@ -319,7 +319,7 @@ void qSlicerBranchClipperModuleWidget::onApply()
     {
       mrmlScene()->EndState(vtkMRMLScene::BatchProcessState);
       const QString msg = qSlicerBranchClipperModuleWidget::tr("Could not get a valid subject hierarchy node.");
-      std::cerr << msg.toStdString() << endl;
+      std::cerr << msg.toStdString() << std::endl;
       this->showStatusMessage(msg, 5000);
       return;
     }
@@ -348,7 +348,7 @@ void qSlicerBranchClipperModuleWidget::onApply()
     timer->StopTimer();
     QString elapsedTime = QString::asprintf("%.4f", timer->GetElapsedTime());
     const std::string elapsedMessage = "All bifurcation profiles created in " + elapsedTime.toStdString() + "s.";
-    std::cout << elapsedMessage << endl;
+    std::cout << elapsedMessage << std::endl;
   }
   
   mrmlScene()->EndState(vtkMRMLScene::BatchProcessState);

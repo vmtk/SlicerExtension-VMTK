@@ -194,7 +194,7 @@ vtkCrossSectionCompute::SectionCreationResult vtkCrossSectionCompute::CreateCros
         {
             mtx.lock();
         }
-        std::cout << message << endl;
+        std::cout << message << std::endl;
         if (!fromMainThread)
         {
             mtx.unlock();
