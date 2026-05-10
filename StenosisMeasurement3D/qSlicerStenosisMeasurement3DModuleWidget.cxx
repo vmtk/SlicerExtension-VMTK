@@ -738,7 +738,7 @@ qSlicerStenosisMeasurement3DModuleWidget::createEnclosedSurface(vtkMRMLMarkupsSh
      */
     if (!this->logic->DecimateClosedSurface(_wallClosedSurface, wallClosedSurface))
     {
-      std::cerr << "Error decimating the wall surface; continuing with the raw wall surface." << endl;
+      std::cerr << "Error decimating the wall surface; continuing with the raw wall surface." << std::endl;
       wallClosedSurface->DeepCopy(_wallClosedSurface);
     }
   }
