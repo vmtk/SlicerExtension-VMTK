@@ -1,6 +1,6 @@
 # One dimensional stenosis measurement
 
-This [Slicer](https://www.slicer.org/) module straightens an input markups curve and displays cumulative and individual lengths between control points. It is intended for quick one dimensional arterial stenosis evaluation, but is actually purpose agnostic.
+This [Slicer](https://www.slicer.org/) module straightens an input markups curve and displays cumulative and individual lengths between control points. It is intended for quick one dimensional arterial stenosis evaluation, but is actually purpose agnostic. The lumen may be identified to allow the calculation of the stenosis.
 
 **Usage**
 
@@ -10,7 +10,7 @@ Select a markup curve. Add, delete or move control points.
 
 ![Usage in slice view](StenosisMeasurement1D_1.png)
 
-In practice, orient a slice view perpendicular to an arterial axis by any means. Create a markups curve with control points at boundaries of plaque, thrombus, calcification, lumen and peripheral wall. When the curve is selected, it is straightened. Absolute and proportional distances between points next populate an output table. It is updated upon control point displacement.
+In practice, orient a slice view perpendicular to an arterial axis by any means. Create a markups curve with control points at boundaries of plaque, thrombus, calcification, lumen and peripheral wall. When the curve is selected, it is straightened. Absolute and proportional distances between points next populate an output table. It is updated upon control point displacement. Identify which measurement corresponds to the lumen.
 
 ## Acknowledgement
 
