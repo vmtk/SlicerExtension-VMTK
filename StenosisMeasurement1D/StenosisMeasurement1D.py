@@ -66,6 +66,7 @@ class StenosisMeasurement1DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
     self.logic = None
     self._parameterNode = None
     self._parameterNodeGuiTag = None
+    self._distanceArray = None
 
   def setup(self) -> None:
     """
@@ -181,21 +182,29 @@ class StenosisMeasurement1DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
     inputCurve = None
     if self._parameterNode:
       inputCurve = self._parameterNode.inputCurveNode
-    outputTable = self.ui.outputTableWidget
-    # Clean table completely.
-    outputTable.clear()
-    outputTable.setRowCount(0)
-    outputTable.setColumnCount(0)
+    outputTree = self.ui.outputTreeWidget
+    # Clean the tree widget completely.
+    outputTree.clear()
+    outputTree.setColumnCount(0)
+    self.ui.stenosisResultLabel.clear()
+    self.ui.stenosisResultLabel.setToolTip(None)
     if not inputCurve or not distancesArray:
         return
 
+    # Buffer the distances array coming from logic. The lumen measurement is not yet identified yet.
+    self._distanceArray = vtk.vtkDoubleArray()
+    self._distanceArray.DeepCopy(distancesArray)
+    self._distanceArray.RemoveTuple(0) # See notes in logic::process().
     numberOfTuples = distancesArray.GetNumberOfTuples()
-    # Setup table.
-    if outputTable.columnCount == 0:
-        outputTable.setColumnCount(4)
-        outputTable.setRowCount(numberOfTuples - 1)
+    # Setup the tree widget.
+    if outputTree.columnCount == 0:
+        root = qt.QTreeWidgetItem()
+        root.setText(0, _("Measurements"))
+        outputTree.addTopLevelItem(root)
+        outputTree.setColumnCount(4)
         columnLabels = (_("Cumulative"), _("Cumulative %"), _("Partial"), _("Partial %"))
-        outputTable.setHorizontalHeaderLabels(columnLabels)
+        outputTree.setHeaderLabels(columnLabels)
+        root.setExpanded(True)
     # Get length units.
     measurementLength = inputCurve.GetMeasurement("length")
     measurementLengthUnit = measurementLength.GetUnits()
@@ -211,27 +220,40 @@ class StenosisMeasurement1DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         partialDistance = distances[2]
         relativePartialDistance = distances[3]
 
-        item = qt.QTableWidgetItem()
+        # Cumulative distances.
+        valuesItem = qt.QTreeWidgetItem()
         content = f"{cumulativeDistance:.1f} {measurementLengthUnit}"
-        item.setText(content)
-        outputTable.setItem(pointIndex - 1, 0, item)
-        # Proportional cumulative distance, with respect to total length.
-        item = qt.QTableWidgetItem()
+        valuesItem.setText(0, content)
         content = f"{relativeCumulativeDistance * 100:.1f} %"
-        item.setText(content)
-        outputTable.setItem(pointIndex - 1, 1, item)
-
+        valuesItem.setText(1, content)
         # Distance between two adjacent points.
-        item = qt.QTableWidgetItem()
         content = f"{partialDistance:.1f} {measurementLengthUnit}"
-        item.setText(content)
-        outputTable.setItem(pointIndex - 1, 2, item)
-        # Proportional distance between two adjacent points, with respect to total length.
-        item = qt.QTableWidgetItem()
+        valuesItem.setText(2, content)
         content = f"{relativePartialDistance * 100:.1f} %"
-        item.setText(content)
-        outputTable.setItem(pointIndex - 1, 3, item)
+        valuesItem.setText(3, content)
+        root.addChild(valuesItem)
 
+        measurementItem = qt.QTreeWidgetItem()
+        valuesItem.addChild(measurementItem)
+        outputTree.setItemWidget(measurementItem, 2, qt.QCheckBox(_("Lumen")))
+        typeCheckBox = outputTree.itemWidget(measurementItem, 2)
+        typeCheckBox.setToolTip(_("Is this item a lumen part?"))
+        typeCheckBox.connect("toggled(bool)", self.updateStenosis)
+        valuesItem.setExpanded(False)
+
+  def updateStenosis(self):
+    if (not self._distanceArray) or (self.ui.outputTreeWidget.topLevelItemCount == 0) :
+      return
+    outputTree = self.ui.outputTreeWidget
+    root = outputTree.topLevelItem(0)
+    for i in range(root.childCount()):
+      child = root.child(i).child(0)
+      typeCheckBox = outputTree.itemWidget(child, 2)
+      self._distanceArray.SetValue(((i + 1) * self._distanceArray.GetNumberOfComponents()) - 1, typeCheckBox.checked)
+    stenosis = self.logic.calculateStenosis(self._distanceArray)
+    content = f"{stenosis * 100:.1f} %"
+    self.ui.stenosisResultLabel.setText(content)
+    self.ui.stenosisResultLabel.setToolTip(str(stenosis))
 #
 # StenosisMeasurement1DLogic
 #
@@ -340,7 +362,8 @@ class StenosisMeasurement1DLogic(ScriptedLoadableModuleLogic):
     startPoint = curveControlPoints.GetPoint(0)
     partialDistance = 0.0
     results = vtk.vtkDoubleArray()
-    results.SetNumberOfComponents(4)
+    # The 5th component is a place holder to identify the lumen (0.0 or 1.0).
+    results.SetNumberOfComponents(5)
     for pointIndex in range(0, numberOfControlPoints):
         controlPointPosition = curveControlPoints.GetPoint(pointIndex) # A coordinate.
         controlPointIndex = inputCurve.GetClosestCurvePointIndexToPositionWorld(controlPointPosition) # An integer.
@@ -356,14 +379,31 @@ class StenosisMeasurement1DLogic(ScriptedLoadableModuleLogic):
             previousControlPointIndex, controlPointIndex)
         relativePartialDistance = partialDistance / curveTotalLength
 
-        results.InsertNextTuple( (cumulativeDistance, relativeCumulativeDistance, partialDistance, relativePartialDistance) )
+        results.InsertNextTuple( (cumulativeDistance, relativeCumulativeDistance, partialDistance, relativePartialDistance, 0.0) )
 
     # Signal widget to fill the table with results.
     if self._widgetCallback:
         self._widgetCallback(results)
 
     # This is for python scripting if there is no callback.
+    # NOTE: the first row is 0.0 everywhere. The number of tuples is equal to the number of control points.
     return results
+
+  def calculateStenosis(self, distances : vtk.vtkDoubleArray): # Marked distances array.
+    if ((not distances)
+        or (distances.GetNumberOfComponents() != 5)
+        or distances.GetNumberOfTuples() == 0):
+      raise ValueError("Invalid input distances array.")
+    
+    # In very rare case, like in a dissected artery, there may be more than one lumen.
+    lumenPercent = 0.0
+    for i in range(distances.GetNumberOfTuples()):
+      row = distances.GetTuple(i)
+      if row[4] != 1.0 :
+        continue
+      lumenPercent = lumenPercent + row[3]
+    return (1.0 - lumenPercent)
+
 #
 # StenosisMeasurement1DTest
 #
