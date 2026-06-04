@@ -58,8 +58,6 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
 
     # Observe JumpToPointEvent of the fiducial display node.
     self.fiducialDisplayNodeObservation = None
-    # Menus
-    self.tableMenu = qt.QMenu()
 
     self._optionsMainMenu = None
     self._optionsSubMenu1 = None
@@ -143,109 +141,39 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
     self.ui.parameterSetSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.setParameterNode)
     self.ui.parameterSetUpdateUIToolButton.connect("clicked(bool)", self.onParameterSetUpdateUiClicked)
 
-    # Prepare table
-    outputTable = self.ui.presentationTableWidget
-    outputTable.setColumnCount(5)
-    columnLabels = (_("Control point"), _("Segment"), _("Surface area"), _("Model visibility"), _("Segment visibility"))
-    outputTable.setHorizontalHeaderLabels(columnLabels)
-    """
-    We need a currentRow() when we toggle the visibility of an output model.
-    The row is selected in a lambda function.
-    But we don't need to select the whole row visually.
-    """
-    outputTable.setSelectionMode(qt.QAbstractItemView.SelectItems)
-    """
-    Table context menu.
-    Using self.parent as the menu's parent allows the menu items to lay in the
-    foreground.
-    """
-    outputTable.setContextMenuPolicy(qt.Qt.CustomContextMenu)
-    outputTable.connect("customContextMenuRequested(QPoint)", self.showTableMenu)
-    outputTable.connect("currentCellChanged(int, int, int, int)", self.onCurrentRowChanged)
+    # Prepare the tree table.
+    outputTree = self.ui.outputTreeWidget
+    outputTree.setColumnCount(3)
+    columnLabels = (_("Control point"), _("Segment"), _("Surface area"))
+    outputTree.setHeaderLabels(columnLabels)
+    outputTree.connect("currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)", self._onTreeItemChanged)
 
     # Make sure parameter node is initialized (needed for module reload)
     self.initializeParameterNode()
 
-  def showTableMenu(self, qpoint) -> None:
-    # Start from zero.
-    self.tableMenu.clear()
-
-    """
-    If we do this in setup, when we first enter the module, a weird background
-    rectangle is seen from the left of the module window.
-    Just workaround it.
-    """
-    self.tableMenu.setParent(self.parent)
-
-    # Simple menu item to remove a single row.
-    actionRemoveRow = self.tableMenu.addAction(_("Remove row"))
-    actionRemoveRow.setData(OUTPUT_TABLE_MENU_REMOVE_ROW)
-    actionRemoveRow.connect("triggered()", self.onTableMenuItem)
-
-    # Simple menu item to remove all rows.
-    actionEmptyTable = self.tableMenu.addAction(_("Empty table"))
-    actionEmptyTable.setData(OUTPUT_TABLE_MENU_EMPTY_TABLE)
-    actionEmptyTable.connect("triggered()", self.onTableMenuItem)
-
-    self.tableMenu.addSeparator()
-    # Clicking anywhere does not hide menu.
-    actionCancel = self.tableMenu.addAction(_("Dismiss menu"))
-    actionCancel.connect("triggered()", self.onTableMenuItem)
-    """
-    Set menu position.
-    In developer mode, the height of the additional collapsible button is not
-    taken into account, and influences the menu position.
-    """
-    outputTableWidget = self.ui.presentationTableWidget
-    menuPosition = qt.QPoint()
-    menuPosition.setX(qpoint.x() + outputTableWidget.x)
-    menuPosition.setY(qpoint.y() + outputTableWidget.y)
-    self.tableMenu.popup(menuPosition)
-
-  def onTableMenuItem(self) -> None:
-    action = self.tableMenu.activeAction()
-    data = action.data()
-    outputTable = self.ui.presentationTableWidget
-    # Remove the current row.
-    if data == OUTPUT_TABLE_MENU_REMOVE_ROW:
-        self.removeTableRow(outputTable.currentRow())
-    # Remove all rows.
-    elif data == OUTPUT_TABLE_MENU_EMPTY_TABLE:
-        while (outputTable.rowCount):
-            self.removeTableRow(0)
-    self.tableMenu.hide()
-
-  # Remove a single table row and an associated model.
-  def removeTableRow(self, rowIndex) -> None:
-    outputTable = self.ui.presentationTableWidget
-    fiducialCellItem = outputTable.item(rowIndex, 0)
-    if fiducialCellItem:
-        cutModel = fiducialCellItem.data(qt.Qt.UserRole)
-        if cutModel:
-            slicer.mrmlScene.RemoveNode(cutModel)
-    outputTable.removeRow(rowIndex)
-
   # Show or hide the output model.
-  def onShowModelCheckBox(self, checkStatus) -> None:
-    outputTable = self.ui.presentationTableWidget
-    fiducialCellItem = outputTable.item(outputTable.currentRow(), 0)
-    if fiducialCellItem:
-        cutModel = fiducialCellItem.data(qt.Qt.UserRole)
-        if cutModel:
-            cutModel.SetDisplayVisibility(checkStatus)
+  def onShowModelCheckBox2(self, checkStatus) -> None:
+    treeItem = self.ui.outputTreeWidget.currentItem()
+    if (not treeItem):
+      self.showStatusMessage((_("No item is currently selected in the tree widget."),), True)
+      return
+    cutModel = treeItem.data(2, qt.Qt.UserRole)
+    if (cutModel):
+      cutModel.SetDisplayVisibility(checkStatus)
 
   # Show or hide the input segment.
-  def onShowSegmentCheckBox(self, checkStatus) -> None:
+  def onShowSegmentCheckBox2(self, checkStatus) -> None:
     segmentation = self.ui.inputSegmentSelector.currentNode()
     if not segmentation:
         self.showStatusMessage((_("Input segmentation is invalid"),), True)
         return
-    outputTable = self.ui.presentationTableWidget
-    segmentCellItem = outputTable.item(outputTable.currentRow(), 1)
-    if segmentCellItem:
-        segmentID = segmentCellItem.data(qt.Qt.UserRole)
-        if (segmentID):
-             segmentation.GetDisplayNode().SetSegmentVisibility(segmentID, checkStatus)
+    treeItem = self.ui.outputTreeWidget.currentItem()
+    if (not treeItem):
+      self.showStatusMessage((_("No item is currently selected in the tree widget."),), True)
+      return
+    segmentID = treeItem.data(1, qt.Qt.UserRole)
+    if (segmentID):
+      segmentation.GetDisplayNode().SetSegmentVisibility(segmentID, checkStatus)
 
   def cleanup(self) -> None:
     """
@@ -430,96 +358,192 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
 
     self._updatingGUIFromParameterNode = False
 
+  # Get a top level tree item by the fiducial node it is referencing.
+  def _getTreeTopLevelItemByFiducialNode(self, tree, fiducialNode):
+    if (not tree) or (not fiducialNode):
+      return None
+    for i in range(tree.topLevelItemCount):
+      item = tree.topLevelItem(i)
+      itemData = item.data(0, qt.Qt.UserRole)
+      if (itemData) and (itemData == fiducialNode):
+        return item
+    return None
+
+  # Get a tree item by the crontrol point ID it is referencing.
+  def _getTreeItemByControlPointId(self, parentItem, controlPoindId):
+    if (not parentItem) or (int(controlPoindId) < 0):
+      return None
+    for i in range(parentItem.childCount()):
+      childItem = parentItem.child(i)
+      if (childItem.data(0, qt.Qt.UserRole) == controlPoindId):
+        return childItem
+    return None
+
+  # Remove the current tree item or top level tree item.
+  def _removeCurrentTreeItem(self):
+    outputTree = self.ui.outputTreeWidget
+    treeItem = outputTree.currentItem()
+    if (not treeItem):
+      self.showStatusMessage((_("No item is currently selected in the tree widget."),), True)
+      return
+    if (treeItem.parent()):
+      treeItem.parent().removeChild(treeItem)
+    else:
+      # Top level tree item.
+      outputTree.invisibleRootItem().removeChild(treeItem)
+
+  # In a tree item, place the tool button (input widget) in a parent QWidget
+  # having a horizontal layout and a stretch on its right.
+  def _constrainWidgetInHLayout(self, widget):
+    newWidget = qt.QWidget()
+    newWidget.setObjectName(self.moduleName + ".TreeWidgetItemWidget")
+    newWidget.setFocusPolicy(qt.Qt.FocusPolicy.StrongFocus)
+    hlayout = qt.QHBoxLayout()
+    newWidget.setLayout(hlayout)
+    hlayout.addWidget(widget)
+    hlayout.addStretch()
+    widget.setSizePolicy(qt.QSizePolicy.Minimum, qt.QSizePolicy.Fixed)
+    widget.setVisible(False)
+
+    return newWidget
+
+  # Let the tool button be visible in the curretnyt tree item only.
+  def _onTreeItemChanged(self, currentItem, previousItem):
+    controllerObjectName = self.moduleName + ".TreeWidgetItemController"
+    outputTree = self.ui.outputTreeWidget
+    for item in (currentItem, previousItem):
+      if (not item):
+        continue
+      for i in range(outputTree.columnCount):
+        # In this tree item, find the widget containing the tool button in it's layout.
+        widget = outputTree.itemWidget(item, i)
+        if (not widget) or (widget.objectName != self.moduleName + ".TreeWidgetItemWidget"):
+          continue
+        # Find the tool button.
+        controller = widget.findChild(qt.QToolButton, controllerObjectName)
+        if (controller):
+          controller.setVisible(item == currentItem)
+
+  # When the menu is opened, synchronise the visibily status of the segment or cut model
+  # with the checked property of the menu actions.
+  def _onTreeItemControllerMenuAboutToShow(self):
+    menu = None
+    outputTree = self.ui.outputTreeWidget
+    treeItem = outputTree.currentItem()
+    # Find the tool button and the menu.
+    controllerObjectName = self.moduleName + ".TreeWidgetItemController"
+    for i in range(outputTree.columnCount):
+      widget = outputTree.itemWidget(treeItem, i)
+      if (not widget) or (widget.objectName != self.moduleName + ".TreeWidgetItemWidget"):
+        continue
+      controller = widget.findChild(qt.QToolButton, controllerObjectName)
+      if (controller):
+        menu = controller.menu()
+    if (not menu):
+      return
+    # Find and synchronise the menu action handling the segment's visibility.
+    showSegmentAction = menu.findChild(qt.QAction, self.moduleName + ".ShowSegmentAction")
+    if (showSegmentAction):
+      segmentation = self.ui.inputSegmentSelector.currentNode()
+      treeItem = self.ui.outputTreeWidget.currentItem()
+      if segmentation and treeItem:
+        segmentID = treeItem.data(1, qt.Qt.UserRole)
+        if (segmentID):
+          showSegmentAction.setChecked(segmentation.GetDisplayNode().GetSegmentVisibility(segmentID))
+    # # Find and synchronise the menu action handling the model's visibility.
+    showModelAction = menu.findChild(qt.QAction, self.moduleName + ".ShowModelAction")
+    if (showModelAction):
+      treeItem = self.ui.outputTreeWidget.currentItem()
+      if (treeItem):
+        cutModel = treeItem.data(2, qt.Qt.UserRole)
+        if (cutModel):
+          showModelAction.setChecked(cutModel.GetDisplayVisibility())
+
   # Append mode only. tuples is a dictionary: [segmentID] = (area, model)
   def populateOutputTable(self, tuples) -> None:
     fiducialNode = self._parameterNode.GetNodeReference(ROLE_INPUT_FIDUCIAL)
     # Get current control point label.
     controlPointIndex = fiducialNode.GetNthControlPointIndexByID(self.currentControlPointID)
-    controlPointLabel = fiducialNode.GetNthControlPointLabel(
-        controlPointIndex)
-    # Get list of segment IDs.
+    controlPointLabel = fiducialNode.GetNthControlPointLabel(controlPointIndex)
+    # Get the list of segment IDs.
     segmentIDs = tuples.keys()
 
     segmentation = self.ui.inputSegmentSelector.currentNode()
-    outputTable = self.ui.presentationTableWidget
+    outputTree = self.ui.outputTreeWidget
+    
+    # Create a top level item for the fiducial node.
+    topLevelItem = self._getTreeTopLevelItemByFiducialNode(outputTree, fiducialNode)
+    if (not topLevelItem):
+      topLevelItem = qt.QTreeWidgetItem()
+      outputTree.addTopLevelItem(topLevelItem)
+      topLevelItem.setText(0, fiducialNode.GetName())
+      topLevelItem.setData(0, qt.Qt.UserRole, fiducialNode)
+      topLevelItem.setExpanded(True)
+      # Add a tool button for the removal of the top level item.
+      topLevelItemController = qt.QToolButton()
+      topLevelItemController.setObjectName(self.moduleName + ".TreeWidgetItemController")
+      topLevelItemController.setText("-")
+      topLevelItemController.setToolTip(_("Remove this item."))
+      topLevelItemController.connect("clicked()", self._removeCurrentTreeItem)
+      topLevelItemWidget = self._constrainWidgetInHLayout(topLevelItemController)
+      outputTree.setItemWidget(topLevelItem, 2, topLevelItemWidget)
+    # Create a tree item for the control point of the fiducial node, identified by the control point's ID.
+    controlPointItem = self._getTreeItemByControlPointId(topLevelItem, self.currentControlPointID)
+    if (not controlPointItem):
+      controlPointItem = qt.QTreeWidgetItem() # For the control point
+      topLevelItem.addChild(controlPointItem)
+      controlPointItem.setText(0, controlPointLabel)
+      controlPointItem.setData(0, qt.Qt.UserRole, self.currentControlPointID)
+      controlPointItem.setExpanded(True)
+      # Add a tool button for the removal of this item.
+      controlPointItemController = qt.QToolButton()
+      controlPointItemController.setObjectName(self.moduleName + ".TreeWidgetItemController")
+      controlPointItemController.setText("-")
+      controlPointItemController.setToolTip(_("Remove this item."))
+      controlPointItemController.connect("clicked()", self._removeCurrentTreeItem)
+      controlPointItemWidget = self._constrainWidgetInHLayout(controlPointItemController)
+      outputTree.setItemWidget(controlPointItem, 2, controlPointItemWidget)
 
     # Get unit for area.
     selectionNode = slicer.mrmlScene.GetNodeByID("vtkMRMLSelectionNodeSingleton")
     areaUnitNode = slicer.mrmlScene.GetNodeByID(selectionNode.GetUnitNodeID("area"))
-    # For each segment, append control point label, segment name and area.
-    # Reference the output polydata model in the label item (column 0).
+    # For each segment, create a tree item with a tool button, the segment name and area.
     for segmentID in segmentIDs:
-        rowIndex = outputTable.rowCount
-        outputTable.insertRow(rowIndex)
-        # Control point label
-        item = qt.QTableWidgetItem()
-        item.setText(controlPointLabel)
-        # Reference the cut model here. We can show/hide/delete it later.
+        measurementItem = qt.QTreeWidgetItem()
+        controlPointItem.addChild(measurementItem)
+        """
+        Add a tool button in column 0 with a menu that
+        - allows to remove this tree item,
+        - handles the visibility of the segment,
+        - handles the visibility of the cut model.
+        """
+        measurementController = qt.QToolButton()
+        measurementController.setObjectName(self.moduleName + ".TreeWidgetItemController")
+        measurementControllerMenu = qt.QMenu(measurementController)
+        removeMeasurementAction = measurementControllerMenu.addAction(_("Remove"))
+        removeMeasurementAction.setObjectName(self.moduleName + ".RemoveMeasurementAction")
+        removeMeasurementAction.connect("triggered()", self._removeCurrentTreeItem)
+        showSegmentAction = measurementControllerMenu.addAction(_("Segment visibility"))
+        showSegmentAction.setObjectName(self.moduleName + ".ShowSegmentAction")
+        showSegmentAction.setCheckable(True)
+        showSegmentAction.connect("toggled(bool)", self.onShowSegmentCheckBox2)
+        showModelAction = measurementControllerMenu.addAction(_("Model visibility"))
+        showModelAction.setObjectName(self.moduleName + ".ShowModelAction")
+        showModelAction.setCheckable(True)
+        showModelAction.connect("toggled(bool)", self.onShowModelCheckBox2)
+        measurementController.setMenu(measurementControllerMenu)
+        measurementController.connect("clicked()", measurementController.showMenu)
+        measurementControllerWidget = self._constrainWidgetInHLayout(measurementController)
+        measurementControllerMenu.connect("aboutToShow()", self._onTreeItemControllerMenuAboutToShow)
+        outputTree.setItemWidget(measurementItem, 0, measurementControllerWidget)
+        # Show the segment name in column 1, and reference the segment ID.
+        measurementItem.setData(1, qt.Qt.UserRole, segmentID)
+        measurementItem.setText(1, segmentation.GetSegmentation().GetSegment(segmentID).GetName())
+        # Show the area in column 2, and reference the cut model.
         cutModel = tuples[segmentID][1]
-        item.setData(qt.Qt.UserRole, cutModel)
-        outputTable.setItem(rowIndex, 0, item)
-        # Segment
-        item = qt.QTableWidgetItem()
-        item.setText(segmentation.GetSegmentation().GetSegment(segmentID).GetName())
-        item.setData(qt.Qt.UserRole, segmentID)
-        outputTable.setItem(rowIndex, 1, item)
-        # Surface area
-        item = qt.QTableWidgetItem()
-        content = areaUnitNode.GetDisplayStringFromValue(tuples[segmentID][0])
-        item.setText(content)
-        outputTable.setItem(rowIndex, 2, item)
-        # Model visibility. Use a checkbox aligned in a layout.
-        """
-        The checkbox is always left aligned this way.
-        Either we accept it's not good looking, or we do some more complex things.
-          item = qt.QTableWidgetItem()
-          item.setCheckState(False)
-        https://falsinsoft.blogspot.com/2013/11/qtablewidget-center-checkbox-inside-cell.html
-        """
-        modelWidget = qt.QWidget()
-        modelCheckBox = qt.QCheckBox(modelWidget)
-        modelLayout = qt.QHBoxLayout(modelWidget)
-        modelLayout.addWidget(modelCheckBox)
-        modelLayout.setAlignment(qt.Qt.AlignCenter)
-        modelLayout.setContentsMargins(0, 0, 0, 0)
-        modelWidget.setLayout(modelLayout)
-        outputTable.setCellWidget(rowIndex, 3, modelWidget)
-        modelCheckBox.connect("toggled(bool)", self.onShowModelCheckBox)
-        # Hide it by default. See onCurrentRowChanged() comment.
-        modelCheckBox.hide()
-        modelCheckBox.checked = cutModel.GetDisplayVisibility()
-
-        # Segment visibility.
-        segmentWidget = qt.QWidget()
-        segmentCheckBox = qt.QCheckBox(segmentWidget)
-        segmentLayout = qt.QHBoxLayout(segmentWidget)
-        segmentLayout.addWidget(segmentCheckBox)
-        segmentLayout.setAlignment(qt.Qt.AlignCenter)
-        segmentLayout.setContentsMargins(0, 0, 0, 0)
-        segmentWidget.setLayout(segmentLayout)
-        outputTable.setCellWidget(rowIndex, 4, segmentWidget)
-        segmentCheckBox.connect("toggled(bool)", self.onShowSegmentCheckBox)
-        segmentCheckBox.hide()
-        segmentCheckBox.checked = segmentation.GetDisplayNode().GetSegmentVisibility(segmentID)
-
-  """
-  Clicking on the model/segment visibility checkbox does not trigger anything in
-  the table. Namely, no row/cell is selected. The checkbox does not know in what
-  row it is. The user must select a cell. We show the checkbox in the current
-  row only. Else, toggling a checkbox in another row will always toggle the
-  visibility of the model/segment referenced in the current row.
-  """
-  def onCurrentRowChanged(self, currentRow, currentColumn, previousRow, previousColumn) -> None:
-    outputTable = self.ui.presentationTableWidget
-    for column in 3, 4:
-        previousCellWidget = outputTable.cellWidget(previousRow, column)
-        if previousCellWidget:
-            previousCheckBox = previousCellWidget.children()[0]
-            previousCheckBox.hide()
-        currentCellWidget = outputTable.cellWidget(currentRow, column)
-        if currentCellWidget:
-            currentCheckBox = currentCellWidget.children()[0]
-            currentCheckBox.show()
+        measurementItem.setData(2, qt.Qt.UserRole, cutModel)
+        area = areaUnitNode.GetDisplayStringFromValue(tuples[segmentID][0])
+        measurementItem.setText(2, area)
 
   # messages is a sequence.
   def showStatusMessage(self, messages, console = False) -> None:
@@ -735,11 +759,6 @@ class StenosisMeasurement2DTest(ScriptedLoadableModuleTest):
 
     self.delayDisplay(_("Test passed"))
 
-# Menu constants.
-MENU_CANCEL = 0
-OUTPUT_TABLE_MENU_REMOVE_ROW = 1
-OUTPUT_TABLE_MENU_EMPTY_TABLE = 2
-
 # Parameter node role names
 ROLE_INPUT_SLICE = "InputSlice"
 ROLE_INPUT_FIDUCIAL = "InputFiducial"
@@ -749,3 +768,4 @@ ROLE_APPLY_TO_ALL_SEGMENTS = "ApplyToAllSegments"
 ROLE_LIMIT_TO_CLOSEST_ISLAND = "LimitToClosestIsland"
 ROLE_CREATE_OUTPUT_MODEL = "CreateOutputModel"
 ROLE_RESET_ORIENTATION = "ResetControlPointOrientation"
+

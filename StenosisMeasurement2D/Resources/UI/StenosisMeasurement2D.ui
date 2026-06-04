@@ -222,12 +222,12 @@ Clicking at a control point allows to track the slice orientation in the selecte
     </widget>
    </item>
    <item>
-    <widget class="QTableWidget" name="presentationTableWidget">
-     <property name="toolTip">
-      <string>Result table.
-
-Right click for more.</string>
-     </property>
+    <widget class="QTreeWidget" name="outputTreeWidget">
+     <column>
+      <property name="text">
+       <string notr="true">1</string>
+      </property>
+     </column>
     </widget>
    </item>
    <item>
