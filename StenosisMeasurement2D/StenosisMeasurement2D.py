@@ -152,7 +152,7 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
     self.initializeParameterNode()
 
   # Show or hide the output model.
-  def onShowModelCheckBox2(self, checkStatus) -> None:
+  def onShowModelCheckBox(self, checkStatus) -> None:
     treeItem = self.ui.outputTreeWidget.currentItem()
     if (not treeItem):
       self.showStatusMessage((_("No item is currently selected in the tree widget."),), True)
@@ -162,7 +162,7 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
       cutModel.SetDisplayVisibility(checkStatus)
 
   # Show or hide the input segment.
-  def onShowSegmentCheckBox2(self, checkStatus) -> None:
+  def onShowSegmentCheckBox(self, checkStatus) -> None:
     segmentation = self.ui.inputSegmentSelector.currentNode()
     if not segmentation:
         self.showStatusMessage((_("Input segmentation is invalid"),), True)
@@ -220,6 +220,7 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
     """
     Called just after the scene is closed.
     """
+    self.ui.outputTreeWidget.clear()
     # If this module is shown while the scene is closed then recreate a new parameter node immediately
     if self.parent.isEntered:
       self.initializeParameterNode()
@@ -369,7 +370,7 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         return item
     return None
 
-  # Get a tree item by the crontrol point ID it is referencing.
+  # Get a tree item by the control point ID it is referencing.
   def _getTreeItemByControlPointId(self, parentItem, controlPoindId):
     if (not parentItem) or (int(controlPoindId) < 0):
       return None
@@ -526,11 +527,11 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         showSegmentAction = measurementControllerMenu.addAction(_("Segment visibility"))
         showSegmentAction.setObjectName(self.moduleName + ".ShowSegmentAction")
         showSegmentAction.setCheckable(True)
-        showSegmentAction.connect("toggled(bool)", self.onShowSegmentCheckBox2)
+        showSegmentAction.connect("toggled(bool)", self.onShowSegmentCheckBox)
         showModelAction = measurementControllerMenu.addAction(_("Model visibility"))
         showModelAction.setObjectName(self.moduleName + ".ShowModelAction")
         showModelAction.setCheckable(True)
-        showModelAction.connect("toggled(bool)", self.onShowModelCheckBox2)
+        showModelAction.connect("toggled(bool)", self.onShowModelCheckBox)
         measurementController.setMenu(measurementControllerMenu)
         measurementController.connect("clicked()", measurementController.showMenu)
         measurementControllerWidget = self._constrainWidgetInHLayout(measurementController)
@@ -544,6 +545,68 @@ class StenosisMeasurement2DWidget(ScriptedLoadableModuleWidget, VTKObservationMi
         measurementItem.setData(2, qt.Qt.UserRole, cutModel)
         area = areaUnitNode.GetDisplayStringFromValue(tuples[segmentID][0])
         measurementItem.setText(2, area)
+
+        # Add a combobox to define a measurement as category.
+        typeItem = qt.QTreeWidgetItem()
+        measurementItem.addChild(typeItem)
+        typeComboBox = qt.QComboBox()
+        typeComboBox.addItem(_("N/A"), TYPE_NA)
+        typeComboBox.addItem(_("Lumen"), TYPE_LUMEN)
+        typeComboBox.addItem(_("Lesion"), TYPE_LESION)
+        typeComboBox.addItem(_("Whole section"), TYPE_WHOLE_SECTION)
+        typeComboBox.setToolTip(_("Select a measurement category."))
+        outputTree.setItemWidget(typeItem, 1, typeComboBox)
+        # Store the calculated unformatted area,
+        typeItem.setData(1, qt.Qt.UserRole, tuples[segmentID][0])
+        # and the control point id.
+        typeItem.setData(0, qt.Qt.UserRole, self.currentControlPointID)
+        typeComboBox.connect("currentIndexChanged(int)", self.updateStenosis)
+
+  # Find the top level item of any tree item.
+  def _getTreeTopLevelItemByItem(self, item):
+    if (not item):
+      raise ValueError("Item is None.")
+    thisItem = item
+    while(thisItem.parent()):
+      thisItem = thisItem.parent()
+    return thisItem
+
+  # Calculate and show the stenosis degree.
+  def updateStenosis(self):
+    with slicer.util.tryWithErrorDisplay(_("Failed to collect data."), waitCursor=True):
+      outputTree = self.ui.outputTreeWidget
+      treeItem = outputTree.currentItem()
+      if (not treeItem):
+        raise RuntimeError(_("No row is selected in the result table."))
+      # Check that the selected item is the category one, because the combobox is connected to this function.
+      itemWidget = outputTree.itemWidget(treeItem, 1)
+      if (not itemWidget) or (itemWidget.className() != "QComboBox"):
+        raise RuntimeError(_("The current row of the result table does not describe the measurement type."))
+      controlPointId = treeItem.data(0, qt.Qt.UserRole)
+      topLevelItem = self._getTreeTopLevelItemByItem((treeItem))
+      controlPointItem = self._getTreeItemByControlPointId(topLevelItem, controlPointId)
+      # Get the control point item, so as to get the stored measurements.
+      if (not controlPointItem):
+        raise RuntimeError(_("Error getting the control point item of the result table."))
+      # Storage array for the areas by type.
+      typedAreas = vtk.vtkDoubleArray()
+      typedAreas.SetNumberOfComponents(2)
+      # From the control point item, get the measurements and the types.
+      for i in range(controlPointItem.childCount()):
+        measurementItem = controlPointItem.child(i)
+        typeItem = measurementItem.child(0)
+        if (not typeItem):
+          raise RuntimeError(_("The result table rows are inconsistent."))
+        area = typeItem.data(1, qt.Qt.UserRole)
+        typeComboBox = outputTree.itemWidget(typeItem, 1) # Should be the same as itemWidget.
+        typedAreas.InsertNextTuple((area, typeComboBox.currentData))
+
+      # Calculate and show the stenosis degree.
+      stenosis = self.logic.calculateStenosis(typedAreas) # May be None
+      stenosisFormatted = f"{stenosis * 100:.1f} %" if (stenosis is not None) else ""
+      controlPointItem.setData(1, qt.Qt.UserRole, stenosis)
+      controlPointItem.setText(1, stenosisFormatted)
+      controlPointItem.setToolTip(1, str(stenosis) if (stenosis is not None) else None)
 
   # messages is a sequence.
   def showStatusMessage(self, messages, console = False) -> None:
@@ -721,6 +784,48 @@ class StenosisMeasurement2DLogic(ScriptedLoadableModuleLogic):
         tuples[segmentID] = tuple
     return tuples
 
+  # Calculate the stenosis from the areas and their types.
+  def calculateStenosis(self, typedAreas : vtk.vtkDoubleArray) -> float:
+    if (not typedAreas) or (typedAreas.GetNumberOfComponents() != 2):
+      raise ValueError(_("The input typed area array is invalid."))
+    wholeSectionCount = 0
+    wholeSectionArea = 0.0
+    totalLesionArea = 0.0
+    totalLumenArea = 0.0
+    stenosis = None
+    # Sum up the areas by types.
+    for i in range(typedAreas.GetNumberOfTuples()):
+      tuple = typedAreas.GetTuple(i)
+      if (tuple[1] == TYPE_WHOLE_SECTION):
+        wholeSectionCount = wholeSectionCount + 1
+        if (wholeSectionCount > 1):
+          raise ValueError(_("There must not be more than one whole section input."))
+        wholeSectionArea = wholeSectionArea + tuple[0]
+      elif (tuple[1] == TYPE_LESION):
+        totalLesionArea = totalLesionArea + tuple[0]
+      elif (tuple[1] == TYPE_LUMEN):
+        totalLumenArea = totalLumenArea + tuple[0]
+      elif (tuple[1] == TYPE_NA):
+        pass
+      else:
+        raise ValueError(_("The input typed area array has invalid rows."))
+
+    if (wholeSectionCount): # Must be 1 or 0.
+      # If we have a whole section area and both lumen and lesion areas, prefer the lumen area.
+      if (totalLumenArea):
+        stenosis = (wholeSectionArea - totalLumenArea) / wholeSectionArea
+      else:
+        stenosis = totalLesionArea / wholeSectionArea
+    else:
+      # There is no whole section area; sum up the lumen and lesion areas.
+      denominator = totalLumenArea + totalLesionArea
+      if (denominator == 0.0):
+        # Don't raise an error for a UI reset to be possible silently.
+        logging.info(("Abort on division by zero."))
+        return None
+      stenosis = totalLesionArea / denominator
+
+    return stenosis # May be None
 #
 # StenosisMeasurement2DTest
 #
@@ -768,4 +873,10 @@ ROLE_APPLY_TO_ALL_SEGMENTS = "ApplyToAllSegments"
 ROLE_LIMIT_TO_CLOSEST_ISLAND = "LimitToClosestIsland"
 ROLE_CREATE_OUTPUT_MODEL = "CreateOutputModel"
 ROLE_RESET_ORIENTATION = "ResetControlPointOrientation"
+
+# Segment types
+TYPE_NA = 0
+TYPE_LUMEN = 1
+TYPE_LESION = 2
+TYPE_WHOLE_SECTION = 3
 
