@@ -71,6 +71,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self._manualPlaneOrigins = {}
     self._normalHandleDistance = 1.0
     self._planeEditing = False
+    self._updatingManualPlaneButtons = False
     self._preprocessedCacheKey = None
     self._preprocessedPolyData = None
     self._applying = False
@@ -147,6 +148,10 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.freeNormalHandleCheckBox.connect("toggled(bool)", self.onFreeNormalHandleToggled)
     self.ui.detectClipPointsButton.connect('clicked(bool)', self.onDetectClipPointsButton)
     self.ui.snapClipPointsToCenterlineCheckBox.connect("toggled(bool)", self.onSnapClipPointsToCenterlineToggled)
+    self.ui.enableManualPlaneOrigin.connect("toggled(bool)", self.onEnableManualPlaneOriginToggled)
+    self.ui.enableManualPlaneNormal.connect("toggled(bool)", self.onEnableManualPlaneNormalToggled)
+    self.ui.enableManualPlaneOrigin.setIcon(qt.QIcon(self.resourcePath('Icons/ManualPlaneOrigin.svg')))
+    self.ui.enableManualPlaneNormal.setIcon(qt.QIcon(self.resourcePath('Icons/ManualPlaneNormal.svg')))
     self.ui.toggleOutputVisibilityButton.connect("toggled(bool)", self.onToggleOutputVisibilityButton)
     self.ui.toggleOutputEdgesButton.connect("toggled(bool)", self.onToggleOutputEdgesButton)
     self.ui.finishPlaneEditingButton.connect("clicked(bool)", self.finishPlaneEditing)
@@ -284,6 +289,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.clipPointInsetFactorWidget.value = float(self._parameterNode.GetParameter("ClipPointInsetFactor"))
     self.ui.detectClipPointsButton.enabled = self._parameterNode.GetNodeReference("InputCenterlines") is not None
     self.ui.snapClipPointsToCenterlineCheckBox.checked = (self._parameterNode.GetParameter("SnapClipPointsToCenterline") == "true")
+    self.updateManualPlaneButtonStates()
     clippingMethod = self._parameterNode.GetParameter("ClippingMethod") or "PLANE_PATCH"
     clippingMethodIndex = self.ui.clippingMethodComboBox.findData(clippingMethod)
     if clippingMethodIndex < 0:
@@ -418,8 +424,90 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.addObserver(clipPointsNode, slicer.vtkMRMLMarkupsNode.PointEndInteractionEvent, self.onClipPointInteractionEnded)
         self.updateClipPointsSnapMode()
 
+  def activeClipPointId(self):
+    """Control point ID of the clip point whose plane is being edited, or None."""
+    clipPointsNode = self._parameterNode.GetNodeReference("ClipPoints") if self._parameterNode else None
+    if not clipPointsNode or not (0 <= self._activeClipPointIndex < clipPointsNode.GetNumberOfControlPoints()):
+        return None
+    return clipPointsNode.GetNthControlPointID(self._activeClipPointIndex)
+
   def onSnapClipPointsToCenterlineToggled(self, checked=None):
     self.updateParameterNodeFromGUI()
+    self.updateClipPointsSnapMode()
+
+  def onEnableManualPlaneOriginToggled(self, checked=None):
+    self.updateClipPointsSnapMode()
+    self.updatePlaneHandleMode()
+    if self.updatingGUIFromParameterNode or self._updatingManualPlaneButtons:
+        # The button is being synchronized to the active point's stored state, not toggled
+        # by the user: don't modify the stored manual origins.
+        return
+    pointId = self.activeClipPointId()
+    planeNode = self._parameterNode.GetNodeReference("ManualClipPlane") if self._parameterNode else None
+    if pointId is None or not planeNode:
+        return
+    origin, normal = self.logic.manualPlaneOriginNormal(planeNode)
+    if checked:
+        # Keep the current origin as a manual override for this point.
+        self._manualPlaneOrigins[pointId] = list(origin)
+    else:
+        # Back to centerline-based: drop the manual override and move the plane (and its
+        # clip point) onto the centerline. Snap directly (not via snapOriginToCenterline)
+        # so this works regardless of the global drag-snapping checkbox.
+        self._manualPlaneOrigins.pop(pointId, None)
+        centerlinesNode = self._parameterNode.GetNodeReference("InputCenterlines")
+        snappedOrigin = self.logic.closestPointOnCenterline(centerlinesNode, origin) if centerlinesNode else None
+        if snappedOrigin is not None:
+            origin = list(snappedOrigin)
+        normal = self.snapNormalToCenterline(origin, normal)
+        clipPointsNode = self._parameterNode.GetNodeReference("ClipPoints")
+        self._updatingInteractivePlane = True
+        clipPointsNode.SetNthControlPointPositionWorld(self._activeClipPointIndex, origin)
+        planeNode.SetOriginWorld(origin)
+        planeNode.SetNormalWorld(normal)
+        self.repositionNormalHandle(origin, normal)
+        self._updatingInteractivePlane = False
+    self.saveManualPlaneNormals()
+    self.scheduleAutoApply()
+
+  def onEnableManualPlaneNormalToggled(self, checked=None):
+    self.updatePlaneHandleMode()
+    if self.updatingGUIFromParameterNode or self._updatingManualPlaneButtons:
+        # The button is being synchronized to the active point's stored state, not toggled
+        # by the user: don't modify the stored manual normals.
+        return
+    pointId = self.activeClipPointId()
+    planeNode = self._parameterNode.GetNodeReference("ManualClipPlane") if self._parameterNode else None
+    if pointId is None or not planeNode:
+        return
+    origin, normal = self.logic.manualPlaneOriginNormal(planeNode)
+    if checked:
+        # Keep the current normal as a manual override for this point.
+        self._manualPlaneNormals[pointId] = list(normal)
+    else:
+        # Back to centerline-based: drop the manual override and re-orient the plane along
+        # the centerline.
+        self._manualPlaneNormals.pop(pointId, None)
+        normal = self.snapNormalToCenterline(origin, normal)
+        self._updatingInteractivePlane = True
+        planeNode.SetNormalWorld(normal)
+        self.repositionNormalHandle(origin, normal)
+        self._updatingInteractivePlane = False
+    self.saveManualPlaneNormals()
+    self.scheduleAutoApply()
+
+  def updateManualPlaneButtonStates(self):
+    """Sync the manual-adjustment buttons with the active clip point: a button is pressed
+    when the point has a manual override in the corresponding list (released means the plane
+    follows the centerline), and the buttons are only enabled while a clip plane is being
+    edited."""
+    pointId = self.activeClipPointId() if self._planeEditing else None
+    self.ui.enableManualPlaneOrigin.enabled = pointId is not None
+    self.ui.enableManualPlaneNormal.enabled = pointId is not None
+    self._updatingManualPlaneButtons = True
+    self.ui.enableManualPlaneOrigin.checked = pointId is not None and pointId in self._manualPlaneOrigins
+    self.ui.enableManualPlaneNormal.checked = pointId is not None and pointId in self._manualPlaneNormals
+    self._updatingManualPlaneButtons = False
     self.updateClipPointsSnapMode()
 
   def onFreeNormalHandleToggled(self, checked=None):
@@ -445,20 +533,35 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     planeNode = self._parameterNode.GetNodeReference("ManualClipPlane") if self._parameterNode else None
     normalHandleNode = self._parameterNode.GetNodeReference("ManualClipPlaneNormalHandle") if self._parameterNode else None
     useFreeNormalHandle = self.ui.freeNormalHandleCheckBox.checked if self._parameterNode else False
+    manualPlaneOrigin = self.ui.enableManualPlaneOrigin.checked if self._parameterNode else True
+    manualPlaneNormal = self.ui.enableManualPlaneNormal.checked if self._parameterNode else True
     useStandardHandles = not useFreeNormalHandle
     if planeNode and planeNode.GetDisplayNode():
         displayNode = planeNode.GetDisplayNode()
         displayNode.SetHandlesInteractive(useStandardHandles)
-        displayNode.SetRotationHandleVisibility(useStandardHandles)
+        # While the orientation follows the centerline, rotating the plane manually would be
+        # immediately undone, so the rotation handles are hidden.
+        displayNode.SetRotationHandleVisibility(useStandardHandles and manualPlaneNormal)
+        # Rotating the plane about its own normal (the blue z handle) never changes the cut,
+        # and the free in-plane (view plane) rotation ring is redundant with the x/y rings,
+        # so both are always hidden.
+        displayNode.SetRotationHandleComponentVisibility(True, True, False, False)
         displayNode.SetTranslationHandleVisibility(useStandardHandles)
+        if manualPlaneOrigin:
+            displayNode.SetTranslationHandleComponentVisibility(True, True, True, True)
+        else:
+            # The origin is locked onto the centerline: in-plane (x/y) translation would be
+            # immediately undone, so only sliding along the normal axis remains available.
+            displayNode.SetTranslationHandleComponentVisibility(False, False, True, True)
         displayNode.SetScaleHandleVisibility(False)
     if normalHandleNode:
         normalHandleNode.SetDisplayVisibility(self._planeEditing and useFreeNormalHandle)
 
   def snapOriginToCenterline(self, origin):
-    """Return origin snapped onto the input centerline, or origin unchanged if centerline
-    snapping is disabled, no centerline is set, or the centerline has no points."""
-    if not self.ui.snapClipPointsToCenterlineCheckBox.checked:
+    """Return origin snapped onto the input centerline, or origin unchanged if manual origin
+    adjustment is enabled for the active point, global centerline snapping is disabled, no
+    centerline is set, or the centerline has no points."""
+    if self.ui.enableManualPlaneOrigin.checked or not self.ui.snapClipPointsToCenterlineCheckBox.checked:
         return origin
     centerlinesNode = self._parameterNode.GetNodeReference("InputCenterlines")
     if not centerlinesNode:
@@ -466,17 +569,29 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     snappedOrigin = self.logic.closestPointOnCenterline(centerlinesNode, origin)
     return snappedOrigin if snappedOrigin is not None else origin
 
+  def snapNormalToCenterline(self, origin, normal):
+    """Return the centerline direction (oriented toward the branch end) at origin, or normal
+    unchanged if manual normal adjustment is enabled for the active point."""
+    if self.ui.enableManualPlaneNormal.checked:
+        return normal
+    centerlinesNode = self._parameterNode.GetNodeReference("InputCenterlines")
+    if not centerlinesNode:
+        return normal
+    snappedNormal = self.logic.centerlineDirectionAtPosition(centerlinesNode, origin)
+    return list(snappedNormal) if snappedNormal is not None else normal
+
   def updateClipPointsSnapMode(self):
-    """When centerline-snapping is enabled, custom logic in onClipPointModified() takes over
-    positioning, so the native display-node snap mode is left unconstrained. When disabled,
-    fall back to Slicer's built-in snap-to-visible-surface behavior."""
+    """While clip points follow the centerline (global snapping enabled and no manual origin
+    adjustment for the active point), custom logic in onClipPointModified() takes over
+    positioning, so the native display-node snap mode is left unconstrained. Otherwise fall
+    back to Slicer's built-in snap-to-visible-surface behavior."""
     clipPointsNode = self._observedClipPointsNode
     if not clipPointsNode:
         return
     displayNode = clipPointsNode.GetDisplayNode()
     if not displayNode:
         return
-    if self.ui.snapClipPointsToCenterlineCheckBox.checked:
+    if not self.ui.enableManualPlaneOrigin.checked and self.ui.snapClipPointsToCenterlineCheckBox.checked:
         displayNode.SetSnapMode(slicer.vtkMRMLMarkupsDisplayNode.SnapModeUnconstrained)
     else:
         displayNode.SetSnapMode(slicer.vtkMRMLMarkupsDisplayNode.SnapModeToVisibleSurface)
@@ -560,6 +675,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         normalHandleNode.SetDisplayVisibility(False)
     self._activeClipPointIndex = -1
     self._planeEditing = False
+    self.updateManualPlaneButtonStates()
     self.ui.finishPlaneEditingButton.enabled = False
     self.ui.clipStatusLabel.text = _("Plane editing finished. Click a clip point to edit another plane.")
     self.ui.clipStatusLabel.styleSheet = ""
@@ -675,12 +791,18 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     self._activeClipPointIndex = pointIndex
     self._planeEditing = True
+    # Reflect this point's stored manual-override state in the snap buttons before the
+    # handle visibility (which depends on the button states) is updated below.
+    self.updateManualPlaneButtonStates()
     self._updatingInteractivePlane = True  # suppress re-entrant modified events during setup
     wasModify = planeNode.StartModify()
     planeNode.RemoveAllControlPoints()
     planeNode.SetPlaneType(slicer.vtkMRMLMarkupsPlaneNode.PlaneTypePointNormal)
     planeNode.AddControlPointWorld(vtk.vtkVector3d(origin))
     planeNode.SetNormalWorld(normal)
+    # Inside a StartModify batch, SetNormalWorld resets the plane's not-yet-synchronized
+    # origin (the control point just added above) to (0,0,0); restore it explicitly.
+    planeNode.SetOriginWorld(origin)
     # Purely cosmetic: the rendered rectangle's size has no effect on the actual cut, which is
     # now an infinite plane bounded only by mesh connectivity.
     planeNode.SetSize(radius * 4.0, radius * 4.0)
@@ -714,12 +836,18 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # plane lands here instead of in onClipPointModified; snap it the same way so it stays on the
     # centerline rather than being pulled onto the input surface.
     origin = self.snapOriginToCenterline(origin)
+    normal = self.snapNormalToCenterline(origin, normal)
     pointId = clipPointsNode.GetNthControlPointID(self._activeClipPointIndex)
-    self._manualPlaneOrigins[pointId] = list(origin)
-    self._manualPlaneNormals[pointId] = list(normal)
+    # Only points with manual adjustment enabled carry an override; the other points always
+    # derive their plane from the centerline.
+    if self.ui.enableManualPlaneOrigin.checked:
+        self._manualPlaneOrigins[pointId] = list(origin)
+    if self.ui.enableManualPlaneNormal.checked:
+        self._manualPlaneNormals[pointId] = list(normal)
     self._updatingInteractivePlane = True  # suppress re-entrant modified events from our writes
     clipPointsNode.SetNthControlPointPositionWorld(self._activeClipPointIndex, origin)
     caller.SetOriginWorld(origin)  # keep the plane on the snapped origin too
+    caller.SetNormalWorld(normal)  # keep the plane orientation snapped too
     self.repositionNormalHandle(origin, normal)
     self._updatingInteractivePlane = False
 
@@ -739,6 +867,10 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     planeNode.SetOriginWorld(origin)
     normal = [0.0, 0.0, 1.0]
     planeNode.GetNormalWorld(normal)
+    # Keep the plane orientation locked to the centerline while the point slides along it
+    # (no-op when orientation snapping is disabled).
+    normal = self.snapNormalToCenterline(origin, normal)
+    planeNode.SetNormalWorld(normal)
     self.repositionNormalHandle(origin, normal)
     self._updatingInteractivePlane = False
 
@@ -759,9 +891,13 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Handle dragged onto the origin: ignore, keep the previous normal.
         return
     vtk.vtkMath.Normalize(normal)
+    # With orientation snapping enabled the handle only adjusts its own distance; the plane
+    # normal stays locked to the centerline and the handle is pulled back onto that axis.
+    normal = self.snapNormalToCenterline(origin, normal)
     self._normalHandleDistance = length
     self._updatingInteractivePlane = True
     planeNode.SetNormalWorld(normal)
+    self.repositionNormalHandle(origin, normal)
     self._updatingInteractivePlane = False
 
   def onNormalHandleInteractionEnded(self, caller=None, event=None):
@@ -771,8 +907,10 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     if clipPointsNode and planeNode and 0 <= self._activeClipPointIndex < clipPointsNode.GetNumberOfControlPoints():
         pointId = clipPointsNode.GetNthControlPointID(self._activeClipPointIndex)
         origin, normal = self.logic.manualPlaneOriginNormal(planeNode)
-        self._manualPlaneOrigins[pointId] = list(origin)
-        self._manualPlaneNormals[pointId] = list(normal)
+        if self.ui.enableManualPlaneOrigin.checked:
+            self._manualPlaneOrigins[pointId] = list(origin)
+        if self.ui.enableManualPlaneNormal.checked:
+            self._manualPlaneNormals[pointId] = list(normal)
         self.saveManualPlaneNormals()
     self.scheduleAutoApply()
 
@@ -1161,6 +1299,22 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
     if pointId < 0:
         return None
     return centerlines.GetPoint(pointId)
+
+  def centerlineDirectionAtPosition(self, centerlinesNode, position):
+    """Centerline tangent (oriented toward the branch end) at the centerline point closest to
+    position, or None if the centerline has no points or no tangent information."""
+    centerlines = self.getCachedCenterlineGeometry(centerlinesNode)
+    tangentArray = centerlines.GetPointData().GetArray("FrenetTangent")
+    if centerlines.GetNumberOfPoints() == 0 or tangentArray is None:
+        return None
+    locator = self.getCachedCenterlineLocator(centerlinesNode)
+    pointId = locator.FindClosestPoint(position)
+    if pointId < 0:
+        return None
+    normal = list(tangentArray.GetTuple3(pointId))
+    normal = self.orientNormalTowardBranchEnd(centerlines, centerlines.GetPoint(pointId), normal)
+    vtk.vtkMath.Normalize(normal)
+    return normal
 
   def clipModel(self, surface, planeOrigin, planeNormal, localRadius=None, clippingMethod="PLANE_PATCH", sphereRadiusFactor=2.5):
     """Remove the end region of the vessel beyond a single plane. planeNormal should point

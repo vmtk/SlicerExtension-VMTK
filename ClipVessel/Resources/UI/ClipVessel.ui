@@ -27,7 +27,7 @@
        </property>
        <property name="nodeTypes">
         <stringlist>
-         <string notr="true">vtkMRMLScriptedModuleNode</string>
+         <string>vtkMRMLScriptedModuleNode</string>
         </stringlist>
        </property>
        <property name="showHidden">
@@ -65,8 +65,8 @@
           </property>
           <property name="nodeTypes">
            <stringlist>
-            <string notr="true">vtkMRMLModelNode</string>
-            <string notr="true">vtkMRMLSegmentationNode</string>
+            <string>vtkMRMLModelNode</string>
+            <string>vtkMRMLSegmentationNode</string>
            </stringlist>
           </property>
           <property name="showChildNodeTypes">
@@ -133,7 +133,7 @@
           </property>
           <property name="nodeTypes">
            <stringlist>
-            <string notr="true">vtkMRMLModelNode</string>
+            <string>vtkMRMLModelNode</string>
            </stringlist>
           </property>
           <property name="showChildNodeTypes">
@@ -186,6 +186,16 @@
       </item>
       <item row="3" column="1">
        <layout class="QGridLayout" name="gridLayout">
+        <item row="1" column="0">
+         <widget class="QPushButton" name="detectClipPointsButton">
+          <property name="toolTip">
+           <string>Replace the clip points above with one point per centerline terminus (the inlet and every branch outlet), each pulled inward from the vessel surface so the clip plane is positioned correctly without manual dragging.</string>
+          </property>
+          <property name="text">
+           <string>Auto-detect from centerline</string>
+          </property>
+         </widget>
+        </item>
         <item row="0" column="0" colspan="2">
          <widget class="qMRMLNodeComboBox" name="clipPointsMarkupsSelector">
           <property name="toolTip">
@@ -193,7 +203,7 @@
           </property>
           <property name="nodeTypes">
            <stringlist>
-            <string notr="true">vtkMRMLMarkupsFiducialNode</string>
+            <string>vtkMRMLMarkupsFiducialNode</string>
            </stringlist>
           </property>
           <property name="showChildNodeTypes">
@@ -219,6 +229,19 @@
           </property>
          </widget>
         </item>
+        <item row="1" column="1">
+         <widget class="qSlicerMarkupsPlaceWidget" name="clipPointsMarkupsPlaceWidget"/>
+        </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="clipPlaneInstructionsLabel">
+          <property name="text">
+           <string>Click point to adjust clip plane.</string>
+          </property>
+          <property name="wordWrap">
+           <bool>false</bool>
+          </property>
+         </widget>
+        </item>
         <item row="0" column="2">
          <widget class="QToolButton" name="toggleClipPointsVisibilityButton">
           <property name="enabled">
@@ -241,38 +264,57 @@
           </property>
          </widget>
         </item>
-        <item row="1" column="0">
-         <widget class="QPushButton" name="detectClipPointsButton">
-          <property name="toolTip">
-           <string>Replace the clip points above with one point per centerline terminus (the inlet and every branch outlet), each pulled inward from the vessel surface so the clip plane is positioned correctly without manual dragging.</string>
-          </property>
-          <property name="text">
-           <string>Auto-detect from centerline</string>
-          </property>
-         </widget>
-        </item>
-        <item row="2" column="0">
-         <widget class="QLabel" name="clipPlaneInstructionsLabel">
-          <property name="text">
-           <string>Click point to adjust clip plane.</string>
-          </property>
-          <property name="wordWrap">
-           <bool>false</bool>
-          </property>
-         </widget>
-        </item>
         <item row="2" column="1">
-         <widget class="QPushButton" name="finishPlaneEditingButton">
-          <property name="enabled">
-           <bool>false</bool>
-          </property>
-          <property name="text">
-           <string>Finish plane editing</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="1">
-         <widget class="qSlicerMarkupsPlaceWidget" name="clipPointsMarkupsPlaceWidget"/>
+         <layout class="QHBoxLayout" name="horizontalLayout_2">
+          <item>
+           <widget class="QPushButton" name="enableManualPlaneOrigin">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="toolTip">
+             <string>Adjust the position of the selected clip point (the plane origin) manually; dragged clip points then snap to the visible surface. When not pressed, the clip point is snapped onto the centerline.</string>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+            <property name="checked">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="enableManualPlaneNormal">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="toolTip">
+             <string>Rotate the selected clip plane manually. When not pressed, the plane normal follows the centerline direction at the clip position.</string>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+            <property name="checkable">
+             <bool>true</bool>
+            </property>
+            <property name="checked">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="finishPlaneEditingButton">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="text">
+             <string>Finish plane editing</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </item>
        </layout>
       </item>
@@ -307,7 +349,7 @@
           </property>
           <property name="nodeTypes">
            <stringlist>
-            <string notr="true">vtkMRMLModelNode</string>
+            <string>vtkMRMLModelNode</string>
            </stringlist>
           </property>
           <property name="showChildNodeTypes">
@@ -528,7 +570,7 @@
       <item row="3" column="1">
        <widget class="QCheckBox" name="snapClipPointsToCenterlineCheckBox">
         <property name="toolTip">
-         <string>While dragging a clip point, snap it onto the centerline model. When unchecked, clip points snap to the visible surface model instead.</string>
+         <string>While dragging a clip point, snap it onto the centerline model. When unchecked, clip points snap to the visible surface model instead. Does not affect clip points whose position is adjusted manually.</string>
         </property>
         <property name="text">
          <string/>
@@ -741,7 +783,7 @@
         </property>
         <property name="nodeTypes">
          <stringlist>
-          <string notr="true">vtkMRMLModelNode</string>
+          <string>vtkMRMLModelNode</string>
          </stringlist>
         </property>
         <property name="showChildNodeTypes">
@@ -816,6 +858,27 @@
  </widget>
  <customwidgets>
   <customwidget>
+   <class>ctkCheckablePushButton</class>
+   <extends>ctkPushButton</extends>
+   <header>ctkCheckablePushButton.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ctkCollapsibleButton</class>
+   <extends>QWidget</extends>
+   <header>ctkCollapsibleButton.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ctkPushButton</class>
+   <extends>QPushButton</extends>
+   <header>ctkPushButton.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ctkSliderWidget</class>
+   <extends>QWidget</extends>
+   <header>ctkSliderWidget.h</header>
+  </customwidget>
+  <customwidget>
    <class>qMRMLNodeComboBox</class>
    <extends>QWidget</extends>
    <header>qMRMLNodeComboBox.h</header>
@@ -841,27 +904,6 @@
    <class>qMRMLSegmentSelectorWidget</class>
    <extends>qMRMLWidget</extends>
    <header>qMRMLSegmentSelectorWidget.h</header>
-  </customwidget>
-  <customwidget>
-   <class>ctkCheckablePushButton</class>
-   <extends>ctkPushButton</extends>
-   <header>ctkCheckablePushButton.h</header>
-  </customwidget>
-  <customwidget>
-   <class>ctkCollapsibleButton</class>
-   <extends>QWidget</extends>
-   <header>ctkCollapsibleButton.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>ctkPushButton</class>
-   <extends>QPushButton</extends>
-   <header>ctkPushButton.h</header>
-  </customwidget>
-  <customwidget>
-   <class>ctkSliderWidget</class>
-   <extends>QWidget</extends>
-   <header>ctkSliderWidget.h</header>
   </customwidget>
  </customwidgets>
  <resources/>
