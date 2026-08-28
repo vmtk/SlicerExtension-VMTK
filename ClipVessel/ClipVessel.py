@@ -75,6 +75,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self._updatingInteractivePlane = False
     self._manualPlaneNormals = {}
     self._manualPlaneOrigins = {}
+    self._extensionLengthScaleFactors = {}
     self._normalHandleDistance = 1.0
     self._planeEditing = False
     self._updatingManualPlaneButtons = False
@@ -161,6 +162,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.snapClipPointsToCenterlineCheckBox.connect("toggled(bool)", self.onSnapClipPointsToCenterlineToggled)
     self.ui.enableManualPlaneOrigin.connect("toggled(bool)", self.onEnableManualPlaneOriginToggled)
     self.ui.enableManualPlaneNormal.connect("toggled(bool)", self.onEnableManualPlaneNormalToggled)
+    self.ui.extensionScaleWidget.connect('valueChanged(double)', self.onExtensionScaleChanged)
     self.ui.enableManualPlaneOrigin.setIcon(qt.QIcon(self.resourcePath('Icons/ManualPlaneOrigin.svg')))
     self.ui.enableManualPlaneNormal.setIcon(qt.QIcon(self.resourcePath('Icons/ManualPlaneNormal.svg')))
     self.ui.toggleOutputVisibilityButton.connect("toggled(bool)", self.onToggleOutputVisibilityButton)
@@ -229,6 +231,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     if inputParameterNode:
         self._manualPlaneNormals = self.manualPlaneNormalsFromParameterNode()
         self._manualPlaneOrigins = self.manualPlaneOriginsFromParameterNode()
+        self._extensionLengthScaleFactors = self.extensionScaleFactorsFromParameterNode()
         self.observeInteractivePlaneNode(inputParameterNode.GetNodeReference("ManualClipPlane"))
         self.observeNormalHandleNode(inputParameterNode.GetNodeReference("ManualClipPlaneNormalHandle"))
 
@@ -289,7 +292,11 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     self.ui.subdivideInputSurfaceModelCheckBox.checked = (self._parameterNode.GetParameter("SubdivideInputSurface") == "true")
     self.ui.capOutputSurfaceModelCheckBox.checked = (self._parameterNode.GetParameter("CapOutputSurface") == "true")    
-    self.ui.addFlowExtensionsCheckBox.checked = (self._parameterNode.GetParameter("ExtendOutputSurface") == "true")    
+    addFlowExtensions = (self._parameterNode.GetParameter("ExtendOutputSurface") == "true")
+    self.ui.addFlowExtensionsCheckBox.checked = addFlowExtensions
+    # The per-endpoint extension length scale only has an effect when flow extensions are added.
+    self.ui.extensionScaleLabel.setVisible(addFlowExtensions)
+    self.ui.extensionScaleWidget.setVisible(addFlowExtensions)
     self.ui.extensionRatioWidget.value = float(self._parameterNode.GetParameter("ExtensionRatio"))
     self.ui.transitionRatioWidget.value = float(self._parameterNode.GetParameter("ExtensionTransitionRatio"))
     extensionModeIndex = self.ui.extensionModeComboBox.findData(_normalizedModeId(self._parameterNode.GetParameter("ExtensionMode")))
@@ -518,18 +525,39 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.scheduleAutoApply()
 
   def updateManualPlaneButtonStates(self):
-    """Sync the manual-adjustment buttons with the active clip point: a button is pressed
-    when the point has a manual override in the corresponding list (released means the plane
-    follows the centerline), and the buttons are only enabled while a clip plane is being
-    edited."""
+    """Sync the manual-adjustment buttons and the per-endpoint extension length scale slider
+    with the active clip point: a button is pressed when the point has a manual override in
+    the corresponding list (released means the plane follows the centerline), the slider shows
+    the point's extension length scale factor (1.0 when it has none), and the widgets are only
+    enabled while a clip plane is being edited."""
     pointId = self.activeClipPointId() if self._planeEditing else None
     self.ui.enableManualPlaneOrigin.enabled = pointId is not None
     self.ui.enableManualPlaneNormal.enabled = pointId is not None
+    self.ui.extensionScaleWidget.enabled = pointId is not None
     self._updatingManualPlaneButtons = True
     self.ui.enableManualPlaneOrigin.checked = pointId is not None and pointId in self._manualPlaneOrigins
     self.ui.enableManualPlaneNormal.checked = pointId is not None and pointId in self._manualPlaneNormals
+    self.ui.extensionScaleWidget.value = self._extensionLengthScaleFactors.get(pointId, 1.0) if pointId is not None else 1.0
     self._updatingManualPlaneButtons = False
     self.updateClipPointsSnapMode()
+
+  def onExtensionScaleChanged(self, value=None):
+    if self.updatingGUIFromParameterNode or self._updatingManualPlaneButtons:
+        # The slider is being synchronized to the active point's stored factor, not moved by
+        # the user: don't modify the stored factors.
+        return
+    pointId = self.activeClipPointId() if self._planeEditing else None
+    if pointId is None:
+        return
+    scaleFactor = self.ui.extensionScaleWidget.value
+    if abs(scaleFactor - 1.0) < 1e-6:
+        # 1.0 is the neutral factor: store nothing so the endpoint keeps following the common
+        # extension length settings.
+        self._extensionLengthScaleFactors.pop(pointId, None)
+    else:
+        self._extensionLengthScaleFactors[pointId] = scaleFactor
+    self.saveManualPlaneNormals()
+    self.scheduleAutoApply()
 
   def onFreeNormalHandleToggled(self, checked=None):
     self.updateParameterNodeFromGUI()
@@ -748,10 +776,19 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         logging.warning("Ignoring invalid saved Clip Vessel plane origins")
         return {}
 
+  def extensionScaleFactorsFromParameterNode(self):
+    try:
+        factors = json.loads(self._parameterNode.GetParameter("ExtensionLengthScaleFactors") or "{}")
+        return {pointId: float(value) for pointId, value in factors.items()}
+    except (ValueError, TypeError):
+        logging.warning("Ignoring invalid saved Clip Vessel extension length scale factors")
+        return {}
+
   def saveManualPlaneNormals(self):
     if self._parameterNode:
         self._parameterNode.SetParameter("ManualClipPlaneNormals", json.dumps(self._manualPlaneNormals, separators=(",", ":")))
         self._parameterNode.SetParameter("ManualClipPlaneOrigins", json.dumps(self._manualPlaneOrigins, separators=(",", ":")))
+        self._parameterNode.SetParameter("ExtensionLengthScaleFactors", json.dumps(self._extensionLengthScaleFactors, separators=(",", ":")))
 
   def onClipPointInteractionStarted(self, caller=None, event=None):
     displayNode = caller.GetDisplayNode() if caller else None
@@ -1011,10 +1048,12 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         clipPointsNode.SetNthControlPointLabel(index, terminus["label"])
     clipPointsNode.EndModify(wasModify)
 
-    # Previously saved manual normal/origin overrides were keyed by the old (now removed)
-    # control point IDs; drop them so each new point starts from its own automatic plane.
+    # Previously saved manual normal/origin overrides and extension length scale factors were
+    # keyed by the old (now removed) control point IDs; drop them so each new point starts
+    # from its own automatic plane and the common extension length.
     self._manualPlaneNormals = {}
     self._manualPlaneOrigins = {}
+    self._extensionLengthScaleFactors = {}
     self.saveManualPlaneNormals()
 
     self.updateGUIFromParameterNode()
@@ -1127,7 +1166,8 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                                                cap, addFlowExtensions, extensionRatio, extensionMode,
                                                self._manualPlaneNormals, self._manualPlaneOrigins,
                                                self._activeClipPointIndex, clippingMethod, sphereRadiusFactor,
-                                               transitionRatio, interpolationMode, preserveCrossSectionShape)
+                                               transitionRatio, interpolationMode, preserveCrossSectionShape,
+                                               self._extensionLengthScaleFactors)
 
         outputModelNode.SetAndObserveMesh(outputPolyData)
         if not outputModelNode.GetDisplayNode():
@@ -1255,6 +1295,8 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
         parameterNode.SetParameter("ManualClipPlaneNormals", "{}")
     if not parameterNode.GetParameter("ManualClipPlaneOrigins"):
         parameterNode.SetParameter("ManualClipPlaneOrigins", "{}")
+    if not parameterNode.GetParameter("ExtensionLengthScaleFactors"):
+        parameterNode.SetParameter("ExtensionLengthScaleFactors", "{}")
     if not parameterNode.GetParameter("AutoApplyPlane"):
         parameterNode.SetParameter("AutoApplyPlane", "false")
     if not parameterNode.GetParameter("ClipPointInsetFactor"):
@@ -1806,7 +1848,8 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
     return polydata
         
   def extendVessel(self, surfacePolyData, centerlinesPolyData, extensionRatio, extensionMode,
-                   transitionRatio=None, interpolationMode=None, preserveCrossSectionShape=None):
+                   transitionRatio=None, interpolationMode=None, preserveCrossSectionShape=None,
+                   extensionLengthScaleFactors=None):
     """Adds flow extensions to all boundaries.
     :param extensionRatio: length of each extension, as a multiple of the mean radius of the
       boundary that it is attached to. Defaults to self.ExtensionRatio.
@@ -1818,6 +1861,9 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
     :param preserveCrossSectionShape: if enabled then the extension keeps the cross-sectional shape
       of the boundary that it grows from, instead of morphing it into a circle.
       Defaults to self.PreserveCrossSectionShape.
+    :param extensionLengthScaleFactors: optional per-boundary multipliers applied to the extension
+      length, indexed by boundary id (see computeBoundaryExtensionScaleFactors); None leaves all
+      extension lengths unscaled.
     """
     if extensionRatio is None:
         extensionRatio = self.ExtensionRatio
@@ -1837,6 +1883,11 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
     extensionsFilter.SetAdaptiveNumberOfBoundaryPoints(self.AdaptiveNumberOfBoundaryPoints)
     extensionsFilter.SetExtensionLength(self.ExtensionLength)
     extensionsFilter.SetExtensionRatio(float(extensionRatio))
+    if extensionLengthScaleFactors is not None:
+        scaleFactorsArray = vtk.vtkDoubleArray()
+        for scaleFactor in extensionLengthScaleFactors:
+            scaleFactorsArray.InsertNextValue(float(scaleFactor))
+        extensionsFilter.SetExtensionLengthScaleFactors(scaleFactorsArray)
     extensionsFilter.SetExtensionRadius(self.ExtensionRadius)
     extensionsFilter.SetTransitionRatio(transitionRatio)
     extensionsFilter.SetCenterlineNormalEstimationDistanceRatio(self.CenterlineNormalEstimationDistanceRatio)
@@ -1855,10 +1906,38 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
     extensionsFilter.Update()
     return extensionsFilter.GetOutput()
 
+  def computeBoundaryExtensionScaleFactors(self, surface, clipPointPositions, clipPointScaleFactors):
+    """Per-boundary extension length scale factors for the flow extensions filter.
+    Each open boundary of surface gets the scale factor of the clip point closest to the
+    boundary's barycenter. The boundaries are enumerated with the same boundary extractor that
+    vtkvmtkPolyDataFlowExtensionsFilter uses internally, so the indices of the returned list
+    match the boundary ids the filter assigns when surface is its input.
+    :param clipPointPositions: one position per clip point
+    :param clipPointScaleFactors: the corresponding scale factor of each clip point
+    :return: list with one scale factor per open boundary of surface, or None when there are
+      no clip points to map the boundaries to.
+    """
+    if not clipPointPositions:
+        return None
+    boundaryExtractor = vtkvmtkComputationalGeometry.vtkvmtkPolyDataBoundaryExtractor()
+    boundaryExtractor.SetInputData(surface)
+    boundaryExtractor.Update()
+    boundaries = boundaryExtractor.GetOutput()
+    boundaryScaleFactors = []
+    for boundaryIndex in range(boundaries.GetNumberOfCells()):
+        boundaryPoints = boundaries.GetCell(boundaryIndex).GetPoints()
+        barycenter = np.mean([boundaryPoints.GetPoint(pointIndex)
+                              for pointIndex in range(boundaryPoints.GetNumberOfPoints())], axis=0)
+        closestClipPointIndex = min(range(len(clipPointPositions)),
+            key=lambda index: vtk.vtkMath.Distance2BetweenPoints(barycenter, clipPointPositions[index]))
+        boundaryScaleFactors.append(float(clipPointScaleFactors[closestClipPointIndex]))
+    return boundaryScaleFactors
+
   def clipVessel(self, surfacePolyData, centerlinesNode, clipPointsMarkupsNode, cap, addFlowExtensions,
                  extensionRatio, extensionMode, manualClipPlaneNormals=None, manualClipPlaneOrigins=None,
                  interactivePointIndex=-1, clippingMethod="PLANE_PATCH", sphereRadiusFactor=2.5,
-                 transitionRatio=None, interpolationMode=None, preserveCrossSectionShape=None):
+                 transitionRatio=None, interpolationMode=None, preserveCrossSectionShape=None,
+                 extensionScaleFactors=None):
     """Clips the vessel.
     :param surfacePolyData: input surface
     :param centerlinesPolyData: input centerlines
@@ -1874,6 +1953,9 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
       the target one ("LINEAR", "RAMP" or "THIN_PLATE_SPLINE"); None uses the logic default
     :param preserveCrossSectionShape: if enabled then the flow extensions keep the cross-sectional
       shape of the vessel ends instead of morphing it into a circle; None uses the logic default
+    :param extensionScaleFactors: optional dict mapping clip point IDs (control point IDs of
+      clipPointsMarkupsNode) to a multiplier applied to the length of the flow extension grown
+      from that vessel end; ends without an entry keep the unscaled length
     :return: polydata containing clipped vessel
     """
 
@@ -1978,9 +2060,19 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
 
     if addFlowExtensions:
         slicer.util.showStatusMessage(_("Adding extensions..."))
-        slicer.app.processEvents() 
+        slicer.app.processEvents()
+        boundaryScaleFactors = None
+        if extensionScaleFactors and any(abs(scaleFactor - 1.0) > 1e-6 for scaleFactor in extensionScaleFactors.values()):
+            # The clip plane origins (with any manual overrides applied) are used as the clip
+            # point positions, so each open boundary is matched to the cut that created it.
+            clipPointScaleFactors = [
+                extensionScaleFactors.get(clipPointsMarkupsNode.GetNthControlPointID(specification["index"]), 1.0)
+                for specification in planeSpecifications]
+            boundaryScaleFactors = self.computeBoundaryExtensionScaleFactors(
+                surface, [specification["origin"] for specification in planeSpecifications], clipPointScaleFactors)
         surface = self.extendVessel(surface, centerlinesPolyData, extensionRatio, extensionMode,
-                                    transitionRatio, interpolationMode, preserveCrossSectionShape)
+                                    transitionRatio, interpolationMode, preserveCrossSectionShape,
+                                    boundaryScaleFactors)
 
     # Cap all the holes that are in the surface
     if cap:
@@ -2129,6 +2221,55 @@ class ClipVesselTest(ScriptedLoadableModuleTest):
         extendedModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode",
             "Clipped vessel (flow extensions, %s)" % description)
         extendedModelNode.SetAndObserveMesh(extendedPolyData)
+
+    # Clip once more with a per-endpoint extension length scale factor: only the inlet
+    # extension is scaled, the outlet extensions keep the common length.
+    inletScaleFactor = 2.5
+    inletPointId = clipPointsMarkupsNode.GetNthControlPointID(0)  # the first detected terminus is the inlet
+    self.delayDisplay("Clipping vessel with the inlet flow extension scaled %gx" % inletScaleFactor)
+    # The infinite-plane method is used so that each cut removes the entire end piece: the
+    # localized methods can leave slivers of the original vessel end (outside their local
+    # sphere) beyond the clip plane, which would corrupt the extension length measurement.
+    unscaledPolyData = clipVesselLogic.clipVessel(preprocessedPolyData, centerlineModelNode, clipPointsMarkupsNode,
+                                                  False, True, extensionRatio, extensionMode,
+                                                  clippingMethod="PLANE",
+                                                  transitionRatio=transitionRatio, interpolationMode="RAMP")
+    scaledPolyData = clipVesselLogic.clipVessel(preprocessedPolyData, centerlineModelNode, clipPointsMarkupsNode,
+                                                False, True, extensionRatio, extensionMode,
+                                                clippingMethod="PLANE",
+                                                transitionRatio=transitionRatio, interpolationMode="RAMP",
+                                                extensionScaleFactors={inletPointId: inletScaleFactor})
+    self.assertEqual(clipVesselLogic.lastUnclippedPoints, [])
+
+    def extensionTipDistance(polyData, origin, normal, radius):
+        """How far the surface reaches beyond a clip plane along its outward normal, within a
+        cylinder of twice the local vessel radius around the extension axis. The default
+        localized clipping method leaves distant parts of the vessel beyond the (infinite,
+        oblique) clip plane, so the reach may only be measured near the extension itself."""
+        offsets = vtk_to_numpy(polyData.GetPoints().GetData()) - np.asarray(origin)
+        heights = offsets.dot(np.asarray(normal))
+        lateralDistances = np.linalg.norm(offsets - np.outer(heights, np.asarray(normal)), axis=1)
+        return float(np.max(heights[lateralDistances < 2.0 * radius]))
+
+    # Each cut removed the local end region beyond its clip plane, so whatever reaches beyond
+    # the plane near the extension axis is that end's flow extension; the farthest such point
+    # measures its length.
+    for controlPointIndex in range(clipPointsMarkupsNode.GetNumberOfControlPoints()):
+        origin, normal, radius = clipVesselLogic.automaticClipPlane(centerlineModelNode, clipPointsMarkupsNode, controlPointIndex)
+        unscaledLength = extensionTipDistance(unscaledPolyData, origin, normal, radius)
+        scaledLength = extensionTipDistance(scaledPolyData, origin, normal, radius)
+        if controlPointIndex == 0:
+            # The inlet extension must be scaled by about the requested factor (extensions are
+            # built in whole layers, so the length only matches to within a layer).
+            self.assertGreater(scaledLength, 0.8 * inletScaleFactor * unscaledLength)
+            self.assertLess(scaledLength, 1.2 * inletScaleFactor * unscaledLength)
+        else:
+            # The outlet extensions must be unaffected by the inlet's scale factor.
+            self.assertAlmostEqual(scaledLength, unscaledLength, delta=0.01)
+    unscaledModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "Clipped vessel (unscaled extensions)")
+    unscaledModelNode.SetAndObserveMesh(unscaledPolyData)
+    scaledModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "Clipped vessel (inlet extension scaled)")
+    scaledModelNode.SetAndObserveMesh(scaledPolyData)
 
     # Show all models as surface with edges
     for modelNode in slicer.util.getNodesByClass("vtkMRMLModelNode"):

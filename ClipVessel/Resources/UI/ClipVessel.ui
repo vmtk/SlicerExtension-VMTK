@@ -264,6 +264,41 @@
           </property>
          </widget>
         </item>
+        <item row="3" column="0">
+         <widget class="QLabel" name="extensionScaleLabel">
+          <property name="text">
+           <string>Extension length scale:</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1" colspan="2">
+         <widget class="ctkSliderWidget" name="extensionScaleWidget">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Scale the length of the flow extension grown from the selected vessel endpoint, relative to the common extension length set in the Advanced section. Click a clip point to select the endpoint. 0 removes this endpoint's extension.</string>
+          </property>
+          <property name="decimals">
+           <number>2</number>
+          </property>
+          <property name="singleStep">
+           <double>0.100000000000000</double>
+          </property>
+          <property name="minimum">
+           <double>0.000000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>5.000000000000000</double>
+          </property>
+          <property name="value">
+           <double>1.000000000000000</double>
+          </property>
+          <property name="suffix">
+           <string notr="true"> x</string>
+          </property>
+         </widget>
+        </item>
         <item row="2" column="1">
          <layout class="QHBoxLayout" name="horizontalLayout_2">
           <item>
