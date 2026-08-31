@@ -499,6 +499,49 @@
         </property>
        </widget>
       </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="labelModelFacesLabel">
+        <property name="text">
+         <string>Label mesh faces:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QCheckBox" name="labelModelFacesCheckBox">
+        <property name="toolTip">
+         <string>Add a cell array to the output surface that tells the vessel wall and each cap apart by an integer id, for assigning CFD boundary conditions and for remeshing that keeps the face boundaries sharp. The wall gets id 1 and the cap of the first clip point id 2, the second id 3, and so on. If the input surface already carries face labels, those are kept: they are renumbered onto 1, 2, 3... and the wall and the caps follow after them.</string>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="checked">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="modelFaceIdArrayNameLabel">
+        <property name="text">
+         <string>Face id array name:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QLineEdit" name="modelFaceIdArrayNameLineEdit">
+        <property name="maximumSize">
+         <size>
+          <width>360</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <property name="toolTip">
+         <string>Name of the cell array that holds the face ids. "ModelFaceID" is the name SimVascular and its meshing tools expect.</string>
+        </property>
+        <property name="text">
+         <string>ModelFaceID</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
