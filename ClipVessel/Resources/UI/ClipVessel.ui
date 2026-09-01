@@ -480,13 +480,85 @@
        </widget>
       </item>
       <item row="2" column="0">
+       <widget class="QLabel" name="capMethodLabel">
+        <property name="text">
+         <string>Cap method:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QComboBox" name="capMethodComboBox">
+        <property name="toolTip">
+         <string>Shape of the mesh that closes each clipped end. "Center point" fans triangles out from the centre of the hole, "Simple" fills the hole with a flat polygon without adding points, and "Smooth" builds a rounded cap that follows the shape of the vessel at the cut.</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="capConstraintFactorLabel">
+        <property name="text">
+         <string>Cap roundness:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="ctkSliderWidget" name="capConstraintFactorWidget">
+        <property name="toolTip">
+         <string>How far the smooth cap bulges out of the plane of the cut, following the shape of the vessel at the rim. 0 (the default) keeps the cap in the plane of the cut, like the other capping methods; larger values give a progressively more domed cap.</string>
+        </property>
+        <property name="decimals">
+         <number>2</number>
+        </property>
+        <property name="singleStep">
+         <double>0.100000000000000</double>
+        </property>
+        <property name="minimum">
+         <double>0.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>3.000000000000000</double>
+        </property>
+        <property name="value">
+         <double>0.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="capNumberOfRingsLabel">
+        <property name="text">
+         <string>Cap rings:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="ctkSliderWidget" name="capNumberOfRingsWidget">
+        <property name="toolTip">
+         <string>Number of concentric rings of cells that make up a smooth cap. More rings give a finer cap mesh.</string>
+        </property>
+        <property name="decimals">
+         <number>0</number>
+        </property>
+        <property name="singleStep">
+         <double>1.000000000000000</double>
+        </property>
+        <property name="minimum">
+         <double>2.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>30.000000000000000</double>
+        </property>
+        <property name="value">
+         <double>8.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="0">
        <widget class="QLabel" name="label_13">
         <property name="text">
          <string>Add flow extensions:</string>
         </property>
        </widget>
       </item>
-      <item row="2" column="1">
+      <item row="5" column="1">
        <widget class="QCheckBox" name="addFlowExtensionsCheckBox">
         <property name="toolTip">
          <string>Check if flow extensions are desired.</string>
@@ -499,14 +571,14 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="0">
+      <item row="6" column="0">
        <widget class="QLabel" name="labelModelFacesLabel">
         <property name="text">
          <string>Label mesh faces:</string>
         </property>
        </widget>
       </item>
-      <item row="3" column="1">
+      <item row="6" column="1">
        <widget class="QCheckBox" name="labelModelFacesCheckBox">
         <property name="toolTip">
          <string>Add a cell array to the output surface that tells the vessel wall and each cap apart by an integer id, for assigning CFD boundary conditions and for remeshing that keeps the face boundaries sharp. The wall gets id 1 and the cap of the first clip point id 2, the second id 3, and so on. If the input surface already carries face labels, those are kept: they are renumbered onto 1, 2, 3... and the wall and the caps follow after them.</string>
@@ -519,14 +591,14 @@
         </property>
        </widget>
       </item>
-      <item row="4" column="0">
+      <item row="7" column="0">
        <widget class="QLabel" name="modelFaceIdArrayNameLabel">
         <property name="text">
          <string>Face id array name:</string>
         </property>
        </widget>
       </item>
-      <item row="4" column="1">
+      <item row="7" column="1">
        <widget class="QLineEdit" name="modelFaceIdArrayNameLineEdit">
         <property name="maximumSize">
          <size>

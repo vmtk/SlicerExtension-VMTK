@@ -29,6 +29,19 @@ _INTERPOLATION_MODE_IDS = ("LINEAR", "THIN_PLATE_SPLINE", "RAMP")
 # "ModelFaceID" is the name SimVascular and its meshing tools read the faces of a model by.
 _DEFAULT_MODEL_FACE_ID_ARRAY_NAME = "ModelFaceID"
 
+# Shape of the mesh that closes a clipped end, one VMTK capping filter each (the methods of the
+# vmtksurfacecapper script that apply to a surface with single, unpaired open boundaries).
+_CAP_METHOD_IDS = ("CENTERPOINT", "SIMPLE", "SMOOTH")
+_DEFAULT_CAP_METHOD = "CENTERPOINT"
+# Neither the simple nor the smooth capper triangulates what it makes - the first fills a
+# boundary with one polygon, the second with rings of quads - and the smooth one reads its input
+# as triangles.
+_CAP_METHODS_NEEDING_TRIANGLES = ("SIMPLE", "SMOOTH")
+# Bulge of a smooth cap out of the plane of the cut, as a fraction of an eighth of the diagonal
+# of the boundary. 0 keeps the cap in the plane of the cut, which is what the other two methods
+# do, so that switching to smooth only changes how the cap is meshed and not where it sits.
+_DEFAULT_CAP_CONSTRAINT_FACTOR = 0.0
+_DEFAULT_CAP_NUMBER_OF_RINGS = 8
 
 def _normalizedModeId(value):
     return _LEGACY_MODE_IDS.get(value, value)
@@ -143,6 +156,12 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     # Connections
     self.ui.capOutputSurfaceModelCheckBox.connect("toggled(bool)", self.updateParameterNodeFromGUI)
+    self.ui.capMethodComboBox.addItem(_("Center point"), "CENTERPOINT")
+    self.ui.capMethodComboBox.addItem(_("Simple"), "SIMPLE")
+    self.ui.capMethodComboBox.addItem(_("Smooth"), "SMOOTH")
+    self.ui.capMethodComboBox.connect('currentIndexChanged(int)', self.updateParameterNodeFromGUI)
+    self.ui.capConstraintFactorWidget.connect('valueChanged(double)', self.updateParameterNodeFromGUI)
+    self.ui.capNumberOfRingsWidget.connect('valueChanged(double)', self.updateParameterNodeFromGUI)
     self.ui.labelModelFacesCheckBox.connect("toggled(bool)", self.onLabelModelFacesToggled)
     self.ui.modelFaceIdArrayNameLineEdit.connect("editingFinished()", self.onModelFaceIdArrayNameEditingFinished)
     self.ui.addFlowExtensionsCheckBox.connect("toggled(bool)", self.updateParameterNodeFromGUI)
@@ -309,7 +328,19 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.preprocessInputSurfaceModelCheckBox.checked = (self._parameterNode.GetParameter("PreprocessInputSurface") == "true")
 
     self.ui.subdivideInputSurfaceModelCheckBox.checked = (self._parameterNode.GetParameter("SubdivideInputSurface") == "true")
-    self.ui.capOutputSurfaceModelCheckBox.checked = (self._parameterNode.GetParameter("CapOutputSurface") == "true")    
+    cap = (self._parameterNode.GetParameter("CapOutputSurface") == "true")
+    self.ui.capOutputSurfaceModelCheckBox.checked = cap
+    capMethod = self._parameterNode.GetParameter("CapMethod") or _DEFAULT_CAP_METHOD
+    capMethodIndex = self.ui.capMethodComboBox.findData(capMethod)
+    if capMethodIndex < 0:
+        # Unknown value (e.g. from a scene saved by a different version): fall back to the
+        # method the module has always used.
+        capMethodIndex = self.ui.capMethodComboBox.findData(_DEFAULT_CAP_METHOD)
+        capMethod = _DEFAULT_CAP_METHOD
+    self.ui.capMethodComboBox.currentIndex = capMethodIndex
+    self.ui.capConstraintFactorWidget.value = float(self._parameterNode.GetParameter("CapConstraintFactor"))
+    self.ui.capNumberOfRingsWidget.value = float(self._parameterNode.GetParameter("CapNumberOfRings"))
+    self.updateCapMethodUI(cap, capMethod)
     labelModelFaces = (self._parameterNode.GetParameter("LabelModelFaces") == "true")
     self.ui.labelModelFacesCheckBox.checked = labelModelFaces
     # Only write the line edit when it differs, so a GUI refresh does not move the text cursor.
@@ -428,6 +459,11 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     parameterNode.SetParameter("PreprocessInputSurface", "true" if self.ui.preprocessInputSurfaceModelCheckBox.checked else "false")
     parameterNode.SetParameter("SubdivideInputSurface", "true" if self.ui.subdivideInputSurfaceModelCheckBox.checked else "false")
     parameterNode.SetParameter("CapOutputSurface", "true" if self.ui.capOutputSurfaceModelCheckBox.checked else "false")
+    capMethod = self.ui.capMethodComboBox.currentData
+    if capMethod:
+        parameterNode.SetParameter("CapMethod", capMethod)
+    parameterNode.SetParameter("CapConstraintFactor", str(self.ui.capConstraintFactorWidget.value))
+    parameterNode.SetParameter("CapNumberOfRings", str(int(round(self.ui.capNumberOfRingsWidget.value))))
     parameterNode.SetParameter("LabelModelFaces", "true" if self.ui.labelModelFacesCheckBox.checked else "false")
     parameterNode.SetParameter("ExtendOutputSurface", "true" if self.ui.addFlowExtensionsCheckBox.checked else "false")
     parameterNode.SetParameter("ExtensionRatio", str(self.ui.extensionRatioWidget.value))
@@ -687,6 +723,17 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
   def onFreeNormalHandleToggled(self, checked=None):
     self.updateParameterNodeFromGUI()
     self.updatePlaneHandleMode()
+
+  def updateCapMethodUI(self, cap, capMethod):
+    """Show the cap method next to the cap checkbox, and the shape controls of the smooth
+    capper only when that method is the one selected."""
+    self.ui.capMethodLabel.setVisible(cap)
+    self.ui.capMethodComboBox.setVisible(cap)
+    smooth = cap and capMethod == "SMOOTH"
+    self.ui.capConstraintFactorLabel.setVisible(smooth)
+    self.ui.capConstraintFactorWidget.setVisible(smooth)
+    self.ui.capNumberOfRingsLabel.setVisible(smooth)
+    self.ui.capNumberOfRingsWidget.setVisible(smooth)
 
   def onClippingMethodChanged(self, index=None):
     self.updateParameterNodeFromGUI()
@@ -1326,6 +1373,9 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # Read processing options from the parameter node. The GUI may still be
             # synchronizing after a saved scene is restored.
             cap = self._parameterNode.GetParameter("CapOutputSurface") == "true"
+            capMethod = self._parameterNode.GetParameter("CapMethod") or _DEFAULT_CAP_METHOD
+            capConstraintFactor = float(self._parameterNode.GetParameter("CapConstraintFactor"))
+            capNumberOfRings = int(float(self._parameterNode.GetParameter("CapNumberOfRings")))
             labelModelFaces = self._parameterNode.GetParameter("LabelModelFaces") == "true"
             modelFaceIdArrayName = (self._parameterNode.GetParameter("ModelFaceIdArrayName")
                                     or _DEFAULT_MODEL_FACE_ID_ARRAY_NAME)
@@ -1345,7 +1395,8 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                                                    self._activeClipPointIndex, clippingMethod, sphereRadiusFactor,
                                                    transitionRatio, interpolationMode, preserveCrossSectionShape,
                                                    self._extensionLengthScaleFactors,
-                                                   labelModelFaces, modelFaceIdArrayName)
+                                                   labelModelFaces, modelFaceIdArrayName,
+                                                   capMethod, capConstraintFactor, capNumberOfRings)
 
             outputModelNode.SetAndObserveMesh(outputPolyData)
             if not outputModelNode.GetDisplayNode():
@@ -1488,6 +1539,12 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
         parameterNode.SetParameter("SubdivideInputSurface", "false")
     if not parameterNode.GetParameter("CapOutputSurface"):
         parameterNode.SetParameter("CapOutputSurface", "true")
+    if parameterNode.GetParameter("CapMethod") not in _CAP_METHOD_IDS:
+        parameterNode.SetParameter("CapMethod", _DEFAULT_CAP_METHOD)
+    if not parameterNode.GetParameter("CapConstraintFactor"):
+        parameterNode.SetParameter("CapConstraintFactor", str(_DEFAULT_CAP_CONSTRAINT_FACTOR))
+    if not parameterNode.GetParameter("CapNumberOfRings"):
+        parameterNode.SetParameter("CapNumberOfRings", str(_DEFAULT_CAP_NUMBER_OF_RINGS))
     if not parameterNode.GetParameter("LabelModelFaces"):
         parameterNode.SetParameter("LabelModelFaces", "false")
     if not parameterNode.GetParameter("ModelFaceIdArrayName"):
@@ -1548,14 +1605,69 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
         logging.error("Surface can only be loaded from model or segmentation node")
         return None
             
+  @staticmethod
+  def triangulateSurface(surface):
+    """The surface with every cell split into triangles. Cell data is carried over to each
+    triangle a cell is split into, so cell arrays survive."""
+    triangleFilter = vtk.vtkTriangleFilter()
+    triangleFilter.SetInputData(surface)
+    triangleFilter.PassLinesOff()
+    triangleFilter.PassVertsOff()
+    triangleFilter.Update()
+    return triangleFilter.GetOutput()
+
+  @staticmethod
+  def orientSurfaceOutwards(surface):
+    """The surface with every cell wound so that its normal points out of the enclosed volume,
+    and with any normals array dropped. Two things about the capped surface would otherwise be
+    shaded wrongly, and the cappers differ in which of them they get right:
+      - the simple and smooth cappers wind their cap cells the opposite way round from the
+        vessel wall (the center point capper does not), so the caps come out lit from inside;
+      - the simple capper is the only one that carries the point data of the input over to its
+        output, and since it closes a boundary without adding any point, every vertex of its cap
+        is a boundary vertex whose normal is the one the vessel wall left there. The cap is then
+        shaded as though it were wall - the normals do not even face the same way across it.
+    Dropping the normals leaves the renderer to shade the surface by its geometry, which is what
+    it already does for the other two cappers. The cells keep their order, so cell arrays still
+    line up. Assumes the surface is closed, as it is once capped.
+    """
+    normalsFilter = vtk.vtkPolyDataNormals()
+    normalsFilter.SetInputData(surface)
+    # The consistency pass is what re-winds the cells, and the filter only runs it when it has
+    # normals to compute; the cell normals are the cheaper of the two and are dropped again.
+    normalsFilter.ComputePointNormalsOff()
+    normalsFilter.ComputeCellNormalsOn()
+    normalsFilter.ConsistencyOn()
+    normalsFilter.AutoOrientNormalsOn()
+    normalsFilter.SplittingOff()
+    normalsFilter.Update()
+    surface = normalsFilter.GetOutput()
+    for attributes in (surface.GetPointData(), surface.GetCellData()):
+        attributes.SetNormals(None)
+        attributes.RemoveArray("Normals")
+    return surface
+
   def capSurface(self, surface, cellEntityIdsArrayName=None, cellEntityIdOffset=0,
-                 boundaryCellEntityIds=None):
-    """Close every open boundary of the surface with a triangle fan. When cellEntityIdsArrayName
-    is set, the filter also tags each cell in a cell array of that name: input cells get
-    cellEntityIdOffset, and the cap closing the i-th boundary gets i+1+cellEntityIdOffset.
-    Caution: if the input already carries that array the filter keeps its values but still
-    numbers the caps from cellEntityIdOffset up, so new cap ids land on ids already in use -
-    clipVessel() passes a private array name for that reason.
+                 boundaryCellEntityIds=None,
+                 capMethod=_DEFAULT_CAP_METHOD,
+                 constraintFactor=_DEFAULT_CAP_CONSTRAINT_FACTOR,
+                 numberOfRings=_DEFAULT_CAP_NUMBER_OF_RINGS):
+    """Close every open boundary of the surface. capMethod picks the shape of the cap mesh, one
+    VMTK capping filter each:
+      "CENTERPOINT" - a fan of triangles from the barycenter of the hole (vtkvmtkCapPolyData)
+      "SIMPLE"      - a flat fill of the hole that adds no points (vtkvmtkSimpleCapPolyData)
+      "SMOOTH"      - a cap of concentric rings of cells (vtkvmtkSmoothCapPolyData);
+                      constraintFactor sets how far it bulges out of the plane of the cut,
+                      following the shape of the surface at the rim (0 keeps it in the plane),
+                      and numberOfRings how finely it is meshed
+    Whichever method is used, the output is triangulated, consistently oriented outwards and
+    free of the stale normals that would otherwise shade the caps wrongly.
+
+    When cellEntityIdsArrayName is set, the filter also tags each cell in a cell array of that
+    name: input cells get cellEntityIdOffset, and the cap closing the i-th boundary gets
+    i+1+cellEntityIdOffset. Caution: if the input already carries that array the filter keeps
+    its values but still numbers the caps from cellEntityIdOffset up, so new cap ids land on ids
+    already in use - clipVessel() passes a private array name for that reason.
 
     boundaryCellEntityIds gives the id to put on the cap of each boundary, indexed by boundary id,
     in place of the i+1+cellEntityIdOffset that the extraction order would otherwise give it. On a
@@ -1563,17 +1675,39 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
     id is its label, which is the index of the clip point that opened it, so entry i is the id for
     the cap of clip point i. On a surface without them it is the boundary's position in the
     extraction order. An entry of -1, or a boundary with no entry at all, keeps the positional id.
+    All three cappers read the labels, so the ids mean the same thing whichever method is chosen.
+
+    Caution: the simple and smooth cappers need a triangulated input to leave the cells of the
+    input alone (see _CAP_METHODS_NEEDING_TRIANGLES); callers that match cells of the output up
+    with cells of the input must triangulate before calling.
     """
-    capDisplacement = 0.0
-    surfaceCapper = vtkvmtkComputationalGeometry.vtkvmtkCapPolyData()
-    surfaceCapper.SetInputData(surface)
-    surfaceCapper.SetDisplacement(capDisplacement)
-    surfaceCapper.SetInPlaneDisplacement(capDisplacement)
+    if capMethod not in _CAP_METHOD_IDS:
+        logging.warning("Unknown cap method %s, capping with %s instead.", capMethod, _DEFAULT_CAP_METHOD)
+        capMethod = _DEFAULT_CAP_METHOD
+
+    if capMethod == "CENTERPOINT":
+        capDisplacement = 0.0
+        surfaceCapper = vtkvmtkComputationalGeometry.vtkvmtkCapPolyData()
+        surfaceCapper.SetInputData(surface)
+        surfaceCapper.SetDisplacement(capDisplacement)
+        surfaceCapper.SetInPlaneDisplacement(capDisplacement)
+    else:
+        import vtkvmtkMiscPython as vtkvmtkMisc
+        if capMethod == "SIMPLE":
+            surfaceCapper = vtkvmtkMisc.vtkvmtkSimpleCapPolyData()
+        else:
+            surfaceCapper = vtkvmtkMisc.vtkvmtkSmoothCapPolyData()
+            surfaceCapper.SetConstraintFactor(constraintFactor)
+            surfaceCapper.SetNumberOfRings(max(2, int(numberOfRings)))
+        surfaceCapper.SetInputData(surface)
+
     if surface.GetPointData().GetArray(self.boundaryLabelsArrayName) is not None:
         # Read the boundaries from the labels rather than extracting them again, which is what
-        # makes a boundary id here mean the clip point that opened it.
+        # makes a boundary id here mean the clip point that opened it. Every capper reads them,
+        # so the choice of method does not change which cut a cap is named after.
         surfaceCapper.SetBoundaryLabelsArrayName(self.boundaryLabelsArrayName)
         surfaceCapper.SetBoundaryPointOrderArrayName(self.boundaryPointOrderArrayName)
+
     if cellEntityIdsArrayName:
         surfaceCapper.SetCellEntityIdsArrayName(cellEntityIdsArrayName)
         surfaceCapper.SetCellEntityIdOffset(cellEntityIdOffset)
@@ -1586,6 +1720,15 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
             surfaceCapper.SetBoundaryCellEntityIds(cellEntityIdArray)
     surfaceCapper.Update()
     surface = surfaceCapper.GetOutput()
+
+    if capMethod in _CAP_METHODS_NEEDING_TRIANGLES:
+        # The caps are polygons (simple) or quads (smooth); the rest of the pipeline, and
+        # anything reading the output as a surface mesh, expects triangles throughout.
+        surface = self.triangulateSurface(surface)
+
+    # Two of the three cappers wind their caps inwards; a no-op for the third.
+    surface = self.orientSurfaceOutwards(surface)
+
     return surface
 
   # Carries the capping filter's per-boundary ids from capSurface() to labelModelFaces(). The
@@ -2455,7 +2598,10 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
                  interactivePointIndex=-1, clippingMethod="PLANE_PATCH", sphereRadiusFactor=2.5,
                  transitionRatio=None, interpolationMode=None, preserveCrossSectionShape=None,
                  extensionScaleFactors=None,
-                 labelModelFaces=False, modelFaceIdArrayName=_DEFAULT_MODEL_FACE_ID_ARRAY_NAME):
+                 labelModelFaces=False, modelFaceIdArrayName=_DEFAULT_MODEL_FACE_ID_ARRAY_NAME,
+                 capMethod=_DEFAULT_CAP_METHOD,
+                 capConstraintFactor=_DEFAULT_CAP_CONSTRAINT_FACTOR,
+                 capNumberOfRings=_DEFAULT_CAP_NUMBER_OF_RINGS):
     """Clips the vessel.
     :param surfacePolyData: input surface
     :param centerlinesPolyData: input centerlines
@@ -2477,6 +2623,10 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
     :param labelModelFaces: if enabled then every output cell is tagged with an integer face id
       (wall vs. one id per cap) in the modelFaceIdArrayName cell array; see labelModelFaces()
     :param modelFaceIdArrayName: name of the cell array that holds the face ids
+    :param capMethod: shape of the cap mesh, "CENTERPOINT", "SIMPLE" or "SMOOTH"; see capSurface()
+    :param capConstraintFactor: how far a "SMOOTH" cap bulges out of the plane of the cut, 0 for
+      a cap that stays in it
+    :param capNumberOfRings: number of rings of cells a "SMOOTH" cap is made of
     :return: polydata containing clipped vessel
     """
 
@@ -2626,6 +2776,12 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
             transitionRatio, interpolationMode, preserveCrossSectionShape,
             boundaryScaleFactors)
 
+    if cap and capMethod in _CAP_METHODS_NEEDING_TRIANGLES:
+        # Ahead of the face ids being read, so that they still line up cell for cell with the
+        # surface that gets capped (vtkTriangleFilter carries cell data over to every triangle
+        # it splits a cell into).
+        surface = self.triangulateSurface(surface)
+
     faceIdArrayName = (modelFaceIdArrayName or "").strip() if labelModelFaces else ""
     if labelModelFaces and not faceIdArrayName:
         logging.warning("Clip Vessel skipped labeling the faces: no face id array name was given.")
@@ -2661,7 +2817,9 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
         # A private array, not the user's: on an input already carrying the user's array the
         # filter numbers the new caps on top of the existing ids (see capSurface).
         surface = self.capSurface(surface, self.capBoundaryIdsArrayName if faceIdArrayName else None,
-                                  wallCellEntityId, boundaryCellEntityIds)
+                                  wallCellEntityId, boundaryCellEntityIds,
+                                  capMethod=capMethod, constraintFactor=capConstraintFactor,
+                                  numberOfRings=capNumberOfRings)
 
     # After capping and extensions: extensions drop cell data, and the caps only exist once the
     # capper has made them.
@@ -2795,6 +2953,65 @@ class ClipVesselTest(ScriptedLoadableModuleTest):
         outputModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode",
             "Clipped vessel (%s)" % clippingMethod)
         outputModelNode.SetAndObserveMesh(outputPolyData)
+
+    # Clip once per capping method. Each must close the surface with outward facing triangles,
+    # and only a smooth cap given a nonzero roundness may reach out of the cut planes.
+    numberOfClipPointsForCaps = clipPointsMarkupsNode.GetNumberOfControlPoints()
+    capMethodDiagonals = {}
+    for capMethod, capRoundness in [("CENTERPOINT", 0.0), ("SIMPLE", 0.0), ("SMOOTH", 0.0), ("SMOOTH", 1.0)]:
+        description = capMethod if capMethod != "SMOOTH" else "%s, roundness %g" % (capMethod, capRoundness)
+        self.delayDisplay("Capping clipped vessel (%s)" % description)
+        cappedPolyData = clipVesselLogic.clipVessel(preprocessedPolyData, centerlineModelNode, clipPointsMarkupsNode,
+                                                    cap, addFlowExtensions, extensionRatio, extensionMode,
+                                                    clippingMethod="PLANE_PATCH", labelModelFaces=True,
+                                                    capMethod=capMethod, capConstraintFactor=capRoundness)
+        self.assertIsNotNone(cappedPolyData)
+        self.assertEqual(clipVesselLogic.lastUnclippedPoints, [])
+        self.assertEqual(clipVesselLogic.lastPlanarityFailures, [])
+        # Every cell must be a triangle, whichever capper made it
+        self.assertEqual(cappedPolyData.GetPolys().IsHomogeneous(), 3)
+        self.assertEqual(cappedPolyData.GetNumberOfCells(), cappedPolyData.GetNumberOfPolys())
+        # The caps must face the same way as the vessel wall: re-orienting the output must find
+        # nothing to re-wind. Two of the three cappers wind their caps inwards on their own, so
+        # without the fix in capSurface the caps would render as though lit from inside.
+        orientedCaps = vtk.vtkPolyDataNormals()
+        orientedCaps.SetInputData(cappedPolyData)
+        orientedCaps.ComputePointNormalsOff()
+        orientedCaps.ComputeCellNormalsOn()
+        orientedCaps.ConsistencyOn()
+        orientedCaps.AutoOrientNormalsOn()
+        orientedCaps.SplittingOff()
+        orientedCaps.Update()
+        self.assertTrue(np.array_equal(
+            vtk_to_numpy(cappedPolyData.GetPolys().GetConnectivityArray()),
+            vtk_to_numpy(orientedCaps.GetOutput().GetPolys().GetConnectivityArray())))
+        # No normals may survive capping either: the simple capper hands its cap vertices the
+        # normals the vessel wall left on them, which shades the cap as though it were wall.
+        for attributes in [cappedPolyData.GetPointData(), cappedPolyData.GetCellData()]:
+            self.assertIsNone(attributes.GetNormals())
+            self.assertIsNone(attributes.GetArray("Normals"))
+        # The caps must close the surface
+        boundaryEdges = vtk.vtkFeatureEdges()
+        boundaryEdges.SetInputData(cappedPolyData)
+        boundaryEdges.BoundaryEdgesOn()
+        boundaryEdges.FeatureEdgesOff()
+        boundaryEdges.NonManifoldEdgesOff()
+        boundaryEdges.ManifoldEdgesOff()
+        boundaryEdges.Update()
+        self.assertEqual(boundaryEdges.GetOutput().GetNumberOfCells(), 0)
+        # ...and each of them must be labeled as its own face, as with the default capper
+        capFaceIds = vtk_to_numpy(cappedPolyData.GetCellData().GetArray("ModelFaceID"))
+        self.assertEqual(set(int(value) for value in np.unique(capFaceIds)),
+                         set(range(1, numberOfClipPointsForCaps + 2)))
+        capMethodDiagonals[description] = vtk.vtkBoundingBox(cappedPolyData.GetBounds()).GetDiagonalLength()
+        cappedModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode",
+            "Clipped vessel (cap: %s)" % description)
+        cappedModelNode.SetAndObserveMesh(cappedPolyData)
+    # At the default roundness of 0 every method keeps its caps in the cut planes; only a
+    # nonzero roundness makes the smooth caps bulge out of them.
+    self.assertAlmostEqual(capMethodDiagonals["SIMPLE"], capMethodDiagonals["CENTERPOINT"], delta=0.01)
+    self.assertAlmostEqual(capMethodDiagonals["SMOOTH, roundness 0"], capMethodDiagonals["CENTERPOINT"], delta=0.01)
+    self.assertGreater(capMethodDiagonals["SMOOTH, roundness 1"], capMethodDiagonals["CENTERPOINT"])
 
     # Clip again with flow extensions added to the open vessel ends, once per interpolation mode,
     # and once more with the cross-section shape of the vessel ends preserved
