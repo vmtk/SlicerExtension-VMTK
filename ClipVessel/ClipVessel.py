@@ -2944,11 +2944,12 @@ class ClipVesselTest(ScriptedLoadableModuleTest):
             "Clipped vessel (%s)" % clippingMethod)
         outputModelNode.SetAndObserveMesh(outputPolyData)
 
-    # Clip once per capping method. Each must close the surface with outward facing triangles,
-    # and only a smooth cap given a nonzero roundness may reach out of the cut planes.
+    # Clip once per capping method. Each must close the surface with outward facing triangles.
+    # A cap of zero roundness is flat, whichever method made it; only a smooth cap given enough
+    # roundness domes out of the cut plane far enough to reach past the vessel itself.
     numberOfClipPointsForCaps = clipPointsMarkupsNode.GetNumberOfControlPoints()
     capMethodDiagonals = {}
-    for capMethod, capRoundness in [("CENTERPOINT", 0.0), ("SIMPLE", 0.0), ("SMOOTH", 0.0), ("SMOOTH", 1.0)]:
+    for capMethod, capRoundness in [("CENTERPOINT", 0.0), ("SIMPLE", 0.0), ("SMOOTH", 0.0), ("SMOOTH", 2.0)]:
         description = capMethod if capMethod != "SMOOTH" else "%s, roundness %g" % (capMethod, capRoundness)
         self.delayDisplay("Capping clipped vessel (%s)" % description)
         cappedPolyData = clipVesselLogic.clipVessel(preprocessedPolyData, centerlineModelNode, clipPointsMarkupsNode,
@@ -2993,15 +2994,38 @@ class ClipVesselTest(ScriptedLoadableModuleTest):
         capFaceIds = vtk_to_numpy(cappedPolyData.GetCellData().GetArray("ModelFaceID"))
         self.assertEqual(set(int(value) for value in np.unique(capFaceIds)),
                          set(range(1, numberOfClipPointsForCaps + 2)))
+        if capRoundness == 0.0:
+            # A cap of zero roundness is flat: every point of it lies in one plane, the plane of
+            # the cut it closes. Measured as the spread of the cap's points along the normal of
+            # their own best fit plane, against the width of the cap itself, so that it says
+            # "flat" rather than "small".
+            cappedPoints = vtk_to_numpy(cappedPolyData.GetPoints().GetData())
+            for capFaceId in range(2, numberOfClipPointsForCaps + 2):
+                capPointIds = set()
+                for cellId in np.nonzero(capFaceIds == capFaceId)[0]:
+                    cell = cappedPolyData.GetCell(int(cellId))
+                    for pointIndex in range(cell.GetNumberOfPoints()):
+                        capPointIds.add(cell.GetPointId(pointIndex))
+                self.assertGreater(len(capPointIds), 3, "cap %d has no cells" % capFaceId)
+                capPoints = cappedPoints[sorted(capPointIds)]
+                centered = capPoints - capPoints.mean(axis=0)
+                singularValues, rightVectors = np.linalg.svd(centered)[1:]
+                outOfPlane = np.abs(centered @ rightVectors[-1]).max()
+                capWidth = singularValues[0]
+                self.assertLess(outOfPlane, 0.01 * capWidth,
+                                "%s cap %d is %g out of plane across a width of %g"
+                                % (description, capFaceId, outOfPlane, capWidth))
         capMethodDiagonals[description] = vtk.vtkBoundingBox(cappedPolyData.GetBounds()).GetDiagonalLength()
         cappedModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode",
             "Clipped vessel (cap: %s)" % description)
         cappedModelNode.SetAndObserveMesh(cappedPolyData)
-    # At the default roundness of 0 every method keeps its caps in the cut planes; only a
-    # nonzero roundness makes the smooth caps bulge out of them.
+    # A flat cap adds nothing to the extent of the surface, whichever method made it, so all
+    # three agree with the centre point capper. Roundness is what changes that, and it has to be
+    # enough of it: a modest dome is still inside the bounding box of the vessel, which is set by
+    # the vessel rather than by its ends, so the box only grows once the cap reaches past it.
     self.assertAlmostEqual(capMethodDiagonals["SIMPLE"], capMethodDiagonals["CENTERPOINT"], delta=0.01)
     self.assertAlmostEqual(capMethodDiagonals["SMOOTH, roundness 0"], capMethodDiagonals["CENTERPOINT"], delta=0.01)
-    self.assertGreater(capMethodDiagonals["SMOOTH, roundness 1"], capMethodDiagonals["CENTERPOINT"])
+    self.assertGreater(capMethodDiagonals["SMOOTH, roundness 2"], capMethodDiagonals["CENTERPOINT"])
 
     # Clip again with flow extensions added to the open vessel ends, once per interpolation mode,
     # and once more with the cross-section shape of the vessel ends preserved
