@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>465</width>
-    <height>809</height>
+    <width>470</width>
+    <height>656</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
@@ -369,7 +369,7 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="0" colspan="2">
+      <item row="0" column="1">
        <layout class="QHBoxLayout" name="outputSurfaceRowLayout">
         <item>
          <widget class="qMRMLNodeComboBox" name="outputSurfaceModelSelector">
@@ -460,105 +460,13 @@
        </layout>
       </item>
       <item row="1" column="0">
-       <widget class="QLabel" name="capOutputSurfaceLabel">
-        <property name="text">
-         <string>Cap output surface:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="QCheckBox" name="capOutputSurfaceModelCheckBox">
-        <property name="toolTip">
-         <string>Cap the planar clipped ends of the output surface.</string>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="checked">
-         <bool>false</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="capMethodLabel">
-        <property name="text">
-         <string>Cap method:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="QComboBox" name="capMethodComboBox">
-        <property name="toolTip">
-         <string>Shape of the mesh that closes each clipped end. "Center point" fans triangles out from the centre of the hole, "Simple" fills the hole with a flat polygon without adding points, and "Smooth" builds a rounded cap that follows the shape of the vessel at the cut.</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="capConstraintFactorLabel">
-        <property name="text">
-         <string>Cap roundness:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="1">
-       <widget class="ctkSliderWidget" name="capConstraintFactorWidget">
-        <property name="toolTip">
-         <string>How far the smooth cap bulges out of the plane of the cut, following the shape of the vessel at the rim. 0 (the default) keeps the cap in the plane of the cut, like the other capping methods; larger values give a progressively more domed cap.</string>
-        </property>
-        <property name="decimals">
-         <number>2</number>
-        </property>
-        <property name="singleStep">
-         <double>0.100000000000000</double>
-        </property>
-        <property name="minimum">
-         <double>0.000000000000000</double>
-        </property>
-        <property name="maximum">
-         <double>3.000000000000000</double>
-        </property>
-        <property name="value">
-         <double>0.000000000000000</double>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="0">
-       <widget class="QLabel" name="capNumberOfRingsLabel">
-        <property name="text">
-         <string>Cap rings:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="1">
-       <widget class="ctkSliderWidget" name="capNumberOfRingsWidget">
-        <property name="toolTip">
-         <string>Number of concentric rings of cells that make up a smooth cap. More rings give a finer cap mesh.</string>
-        </property>
-        <property name="decimals">
-         <number>0</number>
-        </property>
-        <property name="singleStep">
-         <double>1.000000000000000</double>
-        </property>
-        <property name="minimum">
-         <double>2.000000000000000</double>
-        </property>
-        <property name="maximum">
-         <double>30.000000000000000</double>
-        </property>
-        <property name="value">
-         <double>8.000000000000000</double>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="0">
        <widget class="QLabel" name="label_13">
         <property name="text">
          <string>Add flow extensions:</string>
         </property>
        </widget>
       </item>
-      <item row="5" column="1">
+      <item row="1" column="1">
        <widget class="QCheckBox" name="addFlowExtensionsCheckBox">
         <property name="toolTip">
          <string>Check if flow extensions are desired.</string>
@@ -571,46 +479,23 @@
         </property>
        </widget>
       </item>
-      <item row="6" column="0">
-       <widget class="QLabel" name="labelModelFacesLabel">
+      <item row="2" column="0">
+       <widget class="QLabel" name="capOutputSurfaceLabel">
         <property name="text">
-         <string>Label mesh faces:</string>
+         <string>Cap output surface:</string>
         </property>
        </widget>
       </item>
-      <item row="6" column="1">
-       <widget class="QCheckBox" name="labelModelFacesCheckBox">
+      <item row="2" column="1">
+       <widget class="QCheckBox" name="capOutputSurfaceModelCheckBox">
         <property name="toolTip">
-         <string>Add a cell array to the output surface that tells the vessel wall and each cap apart by an integer id, for assigning CFD boundary conditions and for remeshing that keeps the face boundaries sharp. The wall gets id 1 and the cap of the first clip point id 2, the second id 3, and so on. If the input surface already carries face labels, those are kept: they are renumbered onto 1, 2, 3... and the wall and the caps follow after them.</string>
+         <string>Cap the planar clipped ends of the output surface.</string>
         </property>
         <property name="text">
          <string/>
         </property>
         <property name="checked">
          <bool>false</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="7" column="0">
-       <widget class="QLabel" name="modelFaceIdArrayNameLabel">
-        <property name="text">
-         <string>Face id array name:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="7" column="1">
-       <widget class="QLineEdit" name="modelFaceIdArrayNameLineEdit">
-        <property name="maximumSize">
-         <size>
-          <width>360</width>
-          <height>16777215</height>
-         </size>
-        </property>
-        <property name="toolTip">
-         <string>Name of the cell array that holds the face ids. "ModelFaceID" is the name SimVascular and its meshing tools expect.</string>
-        </property>
-        <property name="text">
-         <string>ModelFaceID</string>
         </property>
        </widget>
       </item>
@@ -625,416 +510,607 @@
      <property name="collapsed">
       <bool>true</bool>
      </property>
-     <layout class="QFormLayout" name="formLayout_3">
-      <item row="0" column="0">
-       <widget class="QLabel" name="clippingMethodLabel">
-        <property name="text">
-         <string>Clipping method:</string>
+     <layout class="QVBoxLayout" name="verticalLayout_2">
+      <item>
+       <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox_3">
+        <property name="title">
+         <string>Preprocess</string>
         </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QComboBox" name="clippingMethodComboBox">
-        <property name="toolTip">
-         <string>Plane cuts with an infinite plane (other branches the plane crosses are preserved by connectivity). Plane + sphere cuts with the intersection of the plane and a sphere around the clip point; this confines the cut but may leave a seam ring where the sphere crosses the vessel wall. Plane + patch confines the plane cut to the surface cells near the clip point without creating any seam. Box cuts with an open box whose base face lies in the cut plane; the cut is planar, but the box sides may leave seams if they touch other parts of the surface.</string>
-        </property>
-        <property name="editable">
-         <bool>false</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="localSphereRadiusFactorLabel">
-        <property name="text">
-         <string>Local sphere radius:</string>
-        </property>
-        <property name="indent">
-         <number>10</number>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
-       <widget class="ctkSliderWidget" name="localSphereRadiusFactorWidget">
-        <property name="toolTip">
-         <string>Size of the local region (sphere/patch radius or box half-width) as a multiple of the vessel radius at each clip point.</string>
-        </property>
-        <property name="decimals">
-         <number>1</number>
-        </property>
-        <property name="singleStep">
-         <double>0.100000000000000</double>
-        </property>
-        <property name="minimum">
-         <double>0.500000000000000</double>
-        </property>
-        <property name="maximum">
-         <double>10.000000000000000</double>
-        </property>
-        <property name="value">
-         <double>2.500000000000000</double>
-        </property>
-        <property name="suffix">
-         <string notr="true"> x</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="clipPointInsetLabel">
-        <property name="text">
-         <string>Clip point auto-detect inset:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="1">
-       <widget class="ctkSliderWidget" name="clipPointInsetFactorWidget">
-        <property name="toolTip">
-         <string>When detecting clip points, move each point inward from the centerline terminus by this multiple of the local vessel radius.</string>
-        </property>
-        <property name="decimals">
-         <number>2</number>
-        </property>
-        <property name="singleStep">
-         <double>0.050000000000000</double>
-        </property>
-        <property name="minimum">
-         <double>0.000000000000000</double>
-        </property>
-        <property name="maximum">
-         <double>10.000000000000000</double>
-        </property>
-        <property name="value">
-         <double>0.500000000000000</double>
-        </property>
-        <property name="suffix">
-         <string notr="true"> x</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="label_12">
-        <property name="text">
-         <string>Snap clip points to centerline:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="1">
-       <widget class="QCheckBox" name="snapClipPointsToCenterlineCheckBox">
-        <property name="toolTip">
-         <string>While dragging a clip point, snap it onto the centerline model. When unchecked, clip points snap to the visible surface model instead. Does not affect clip points whose position is adjusted manually.</string>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="checked">
+        <property name="collapsed">
          <bool>true</bool>
         </property>
+        <layout class="QFormLayout" name="formLayout_5">
+         <item row="0" column="0">
+          <widget class="QLabel" name="label_4">
+           <property name="text">
+            <string>Preprocess input surface:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QCheckBox" name="preprocessInputSurfaceModelCheckBox">
+           <property name="toolTip">
+            <string>Input surface model is reduced to the requested target point count (making computation faster), or subdivided (to make computations more accurate).</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+           <property name="checked">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="label_3">
+           <property name="text">
+            <string>Target point count:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="ctkSliderWidget" name="targetKPointCountWidget">
+           <property name="toolTip">
+            <string>Preferred number of points in the preprocessed surface.</string>
+           </property>
+           <property name="decimals">
+            <number>1</number>
+           </property>
+           <property name="singleStep">
+            <double>0.100000000000000</double>
+           </property>
+           <property name="minimum">
+            <double>0.100000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>300.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>50.000000000000000</double>
+           </property>
+           <property name="suffix">
+            <string notr="true">k</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="label_5">
+           <property name="text">
+            <string>Decimation aggressiveness:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="ctkSliderWidget" name="decimationAggressivenessWidget">
+           <property name="toolTip">
+            <string>Lower values preserve the mesh integrity better but it may not be possible to reduce number of points to the desired level.</string>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="singleStep">
+            <double>0.100000000000000</double>
+           </property>
+           <property name="minimum">
+            <double>0.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>15.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>4.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="label_6">
+           <property name="text">
+            <string>Subdivide:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QCheckBox" name="subdivideInputSurfaceModelCheckBox">
+           <property name="toolTip">
+            <string>Subdivide the mesh to make computation more accurate (at the cost of increased computation time).</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="label_8">
+           <property name="text">
+            <string>Output preprocessed surface:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="qMRMLNodeComboBox" name="outputPreprocessedSurfaceModelSelector">
+           <property name="toolTip">
+            <string>Save preprocessing result. Useful for quality checks and for making repeated computations faster: preprocessed surface can be used as input surface (and &quot;Preprocess input surface&quot; option can then be disabled).</string>
+           </property>
+           <property name="nodeTypes">
+            <stringlist>
+             <string>vtkMRMLModelNode</string>
+            </stringlist>
+           </property>
+           <property name="showChildNodeTypes">
+            <bool>false</bool>
+           </property>
+           <property name="baseName">
+            <string>Preprocessed model</string>
+           </property>
+           <property name="noneEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="addEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="removeEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="editEnabled">
+            <bool>true</bool>
+           </property>
+           <property name="renameEnabled">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </widget>
       </item>
-      <item row="4" column="0">
-       <widget class="QLabel" name="freeNormalHandleLabel">
-        <property name="text">
-         <string>Free plane normal handle:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="1">
-       <widget class="QCheckBox" name="freeNormalHandleCheckBox">
-        <property name="toolTip">
-         <string>Use the free plane normal handle instead of Slicer's standard orthogonal translation and rotation handles.</string>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="checked">
-         <bool>false</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="0">
-       <widget class="QLabel" name="label_11">
-        <property name="text">
-         <string>Flow Extensions:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="6" column="0">
-       <widget class="QLabel" name="extensionRatioLabel">
-        <property name="text">
-         <string>Extension length ratio</string>
-        </property>
-        <property name="indent">
-         <number>10</number>
-        </property>
-       </widget>
-      </item>
-      <item row="6" column="1">
-       <widget class="ctkSliderWidget" name="extensionRatioWidget">
-        <property name="toolTip">
-         <string>Length of each flow extension, as a multiple of the radius of the vessel end that it is attached to. For example, 2 adds an extension that is twice as long as the radius of that clipped end.</string>
-        </property>
-        <property name="decimals">
-         <number>2</number>
-        </property>
-        <property name="singleStep">
-         <double>0.500000000000000</double>
-        </property>
-        <property name="minimum">
-         <double>0.100000000000000</double>
-        </property>
-        <property name="maximum">
-         <double>20.000000000000000</double>
-        </property>
-        <property name="value">
-         <double>2.000000000000000</double>
-        </property>
-        <property name="suffix">
-         <string> x radius</string>
-        </property>
-       </widget>
-      </item>
-      <item row="7" column="0">
-       <widget class="QLabel" name="extensionModeLabel">
-        <property name="text">
-         <string>Extension mode</string>
-        </property>
-        <property name="indent">
-         <number>10</number>
-        </property>
-       </widget>
-      </item>
-      <item row="7" column="1">
-       <widget class="QComboBox" name="extensionModeComboBox">
-        <property name="toolTip">
-         <string>Direction in which the flow extension is added: along the direction of the centerline at the vessel end, or along the normal of the clipped boundary.</string>
-        </property>
-        <property name="editable">
-         <bool>false</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="8" column="0">
-       <widget class="QLabel" name="interpolationModeLabel">
-        <property name="text">
-         <string>Interpolation mode</string>
-        </property>
-        <property name="indent">
-         <number>10</number>
-        </property>
-       </widget>
-      </item>
-      <item row="8" column="1">
-       <widget class="QComboBox" name="interpolationModeComboBox">
-        <property name="toolTip">
-         <string>How the original vessel cross-section is blended into the circular cross-section of the extension, over the transition length set below. Ramp fades the two into each other with a smooth curve that is flat at both ends, so the extension leaves the clipped boundary and settles into the circular tube without a crease; linear fades them at a constant rate; thin plate spline warps the transition instead, which loses the finer features of a non-circular cross-section within the first few layers of the extension.</string>
-        </property>
-        <property name="editable">
-         <bool>false</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="9" column="0">
-       <widget class="QLabel" name="transitionRatioLabel">
-        <property name="text">
-         <string>Transition length ratio</string>
-        </property>
-        <property name="indent">
-         <number>10</number>
-        </property>
-       </widget>
-      </item>
-      <item row="9" column="1">
-       <widget class="ctkSliderWidget" name="transitionRatioWidget">
-        <property name="toolTip">
-         <string>Length of the transition from the original vessel cross-section to a circular cross-section, as a fraction of the extension length. 0 makes the extension circular right from the clipped boundary; 1 spreads the transition over the entire extension.</string>
-        </property>
-        <property name="decimals">
-         <number>2</number>
-        </property>
-        <property name="singleStep">
-         <double>0.050000000000000</double>
-        </property>
-        <property name="minimum">
-         <double>0.000000000000000</double>
-        </property>
-        <property name="maximum">
-         <double>1.000000000000000</double>
-        </property>
-        <property name="value">
-         <double>0.250000000000000</double>
-        </property>
-       </widget>
-      </item>
-      <item row="10" column="0">
-       <widget class="QLabel" name="preserveCrossSectionShapeLabel">
-        <property name="text">
-         <string>Preserve cross-section shape</string>
-        </property>
-        <property name="indent">
-         <number>10</number>
-        </property>
-       </widget>
-      </item>
-      <item row="10" column="1">
-       <widget class="QCheckBox" name="preserveCrossSectionShapeCheckBox">
-        <property name="toolTip">
-         <string>Keep the cross-sectional shape of the clipped vessel end along the whole extension, instead of morphing it into a circle. The outline of the clipped end is used as it is, so the area distribution of a non-circular end is not altered. A strongly concave end may be hard to cap.</string>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="checked">
-         <bool>false</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="11" column="0">
-       <widget class="QLabel" name="label_4">
-        <property name="text">
-         <string>Preprocess input surface:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="11" column="1">
-       <widget class="QCheckBox" name="preprocessInputSurfaceModelCheckBox">
-        <property name="toolTip">
-         <string>Input surface model is reduced to the requested target point count (making computation faster), or subdivided (to make computations more accurate).</string>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-        <property name="checked">
-         <bool>false</bool>
-        </property>
-       </widget>
-      </item>
-      <item row="12" column="0">
-       <widget class="QLabel" name="label_3">
-        <property name="text">
-         <string>Target point count:</string>
-        </property>
-        <property name="indent">
-         <number>10</number>
-        </property>
-       </widget>
-      </item>
-      <item row="12" column="1">
-       <widget class="ctkSliderWidget" name="targetKPointCountWidget">
-        <property name="toolTip">
-         <string>Preferred number of points in the preprocessed surface.</string>
-        </property>
-        <property name="decimals">
-         <number>1</number>
-        </property>
-        <property name="singleStep">
-         <double>0.100000000000000</double>
-        </property>
-        <property name="minimum">
-         <double>0.100000000000000</double>
-        </property>
-        <property name="maximum">
-         <double>300.000000000000000</double>
-        </property>
-        <property name="value">
-         <double>50.000000000000000</double>
-        </property>
-        <property name="suffix">
-         <string notr="true">k</string>
-        </property>
-       </widget>
-      </item>
-      <item row="13" column="0">
-       <widget class="QLabel" name="label_5">
-        <property name="text">
-         <string>Decimation aggressiveness:</string>
-        </property>
-        <property name="indent">
-         <number>10</number>
-        </property>
-       </widget>
-      </item>
-      <item row="13" column="1">
-       <widget class="ctkSliderWidget" name="decimationAggressivenessWidget">
-        <property name="toolTip">
-         <string>Lower values preserve the mesh integrity better but it may not be possible to reduce number of points to the desired level.</string>
-        </property>
-        <property name="decimals">
-         <number>2</number>
-        </property>
-        <property name="singleStep">
-         <double>0.100000000000000</double>
-        </property>
-        <property name="minimum">
-         <double>0.000000000000000</double>
-        </property>
-        <property name="maximum">
-         <double>15.000000000000000</double>
-        </property>
-        <property name="value">
-         <double>4.000000000000000</double>
-        </property>
-       </widget>
-      </item>
-      <item row="14" column="0">
-       <widget class="QLabel" name="label_6">
-        <property name="text">
-         <string>Subdivide:</string>
-        </property>
-        <property name="indent">
-         <number>10</number>
-        </property>
-       </widget>
-      </item>
-      <item row="14" column="1">
-       <widget class="QCheckBox" name="subdivideInputSurfaceModelCheckBox">
-        <property name="toolTip">
-         <string>Subdivide the mesh to make computation more accurate (at the cost of increased computation time).</string>
-        </property>
-        <property name="text">
-         <string/>
-        </property>
-       </widget>
-      </item>
-      <item row="15" column="0">
-       <widget class="QLabel" name="label_8">
-        <property name="text">
-         <string>Output preprocessed surface:</string>
-        </property>
-        <property name="indent">
-         <number>10</number>
-        </property>
-       </widget>
-      </item>
-      <item row="15" column="1">
-       <widget class="qMRMLNodeComboBox" name="outputPreprocessedSurfaceModelSelector">
-        <property name="toolTip">
-         <string>Save preprocessing result. Useful for quality checks and for making repeated computations faster: preprocessed surface can be used as input surface (and &quot;Preprocess input surface&quot; option can then be disabled).</string>
-        </property>
-        <property name="nodeTypes">
-         <stringlist>
-          <string>vtkMRMLModelNode</string>
-         </stringlist>
-        </property>
-        <property name="showChildNodeTypes">
-         <bool>false</bool>
-        </property>
-        <property name="baseName">
-         <string>Preprocessed model</string>
-        </property>
-        <property name="noneEnabled">
+      <item>
+       <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox">
+        <property name="title">
+         <string>Clipping</string>
+        </property>
+        <property name="collapsed">
          <bool>true</bool>
         </property>
-        <property name="addEnabled">
+        <layout class="QFormLayout" name="formLayout">
+         <item row="0" column="0">
+          <widget class="QLabel" name="clippingMethodLabel">
+           <property name="text">
+            <string>Clipping method:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QComboBox" name="clippingMethodComboBox">
+           <property name="toolTip">
+            <string>Plane cuts with an infinite plane (other branches the plane crosses are preserved by connectivity). Plane + sphere cuts with the intersection of the plane and a sphere around the clip point; this confines the cut but may leave a seam ring where the sphere crosses the vessel wall. Plane + patch confines the plane cut to the surface cells near the clip point without creating any seam. Box cuts with an open box whose base face lies in the cut plane; the cut is planar, but the box sides may leave seams if they touch other parts of the surface.</string>
+           </property>
+           <property name="editable">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="localSphereRadiusFactorLabel">
+           <property name="text">
+            <string>Local sphere radius:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="ctkSliderWidget" name="localSphereRadiusFactorWidget">
+           <property name="toolTip">
+            <string>Size of the local region (sphere/patch radius or box half-width) as a multiple of the vessel radius at each clip point.</string>
+           </property>
+           <property name="decimals">
+            <number>1</number>
+           </property>
+           <property name="singleStep">
+            <double>0.100000000000000</double>
+           </property>
+           <property name="minimum">
+            <double>0.500000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>10.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>2.500000000000000</double>
+           </property>
+           <property name="suffix">
+            <string notr="true"> x</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="clipPointInsetLabel">
+           <property name="text">
+            <string>Clip point auto-detect inset:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="ctkSliderWidget" name="clipPointInsetFactorWidget">
+           <property name="toolTip">
+            <string>When detecting clip points, move each point inward from the centerline terminus by this multiple of the local vessel radius.</string>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="singleStep">
+            <double>0.050000000000000</double>
+           </property>
+           <property name="minimum">
+            <double>0.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>10.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.500000000000000</double>
+           </property>
+           <property name="suffix">
+            <string notr="true"> x</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="label_12">
+           <property name="text">
+            <string>Snap clip points to centerline:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QCheckBox" name="snapClipPointsToCenterlineCheckBox">
+           <property name="toolTip">
+            <string>While dragging a clip point, snap it onto the centerline model. When unchecked, clip points snap to the visible surface model instead. Does not affect clip points whose position is adjusted manually.</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="freeNormalHandleLabel">
+           <property name="text">
+            <string>Free plane normal handle:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="QCheckBox" name="freeNormalHandleCheckBox">
+           <property name="toolTip">
+            <string>Use the free plane normal handle instead of Slicer's standard orthogonal translation and rotation handles.</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+           <property name="checked">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox_2">
+        <property name="title">
+         <string>Flow extensions</string>
+        </property>
+        <property name="collapsed">
          <bool>true</bool>
         </property>
-        <property name="removeEnabled">
+        <layout class="QFormLayout" name="formLayout_4">
+         <item row="0" column="1">
+          <widget class="ctkSliderWidget" name="extensionRatioWidget">
+           <property name="toolTip">
+            <string>Length of each flow extension, as a multiple of the radius of the vessel end that it is attached to. For example, 2 adds an extension that is twice as long as the radius of that clipped end.</string>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="singleStep">
+            <double>0.500000000000000</double>
+           </property>
+           <property name="minimum">
+            <double>0.100000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>20.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>2.000000000000000</double>
+           </property>
+           <property name="suffix">
+            <string> x radius</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="0">
+          <widget class="QLabel" name="extensionRatioLabel">
+           <property name="text">
+            <string>Extension length ratio</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="extensionModeLabel">
+           <property name="text">
+            <string>Extension mode:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QComboBox" name="extensionModeComboBox">
+           <property name="toolTip">
+            <string>Direction in which the flow extension is added: along the direction of the centerline at the vessel end, or along the normal of the clipped boundary.</string>
+           </property>
+           <property name="editable">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="interpolationModeLabel">
+           <property name="text">
+            <string>Interpolation mode</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QComboBox" name="interpolationModeComboBox">
+           <property name="toolTip">
+            <string>How the original vessel cross-section is blended into the circular cross-section of the extension, over the transition length set below. Ramp fades the two into each other with a smooth curve that is flat at both ends, so the extension leaves the clipped boundary and settles into the circular tube without a crease; linear fades them at a constant rate; thin plate spline warps the transition instead, which loses the finer features of a non-circular cross-section within the first few layers of the extension.</string>
+           </property>
+           <property name="editable">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="transitionRatioLabel">
+           <property name="text">
+            <string>Transition length ratio</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="ctkSliderWidget" name="transitionRatioWidget">
+           <property name="toolTip">
+            <string>Length of the transition from the original vessel cross-section to a circular cross-section, as a fraction of the extension length. 0 makes the extension circular right from the clipped boundary; 1 spreads the transition over the entire extension.</string>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="singleStep">
+            <double>0.050000000000000</double>
+           </property>
+           <property name="minimum">
+            <double>0.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.250000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="preserveCrossSectionShapeLabel">
+           <property name="text">
+            <string>Preserve cross-section shape</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="QCheckBox" name="preserveCrossSectionShapeCheckBox">
+           <property name="toolTip">
+            <string>Keep the cross-sectional shape of the clipped vessel end along the whole extension, instead of morphing it into a circle. The outline of the clipped end is used as it is, so the area distribution of a non-circular end is not altered. A strongly concave end may be hard to cap.</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+           <property name="checked">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
+       <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox_4">
+        <property name="title">
+         <string>Capping</string>
+        </property>
+        <property name="collapsed">
          <bool>true</bool>
         </property>
-        <property name="editEnabled">
-         <bool>true</bool>
-        </property>
-        <property name="renameEnabled">
-         <bool>true</bool>
-        </property>
+        <layout class="QFormLayout" name="formLayout_3">
+         <item row="0" column="0">
+          <widget class="QLabel" name="remeshCapsLabel">
+           <property name="text">
+            <string>Uniform cap mesh:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <layout class="QHBoxLayout" name="horizontalLayout_3">
+           <item>
+            <widget class="QCheckBox" name="remeshCapsCheckBox">
+             <property name="toolTip">
+              <string>Retriangulate the caps so that their cells are evenly sized and near equilateral, instead of the slivers a cap is closed with. Only the caps are remeshed: the vessel wall comes through unchanged, and each cap goes on sharing its rim with the wall.</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>false</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="capTargetEdgeLengthLabel">
+             <property name="text">
+              <string>edge length:</string>
+             </property>
+             <property name="indent">
+              <number>8</number>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="ctkSliderWidget" name="capTargetEdgeLengthWidget">
+             <property name="toolTip">
+              <string>Edge length a remeshed cap aims for. 0 (the default) sizes each cap after the surface around its own rim, so that a cap is meshed as finely as the vessel it closes and a cap on a small branch is not meshed like one on a large vessel.</string>
+             </property>
+             <property name="decimals">
+              <number>2</number>
+             </property>
+             <property name="singleStep">
+              <double>0.100000000000000</double>
+             </property>
+             <property name="minimum">
+              <double>0.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>10.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.000000000000000</double>
+             </property>
+             <property name="suffix">
+              <string notr="true"> mm</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="modelFaceIdArrayNameLabel">
+           <property name="text">
+            <string>Face id array name:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QLineEdit" name="modelFaceIdArrayNameLineEdit">
+           <property name="toolTip">
+            <string>Name of the cell array that holds the face ids. &quot;ModelFaceID&quot; is the name SimVascular and its meshing tools expect.</string>
+           </property>
+           <property name="text">
+            <string>ModelFaceID</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="capMethodLabel">
+           <property name="text">
+            <string>Cap method:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QComboBox" name="capMethodComboBox">
+           <property name="toolTip">
+            <string>Shape of the mesh that closes each clipped end. &quot;Center point&quot; fans triangles out from the centre of the hole, &quot;Simple&quot; fills the hole with a flat polygon without adding points, and &quot;Smooth&quot; builds a rounded cap that follows the shape of the vessel at the cut.</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="capConstraintFactorLabel">
+           <property name="text">
+            <string>Cap roundness:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="ctkSliderWidget" name="capConstraintFactorWidget">
+           <property name="toolTip">
+            <string>How far the smooth cap bulges out of the plane of the cut, following the shape of the vessel at the rim. 0 (the default) keeps the cap in the plane of the cut, like the other capping methods; larger values give a progressively more domed cap.</string>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="singleStep">
+            <double>0.100000000000000</double>
+           </property>
+           <property name="minimum">
+            <double>0.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>3.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="0">
+          <widget class="QLabel" name="capNumberOfRingsLabel">
+           <property name="text">
+            <string>Cap rings:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="1">
+          <widget class="ctkSliderWidget" name="capNumberOfRingsWidget">
+           <property name="toolTip">
+            <string>Number of concentric rings of cells that make up a smooth cap. More rings give a finer cap mesh.</string>
+           </property>
+           <property name="decimals">
+            <number>0</number>
+           </property>
+           <property name="singleStep">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="minimum">
+            <double>2.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>30.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>8.000000000000000</double>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="labelModelFacesLabel">
+           <property name="text">
+            <string>Label mesh faces:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QCheckBox" name="labelModelFacesCheckBox">
+           <property name="toolTip">
+            <string>Add a cell array to the output surface that tells the vessel wall and each cap apart by an integer id, for assigning CFD boundary conditions and for remeshing that keeps the face boundaries sharp. The wall gets id 1 and the cap of the first clip point id 2, the second id 3, and so on. If the input surface already carries face labels, those are kept: they are renumbered onto 1, 2, 3... and the wall and the caps follow after them.</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+           <property name="checked">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </widget>
       </item>
      </layout>
@@ -1086,27 +1162,6 @@
  </widget>
  <customwidgets>
   <customwidget>
-   <class>ctkCheckablePushButton</class>
-   <extends>ctkPushButton</extends>
-   <header>ctkCheckablePushButton.h</header>
-  </customwidget>
-  <customwidget>
-   <class>ctkCollapsibleButton</class>
-   <extends>QWidget</extends>
-   <header>ctkCollapsibleButton.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>ctkPushButton</class>
-   <extends>QPushButton</extends>
-   <header>ctkPushButton.h</header>
-  </customwidget>
-  <customwidget>
-   <class>ctkSliderWidget</class>
-   <extends>QWidget</extends>
-   <header>ctkSliderWidget.h</header>
-  </customwidget>
-  <customwidget>
    <class>qMRMLNodeComboBox</class>
    <extends>QWidget</extends>
    <header>qMRMLNodeComboBox.h</header>
@@ -1132,6 +1187,33 @@
    <class>qMRMLSegmentSelectorWidget</class>
    <extends>qMRMLWidget</extends>
    <header>qMRMLSegmentSelectorWidget.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ctkCheckablePushButton</class>
+   <extends>ctkPushButton</extends>
+   <header>ctkCheckablePushButton.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ctkCollapsibleButton</class>
+   <extends>QWidget</extends>
+   <header>ctkCollapsibleButton.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ctkCollapsibleGroupBox</class>
+   <extends>QGroupBox</extends>
+   <header>ctkCollapsibleGroupBox.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ctkPushButton</class>
+   <extends>QPushButton</extends>
+   <header>ctkPushButton.h</header>
+  </customwidget>
+  <customwidget>
+   <class>ctkSliderWidget</class>
+   <extends>QWidget</extends>
+   <header>ctkSliderWidget.h</header>
   </customwidget>
  </customwidgets>
  <resources/>
