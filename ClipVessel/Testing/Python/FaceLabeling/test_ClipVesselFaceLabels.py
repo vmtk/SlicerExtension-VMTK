@@ -26,9 +26,9 @@ INLET_ONLY = [clipPointSpecification(0, "Inlet", (0, 0, 0), (0, 0, -1))]
 
 
 def wallCellEntityIdFor(planeSpecifications):
-    """What clipVessel gives the capper as its offset, so that the ids the capper derives itself,
-    for a hole no clip point opened, start above the ids of the clip points."""
-    return len(planeSpecifications) + 1
+    """What clipVessel gives the capper as its offset. A cap carries the label of the boundary it
+    closes and no label is negative, so this is a value no cap can be confused with."""
+    return -1
 
 
 def makeSurface(capCellEntityIds, planeSpecifications, existingFaceIds=None):
@@ -92,7 +92,7 @@ class FaceIdLayoutTest(unittest.TestCase):
         # The cap cells are deliberately in the opposite order to the clip points: each carries the
         # id of the clip point that opened the boundary it closes, so its position is irrelevant.
         wall = wallCellEntityIdFor(INLET_OUTLET)
-        surface, assignments, faceIds = self.label([wall, wall, wall, 2, 1], INLET_OUTLET)
+        surface, assignments, faceIds = self.label([wall, wall, wall, 1, 0], INLET_OUTLET)
 
         self.assertEqual(faceIds[:3], [1, 1, 1], "wall cells")
         self.assertEqual(faceIds[3], 3, "the cap carrying the Outlet's id")
@@ -108,7 +108,7 @@ class FaceIdLayoutTest(unittest.TestCase):
     def test_a_pre_existing_face_is_never_fused_with_a_cap(self):
         # A patch already carrying id 2, which is also what the first cap would be numbered.
         wall = wallCellEntityIdFor(INLET_OUTLET)
-        _surface, assignments, faceIds = self.label([wall, wall, wall, 1, 2], INLET_OUTLET,
+        _surface, assignments, faceIds = self.label([wall, wall, wall, 0, 1], INLET_OUTLET,
                                                     [2, 2, 0, 0, 0])
 
         self.assertEqual(self.logic.lastExistingFaceIdMap, {2: 1})
@@ -122,7 +122,7 @@ class FaceIdLayoutTest(unittest.TestCase):
 
     def test_a_lone_pre_existing_face_compacts_to_1_and_pushes_the_wall_to_2(self):
         wall = wallCellEntityIdFor(INLET_OUTLET)
-        _surface, assignments, faceIds = self.label([wall, wall, 1, 2], INLET_OUTLET, [10, 0, 0, 0])
+        _surface, assignments, faceIds = self.label([wall, wall, 0, 1], INLET_OUTLET, [10, 0, 0, 0])
 
         self.assertEqual(self.logic.lastExistingFaceIdMap, {10: 1})
         self.assertEqual(self.logic.lastWallFaceId, 2)
@@ -131,7 +131,7 @@ class FaceIdLayoutTest(unittest.TestCase):
 
     def test_several_pre_existing_faces_compact_in_ascending_order_of_their_original_id(self):
         wall = wallCellEntityIdFor(INLET_OUTLET)
-        _surface, assignments, faceIds = self.label([wall, wall, wall, wall, 1, 2], INLET_OUTLET,
+        _surface, assignments, faceIds = self.label([wall, wall, wall, wall, 0, 1], INLET_OUTLET,
                                                     [50, 7, 22, 0, 0, 0])
 
         self.assertEqual(self.logic.lastExistingFaceIdMap, {7: 1, 22: 2, 50: 3})
@@ -141,7 +141,7 @@ class FaceIdLayoutTest(unittest.TestCase):
 
     def test_an_input_that_labels_every_cell_sets_no_id_aside_for_a_wall(self):
         wall = wallCellEntityIdFor(INLET_ONLY)
-        _surface, assignments, faceIds = self.label([wall, wall, 1], INLET_ONLY, [1, 4, 0])
+        _surface, assignments, faceIds = self.label([wall, wall, 0], INLET_ONLY, [1, 4, 0])
 
         self.assertEqual(self.logic.lastExistingFaceIdMap, {1: 1, 4: 2})
         self.assertIsNone(self.logic.lastWallFaceId)
@@ -150,7 +150,7 @@ class FaceIdLayoutTest(unittest.TestCase):
 
     def test_mis_sized_existing_labels_are_dropped_rather_than_smeared(self):
         wall = wallCellEntityIdFor(INLET_ONLY)
-        surface, _existingForCall = makeSurface([wall, wall, 1], INLET_ONLY)
+        surface, _existingForCall = makeSurface([wall, wall, 0], INLET_ONLY)
         # five values for two non-cap cells: they cannot be matched up cell for cell
         assignments = self.logic.labelModelFaces(surface, INLET_ONLY, "ModelFaceID",
                                                  np.array([7, 7, 7, 7, 7], dtype=np.int64), wall)
@@ -162,7 +162,7 @@ class FaceIdLayoutTest(unittest.TestCase):
 
     def test_non_positive_existing_ids_count_as_unlabelled(self):
         wall = wallCellEntityIdFor(INLET_ONLY)
-        _surface, _assignments, faceIds = self.label([wall, wall, 1], INLET_ONLY, [0, -3, 0])
+        _surface, _assignments, faceIds = self.label([wall, wall, 0], INLET_ONLY, [0, -3, 0])
 
         self.assertEqual(faceIds[:2], [1, 1], "0 and -3 must both count as wall")
         self.assertEqual(self.logic.lastExistingFaceIdMap, {})
@@ -180,7 +180,7 @@ class FaceIdLayoutTest(unittest.TestCase):
                        clipPointSpecification(2, "Third", (0, 0, 20), (0, 0, 1))]
         wall = wallCellEntityIdFor(threePoints)
         # only the first and third clip points opened a boundary
-        _surface, assignments, faceIds = self.label([wall, 1, 3], threePoints)
+        _surface, assignments, faceIds = self.label([wall, 0, 2], threePoints)
 
         self.assertEqual(faceIds[1:], [2, 4], "id 3 belongs to NoCut and must be left unused")
         self.assertEqual(assignments, [(2, "First"), (4, "Third")])
@@ -188,14 +188,14 @@ class FaceIdLayoutTest(unittest.TestCase):
     def test_a_hole_no_clip_point_opened_joins_the_face_around_it(self):
         wall = wallCellEntityIdFor(INLET_OUTLET)
         # the last cell is a cap the capper numbered itself, above the clip point ids
-        _surface, assignments, faceIds = self.label([wall, wall, 1, 2, 99], INLET_OUTLET)
+        _surface, assignments, faceIds = self.label([wall, wall, 0, 1, 99], INLET_OUTLET)
 
         self.assertEqual(len(assignments), 2, "the fill was given a face of its own")
         self.assertEqual(sorted(set(faceIds)), [1, 2, 3], "no fourth face may be invented")
 
     def test_the_ids_are_written_under_the_array_name_given(self):
         wall = wallCellEntityIdFor(INLET_ONLY)
-        surface, _assignments, faceIds = self.label([wall, 1], INLET_ONLY,
+        surface, _assignments, faceIds = self.label([wall, 0], INLET_ONLY,
                                                     faceIdArrayName="CellEntityIds")
 
         self.assertEqual(faceIds, [1, 2])

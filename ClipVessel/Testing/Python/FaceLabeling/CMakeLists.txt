@@ -20,6 +20,7 @@ slicer_add_python_test(SCRIPT test_ClipVesselFaceLabels.py
                        SLICER_ARGS --disable-cli-modules)
 slicer_add_python_test(SCRIPT test_ClipVesselCellOrder.py
                        SLICER_ARGS --disable-cli-modules)
+slicer_add_python_test(SCRIPT test_ClipVesselCapMethods.py)
 slicer_add_python_test(SCRIPT test_ClipVesselDefectHoles.py
                        SLICER_ARGS --disable-cli-modules)
 
