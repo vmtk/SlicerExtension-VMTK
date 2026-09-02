@@ -12,6 +12,7 @@ No widget, no MRML display state.
 | `test_ClipVesselFaceLabels.py` | id layout, cap-to-clip-point matching, mis-sized input labels dropped |
 | `test_ClipVesselCellOrder.py` | vert/line cells take the low cell indices while capping copies only polys |
 | `test_ClipVesselDefectHoles.py` | a hole from a missing triangle joins the face around it |
+| `test_ClipVesselCapRemeshing.py` | a remeshed cap is even inside, while the wall, the rim and the cap's id are untouched |
 
 `test_ClipVesselDefectHoles` takes its fixtures from `test_ClipVesselCellOrder`, which works
 because Slicer puts the script's own directory on `sys.path`.
