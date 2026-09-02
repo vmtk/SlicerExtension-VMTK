@@ -42,6 +42,9 @@ _CAP_METHODS_NEEDING_TRIANGLES = ("SIMPLE", "SMOOTH")
 # do, so that switching to smooth only changes how the cap is meshed and not where it sits.
 _DEFAULT_CAP_CONSTRAINT_FACTOR = 0.0
 _DEFAULT_CAP_NUMBER_OF_RINGS = 8
+# Edge length a uniform cap mesh is remeshed to, in mm. 0 sizes each cap after the surface
+# around its own rim, so that caps come out meshed as finely as the vessel they close.
+_DEFAULT_CAP_TARGET_EDGE_LENGTH = 0.0
 
 def _normalizedModeId(value):
     return _LEGACY_MODE_IDS.get(value, value)
@@ -163,6 +166,8 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.capMethodComboBox.connect('currentIndexChanged(int)', self.updateParameterNodeFromGUI)
     self.ui.capConstraintFactorWidget.connect('valueChanged(double)', self.updateParameterNodeFromGUI)
     self.ui.capNumberOfRingsWidget.connect('valueChanged(double)', self.updateParameterNodeFromGUI)
+    self.ui.remeshCapsCheckBox.connect("toggled(bool)", self.updateParameterNodeFromGUI)
+    self.ui.capTargetEdgeLengthWidget.connect('valueChanged(double)', self.updateParameterNodeFromGUI)
     self.ui.labelModelFacesCheckBox.connect("toggled(bool)", self.onLabelModelFacesToggled)
     self.ui.modelFaceIdArrayNameLineEdit.connect("editingFinished()", self.onModelFaceIdArrayNameEditingFinished)
     self.ui.addFlowExtensionsCheckBox.connect("toggled(bool)", self.updateParameterNodeFromGUI)
@@ -341,7 +346,10 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.capMethodComboBox.currentIndex = capMethodIndex
     self.ui.capConstraintFactorWidget.value = float(self._parameterNode.GetParameter("CapConstraintFactor"))
     self.ui.capNumberOfRingsWidget.value = float(self._parameterNode.GetParameter("CapNumberOfRings"))
-    self.updateCapMethodUI(cap, capMethod)
+    remeshCaps = (self._parameterNode.GetParameter("RemeshCaps") == "true")
+    self.ui.remeshCapsCheckBox.checked = remeshCaps
+    self.ui.capTargetEdgeLengthWidget.value = float(self._parameterNode.GetParameter("CapTargetEdgeLength"))
+    self.updateCapMethodUI(cap, capMethod, remeshCaps)
     labelModelFaces = (self._parameterNode.GetParameter("LabelModelFaces") == "true")
     self.ui.labelModelFacesCheckBox.checked = labelModelFaces
     # Only write the line edit when it differs, so a GUI refresh does not move the text cursor.
@@ -465,6 +473,8 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         parameterNode.SetParameter("CapMethod", capMethod)
     parameterNode.SetParameter("CapConstraintFactor", str(self.ui.capConstraintFactorWidget.value))
     parameterNode.SetParameter("CapNumberOfRings", str(int(round(self.ui.capNumberOfRingsWidget.value))))
+    parameterNode.SetParameter("RemeshCaps", "true" if self.ui.remeshCapsCheckBox.checked else "false")
+    parameterNode.SetParameter("CapTargetEdgeLength", str(self.ui.capTargetEdgeLengthWidget.value))
     parameterNode.SetParameter("LabelModelFaces", "true" if self.ui.labelModelFacesCheckBox.checked else "false")
     parameterNode.SetParameter("ExtendOutputSurface", "true" if self.ui.addFlowExtensionsCheckBox.checked else "false")
     parameterNode.SetParameter("ExtensionRatio", str(self.ui.extensionRatioWidget.value))
@@ -733,9 +743,10 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.updateParameterNodeFromGUI()
     self.updatePlaneHandleMode()
 
-  def updateCapMethodUI(self, cap, capMethod):
-    """Show the cap method next to the cap checkbox, and the shape controls of the smooth
-    capper only when that method is the one selected."""
+  def updateCapMethodUI(self, cap, capMethod, remeshCaps=False):
+    """Show the cap method next to the cap checkbox, the shape controls of the smooth capper only
+    when that method is the one selected, and the cap element size only when the caps are being
+    remeshed to a uniform mesh."""
     self.ui.capMethodLabel.setVisible(cap)
     self.ui.capMethodComboBox.setVisible(cap)
     smooth = cap and capMethod == "SMOOTH"
@@ -743,6 +754,10 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.capConstraintFactorWidget.setVisible(smooth)
     self.ui.capNumberOfRingsLabel.setVisible(smooth)
     self.ui.capNumberOfRingsWidget.setVisible(smooth)
+    self.ui.remeshCapsLabel.setVisible(cap)
+    self.ui.remeshCapsCheckBox.setVisible(cap)
+    self.ui.capTargetEdgeLengthLabel.setVisible(cap and remeshCaps)
+    self.ui.capTargetEdgeLengthWidget.setVisible(cap and remeshCaps)
 
   def onClippingMethodChanged(self, index=None):
     self.updateParameterNodeFromGUI()
@@ -1444,6 +1459,8 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             capMethod = self._parameterNode.GetParameter("CapMethod") or _DEFAULT_CAP_METHOD
             capConstraintFactor = float(self._parameterNode.GetParameter("CapConstraintFactor"))
             capNumberOfRings = int(float(self._parameterNode.GetParameter("CapNumberOfRings")))
+            remeshCaps = self._parameterNode.GetParameter("RemeshCaps") == "true"
+            capTargetEdgeLength = float(self._parameterNode.GetParameter("CapTargetEdgeLength"))
             labelModelFaces = self._parameterNode.GetParameter("LabelModelFaces") == "true"
             modelFaceIdArrayName = (self._parameterNode.GetParameter("ModelFaceIdArrayName")
                                     or _DEFAULT_MODEL_FACE_ID_ARRAY_NAME)
@@ -1464,7 +1481,8 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                                                    transitionRatio, interpolationMode, preserveCrossSectionShape,
                                                    self._extensionLengthScaleFactors,
                                                    labelModelFaces, modelFaceIdArrayName,
-                                                   capMethod, capConstraintFactor, capNumberOfRings)
+                                                   capMethod, capConstraintFactor, capNumberOfRings,
+                                                   remeshCaps, capTargetEdgeLength)
 
             outputModelNode.SetAndObserveMesh(outputPolyData)
             if not outputModelNode.GetDisplayNode():
@@ -1613,6 +1631,10 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
         parameterNode.SetParameter("CapConstraintFactor", str(_DEFAULT_CAP_CONSTRAINT_FACTOR))
     if not parameterNode.GetParameter("CapNumberOfRings"):
         parameterNode.SetParameter("CapNumberOfRings", str(_DEFAULT_CAP_NUMBER_OF_RINGS))
+    if not parameterNode.GetParameter("RemeshCaps"):
+        parameterNode.SetParameter("RemeshCaps", "false")
+    if not parameterNode.GetParameter("CapTargetEdgeLength"):
+        parameterNode.SetParameter("CapTargetEdgeLength", str(_DEFAULT_CAP_TARGET_EDGE_LENGTH))
     if not parameterNode.GetParameter("LabelModelFaces"):
         parameterNode.SetParameter("LabelModelFaces", "false")
     if not parameterNode.GetParameter("ModelFaceIdArrayName"):
@@ -1800,6 +1822,259 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
   # brought in with arrays of its own cannot be mistaken for a labeled one.
   boundaryLabelsArrayName = "__ClipVesselBoundaryLabels"
   boundaryPointOrderArrayName = "__ClipVesselBoundaryPointOrder"
+
+  def capTargetArea(self, surface, entityIds, capEntityId, targetEdgeLength=0.0):
+    """The triangle area a uniform mesh of the cap carrying capEntityId should aim for.
+
+    A given edge length asks for the equilateral triangle of that side. Otherwise the cap is
+    sized after the cells the surface has around its own rim - those sharing a point with it -
+    so that each cap is meshed as finely as the vessel it closes, rather than every cap in the
+    surface being meshed alike.
+
+    None if the cap has no cells, which leaves it to be skipped.
+    """
+    if targetEdgeLength > 0.0:
+        return float(np.sqrt(3.0) / 4.0 * targetEdgeLength ** 2)
+
+    capCellIds = np.nonzero(entityIds == capEntityId)[0]
+    if capCellIds.size == 0:
+        return None
+
+    surface.BuildLinks()
+    pointIds = vtk.vtkIdList()
+    cellIds = vtk.vtkIdList()
+    rimNeighbourIds = set()
+    for capCellId in capCellIds:
+        surface.GetCellPoints(int(capCellId), pointIds)
+        for pointIndex in range(pointIds.GetNumberOfIds()):
+            surface.GetPointCells(pointIds.GetId(pointIndex), cellIds)
+            for neighbourIndex in range(cellIds.GetNumberOfIds()):
+                neighbourId = int(cellIds.GetId(neighbourIndex))
+                if entityIds[neighbourId] != capEntityId:
+                    rimNeighbourIds.add(neighbourId)
+
+    # A cap with nothing around it - the whole surface is that one cap - has only itself to go by.
+    areaCellIds = rimNeighbourIds if rimNeighbourIds else set(int(value) for value in capCellIds)
+    areas = [surface.GetCell(cellId).ComputeArea() for cellId in areaCellIds]
+    areas = [area for area in areas if area > 0.0]
+    if not areas:
+        return None
+    return float(np.mean(areas))
+
+  # Passes the remesher makes over a cap. Each one splits, collapses, flips and relocates once;
+  # VMTK's own remeshing script defaults to ten, but a cap is a small, nearly flat patch and
+  # eight passes already even it out - the further two only cost time.
+  capRemeshingIterations = 8
+
+  # Rings of cells kept around a cap when it is remeshed (see remeshCaps). One would do to make
+  # the rim an entity boundary; a second costs almost nothing and leaves every cell that touches
+  # the rim with a complete ring of neighbours of its own.
+  capRemeshingCollarRings = 2
+
+  @staticmethod
+  def extractCells(surface, cellMask):
+    """The cells of the surface that cellMask selects, as a surface of their own, carrying the
+    cell data of the ones they came from."""
+    maskArrayName = "__ClipVesselExtractCells"
+    maskArray = numpy_to_vtk(np.asarray(cellMask, dtype=np.int8), deep=True,
+                             array_type=vtk.VTK_SIGNED_CHAR)
+    maskArray.SetName(maskArrayName)
+    # Carried on a copy of the surface rather than on the surface itself. The caller may well
+    # hand in a filter's output, and adding an array to one of those marks it modified: the
+    # filter that made it runs again on the next update and hands back a fresh output without
+    # the array, leaving nothing to threshold on and dropping the cell data being extracted.
+    masked = vtk.vtkPolyData()
+    masked.ShallowCopy(surface)
+    masked.GetCellData().AddArray(maskArray)
+
+    threshold = vtk.vtkThreshold()
+    threshold.SetInputData(masked)
+    threshold.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_CELLS,
+                                     maskArrayName)
+    threshold.SetLowerThreshold(0.5)
+    threshold.SetUpperThreshold(1.5)
+    threshold.Update()
+    geometryFilter = vtk.vtkGeometryFilter()
+    geometryFilter.SetInputData(threshold.GetOutput())
+    geometryFilter.Update()
+
+    extracted = vtk.vtkPolyData()
+    extracted.DeepCopy(geometryFilter.GetOutput())
+    extracted.GetCellData().RemoveArray(maskArrayName)
+    return extracted
+
+  def cellNeighbourhood(self, surface, cellMask, rings):
+    """A mask over the cells of the surface covering the ones cellMask selects and the given
+    number of rings of cells around them, a ring being everything sharing a point with the last."""
+    surface.BuildLinks()
+    selected = np.asarray(cellMask, dtype=bool).copy()
+    frontier = np.nonzero(selected)[0]
+    pointIds, cellIds = vtk.vtkIdList(), vtk.vtkIdList()
+    for _ in range(rings):
+        nextFrontier = []
+        for cellId in frontier:
+            surface.GetCellPoints(int(cellId), pointIds)
+            for pointIndex in range(pointIds.GetNumberOfIds()):
+                surface.GetPointCells(pointIds.GetId(pointIndex), cellIds)
+                for neighbourIndex in range(cellIds.GetNumberOfIds()):
+                    neighbour = int(cellIds.GetId(neighbourIndex))
+                    if not selected[neighbour]:
+                        selected[neighbour] = True
+                        nextFrontier.append(neighbour)
+        if not nextFrontier:
+            break
+        frontier = nextFrontier
+    return selected
+
+  def remeshCaps(self, surface, cellEntityIdsArrayName, capEntityIds,
+                 targetEdgeLength=_DEFAULT_CAP_TARGET_EDGE_LENGTH):
+    """The surface with the cells of each of capEntityIds retriangulated to a uniform point
+    distribution, leaving every other cell of the surface untouched.
+
+    Every capper meshes a boundary by following its rim rather than the area it spans: the center
+    point capper makes a fan of slivers meeting at a single interior point, the simple capper
+    adds no interior point at all, and the rings of a smooth cap crowd together towards its
+    middle. This puts the cap cells - and only those - through VMTK's surface remesher, which
+    splits, collapses and flips them until they are near equilateral and of an even size.
+
+    The remesher edits no cell of an excluded entity and moves no point that one of them uses, so
+    the vessel wall comes through unchanged and the cap goes on sharing the rim with it, still
+    watertight and point for point. That also fixes the spacing of the rim itself: it is the
+    interior of the cap that is made uniform, while its rim keeps the spacing the wall gives it.
+
+    Each cap is remeshed on a neighbourhood of itself - the cap plus a collar of the cells around
+    it - rather than on the whole surface, and the pieces are put back together at the end. The
+    remesher walks every cell and every point of its input on each of its iterations whether it
+    may edit them or not, so handing it the whole vessel to retouch a few hundred cap cells costs
+    the best part of ten times what handing it the neighbourhood does, for the same result. The
+    collar is what makes that safe: it is excluded like the rest of the wall was, so the rim stays
+    a boundary between two entities and its points stay frozen, and it comes back untouched, which
+    is what lets the remeshed cap be stitched back on to a rim that still matches point for point.
+    Remeshing a cap on its own instead would not do - the rim would then be an open boundary, and
+    PreserveBoundaryEdges stops the remesher editing boundary edges but not relocating the points
+    on them, so the rim would come back moved and the cap would no longer meet the wall.
+
+    :param cellEntityIdsArrayName: cell array naming the face each cell belongs to. Its values
+      must not be negative: the remesher reads -1 as "no entity", and would then stop reading the
+      rim as a boundary between two faces - which is what stops it pulling the cap off the wall.
+    :param capEntityIds: the values in that array that name the caps to remesh.
+    :param targetEdgeLength: edge length to aim for, in mm; 0 sizes each cap after the surface
+      around its rim (see capTargetArea).
+    :return: the remeshed surface. Caution: the mesh is rebuilt around the caps, so the cells come
+      back neither the same in number nor in the same order, and only cellEntityIdsArrayName
+      survives - the remesher keeps no other cell data, and no point data.
+    """
+    import vtkvmtkDifferentialGeometryPython as vtkvmtkDifferentialGeometry
+
+    capEntityIds = [int(value) for value in capEntityIds]
+    if not capEntityIds:
+        return surface
+
+    # The remesher reads its input as triangles and stops on anything else.
+    surface = self.triangulateSurface(surface)
+
+    entityIdsArray = surface.GetCellData().GetArray(cellEntityIdsArrayName)
+    if entityIdsArray is None or entityIdsArray.GetNumberOfTuples() != surface.GetNumberOfCells():
+        logging.warning("Clip Vessel skipped remeshing the caps: the surface carries no usable %s "
+                        "cell array to tell them apart by.", cellEntityIdsArrayName)
+        return surface
+    entityIds = vtk_to_numpy(entityIdsArray).astype(np.int64)
+
+    remeshedCaps = []
+    remeshedCapEntityIds = []
+    for capEntityId in capEntityIds:
+        capCellMask = entityIds == capEntityId
+        targetArea = self.capTargetArea(surface, entityIds, capEntityId, targetEdgeLength)
+        if targetArea is None or not capCellMask.any():
+            continue
+
+        neighbourhood = self.extractCells(
+            surface, self.cellNeighbourhood(surface, capCellMask, self.capRemeshingCollarRings))
+        neighbourhoodIdsArray = neighbourhood.GetCellData().GetArray(cellEntityIdsArrayName)
+        if neighbourhoodIdsArray is None:
+            continue
+        neighbourhoodIds = vtk_to_numpy(neighbourhoodIdsArray).astype(np.int64)
+
+        # Everything but this cap - the collar included - is left to the remesher as it is, which
+        # is what freezes the rim. One pass per cap, because TargetArea is a single value for a
+        # run: sizing every cap by one number would mesh a cap on a small branch as coarsely as
+        # one on the aorta.
+        excludedEntityIds = vtk.vtkIdList()
+        for entityId in np.unique(neighbourhoodIds):
+            if int(entityId) != capEntityId:
+                excludedEntityIds.InsertNextId(int(entityId))
+
+        remesher = vtkvmtkDifferentialGeometry.vtkvmtkPolyDataSurfaceRemeshing()
+        remesher.SetInputData(neighbourhood)
+        remesher.SetCellEntityIdsArrayName(cellEntityIdsArrayName)
+        remesher.SetExcludedEntityIds(excludedEntityIds)
+        remesher.SetElementSizeModeToTargetArea()
+        remesher.SetTargetArea(targetArea)
+        remesher.SetNumberOfIterations(self.capRemeshingIterations)
+        # PreserveBoundaryEdges is for open boundaries, and the collar leaves the cap without any.
+        # The rim is held by the entity ids instead: the remesher never edits across a boundary
+        # between two entities, whether that flag is set or not.
+        remesher.Update()
+        remeshedNeighbourhood = remesher.GetOutput()
+
+        remeshedNeighbourhoodIdsArray = remeshedNeighbourhood.GetCellData().GetArray(cellEntityIdsArrayName)
+        if remeshedNeighbourhoodIdsArray is None:
+            continue
+        # Only the cap is taken back; the collar came in as part of the wall and is still there.
+        remeshedIds = vtk_to_numpy(remeshedNeighbourhoodIdsArray).astype(np.int64)
+        remeshedCaps.append(self.extractCells(remeshedNeighbourhood, remeshedIds == capEntityId))
+        remeshedCapEntityIds.append(capEntityId)
+
+    if not remeshedCaps:
+        return surface
+
+    # The surface with the old caps cut out, and the remeshed ones put in their place. Their rim
+    # points were never moved, so they still coincide exactly with the ones left around the holes
+    # and merging brings the two back together into one watertight surface.
+    pieces = [self.extractCells(surface, ~np.isin(entityIds, remeshedCapEntityIds))] + remeshedCaps
+    appendFilter = vtk.vtkAppendPolyData()
+    pieceEntityIds = []
+    for piece in pieces:
+        appendFilter.AddInputData(piece)
+        pieceArray = piece.GetCellData().GetArray(cellEntityIdsArrayName)
+        pieceEntityIds.append(vtk_to_numpy(pieceArray).astype(np.int64) if pieceArray is not None
+                              else np.zeros(piece.GetNumberOfCells(), np.int64))
+    appendFilter.Update()
+    appended = appendFilter.GetOutput()
+
+    # Put the ids back by hand. The append carries a cell array through only when every input has
+    # it under the same name and of the same type, and these do not: the capper writes the ids as
+    # a vtkIdTypeArray and the remesher writes them as a vtkIntArray, so the array is dropped
+    # without a word. Rebuilding it is exact anyway - the filter appends cells in input order.
+    appendedEntityIds = np.concatenate(pieceEntityIds) if pieceEntityIds else np.zeros(0, np.int64)
+    if appendedEntityIds.size == appended.GetNumberOfCells():
+        appendedArray = numpy_to_vtk(appendedEntityIds.astype(np.int32), deep=True,
+                                     array_type=vtk.VTK_INT)
+        appendedArray.SetName(cellEntityIdsArrayName)
+        appended.GetCellData().RemoveArray(cellEntityIdsArrayName)
+        appended.GetCellData().AddArray(appendedArray)
+    else:
+        logging.warning("Clip Vessel could not carry the %s ids across the remeshed caps: %d ids "
+                        "for %d cells.", cellEntityIdsArrayName, appendedEntityIds.size,
+                        appended.GetNumberOfCells())
+
+    cleanFilter = vtk.vtkCleanPolyData()
+    cleanFilter.SetInputData(appended)
+    cleanFilter.PointMergingOn()
+    # Only points that are already in the same place, which the rim points of the two pieces are.
+    # A tolerance relative to the bounding box would pull the finer cells of a cap together.
+    cleanFilter.ToleranceIsAbsoluteOn()
+    cleanFilter.SetAbsoluteTolerance(0.0)
+    # A cell that came out degenerate stays a degenerate triangle rather than turning into a line
+    # or a vert, which would leave cells the face labels do not line up with (see clipVessel).
+    cleanFilter.ConvertPolysToLinesOff()
+    cleanFilter.ConvertLinesToPointsOff()
+    cleanFilter.ConvertStripsToPolysOff()
+    cleanFilter.Update()
+
+    # The remesher rebuilds the cap cells, so their winding is its own rather than the one the
+    # capper left consistent with the wall.
+    return self.orientSurfaceOutwards(cleanFilter.GetOutput())
 
   def surroundingFaceId(self, surface, capCellIndices, faceIds, isCapCell, fallbackFaceId):
     """The commonest face id among the cells around the hole this cap closed, so that a fill over
@@ -2659,7 +2934,9 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
                  labelModelFaces=False, modelFaceIdArrayName=_DEFAULT_MODEL_FACE_ID_ARRAY_NAME,
                  capMethod=_DEFAULT_CAP_METHOD,
                  capConstraintFactor=_DEFAULT_CAP_CONSTRAINT_FACTOR,
-                 capNumberOfRings=_DEFAULT_CAP_NUMBER_OF_RINGS):
+                 capNumberOfRings=_DEFAULT_CAP_NUMBER_OF_RINGS,
+                 remeshCaps=False,
+                 capTargetEdgeLength=_DEFAULT_CAP_TARGET_EDGE_LENGTH):
     """Clips the vessel.
     :param surfacePolyData: input surface
     :param centerlinesPolyData: input centerlines
@@ -2685,6 +2962,10 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
     :param capConstraintFactor: how far a "SMOOTH" cap bulges out of the plane of the cut, 0 for
       a cap that stays in it
     :param capNumberOfRings: number of rings of cells a "SMOOTH" cap is made of
+    :param remeshCaps: if enabled then the caps are retriangulated to a uniform point
+      distribution, leaving the vessel wall untouched; see remeshCaps()
+    :param capTargetEdgeLength: edge length a remeshed cap aims for, in mm; 0 sizes each cap
+      after the surface around its own rim
     :return: polydata containing clipped vessel
     """
 
@@ -2873,8 +3154,10 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
         slicer.util.showStatusMessage(_("Capping surface..."))
         slicer.app.processEvents() 
         # A private array, not the user's: on an input already carrying the user's array the
-        # filter numbers the new caps on top of the existing ids (see capSurface).
-        surface = self.capSurface(surface, self.capBoundaryIdsArrayName if faceIdArrayName else None,
+        # filter numbers the new caps on top of the existing ids (see capSurface). Remeshing the
+        # caps needs it too, to tell a cap cell from a wall cell, even with no labeling asked for.
+        surface = self.capSurface(surface,
+                                  self.capBoundaryIdsArrayName if (faceIdArrayName or remeshCaps) else None,
                                   wallCellEntityId,
                                   capMethod=capMethod, constraintFactor=capConstraintFactor,
                                   numberOfRings=capNumberOfRings)
@@ -2887,6 +3170,36 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
         slicer.app.processEvents()
         self.lastFaceIdAssignments = self.labelModelFaces(surface, planeSpecifications, faceIdArrayName,
                                                           existingFaceIds, wallCellEntityId)
+
+    # Last of all: the remesher rebuilds the mesh and keeps only the one cell array it is given,
+    # so anything that matches cells of the output up with cells of the input - the face labels
+    # above do - has to have had its say by now.
+    if cap and remeshCaps:
+        slicer.util.showStatusMessage(_("Remeshing caps..."))
+        slicer.app.processEvents()
+        if faceIdArrayName:
+            # The face ids are what the caps are told apart by, so the remesher carries the right
+            # one onto every triangle it makes and the caps come out labeled without a second pass.
+            capEntityIds = [faceId for faceId, _label in self.lastFaceIdAssignments]
+            surface = self.remeshCaps(surface, faceIdArrayName, capEntityIds, capTargetEdgeLength)
+            # The remesher rebuilds the cell data, which leaves nothing marked active.
+            surface.GetCellData().SetActiveScalars(faceIdArrayName)
+        else:
+            # Nothing labeled the faces, so the capper's own per-boundary ids say which cells are
+            # caps. They carry wallCellEntityId on the wall, which is negative and would read to
+            # the remesher as "no entity", so they are shifted onto 0 for the wall and 1 up for
+            # the caps (see remeshCaps).
+            capBoundaryArray = surface.GetCellData().GetArray(self.capBoundaryIdsArrayName)
+            if capBoundaryArray is not None:
+                entityIds = vtk_to_numpy(capBoundaryArray).astype(np.int64) - wallCellEntityId
+                entityIdsArray = numpy_to_vtk(entityIds.astype(np.int32), deep=True, array_type=vtk.VTK_INT)
+                entityIdsArray.SetName(self.capBoundaryIdsArrayName)
+                surface.GetCellData().RemoveArray(self.capBoundaryIdsArrayName)
+                surface.GetCellData().AddArray(entityIdsArray)
+                surface = self.remeshCaps(surface, self.capBoundaryIdsArrayName,
+                                          [value for value in np.unique(entityIds) if value > 0],
+                                          capTargetEdgeLength)
+            surface.GetCellData().RemoveArray(self.capBoundaryIdsArrayName)   # internal bookkeeping
 
     surfacePolyData = vtk.vtkPolyData()
     surfacePolyData.DeepCopy(surface)
