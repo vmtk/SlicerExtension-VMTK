@@ -29,6 +29,7 @@ _INTERPOLATION_MODE_IDS = ("LINEAR", "THIN_PLATE_SPLINE", "RAMP")
 # "ModelFaceID" is the name SimVascular and its meshing tools read the faces of a model by.
 _DEFAULT_MODEL_FACE_ID_ARRAY_NAME = "ModelFaceID"
 
+
 def _normalizedModeId(value):
     return _LEGACY_MODE_IDS.get(value, value)
 
@@ -40,18 +41,6 @@ def _faceColor(faceId, isWall):
     if isWall:
         return (0.78, 0.78, 0.81)
     return colorsys.hsv_to_rgb((faceId * 0.6180339887498949) % 1.0, 0.62, 0.95)
-
-def _distanceToRay(point, rayOrigin, rayDirection):
-    """Distance from point to the half-line from rayOrigin along rayDirection (a unit vector).
-    Used instead of the distance to rayOrigin so that a flow extension moving a cap down the
-    ray does not spoil the match to its clip plane."""
-    offset = np.asarray(point, dtype=float) - np.asarray(rayOrigin, dtype=float)
-    rayDirection = np.asarray(rayDirection, dtype=float)
-    alongRay = float(np.dot(offset, rayDirection))
-    if alongRay <= 0.0:
-        # Behind the start of the ray: the closest point of the half-line is its start.
-        return float(np.linalg.norm(offset))
-    return float(np.linalg.norm(offset - alongRay * rayDirection))
 
 """
   ClipVessel
@@ -121,6 +110,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     uiWidget = slicer.util.loadUI(self.resourcePath('UI/ClipVessel.ui'))
     self.layout.addWidget(uiWidget)
     self.ui = slicer.util.childWidgetVariables(uiWidget)
+    # Kept so that cleanup() can hand the scene back (see there).
 
     self.nodeSelectors = [
         (self.ui.inputSurfaceSelector, "InputSurface"),
@@ -514,7 +504,9 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
   def updateFaceColorTable(self):
     """Rebuild the color table naming each face from what the last run recorded, or return None
     before the first labeling run, when there are no names to show."""
-    nameByFaceId = dict(self.logic.lastFaceIdLayout())
+    outputModelNode = self._parameterNode.GetNodeReference("OutputSurfaceModel") if self._parameterNode else None
+    outputPolyData = outputModelNode.GetPolyData() if outputModelNode else None
+    nameByFaceId = dict(self.logic.lastFaceIdLayout(outputPolyData))
     colorTableNode = self.faceColorTable() if nameByFaceId else None
     if colorTableNode is None:
         return None
@@ -1144,11 +1136,10 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         return
 
     insetFactor = self.ui.clipPointInsetFactorWidget.value
-    try:
+    # As in onApplyButton: the details section carries the traceback, nothing is shown while
+    # testing, and the failure is re-raised rather than reported and stepped over.
+    with slicer.util.tryWithErrorDisplay(_("Failed to detect clip points."), waitCursor=True):
         terminuses = self.logic.detectCenterlineTerminusClipPoints(centerlinesNode, insetFactor)
-    except Exception as e:
-        slicer.util.errorDisplay(_("Failed to detect clip points: {message}").format(message=str(e)))
-        return
     if not terminuses:
         slicer.util.errorDisplay(_("Could not detect any centerline terminuses. Check the input centerlines."))
         return
@@ -1302,94 +1293,94 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     if self.autoApplyTimer.isActive():
         self.autoApplyTimer.stop()
     self._applying = True
-    qt.QApplication.setOverrideCursor(qt.Qt.WaitCursor)
     try:
-        # Preprocessing
-        slicer.util.showStatusMessage(_("Preprocessing..."))
-        slicer.app.processEvents()  # force update
-        preprocessedPolyData = self.getPreprocessedPolyData()
-        # Save preprocessing result to model node. Skip the (surprisingly non-trivial)
-        # SetAndObserveMesh + render update when it's the exact same cached polydata as
-        # last time, which is the common case while only a clip plane is being edited.
-        preprocessedSurfaceModelNode = self._parameterNode.GetNodeReference("PreprocessedSurface")
-        if preprocessedSurfaceModelNode and preprocessedSurfaceModelNode.GetPolyData() is not preprocessedPolyData:
-            preprocessedSurfaceModelNode.SetAndObserveMesh(preprocessedPolyData)
-            if not preprocessedSurfaceModelNode.GetDisplayNode():
-                preprocessedSurfaceModelNode.CreateDefaultDisplayNodes()
-                preprocessedSurfaceModelNode.GetDisplayNode().SetColor(1.0, 1.0, 0.0)
-                preprocessedSurfaceModelNode.GetDisplayNode().SetOpacity(0.4)
-                preprocessedSurfaceModelNode.GetDisplayNode().SetLineWidth(2)
+        # tryWithErrorDisplay puts the whole traceback in the dialog's details section,
+        # which is the only way to tell from a report where a failure actually came from.
+        # It stays silent when Slicer is in testing mode, so an automated run is not left
+        # waiting on a dialog nobody will dismiss, and it re-raises, so a run that failed
+        # is reported as failed rather than passing quietly.
+        with slicer.util.tryWithErrorDisplay(_("Failed to compute results."), waitCursor=True):
+            # Preprocessing
+            slicer.util.showStatusMessage(_("Preprocessing..."))
+            slicer.app.processEvents()  # force update
+            preprocessedPolyData = self.getPreprocessedPolyData()
+            # Save preprocessing result to model node. Skip the (surprisingly non-trivial)
+            # SetAndObserveMesh + render update when it's the exact same cached polydata as
+            # last time, which is the common case while only a clip plane is being edited.
+            preprocessedSurfaceModelNode = self._parameterNode.GetNodeReference("PreprocessedSurface")
+            if preprocessedSurfaceModelNode and preprocessedSurfaceModelNode.GetPolyData() is not preprocessedPolyData:
+                preprocessedSurfaceModelNode.SetAndObserveMesh(preprocessedPolyData)
+                if not preprocessedSurfaceModelNode.GetDisplayNode():
+                    preprocessedSurfaceModelNode.CreateDefaultDisplayNodes()
+                    preprocessedSurfaceModelNode.GetDisplayNode().SetColor(1.0, 1.0, 0.0)
+                    preprocessedSurfaceModelNode.GetDisplayNode().SetOpacity(0.4)
+                    preprocessedSurfaceModelNode.GetDisplayNode().SetLineWidth(2)
 
-        clipPointsMarkupsNode = self._parameterNode.GetNodeReference("ClipPoints")
-        centerlinesModelNode = self._parameterNode.GetNodeReference("InputCenterlines")
-        outputModelNode = self._parameterNode.GetNodeReference("OutputSurfaceModel")
-        extensionRatio = float(self._parameterNode.GetParameter("ExtensionRatio"))
-        transitionRatio = float(self._parameterNode.GetParameter("ExtensionTransitionRatio"))
-        self.saveManualPlaneNormals()
+            clipPointsMarkupsNode = self._parameterNode.GetNodeReference("ClipPoints")
+            centerlinesModelNode = self._parameterNode.GetNodeReference("InputCenterlines")
+            outputModelNode = self._parameterNode.GetNodeReference("OutputSurfaceModel")
+            extensionRatio = float(self._parameterNode.GetParameter("ExtensionRatio"))
+            transitionRatio = float(self._parameterNode.GetParameter("ExtensionTransitionRatio"))
+            self.saveManualPlaneNormals()
 
-        # Read processing options from the parameter node. The GUI may still be
-        # synchronizing after a saved scene is restored.
-        cap = self._parameterNode.GetParameter("CapOutputSurface") == "true"
-        labelModelFaces = self._parameterNode.GetParameter("LabelModelFaces") == "true"
-        modelFaceIdArrayName = (self._parameterNode.GetParameter("ModelFaceIdArrayName")
-                                or _DEFAULT_MODEL_FACE_ID_ARRAY_NAME)
-        addFlowExtensions = self._parameterNode.GetParameter("ExtendOutputSurface") == "true"
-        extensionMode = _normalizedModeId(self._parameterNode.GetParameter("ExtensionMode"))
-        interpolationMode = _normalizedModeId(self._parameterNode.GetParameter("InterpolationMode"))
-        preserveCrossSectionShape = self._parameterNode.GetParameter("PreserveCrossSectionShape") == "true"
-        clippingMethod = self._parameterNode.GetParameter("ClippingMethod") or "PLANE_PATCH"
-        sphereRadiusFactor = float(self._parameterNode.GetParameter("LocalSphereRadiusFactor"))
+            # Read processing options from the parameter node. The GUI may still be
+            # synchronizing after a saved scene is restored.
+            cap = self._parameterNode.GetParameter("CapOutputSurface") == "true"
+            labelModelFaces = self._parameterNode.GetParameter("LabelModelFaces") == "true"
+            modelFaceIdArrayName = (self._parameterNode.GetParameter("ModelFaceIdArrayName")
+                                    or _DEFAULT_MODEL_FACE_ID_ARRAY_NAME)
+            addFlowExtensions = self._parameterNode.GetParameter("ExtendOutputSurface") == "true"
+            extensionMode = _normalizedModeId(self._parameterNode.GetParameter("ExtensionMode"))
+            interpolationMode = _normalizedModeId(self._parameterNode.GetParameter("InterpolationMode"))
+            preserveCrossSectionShape = self._parameterNode.GetParameter("PreserveCrossSectionShape") == "true"
+            clippingMethod = self._parameterNode.GetParameter("ClippingMethod") or "PLANE_PATCH"
+            sphereRadiusFactor = float(self._parameterNode.GetParameter("LocalSphereRadiusFactor"))
 
-        slicer.util.showStatusMessage(_("Clipping model..."))
-        slicer.app.processEvents()  # force update
+            slicer.util.showStatusMessage(_("Clipping model..."))
+            slicer.app.processEvents()  # force update
 
-        outputPolyData = self.logic.clipVessel(preprocessedPolyData, centerlinesModelNode, clipPointsMarkupsNode,
-                                               cap, addFlowExtensions, extensionRatio, extensionMode,
-                                               self._manualPlaneNormals, self._manualPlaneOrigins,
-                                               self._activeClipPointIndex, clippingMethod, sphereRadiusFactor,
-                                               transitionRatio, interpolationMode, preserveCrossSectionShape,
-                                               self._extensionLengthScaleFactors,
-                                               labelModelFaces, modelFaceIdArrayName)
+            outputPolyData = self.logic.clipVessel(preprocessedPolyData, centerlinesModelNode, clipPointsMarkupsNode,
+                                                   cap, addFlowExtensions, extensionRatio, extensionMode,
+                                                   self._manualPlaneNormals, self._manualPlaneOrigins,
+                                                   self._activeClipPointIndex, clippingMethod, sphereRadiusFactor,
+                                                   transitionRatio, interpolationMode, preserveCrossSectionShape,
+                                                   self._extensionLengthScaleFactors,
+                                                   labelModelFaces, modelFaceIdArrayName)
 
-        outputModelNode.SetAndObserveMesh(outputPolyData)
-        if not outputModelNode.GetDisplayNode():
-            outputModelNode.CreateDefaultDisplayNodes()
-            outputModelNode.GetDisplayNode().SetColor(0.75, 0.75, 0.75)
-            outputModelNode.GetDisplayNode().SetLineWidth(3)
-        # Table first: it names each face in the legend, and the names are only known now.
-        self.updateFaceColorTable()
-        self.updateOutputFaceColoring()
-        self.updateOutputVisibilityButton()
-        self.updateOutputEdgesButton()
+            outputModelNode.SetAndObserveMesh(outputPolyData)
+            if not outputModelNode.GetDisplayNode():
+                outputModelNode.CreateDefaultDisplayNodes()
+                outputModelNode.GetDisplayNode().SetColor(0.75, 0.75, 0.75)
+                outputModelNode.GetDisplayNode().SetLineWidth(3)
+            # Table first: it names each face in the legend, and the names are only known now.
+            self.updateFaceColorTable()
+            self.updateOutputFaceColoring()
+            self.updateOutputVisibilityButton()
+            self.updateOutputEdgesButton()
 
-        if self.logic.lastUnclippedPoints:
-            self.ui.clipStatusLabel.text = _("No cut made at: {point_labels}. These points are positioned exactly at, or beyond, the vessel end — move them slightly inward.").format(
-                point_labels=", ".join(self.logic.lastUnclippedPoints))
-            self.ui.clipStatusLabel.styleSheet = "QLabel { color: #d08000; }"
-        elif self.logic.lastPlanarityFailures:
-            failedLabels = [result["label"] for result in self.logic.lastPlanarityFailures]
-            self.ui.clipStatusLabel.text = _("Capping skipped; non-planar cuts: {failed_labels}").format(failed_labels=", ".join(failedLabels))
-            self.ui.clipStatusLabel.styleSheet = "QLabel { color: #d08000; }"
-        else:
-            self.ui.clipStatusLabel.text = _("All cuts are planar.")
-            self.ui.clipStatusLabel.styleSheet = "QLabel { color: #008000; }"
+            if self.logic.lastUnclippedPoints:
+                self.ui.clipStatusLabel.text = _("No cut made at: {point_labels}. These points are positioned exactly at, or beyond, the vessel end — move them slightly inward.").format(
+                    point_labels=", ".join(self.logic.lastUnclippedPoints))
+                self.ui.clipStatusLabel.styleSheet = "QLabel { color: #d08000; }"
+            elif self.logic.lastPlanarityFailures:
+                failedLabels = [result["label"] for result in self.logic.lastPlanarityFailures]
+                self.ui.clipStatusLabel.text = _("Capping skipped; non-planar cuts: {failed_labels}").format(failed_labels=", ".join(failedLabels))
+                self.ui.clipStatusLabel.styleSheet = "QLabel { color: #d08000; }"
+            else:
+                self.ui.clipStatusLabel.text = _("All cuts are planar.")
+                self.ui.clipStatusLabel.styleSheet = "QLabel { color: #008000; }"
 
-        # Which face id landed on which cap is the one thing about the labeling that cannot be
-        # read off the 3D view, and it is what a boundary condition setup is written against.
-        if labelModelFaces:
-            parts = ["%d\u2192%d" % item for item in sorted(self.logic.lastExistingFaceIdMap.items())]
-            parts = [_("existing faces {faces}").format(faces=", ".join(parts))] if parts else []
-            if self.logic.lastWallFaceId is not None:
-                parts.append(_("wall={wall_face_id}").format(wall_face_id=self.logic.lastWallFaceId))
-            parts += ["%d=%s" % assignment for assignment in self.logic.lastFaceIdAssignments]
-            self.ui.clipStatusLabel.text += " %s: %s." % (modelFaceIdArrayName, ", ".join(parts))
+            # Which face id landed on which cap is the one thing about the labeling that cannot be
+            # read off the 3D view, and it is what a boundary condition setup is written against.
+            if labelModelFaces:
+                parts = ["%d\u2192%d" % item for item in sorted(self.logic.lastExistingFaceIdMap.items())]
+                parts = [_("existing faces {faces}").format(faces=", ".join(parts))] if parts else []
+                if self.logic.lastWallFaceId is not None:
+                    parts.append(_("wall={wall_face_id}").format(wall_face_id=self.logic.lastWallFaceId))
+                parts += ["%d=%s" % assignment for assignment in self.logic.lastFaceIdAssignments]
+                self.ui.clipStatusLabel.text += " %s: %s." % (modelFaceIdArrayName, ", ".join(parts))
 
-    except Exception as e:
-        slicer.util.errorDisplay(_("Failed to compute results: {message}").format(message=str(e)))
-        import traceback
-        traceback.print_exc()
     finally:
-        qt.QApplication.restoreOverrideCursor()
         self._applying = False
     slicer.util.showStatusMessage(_("Clipping vessel complete."), 3000)
 
@@ -1397,7 +1388,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 # ClipVesselLogic
 #
 
-class ClipVesselLogic(ScriptedLoadableModuleLogic):
+class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
   """This class should implement all the actual
   computation done by your module.  The interface
   should be such that other python code can import
@@ -1408,6 +1399,7 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
   """
   def __init__(self):
     ScriptedLoadableModuleLogic.__init__(self)
+    VTKObservationMixin.__init__(self)  # needed to observe the scene closing
     self.radiusArrayName = 'Radius'
 
     # whether to use an adaptive extension length, expressed as a multiple of the boundary's mean radius
@@ -1442,22 +1434,43 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
     # surface already carried are compacted onto firstFaceId, firstFaceId+1, ...; the vessel
     # wall takes the id after those, and the caps follow it in clip point order.
     self.firstFaceId = 1
+    self.planarityToleranceMm = 0.01
+
+    self.resetRunState()
+    # Everything resetRunState() clears describes the scene it was computed from, so none of it
+    # may outlive that scene: a legend built afterwards would otherwise still carry the face
+    # names of a surface that is gone, and the caches would answer for nodes that no longer
+    # exist.
+    self.addObserver(slicer.mrmlScene, slicer.vtkMRMLScene.EndCloseEvent, self.onSceneEndClose)
+
+  def resetRunState(self):
+    """Forget the last run: what it produced, and what it cached in order to produce it."""
     # Filled in by labelModelFaces(). lastWallFaceId is None both before any run and when the
     # input labeled every cell, leaving no wall to label.
     self.lastWallFaceId = None
     self.lastExistingFaceIdMap = {}
-
-    self.planarityToleranceMm = 0.01
+    # Filled in by clipVessel() rather than by labelModelFaces(), so a caller that labels a
+    # surface directly leaves whatever the last clip put here -- which is how the cap names of
+    # one run used to turn up in the legend of the next.
+    self.lastFaceIdAssignments = []
     self.lastPlanarityResults = []
     self.lastPlanarityFailures = []
     self.lastUnclippedPoints = []
-    self.lastFaceIdAssignments = []
     self._incrementalClipCacheKey = None
     self._incrementalClipBaseSurface = None
     self._centerlineGeometryCacheKey = None
     self._centerlineGeometryCache = None
     self._centerlineLocatorCacheKey = None
     self._centerlineLocator = None
+    # The poly data the run labeled, and its modification time as of then. What the run recorded
+    # describes that poly data and nothing else, so this is what makes it possible to tell
+    # whether it still applies to the surface being asked about.
+    self._runStateSurface = None
+    self._runStateSurfaceMTime = None
+
+  def onSceneEndClose(self, caller=None, event=None):
+    """The scene the last run described is gone, so nothing it left behind still applies."""
+    self.resetRunState()
 
   def setDefaultParameters(self, parameterNode):
     """
@@ -1535,22 +1548,42 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
         logging.error("Surface can only be loaded from model or segmentation node")
         return None
             
-  def capSurface(self, surface, cellEntityIdsArrayName=None, cellEntityIdOffset=0):
+  def capSurface(self, surface, cellEntityIdsArrayName=None, cellEntityIdOffset=0,
+                 boundaryCellEntityIds=None):
     """Close every open boundary of the surface with a triangle fan. When cellEntityIdsArrayName
     is set, the filter also tags each cell in a cell array of that name: input cells get
     cellEntityIdOffset, and the cap closing the i-th boundary gets i+1+cellEntityIdOffset.
     Caution: if the input already carries that array the filter keeps its values but still
     numbers the caps from cellEntityIdOffset up, so new cap ids land on ids already in use -
     clipVessel() passes a private array name for that reason.
+
+    boundaryCellEntityIds gives the id to put on the cap of each boundary, indexed by boundary id,
+    in place of the i+1+cellEntityIdOffset that the extraction order would otherwise give it. On a
+    surface carrying the boundary labels this module writes (see labelClipBoundaries) a boundary's
+    id is its label, which is the index of the clip point that opened it, so entry i is the id for
+    the cap of clip point i. On a surface without them it is the boundary's position in the
+    extraction order. An entry of -1, or a boundary with no entry at all, keeps the positional id.
     """
     capDisplacement = 0.0
     surfaceCapper = vtkvmtkComputationalGeometry.vtkvmtkCapPolyData()
     surfaceCapper.SetInputData(surface)
     surfaceCapper.SetDisplacement(capDisplacement)
     surfaceCapper.SetInPlaneDisplacement(capDisplacement)
+    if surface.GetPointData().GetArray(self.boundaryLabelsArrayName) is not None:
+        # Read the boundaries from the labels rather than extracting them again, which is what
+        # makes a boundary id here mean the clip point that opened it.
+        surfaceCapper.SetBoundaryLabelsArrayName(self.boundaryLabelsArrayName)
+        surfaceCapper.SetBoundaryPointOrderArrayName(self.boundaryPointOrderArrayName)
     if cellEntityIdsArrayName:
         surfaceCapper.SetCellEntityIdsArrayName(cellEntityIdsArrayName)
         surfaceCapper.SetCellEntityIdOffset(cellEntityIdOffset)
+        if boundaryCellEntityIds is not None:
+            # Each boundary then gets the id the caller chose for it rather than one derived from
+            # the order the capper happens to extract the boundaries in.
+            cellEntityIdArray = vtk.vtkIdTypeArray()
+            for cellEntityId in boundaryCellEntityIds:
+                cellEntityIdArray.InsertNextValue(int(cellEntityId))
+            surfaceCapper.SetBoundaryCellEntityIds(cellEntityIdArray)
     surfaceCapper.Update()
     surface = surfaceCapper.GetOutput()
     return surface
@@ -1558,6 +1591,12 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
   # Carries the capping filter's per-boundary ids from capSurface() to labelModelFaces(). The
   # name must be one no input surface uses, or the filter inherits its values (see capSurface).
   capBoundaryIdsArrayName = "__ClipVesselCapBoundaryIds"
+
+  # Carry which clip point opened which boundary through the filters that rebuild the mesh, in the
+  # surface's own point data (see labelClipBoundaries). Private names, so that a surface the user
+  # brought in with arrays of its own cannot be mistaken for a labeled one.
+  boundaryLabelsArrayName = "__ClipVesselBoundaryLabels"
+  boundaryPointOrderArrayName = "__ClipVesselBoundaryPointOrder"
 
   def surroundingFaceId(self, surface, capCellIndices, faceIds, isCapCell, fallbackFaceId):
     """The commonest face id among the cells around the hole this cap closed, so that a fill over
@@ -1579,7 +1618,8 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
     values, counts = np.unique(neighbourFaceIds, return_counts=True)
     return int(values[np.argmax(counts)])
 
-  def labelModelFaces(self, surface, planeSpecifications, faceIdArrayName, existingFaceIds=None):
+  def labelModelFaces(self, surface, planeSpecifications, faceIdArrayName, existingFaceIds=None,
+                      wallCellEntityId=0):
     """Tag every cell of the output surface with an integer face id, in the faceIdArrayName cell
     data array, so that a CFD setup can assign a boundary condition per face and a remesher can
     keep the wall/cap boundaries as sharp feature edges.
@@ -1592,13 +1632,18 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
 
     Caps follow the clip points rather than the capping filter's own boundary order, which
     shifts as clip points move and would renumber the faces of a configured simulation between
-    runs. Each cap is matched to its clip point by the distance from the cap centroid to the ray
-    leaving the clip plane along its normal, closest pair first. A clip point that made no cut
+    runs. Which cap belongs to which clip point is settled by labelClipBoundaries(), which writes
+    the clip point's index onto the points of the boundary it opened; the capper reads those
+    labels and puts the clip point's id on the cap closing each. A clip point that made no cut
     leaves its id unused rather than shifting the others.
 
     :param existingFaceIds: the ids the input carried, one per input cell, in cell order;
       clipVessel reads them before capping, which does not carry cell data through. When None
       they are read off the surface, which is only correct if it has not been capped since.
+    :param wallCellEntityId: the value the capping filter left on the cells it copied from its
+      input, which is what tells a cap cell from a wall cell. A cap carries the id of the clip point
+      whose cut opened the boundary it closes (i+1 for clip point i); a cap closing a boundary no cut
+      opened carries an id the capper derived itself, which falls outside that range.
     :return: [(faceId, clipPointLabel)] for the caps. lastWallFaceId and lastExistingFaceIdMap
       describe the rest.
     """
@@ -1618,7 +1663,10 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
             existingFaceIds = vtk_to_numpy(existingArray)
     existingFaceIds = (np.zeros(0, np.int64) if existingFaceIds is None
                        else np.asarray(existingFaceIds, dtype=np.int64))
-    isCapCell = (capBoundaryIds > 0) if capBoundaryIds is not None else np.zeros(numberOfCells, bool)
+    # The capper writes wallCellEntityId on the cells it copied from its input and something else
+    # on every cap cell, whether that is a clip point id carried on the boundary or an id derived
+    # from the boundary's position in the capper's own list.
+    isCapCell = (capBoundaryIds != wallCellEntityId) if capBoundaryIds is not None else np.zeros(numberOfCells, bool)
     nonCapCellCount = int(np.count_nonzero(~isCapCell))
     if existingFaceIds.size and existingFaceIds.size != nonCapCellCount:
         # They are matched to output cells by index, so a count mismatch means they would land
@@ -1650,25 +1698,17 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
     # Caps, numbered in clip point order.
     capAssignments = []
     if capBoundaryIds is not None:
-        boundaryIds = [int(value) for value in np.unique(capBoundaryIds) if int(value) > 0]
+        boundaryIds = [int(value) for value in np.unique(capBoundaryIds[isCapCell])]
 
-        cellCenters = vtk.vtkCellCenters()
-        cellCenters.SetInputData(surface)
-        cellCenters.Update()
-        centers = vtk_to_numpy(cellCenters.GetOutput().GetPoints().GetData())
-
-        # Every cap/clip point pair, closest first; take each whose cap and clip point are free.
-        pairs = sorted(
-            (_distanceToRay(centers[capBoundaryIds == boundaryId].mean(axis=0),
-                            specification["origin"], specification["normal"]),
-             boundaryId, specification["index"])
-            for boundaryId in boundaryIds for specification in planeSpecifications)
+        # Each cap carries the id of the clip point whose cut opened the boundary it closes, put
+        # there by clipModel() and brought this far by the capper; a cap value outside the clip
+        # point range belongs to a hole no cut accounts for.
+        numberOfClipPoints = len(planeSpecifications)
         faceIdByBoundaryId = {}
-        claimedPointIndices = set()
-        for _distance, boundaryId, pointIndex in pairs:
-            if boundaryId not in faceIdByBoundaryId and pointIndex not in claimedPointIndices:
-                faceIdByBoundaryId[boundaryId] = firstCapFaceId + pointIndex
-                claimedPointIndices.add(pointIndex)
+        for boundaryId in boundaryIds:
+            if 1 <= boundaryId <= numberOfClipPoints:
+                clipPointIndex = boundaryId - 1
+                faceIdByBoundaryId[boundaryId] = firstCapFaceId + clipPointIndex
 
         labelByPointIndex = {specification["index"]: specification["label"]
                              for specification in planeSpecifications}
@@ -1707,11 +1747,33 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
     surface.GetCellData().RemoveArray(self.capBoundaryIdsArrayName)   # internal bookkeeping
     # Active scalars so the model can be colored by face without picking the array by hand.
     surface.GetCellData().SetActiveScalars(faceIdArrayName)
+    self.rememberRunStateSurface(surface)
     return capAssignments
 
-  def lastFaceIdLayout(self):
+  def rememberRunStateSurface(self, surface):
+    """Record that what the run state holds describes surface, as it stands now."""
+    self._runStateSurface = surface
+    self._runStateSurfaceMTime = surface.GetMTime() if surface is not None else None
+
+  def runStateDescribes(self, surface):
+    """Whether what the last run recorded still describes surface.
+
+    The face ids a run hands out mean something only for the poly data it labeled: they say
+    nothing about another surface that happens to carry the same array, and nothing about this
+    one either once something has changed it. Identity alone is not enough, so the modification
+    time is checked too."""
+    if surface is None or self._runStateSurface is None:
+        return False
+    return surface is self._runStateSurface and surface.GetMTime() == self._runStateSurfaceMTime
+
+  def lastFaceIdLayout(self, surface):
     """The faces of the last labelModelFaces() call as an ordered [(faceId, name)] - the input's
-    own labels, then the wall, then the caps - so the legend can name them."""
+    own labels, then the wall, then the caps - so the legend can name them.
+
+    Empty unless the run still describes surface, so that a legend is never named after a run
+    that produced something else."""
+    if not self.runStateDescribes(surface):
+        return []
     layout = [(newId, _("Input face {original_id}").format(original_id=originalId))
               for originalId, newId in sorted(self.lastExistingFaceIdMap.items(), key=lambda item: item[1])]
     if self.lastWallFaceId is not None:
@@ -1837,6 +1899,62 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
     normal = self.orientNormalTowardBranchEnd(centerlines, centerlines.GetPoint(pointId), normal)
     vtk.vtkMath.Normalize(normal)
     return normal
+
+  def labelClipBoundaries(self, surface, planeSpecifications, tolerance=None):
+    """Label each open boundary of the clipped surface with the index of the clip point that opened it.
+
+    A boundary is attributed to a clip point only when *every* one of its points lies in that clip
+    point's plane, so a hole the input already had, or another cut's boundary, cannot be claimed by
+    the wrong plane. This is the same measurement validateClipPlanes() makes, against the same
+    tolerance: a cut that is not planar to within planarityToleranceMm is reported there and turns
+    capping off, so a boundary too far out of plane to be recognised here is one that would not
+    have been capped anyway.
+
+    The answer is written into the surface's own point data rather than returned as a position in
+    a list, which is what lets it survive the filters that follow. Growing a flow extension
+    replaces a boundary with a new one at the tip of the extension, made of points that did not
+    exist before, and cleaning or smoothing renumbers and moves points; a boundary id that is a
+    position in some filter's extraction order means something different after each of those, and
+    used to have to be translated across every one of them. A label carried by the points does
+    not: vtkvmtkPolyDataFlowExtensionsFilter moves it to the tip of the extension it grows, and
+    vtkvmtkCapPolyData reads it to decide which cap is which.
+
+    A boundary no clip point opened gets a label above the last clip point index, so it can never
+    be mistaken for one that was cut.
+
+    :return: (labeled surface, set of clip point indices that were matched to no boundary). A clip
+      point is unmatched when it never cut, or when a later cut removed the boundary it opened.
+    """
+    if tolerance is None:
+        tolerance = self.planarityToleranceMm
+
+    planeOrigins = vtk.vtkPoints()
+    planeNormals = vtk.vtkDoubleArray()
+    planeNormals.SetNumberOfComponents(3)
+    planeLabels = vtk.vtkIdList()
+    for specification in planeSpecifications:
+        planeOrigins.InsertNextPoint(specification["origin"])
+        planeNormals.InsertNextTuple3(*specification["normal"])
+        # The label of a boundary is the index of the clip point that opened it, so that every
+        # per-boundary list below is indexed by clip point without a translation step.
+        planeLabels.InsertNextId(specification["index"])
+
+    labeler = vtkvmtkComputationalGeometry.vtkvmtkPolyDataBoundaryLabeler()
+    labeler.SetInputData(surface)
+    labeler.SetBoundaryLabelsArrayName(self.boundaryLabelsArrayName)
+    labeler.SetBoundaryPointOrderArrayName(self.boundaryPointOrderArrayName)
+    labeler.SetLabelingModeToOnPlane()
+    labeler.SetMaximumDistanceFromPlane(tolerance)
+    # MaximumDistanceFromPlaneOrigin is left unset: a single distance would have to be loose
+    # enough for the widest vessel end, which makes it no constraint at all on the narrow ones.
+    labeler.SetPlaneOrigins(planeOrigins)
+    labeler.SetPlaneNormals(planeNormals)
+    labeler.SetPlaneLabels(planeLabels)
+    labeler.Update()
+
+    unmatched = labeler.GetUnmatchedPlaneLabels()
+    unmatchedClipPointIndices = set(unmatched.GetId(index) for index in range(unmatched.GetNumberOfIds()))
+    return labeler.GetOutput(), unmatchedClipPointIndices
 
   def clipModel(self, surface, planeOrigin, planeNormal, localRadius=None, clippingMethod="PLANE_PATCH", sphereRadiusFactor=2.5):
     """Remove the end region of the vessel beyond a single plane. planeNormal should point
@@ -2279,8 +2397,12 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
       of the boundary that it grows from, instead of morphing it into a circle.
       Defaults to self.PreserveCrossSectionShape.
     :param extensionLengthScaleFactors: optional per-boundary multipliers applied to the extension
-      length, indexed by boundary id (see computeBoundaryExtensionScaleFactors); None leaves all
-      extension lengths unscaled.
+      length, indexed by boundary id; None leaves all extension lengths unscaled. On a surface
+      carrying the boundary labels this module writes (see labelClipBoundaries) a boundary's id is
+      its label, which is the index of the clip point that opened it.
+    :return: the extended surface. Growing an extension replaces the boundary it grew from with a
+      new one at the tip, but the filter carries the boundary's label across to it, so a vessel end
+      is still the same vessel end afterwards and nothing has to be renumbered.
     """
     if extensionRatio is None:
         extensionRatio = self.ExtensionRatio
@@ -2294,6 +2416,11 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
     
     extensionsFilter = vtkvmtkComputationalGeometry.vtkvmtkPolyDataFlowExtensionsFilter()
     extensionsFilter.SetInputData(surfacePolyData)
+    if surfacePolyData.GetPointData().GetArray(self.boundaryLabelsArrayName) is not None:
+        # Read the boundaries from the labels, and carry each one across to the tip of its own
+        # extension, so that a vessel end keeps its identity through the rebuild.
+        extensionsFilter.SetBoundaryLabelsArrayName(self.boundaryLabelsArrayName)
+        extensionsFilter.SetBoundaryPointOrderArrayName(self.boundaryPointOrderArrayName)
     extensionsFilter.SetCenterlines(centerlinesPolyData)
     extensionsFilter.SetAdaptiveExtensionLength(self.AdaptiveExtensionLength)
     extensionsFilter.SetAdaptiveExtensionRadius(self.AdaptiveExtensionRadius)
@@ -2322,33 +2449,6 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
         extensionsFilter.SetInterpolationModeToRamp()
     extensionsFilter.Update()
     return extensionsFilter.GetOutput()
-
-  def computeBoundaryExtensionScaleFactors(self, surface, clipPointPositions, clipPointScaleFactors):
-    """Per-boundary extension length scale factors for the flow extensions filter.
-    Each open boundary of surface gets the scale factor of the clip point closest to the
-    boundary's barycenter. The boundaries are enumerated with the same boundary extractor that
-    vtkvmtkPolyDataFlowExtensionsFilter uses internally, so the indices of the returned list
-    match the boundary ids the filter assigns when surface is its input.
-    :param clipPointPositions: one position per clip point
-    :param clipPointScaleFactors: the corresponding scale factor of each clip point
-    :return: list with one scale factor per open boundary of surface, or None when there are
-      no clip points to map the boundaries to.
-    """
-    if not clipPointPositions:
-        return None
-    boundaryExtractor = vtkvmtkComputationalGeometry.vtkvmtkPolyDataBoundaryExtractor()
-    boundaryExtractor.SetInputData(surface)
-    boundaryExtractor.Update()
-    boundaries = boundaryExtractor.GetOutput()
-    boundaryScaleFactors = []
-    for boundaryIndex in range(boundaries.GetNumberOfCells()):
-        boundaryPoints = boundaries.GetCell(boundaryIndex).GetPoints()
-        barycenter = np.mean([boundaryPoints.GetPoint(pointIndex)
-                              for pointIndex in range(boundaryPoints.GetNumberOfPoints())], axis=0)
-        closestClipPointIndex = min(range(len(clipPointPositions)),
-            key=lambda index: vtk.vtkMath.Distance2BetweenPoints(barycenter, clipPointPositions[index]))
-        boundaryScaleFactors.append(float(clipPointScaleFactors[closestClipPointIndex]))
-    return boundaryScaleFactors
 
   def clipVessel(self, surfacePolyData, centerlinesNode, clipPointsMarkupsNode, cap, addFlowExtensions,
                  extensionRatio, extensionMode, manualClipPlaneNormals=None, manualClipPlaneOrigins=None,
@@ -2379,6 +2479,15 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
     :param modelFaceIdArrayName: name of the cell array that holds the face ids
     :return: polydata containing clipped vessel
     """
+
+    # Say which input is missing. Without this the first thing to touch one of them raises an
+    # AttributeError on None, which names neither the input nor the module that wanted it.
+    if not centerlinesNode:
+        raise ValueError(_("Valid input centerlines are required"))
+    if centerlinesNode.GetPolyData() is None:
+        raise ValueError(_("The input centerlines node holds no mesh"))
+    if not clipPointsMarkupsNode:
+        raise ValueError(_("Valid clip points are required"))
 
     centerlinesPolyData = self.getCachedCenterlineGeometry(centerlinesNode)
 
@@ -2479,6 +2588,21 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
         addFlowExtensions = False
         cap = False
 
+    # Which cut opened which boundary, settled once here, while the boundaries still lie exactly
+    # where the cuts left them, and written into the surface's own point data. From here on a
+    # vessel end is referred to by its label, which is the index of the clip point that opened it,
+    # and which the filters that rebuild the mesh carry with the points rather than renumber.
+    surface, unmatchedClipPointIndices = self.labelClipBoundaries(surface, planeSpecifications)
+    unidentifiedLabels = [specification["label"] for specification in planeSpecifications
+                          if specification["index"] in unmatchedClipPointIndices]
+    if unidentifiedLabels:
+        # Without a boundary to point at, that vessel end gets neither its own face id nor its own
+        # extension length; say so rather than let it quietly fall back to the capper's numbering.
+        logging.warning("Clip Vessel could not tell which boundary belongs to %d clip point(s) (%s); "
+                        "their caps take an id of the capping filter's own choosing and their flow "
+                        "extensions are left unscaled.",
+                        len(unidentifiedLabels), ", ".join(unidentifiedLabels))
+
     if addFlowExtensions:
         slicer.util.showStatusMessage(_("Adding extensions..."))
         slicer.app.processEvents()
@@ -2488,16 +2612,19 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
                             "flow extensions rebuilds the mesh and does not preserve cell data.")
         boundaryScaleFactors = None
         if extensionScaleFactors and any(abs(scaleFactor - 1.0) > 1e-6 for scaleFactor in extensionScaleFactors.values()):
-            # The clip plane origins (with any manual overrides applied) are used as the clip
-            # point positions, so each open boundary is matched to the cut that created it.
-            clipPointScaleFactors = [
-                extensionScaleFactors.get(clipPointsMarkupsNode.GetNthControlPointID(specification["index"]), 1.0)
-                for specification in planeSpecifications]
-            boundaryScaleFactors = self.computeBoundaryExtensionScaleFactors(
-                surface, [specification["origin"] for specification in planeSpecifications], clipPointScaleFactors)
-        surface = self.extendVessel(surface, centerlinesPolyData, extensionRatio, extensionMode,
-                                    transitionRatio, interpolationMode, preserveCrossSectionShape,
-                                    boundaryScaleFactors)
+            # One factor per boundary id, and a boundary id is a clip point index, so entry i
+            # belongs to clip point i. A boundary no cut opened - a hole the input already had -
+            # carries a label above the last clip point index, falls off the end of the list, and
+            # is left unscaled rather than inheriting the factor of whichever clip point happens
+            # to be nearest.
+            boundaryScaleFactors = []
+            for specification in planeSpecifications:
+                clipPointId = clipPointsMarkupsNode.GetNthControlPointID(specification["index"])
+                boundaryScaleFactors.append(extensionScaleFactors.get(clipPointId, 1.0))
+        surface = self.extendVessel(
+            surface, centerlinesPolyData, extensionRatio, extensionMode,
+            transitionRatio, interpolationMode, preserveCrossSectionShape,
+            boundaryScaleFactors)
 
     faceIdArrayName = (modelFaceIdArrayName or "").strip() if labelModelFaces else ""
     if labelModelFaces and not faceIdArrayName:
@@ -2518,13 +2645,23 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
                 firstPolyCell = surface.GetNumberOfVerts() + surface.GetNumberOfLines()
                 existingFaceIds = existingFaceIds[firstPolyCell:firstPolyCell + surface.GetNumberOfPolys()]
 
+    # The cap of clip point i is asked to take id i+1, so the ids the capper derives itself - for a
+    # hole no clip point opened - have to start above the last of those, and the value it leaves on
+    # the cells it copied has to sit outside that range too.
+    wallCellEntityId = len(planeSpecifications) + 1
+
     # Cap all the holes that are in the surface
     if cap:
         slicer.util.showStatusMessage(_("Capping surface..."))
         slicer.app.processEvents() 
+        # Entry i is the id for the cap of clip point i, boundary ids being clip point indices
+        # here. A hole no cut accounts for carries a label past the end of this list and keeps the
+        # capper's own numbering.
+        boundaryCellEntityIds = [specification["index"] + 1 for specification in planeSpecifications]
         # A private array, not the user's: on an input already carrying the user's array the
         # filter numbers the new caps on top of the existing ids (see capSurface).
-        surface = self.capSurface(surface, self.capBoundaryIdsArrayName if faceIdArrayName else None)
+        surface = self.capSurface(surface, self.capBoundaryIdsArrayName if faceIdArrayName else None,
+                                  wallCellEntityId, boundaryCellEntityIds)
 
     # After capping and extensions: extensions drop cell data, and the caps only exist once the
     # capper has made them.
@@ -2533,10 +2670,14 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic):
         slicer.util.showStatusMessage(_("Labeling faces..."))
         slicer.app.processEvents()
         self.lastFaceIdAssignments = self.labelModelFaces(surface, planeSpecifications, faceIdArrayName,
-                                                          existingFaceIds)
+                                                          existingFaceIds, wallCellEntityId)
 
     surfacePolyData = vtk.vtkPolyData()
     surfacePolyData.DeepCopy(surface)
+    if faceIdArrayName:
+        # What labelModelFaces() labeled stays behind here; the copy is what the caller shows, so
+        # it is the copy the run describes.
+        self.rememberRunStateSurface(surfacePolyData)
 
     logging.debug("End of Clip Vessel Computation..")
     return surfacePolyData
