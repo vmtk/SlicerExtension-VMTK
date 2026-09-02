@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>470</width>
-    <height>656</height>
+    <height>560</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
@@ -855,14 +855,14 @@
            </property>
           </widget>
          </item>
-         <item row="2" column="0">
+         <item row="3" column="0">
           <widget class="QLabel" name="interpolationModeLabel">
            <property name="text">
-            <string>Interpolation mode</string>
+            <string>Interpolation mode:</string>
            </property>
           </widget>
          </item>
-         <item row="2" column="1">
+         <item row="3" column="1">
           <widget class="QComboBox" name="interpolationModeComboBox">
            <property name="toolTip">
             <string>How the original vessel cross-section is blended into the circular cross-section of the extension, over the transition length set below. Ramp fades the two into each other with a smooth curve that is flat at both ends, so the extension leaves the clipped boundary and settles into the circular tube without a crease; linear fades them at a constant rate; thin plate spline warps the transition instead, which loses the finer features of a non-circular cross-section within the first few layers of the extension.</string>
@@ -872,14 +872,14 @@
            </property>
           </widget>
          </item>
-         <item row="3" column="0">
+         <item row="4" column="0">
           <widget class="QLabel" name="transitionRatioLabel">
            <property name="text">
-            <string>Transition length ratio</string>
+            <string>Transition length ratio:</string>
            </property>
           </widget>
          </item>
-         <item row="3" column="1">
+         <item row="4" column="1">
           <widget class="ctkSliderWidget" name="transitionRatioWidget">
            <property name="toolTip">
             <string>Length of the transition from the original vessel cross-section to a circular cross-section, as a fraction of the extension length. 0 makes the extension circular right from the clipped boundary; 1 spreads the transition over the entire extension.</string>
@@ -901,23 +901,23 @@
            </property>
           </widget>
          </item>
-         <item row="4" column="0">
-          <widget class="QLabel" name="preserveCrossSectionShapeLabel">
+         <item row="2" column="0">
+          <widget class="QLabel" name="transitionToCircularCrossSectionLabel">
            <property name="text">
-            <string>Preserve cross-section shape</string>
+            <string>Transition to circular cross-section:</string>
            </property>
           </widget>
          </item>
-         <item row="4" column="1">
-          <widget class="QCheckBox" name="preserveCrossSectionShapeCheckBox">
+         <item row="2" column="1">
+          <widget class="QCheckBox" name="transitionToCircularCrossSectionCheckBox">
            <property name="toolTip">
-            <string>Keep the cross-sectional shape of the clipped vessel end along the whole extension, instead of morphing it into a circle. The outline of the clipped end is used as it is, so the area distribution of a non-circular end is not altered. A strongly concave end may be hard to cap.</string>
+            <string>Morph the cross-section of the clipped vessel end into a circle along the extension. Turn this off to keep the outline of the clipped end along the whole extension instead, so that the area distribution of a non-circular end is not altered - though a strongly concave end may then be hard to cap.</string>
            </property>
            <property name="text">
             <string/>
            </property>
            <property name="checked">
-            <bool>false</bool>
+            <bool>true</bool>
            </property>
           </widget>
          </item>

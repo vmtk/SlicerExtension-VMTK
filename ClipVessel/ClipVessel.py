@@ -192,7 +192,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.interpolationModeComboBox.addItem(_("Thin plate spline"), "THIN_PLATE_SPLINE")
     self.ui.interpolationModeComboBox.addItem(_("Ramp"), "RAMP")
     self.ui.interpolationModeComboBox.connect('currentIndexChanged(int)', self.updateParameterNodeFromGUI)
-    self.ui.preserveCrossSectionShapeCheckBox.connect("toggled(bool)", self.updateParameterNodeFromGUI)
+    self.ui.transitionToCircularCrossSectionCheckBox.connect("toggled(bool)", self.updateParameterNodeFromGUI)
     self.ui.clipPointInsetFactorWidget.connect('valueChanged(double)', self.updateParameterNodeFromGUI)
     self.ui.clippingMethodComboBox.addItem(_("Plane"), "PLANE")
     self.ui.clippingMethodComboBox.addItem(_("Plane + sphere"), "PLANE_SPHERE")
@@ -371,7 +371,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     interpolationModeIndex = self.ui.interpolationModeComboBox.findData(_normalizedModeId(self._parameterNode.GetParameter("InterpolationMode")))
     if interpolationModeIndex >= 0:
         self.ui.interpolationModeComboBox.currentIndex = interpolationModeIndex
-    self.ui.preserveCrossSectionShapeCheckBox.checked = (self._parameterNode.GetParameter("PreserveCrossSectionShape") == "true")
+    self.ui.transitionToCircularCrossSectionCheckBox.checked = (self._parameterNode.GetParameter("TransitionToCircularCrossSection") == "true")
     autoApply = self._parameterNode.GetParameter("AutoApplyPlane") == "true"
     self.ui.applyButton.checkable = autoApply
     self.ui.applyButton.checked = autoApply
@@ -487,7 +487,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     interpolationMode = self.ui.interpolationModeComboBox.currentData
     if interpolationMode:
         parameterNode.SetParameter("InterpolationMode", interpolationMode)
-    parameterNode.SetParameter("PreserveCrossSectionShape", "true" if self.ui.preserveCrossSectionShapeCheckBox.checked else "false")
+    parameterNode.SetParameter("TransitionToCircularCrossSection", "true" if self.ui.transitionToCircularCrossSectionCheckBox.checked else "false")
     parameterNode.SetParameter("AutoApplyPlane", "true" if self.ui.applyButton.checked else "false")
     parameterNode.SetParameter("ClipPointInsetFactor", str(self.ui.clipPointInsetFactorWidget.value))
     parameterNode.SetParameter("SnapClipPointsToCenterline", "true" if self.ui.snapClipPointsToCenterlineCheckBox.checked else "false")
@@ -1467,7 +1467,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             addFlowExtensions = self._parameterNode.GetParameter("ExtendOutputSurface") == "true"
             extensionMode = _normalizedModeId(self._parameterNode.GetParameter("ExtensionMode"))
             interpolationMode = _normalizedModeId(self._parameterNode.GetParameter("InterpolationMode"))
-            preserveCrossSectionShape = self._parameterNode.GetParameter("PreserveCrossSectionShape") == "true"
+            transitionToCircularCrossSection = self._parameterNode.GetParameter("TransitionToCircularCrossSection") == "true"
             clippingMethod = self._parameterNode.GetParameter("ClippingMethod") or "PLANE_PATCH"
             sphereRadiusFactor = float(self._parameterNode.GetParameter("LocalSphereRadiusFactor"))
 
@@ -1478,7 +1478,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                                                    cap, addFlowExtensions, extensionRatio, extensionMode,
                                                    self._manualPlaneNormals, self._manualPlaneOrigins,
                                                    self._activeClipPointIndex, clippingMethod, sphereRadiusFactor,
-                                                   transitionRatio, interpolationMode, preserveCrossSectionShape,
+                                                   transitionRatio, interpolationMode, transitionToCircularCrossSection,
                                                    self._extensionLengthScaleFactors,
                                                    labelModelFaces, modelFaceIdArrayName,
                                                    capMethod, capConstraintFactor, capNumberOfRings,
@@ -1562,9 +1562,9 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
     # How the original cross-section is blended into the target one. Used when the caller
     # does not specify one.
     self.InterpolationMode = "RAMP"
-    # whether the extension keeps the cross-sectional shape of the boundary it grows from,
-    # instead of morphing it into a circle
-    self.PreserveCrossSectionShape = False
+    # whether the extension morphs the cross-section of the boundary it grows from into a
+    # circle, rather than keeping the shape it has
+    self.TransitionToCircularCrossSection = True
     self.CenterlineNormalEstimationDistanceRatio = 1.0
 
     # Lowest face id the module hands out when face labeling is enabled. Any labels the input
@@ -1658,8 +1658,17 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
         parameterNode.SetParameter("ExtensionMode", extensionMode)
     if interpolationMode != parameterNode.GetParameter("InterpolationMode"):
         parameterNode.SetParameter("InterpolationMode", interpolationMode)
-    if not parameterNode.GetParameter("PreserveCrossSectionShape"):
-        parameterNode.SetParameter("PreserveCrossSectionShape", "false")
+    # Earlier module versions stored this the other way round, as PreserveCrossSectionShape, so
+    # a scene saved by one of those is carried over inverted rather than silently taking the
+    # default and morphing an end whose shape was meant to be kept.
+    legacyPreserveCrossSectionShape = parameterNode.GetParameter("PreserveCrossSectionShape")
+    if legacyPreserveCrossSectionShape:
+        if not parameterNode.GetParameter("TransitionToCircularCrossSection"):
+            parameterNode.SetParameter("TransitionToCircularCrossSection",
+                                       "false" if legacyPreserveCrossSectionShape == "true" else "true")
+        parameterNode.UnsetParameter("PreserveCrossSectionShape")
+    if not parameterNode.GetParameter("TransitionToCircularCrossSection"):
+        parameterNode.SetParameter("TransitionToCircularCrossSection", "true")
     if not parameterNode.GetParameter("ManualClipPlaneNormals"):
         parameterNode.SetParameter("ManualClipPlaneNormals", "{}")
     if not parameterNode.GetParameter("ManualClipPlaneOrigins"):
@@ -2860,7 +2869,7 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
     return polydata
         
   def extendVessel(self, surfacePolyData, centerlinesPolyData, extensionRatio, extensionMode,
-                   transitionRatio=None, interpolationMode=None, preserveCrossSectionShape=None,
+                   transitionRatio=None, interpolationMode=None, transitionToCircularCrossSection=None,
                    extensionLengthScaleFactors=None):
     """Adds flow extensions to all boundaries.
     :param extensionRatio: length of each extension, as a multiple of the mean radius of the
@@ -2870,9 +2879,9 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
       one, as a fraction of the extension length (0..1). Defaults to self.TransitionRatio.
     :param interpolationMode: blending of the original cross-section into the target one
       ("LINEAR", "RAMP" or "THIN_PLATE_SPLINE"). Defaults to self.InterpolationMode.
-    :param preserveCrossSectionShape: if enabled then the extension keeps the cross-sectional shape
-      of the boundary that it grows from, instead of morphing it into a circle.
-      Defaults to self.PreserveCrossSectionShape.
+    :param transitionToCircularCrossSection: if enabled then the extension morphs the
+      cross-section of the boundary that it grows from into a circle; if not, it keeps the shape
+      that boundary has. Defaults to self.TransitionToCircularCrossSection.
     :param extensionLengthScaleFactors: optional per-boundary multipliers applied to the extension
       length, indexed by boundary id; None leaves all extension lengths unscaled. A boundary's id
       is its label from the boundary labels this module writes (see labelClipBoundaries), which is
@@ -2887,8 +2896,8 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
         transitionRatio = self.TransitionRatio
     if interpolationMode is None:
         interpolationMode = self.InterpolationMode
-    if preserveCrossSectionShape is None:
-        preserveCrossSectionShape = self.PreserveCrossSectionShape
+    if transitionToCircularCrossSection is None:
+        transitionToCircularCrossSection = self.TransitionToCircularCrossSection
     transitionRatio = min(max(float(transitionRatio), 0.0), 1.0)
     
     extensionsFilter = vtkvmtkComputationalGeometry.vtkvmtkPolyDataFlowExtensionsFilter()
@@ -2912,7 +2921,8 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
     extensionsFilter.SetTransitionRatio(transitionRatio)
     extensionsFilter.SetCenterlineNormalEstimationDistanceRatio(self.CenterlineNormalEstimationDistanceRatio)
     extensionsFilter.SetNumberOfBoundaryPoints(self.TargetNumberOfBoundaryPoints)
-    extensionsFilter.SetPreserveCrossSectionShape(1 if preserveCrossSectionShape else 0)
+    # The filter's flag is the opposite of this module's: it asks whether to keep the shape.
+    extensionsFilter.SetPreserveCrossSectionShape(0 if transitionToCircularCrossSection else 1)
     if extensionMode == "CENTERLINE_DIRECTION":
         extensionsFilter.SetExtensionModeToUseCenterlineDirection()
     elif extensionMode == "BOUNDARY_NORMAL":
@@ -2929,7 +2939,7 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
   def clipVessel(self, surfacePolyData, centerlinesNode, clipPointsMarkupsNode, cap, addFlowExtensions,
                  extensionRatio, extensionMode, manualClipPlaneNormals=None, manualClipPlaneOrigins=None,
                  interactivePointIndex=-1, clippingMethod="PLANE_PATCH", sphereRadiusFactor=2.5,
-                 transitionRatio=None, interpolationMode=None, preserveCrossSectionShape=None,
+                 transitionRatio=None, interpolationMode=None, transitionToCircularCrossSection=None,
                  extensionScaleFactors=None,
                  labelModelFaces=False, modelFaceIdArrayName=_DEFAULT_MODEL_FACE_ID_ARRAY_NAME,
                  capMethod=_DEFAULT_CAP_METHOD,
@@ -2950,8 +2960,9 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
       the target one) as a fraction of the extension length; None uses the logic default
     :param interpolationMode: string specifying how the original cross-section is blended into
       the target one ("LINEAR", "RAMP" or "THIN_PLATE_SPLINE"); None uses the logic default
-    :param preserveCrossSectionShape: if enabled then the flow extensions keep the cross-sectional
-      shape of the vessel ends instead of morphing it into a circle; None uses the logic default
+    :param transitionToCircularCrossSection: if enabled then the flow extensions morph the
+      cross-section of the vessel ends into a circle, rather than keeping the shape they have;
+      None uses the logic default
     :param extensionScaleFactors: optional dict mapping clip point IDs (control point IDs of
       clipPointsMarkupsNode) to a multiplier applied to the length of the flow extension grown
       from that vessel end; ends without an entry keep the unscaled length
@@ -3115,7 +3126,7 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
                 boundaryScaleFactors[specification["index"]] = extensionScaleFactors.get(clipPointId, 1.0)
         surface = self.extendVessel(
             surface, centerlinesPolyData, extensionRatio, extensionMode,
-            transitionRatio, interpolationMode, preserveCrossSectionShape,
+            transitionRatio, interpolationMode, transitionToCircularCrossSection,
             boundaryScaleFactors)
 
     if cap and capMethod in _CAP_METHODS_NEEDING_TRIANGLES:
@@ -3410,15 +3421,16 @@ class ClipVesselTest(ScriptedLoadableModuleTest):
 
     # Clip again with flow extensions added to the open vessel ends, once per interpolation mode,
     # and once more with the cross-section shape of the vessel ends preserved
-    extensionOptions = [("LINEAR", False), ("THIN_PLATE_SPLINE", False), ("RAMP", False), ("RAMP", True)]
-    for interpolationMode, preserveCrossSectionShape in extensionOptions:
-        description = "%s%s" % (interpolationMode, ", preserved cross-section" if preserveCrossSectionShape else "")
+    extensionOptions = [("LINEAR", True), ("THIN_PLATE_SPLINE", True), ("RAMP", True), ("RAMP", False)]
+    for interpolationMode, transitionToCircularCrossSection in extensionOptions:
+        description = "%s%s" % (interpolationMode,
+                                "" if transitionToCircularCrossSection else ", preserved cross-section")
         self.delayDisplay("Clipping vessel with flow extensions (%s)" % description)
         extendedPolyData = clipVesselLogic.clipVessel(preprocessedPolyData, centerlineModelNode, clipPointsMarkupsNode,
                                                       cap, True, extensionRatio, extensionMode,
                                                       transitionRatio=transitionRatio,
                                                       interpolationMode=interpolationMode,
-                                                      preserveCrossSectionShape=preserveCrossSectionShape)
+                                                      transitionToCircularCrossSection=transitionToCircularCrossSection)
         self.assertIsNotNone(extendedPolyData)
         self.assertGreater(extendedPolyData.GetNumberOfCells(), 0)
         self.assertEqual(clipVesselLogic.lastUnclippedPoints, [])
