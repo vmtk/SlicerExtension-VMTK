@@ -839,14 +839,14 @@
           </widget>
          </item>
          <item row="1" column="0">
-          <widget class="QLabel" name="extensionModeLabel">
+          <widget class="QLabel" name="extensionDirectionLabel">
            <property name="text">
-            <string>Extension mode:</string>
+            <string>Extension direction:</string>
            </property>
           </widget>
          </item>
          <item row="1" column="1">
-          <widget class="QComboBox" name="extensionModeComboBox">
+          <widget class="QComboBox" name="extensionDirectionComboBox">
            <property name="toolTip">
             <string>Direction in which the flow extension is added: along the direction of the centerline at the vessel end, or along the normal of the clipped boundary.</string>
            </property>
@@ -856,14 +856,14 @@
           </widget>
          </item>
          <item row="3" column="0">
-          <widget class="QLabel" name="interpolationModeLabel">
+          <widget class="QLabel" name="transitionMethodLabel">
            <property name="text">
-            <string>Interpolation mode:</string>
+            <string>Transition method:</string>
            </property>
           </widget>
          </item>
          <item row="3" column="1">
-          <widget class="QComboBox" name="interpolationModeComboBox">
+          <widget class="QComboBox" name="transitionMethodComboBox">
            <property name="toolTip">
             <string>How the original vessel cross-section is blended into the circular cross-section of the extension, over the transition length set below. Ramp fades the two into each other with a smooth curve that is flat at both ends, so the extension leaves the clipped boundary and settles into the circular tube without a crease; linear fades them at a constant rate; thin plate spline warps the transition instead, which loses the finer features of a non-circular cross-section within the first few layers of the extension.</string>
            </property>
