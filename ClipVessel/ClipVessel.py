@@ -100,6 +100,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self._observedInteractivePlaneNode = None
     self._observedNormalHandleNode = None
     self._activeClipPointIndex = -1
+    self._activeClipPointId = None
     self._updatingInteractivePlane = False
     self._manualPlaneNormals = {}
     self._manualPlaneOrigins = {}
@@ -502,6 +503,8 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.removeObserver(self._observedClipPointsNode, slicer.vtkMRMLMarkupsNode.PointStartInteractionEvent, self.onClipPointInteractionStarted)
         self.removeObserver(self._observedClipPointsNode, slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.onClipPointModified)
         self.removeObserver(self._observedClipPointsNode, slicer.vtkMRMLMarkupsNode.PointEndInteractionEvent, self.onClipPointInteractionEnded)
+        self.removeObserver(self._observedClipPointsNode, slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.onClipPointAdded)
+        self.removeObserver(self._observedClipPointsNode, slicer.vtkMRMLMarkupsNode.PointRemovedEvent, self.onClipPointRemoved)
     self._observedClipPointsNode = clipPointsNode
     if clipPointsNode:
         clipPointsNode.CreateDefaultDisplayNodes()
@@ -513,6 +516,12 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.addObserver(clipPointsNode, slicer.vtkMRMLMarkupsNode.PointStartInteractionEvent, self.onClipPointInteractionStarted)
         self.addObserver(clipPointsNode, slicer.vtkMRMLMarkupsNode.PointModifiedEvent, self.onClipPointModified)
         self.addObserver(clipPointsNode, slicer.vtkMRMLMarkupsNode.PointEndInteractionEvent, self.onClipPointInteractionEnded)
+        # Placing or deleting a point changes the clip just as much as dragging one does, but
+        # neither goes through the interaction events above (placement ends with a defined
+        # position, deletion happens from the markups list or the Delete key), so the output
+        # would have stayed stale until the next unrelated edit.
+        self.addObserver(clipPointsNode, slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.onClipPointAdded)
+        self.addObserver(clipPointsNode, slicer.vtkMRMLMarkupsNode.PointRemovedEvent, self.onClipPointRemoved)
         self.updateClipPointsSnapMode()
 
   def activeClipPointId(self):
@@ -895,6 +904,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     if normalHandleNode:
         normalHandleNode.SetDisplayVisibility(False)
     self._activeClipPointIndex = -1
+    self._activeClipPointId = None
     self._planeEditing = False
     self.updateManualPlaneButtonStates()
     self.ui.finishPlaneEditingButton.enabled = False
@@ -1020,6 +1030,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self._normalHandleDistance = max(radius * 2.0, 1.0)
 
     self._activeClipPointIndex = pointIndex
+    self._activeClipPointId = pointId
     self._planeEditing = True
     # Reflect this point's stored manual-override state in the snap buttons before the
     # handle visibility (which depends on the button states) is updated below.
@@ -1169,6 +1180,54 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     if moved:
         self.scheduleAutoApply()
 
+  def onClipPointAdded(self, caller=None, event=None):
+    """A newly placed clip point adds a cut, so refresh the output. Observing the
+    position-defined event rather than the point-added event skips the preview point that
+    follows the mouse while placement is still in progress."""
+    if self._updatingInteractivePlane:
+        return
+    self.scheduleAutoApply()
+
+  def onClipPointRemoved(self, caller=None, event=None):
+    """A deleted clip point removes a cut, so refresh the output."""
+    if self._updatingInteractivePlane:
+        return
+    self.forgetRemovedClipPointOverrides(caller)
+    self.resyncActiveClipPointIndex(caller)
+    self.scheduleAutoApply()
+
+  def forgetRemovedClipPointOverrides(self, clipPointsNode):
+    """Drop the manual plane and extension length overrides of points that no longer exist,
+    so they neither accumulate in the saved scene nor come back to life if a control point ID
+    is ever reused."""
+    remainingIds = set()
+    if clipPointsNode:
+        remainingIds = {clipPointsNode.GetNthControlPointID(index)
+                        for index in range(clipPointsNode.GetNumberOfControlPoints())}
+    removedAny = False
+    for overrides in (self._manualPlaneNormals, self._manualPlaneOrigins, self._extensionLengthScaleFactors):
+        for pointId in [pointId for pointId in overrides if pointId not in remainingIds]:
+            del overrides[pointId]
+            removedAny = True
+    if removedAny:
+        self.saveManualPlaneNormals()
+
+  def resyncActiveClipPointIndex(self, clipPointsNode):
+    """Deleting a point shifts the indices of every point after it, so re-find the point
+    whose plane is being edited by its ID; if that point is the deleted one, stop editing."""
+    if self._activeClipPointIndex < 0:
+        return
+    newIndex = -1
+    if clipPointsNode and self._activeClipPointId is not None:
+        for index in range(clipPointsNode.GetNumberOfControlPoints()):
+            if clipPointsNode.GetNthControlPointID(index) == self._activeClipPointId:
+                newIndex = index
+                break
+    if newIndex < 0:
+        self.finishPlaneEditing()
+    else:
+        self._activeClipPointIndex = newIndex
+
   def onDetectClipPointsButton(self):
     """Populate ClipPoints with one point per centerline terminus (the inlet plus every
     branch outlet), each pulled inward from the vessel surface by the configured inset.
@@ -1203,6 +1262,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     # Stop showing/adjusting whatever plane was up before the points underneath it are replaced.
     self._activeClipPointIndex = -1
+    self._activeClipPointId = None
     self._planeEditing = False
     self.ui.finishPlaneEditingButton.enabled = False
     planeNode = self._parameterNode.GetNodeReference("ManualClipPlane")
@@ -1235,8 +1295,16 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
   def scheduleAutoApply(self):
     if (not self._applying and not self.updatingGUIFromParameterNode
         and self.ui.applyButton.checked
-        and self.ui.applyButton.enabled):
+        and self.ui.applyButton.enabled
+        and self.hasClipPoints()):
         self.autoApplyTimer.start()
+
+  def hasClipPoints(self):
+    """There is nothing to clip without clip points, and clipping raises rather than
+    producing an uncut surface. Deleting the last point should leave the previous output
+    alone, not pop an error dialog; an explicit Apply click still reports the problem."""
+    clipPointsNode = self._parameterNode.GetNodeReference("ClipPoints") if self._parameterNode else None
+    return bool(clipPointsNode) and clipPointsNode.GetNumberOfControlPoints() > 0
 
   def onAutoApplyTimeout(self):
     if not self._applying and not self.updatingGUIFromParameterNode:
