@@ -41,13 +41,14 @@ class CfdMeshGeneratorWidgetTest(CfdMeshGeneratorTestCase):
         """A second Apply writes the new mesh into the node it was given and touches nothing else.
 
         Meshing is something to try a few times at different sizes, and each try would otherwise
-        undo the colour, the opacity and the visibility the last one was being looked at through.
+        undo the colour, the opacity, the visibility and the edges the last one was being looked
+        at through.
         """
         logic = CfdMeshGeneratorLogic()
         modelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "mesh")
         modelNode.SetAndObserveMesh(logic.capSurface(self.openTube(), "CellEntityIds", "simple"))
 
-        logic.showMeshInScene(modelNode, "CellEntityIds")
+        logic.showMeshInScene(modelNode, "CellEntityIds", showEdges=True)
         displayNode = modelNode.GetDisplayNode()
         self.assertIsNotNone(displayNode, "the first run gave the output no display")
         self.assertTrue(displayNode.GetScalarVisibility(), "the faces are not coloured apart")
@@ -56,13 +57,72 @@ class CfdMeshGeneratorWidgetTest(CfdMeshGeneratorTestCase):
         displayNode.SetOpacity(0.4)
         displayNode.SetScalarVisibility(False)
         displayNode.SetVisibility(False)
+        displayNode.SetEdgeVisibility(False)
 
-        logic.showMeshInScene(modelNode, "CellEntityIds")
+        logic.showMeshInScene(modelNode, "CellEntityIds", showEdges=True)
         self.assertIs(modelNode.GetDisplayNode(), displayNode, "the display node was replaced")
         self.assertEqual(displayNode.GetColor(), (0.1, 0.8, 0.3))
         self.assertAlmostEqual(displayNode.GetOpacity(), 0.4)
         self.assertFalse(displayNode.GetScalarVisibility())
         self.assertFalse(displayNode.GetVisibility())
+        self.assertFalse(displayNode.GetEdgeVisibility(),
+                         "the edges were turned back on over the user turning them off")
+
+    def test_CfdMeshGeneratorShowsTheElementsOfTheMesh(self):
+        """The volume mesh comes back with its element edges drawn.
+
+        What there is to look at in a volume mesh is the elements: a surface shaded without them
+        says nothing about how finely it was meshed or how good its elements are, which is the
+        first thing to want to know of a mesh that has just been made.
+        """
+        logic = CfdMeshGeneratorLogic()
+        inputNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "tube")
+        inputNode.SetAndObserveMesh(self.openTube())
+        outputNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "mesh")
+        parameterNode = logic.getParameterNode()
+        parameterNode.inputSurface = inputNode
+        parameterNode.outputMesh = outputNode
+        parameterNode.targetEdgeLength = 0.4
+        parameterNode.boundaryLayer = False
+
+        logic.process(parameterNode)
+
+        self.assertTrue(outputNode.GetDisplayNode().GetEdgeVisibility(),
+                        "the elements of the volume mesh are not drawn")
+
+    def test_CfdMeshGeneratorGetsTheInputOutOfTheWay(self):
+        """The first mesh made from a surface hides that surface.
+
+        The mesh stands exactly where the surface it was made from does, so a visible surface is
+        directly in front of it and the mesh cannot be seen at all. Only the first time: after
+        that the surface is visible because someone turned it back on, and a run at another edge
+        length is no reason to undo that.
+        """
+        logic = CfdMeshGeneratorLogic()
+        inputNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "tube")
+        inputNode.SetAndObserveMesh(self.openTube())
+        inputNode.CreateDefaultDisplayNodes()
+        inputNode.GetDisplayNode().SetVisibility(True)
+        outputNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "mesh")
+        parameterNode = logic.getParameterNode()
+        parameterNode.inputSurface = inputNode
+        parameterNode.outputMesh = outputNode
+        parameterNode.targetEdgeLength = 0.4
+        parameterNode.boundaryLayer = False
+
+        logic.process(parameterNode)
+
+        self.assertFalse(inputNode.GetDisplayNode().GetVisibility(),
+                         "the input surface is still in front of the mesh made from it")
+        self.assertTrue(outputNode.GetDisplayNode().GetVisibility())
+
+        # Turned back on to compare the two, and a second run leaves that alone
+        inputNode.GetDisplayNode().SetVisibility(True)
+
+        logic.process(parameterNode)
+
+        self.assertTrue(inputNode.GetDisplayNode().GetVisibility(),
+                        "a later run hid the input surface again")
 
 
     def test_CfdMeshGeneratorCreatesTheOutputNodeItself(self):

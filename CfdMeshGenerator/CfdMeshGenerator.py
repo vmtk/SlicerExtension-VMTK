@@ -251,7 +251,7 @@ class CfdMeshGeneratorParameterNode:
 
     # Boundary layer
     boundaryLayer: bool = False
-    boundaryLayerOnCaps: bool = True
+    boundaryLayerOnCaps: bool = False
     numberOfSubLayers: Annotated[int, Minimum(0)] = 2
     subLayerRatio: Annotated[float, Minimum(0.0)] = 0.5
     boundaryLayerThicknessFactor: Annotated[float, Minimum(0.0)] = 0.25
@@ -795,7 +795,13 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
             tetrahedralize=parameters.tetrahedralize)
 
         parameters.outputMesh.SetAndObserveMesh(mesh)
-        self.showMeshInScene(parameters.outputMesh, parameters.cellEntityIdsArrayName)
+        if self.showMeshInScene(parameters.outputMesh, parameters.cellEntityIdsArrayName,
+                                showEdges=True):
+            # The mesh was made from the input surface, so it stands exactly where the surface
+            # does and is hidden behind it. Only the first time it is shown: after that the
+            # surface is visible because it was turned back on, and a run at another edge length
+            # is no reason to undo that.
+            self.hideNode(parameters.inputSurface)
         if parameters.outputRemeshedSurface:
             parameters.outputRemeshedSurface.SetAndObserveMesh(remeshedSurface)
             self.showMeshInScene(parameters.outputRemeshedSurface, parameters.cellEntityIdsArrayName)
@@ -842,7 +848,7 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
                      maxOptimizationPasses=80,
                      coarsen=False,
                      boundaryLayer=False,
-                     boundaryLayerOnCaps=True,
+                     boundaryLayerOnCaps=False,
                      numberOfSubLayers=2,
                      subLayerRatio=0.5,
                      boundaryLayerThicknessFactor=0.25,
@@ -2283,22 +2289,38 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
 
     displaySetUpAttributeName = "CfdMeshGenerator.DisplaySetUp"
 
-    def showMeshInScene(self, modelNode, cellEntityIdsArrayName):
+    @staticmethod
+    def hideNode(modelNode):
+        """Take a node out of the views, if it is in them and has a display to take out."""
+        displayNode = modelNode.GetDisplayNode() if modelNode else None
+        if displayNode:
+            displayNode.SetVisibility(False)
+
+    def showMeshInScene(self, modelNode, cellEntityIdsArrayName, showEdges=False):
         """Show the mesh, coloured by the face each of its cells belongs to.
 
         Once per node: a node that has been shown before carries whatever has been made of it
-        since - a colour, a scalar array, its visibility, an opacity chosen to see inside it - and
-        rerunning Apply to try another edge length is no reason to undo any of that.
+        since - a colour, a scalar array, its visibility, an opacity chosen to see inside it, its
+        edges turned off - and rerunning Apply to try another edge length is no reason to undo any
+        of that.
+
+        :param showEdges: whether to draw the element edges. What there is to look at in a volume
+          mesh is the elements, and a surface shaded without them says nothing about how finely it
+          was meshed or how good its elements are - which is the first thing to want to know of a
+          mesh that has just been made. The edges button beside the selector turns them off again.
+        :return: whether the display was set up here, which is to say whether this is the first
+          time the node has been shown. A caller with something else to arrange around that -
+          getting whatever was in the way out of it - can then do it once rather than on every run.
         """
         if modelNode.GetAttribute(self.displaySetUpAttributeName) == "true":
-            return
+            return False
         modelNode.SetAttribute(self.displaySetUpAttributeName, "true")
 
         if not modelNode.GetDisplayNode():
             modelNode.CreateDefaultDisplayNodes()
         displayNode = modelNode.GetDisplayNode()
         if not displayNode:
-            return
+            return False
         mesh = modelNode.GetMesh()
         if mesh and mesh.GetCellData().GetArray(cellEntityIdsArrayName):
             displayNode.SetActiveScalar(cellEntityIdsArrayName, vtk.vtkAssignAttribute.CELL_DATA)
@@ -2312,7 +2334,9 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
             displayNode.SetScalarVisibility(True)
         else:
             displayNode.SetScalarVisibility(False)
+        displayNode.SetEdgeVisibility(showEdges)
         displayNode.SetVisibility(True)
+        return True
 
 
 #
