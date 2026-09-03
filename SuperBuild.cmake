@@ -64,6 +64,7 @@ ExternalProject_Add(${proj}
     -D${EXTENSION_NAME}_SUPERBUILD:BOOL=OFF
     -DEXTENSION_SUPERBUILD_BINARY_DIR:PATH=${${EXTENSION_NAME}_BINARY_DIR}
     -DSlicerVMTK_USE_ExtraMarkups:BOOL=${SlicerVMTK_USE_ExtraMarkups}
+    -DSlicerVMTK_USE_TetGen:BOOL=${SlicerVMTK_USE_TetGen}
     # Libraries
     -DVMTK_DIR:PATH=${VMTK_DIR}
   DEPENDS

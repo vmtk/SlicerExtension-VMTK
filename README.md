@@ -36,6 +36,7 @@ Workflows:
   - [Centerline disassembly](Docs/CenterlineDisassembly.md): Break down a bifurcated centerline model into parts.
   - [Clip vessel](Docs/ClipVessel.md): Clip a segmentation or model normal to the centerline.
   - [Edit centerline](Docs/EditCenterline.md): Create a Shape::Tube markups node around an artery.
+  - [CFD Mesh Generator](Docs/CfdMeshGenerator.md): Fill a clipped vessel surface with tetrahedra for a computational fluid dynamics solver, with capping, surface remeshing and an optional prismatic boundary layer.
 
 Legacy modules (replaced by other modules, not developed anymore):
 

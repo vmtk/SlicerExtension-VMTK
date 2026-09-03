@@ -55,7 +55,7 @@ if(NOT DEFINED ${proj}_DIR AND NOT ${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
   if(${Slicer_VERSION_MAJOR}.${Slicer_VERSION_MINOR} VERSION_GREATER_EQUAL 5.1)
     # Slicer >= 5.1 uses recent ITK-5.3RC version, which has BooleanStdVectorType
     # (see https://github.com/InsightSoftwareConsortium/ITK/commit/bc9ba8540f96c0fa4e9100b25b05eb812074a64e)
-    set(DEFAULT_VMTK_TAG fb302a41da9fbbd8deb7ad36c5dd13ef1881c4ad)
+    set(DEFAULT_VMTK_TAG 1d2beea7b29e0291e0a66dc02e959db7aebe5888)
   else()
     # Slicer < 5.1 uses older ITK-5.3RC version, which does not yet have BooleanStdVectorType
     set(DEFAULT_VMTK_TAG 30b0fdad5674d6f134e8a8b601bcef7917671b0a)
@@ -113,6 +113,9 @@ if(NOT DEFINED ${proj}_DIR AND NOT ${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
       # keep the wrapped vtkvmtk*Python modules in qt-loadable-modules (on sys.path)
       -DVTK_VMTK_WRAPPED_MODULE_INSTALL_LIB_DIR:PATH=${Slicer_INSTALL_QTLOADABLEMODULES_LIB_DIR}
       -DVTK_VMTK_WRAP_PYTHON:BOOL=ON
+      # Said either way rather than left to VMTK's default, because it decides whether the
+      # build carries TetGen's license along with Slicer's.
+      -DVTK_VMTK_BUILD_TETGEN:BOOL=${SlicerVMTK_USE_TetGen}
       # we don't want superbuild since it will override our CMake settings
       -DVMTK_USE_SUPERBUILD:BOOL=OFF
       -DVMTK_CONTRIB_SCRIPTS:BOOL=ON

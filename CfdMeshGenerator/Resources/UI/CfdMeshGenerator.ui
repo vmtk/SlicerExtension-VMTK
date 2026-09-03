@@ -1,0 +1,1101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>CfdMeshGenerator</class>
+ <widget class="qMRMLWidget" name="CfdMeshGenerator">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>363</width>
+    <height>797</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="ctkCollapsibleButton" name="inputsCollapsibleButton">
+     <property name="text">
+      <string>Inputs and outputs</string>
+     </property>
+     <layout class="QFormLayout" name="inputsFormLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="inputSurfaceLabel">
+        <property name="text">
+         <string>Input surface mesh:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <layout class="QHBoxLayout" name="inputSurfaceRowLayout">
+        <item>
+         <widget class="qMRMLNodeComboBox" name="inputSurfaceSelector">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+            <horstretch>1</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="toolTip">
+           <string>Surface to fill with tetrahedra. Its open boundaries are capped first, so a clipped vessel can be meshed as it comes out of Clip Vessel.</string>
+          </property>
+          <property name="nodeTypes">
+           <stringlist notr="true">
+            <string>vtkMRMLModelNode</string>
+           </stringlist>
+          </property>
+          <property name="showChildNodeTypes">
+           <bool>false</bool>
+          </property>
+          <property name="addEnabled">
+           <bool>false</bool>
+          </property>
+          <property name="removeEnabled">
+           <bool>false</bool>
+          </property>
+          <property name="SlicerParameterName" stdset="0">
+           <string>inputSurface</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QToolButton" name="inputSurfaceEdgesButton">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Show or hide the edges of the input surface</string>
+          </property>
+          <property name="text">
+           <string/>
+          </property>
+          <property name="toolButtonStyle">
+           <enum>Qt::ToolButtonIconOnly</enum>
+          </property>
+          <property name="autoRaise">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QToolButton" name="inputSurfaceVisibilityButton">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Show or hide the input surface</string>
+          </property>
+          <property name="text">
+           <string/>
+          </property>
+          <property name="toolButtonStyle">
+           <enum>Qt::ToolButtonIconOnly</enum>
+          </property>
+          <property name="autoRaise">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="outputMeshLabel">
+        <property name="text">
+         <string>Output volumetric mesh:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <layout class="QHBoxLayout" name="outputMeshRowLayout">
+        <item>
+         <widget class="qMRMLNodeComboBox" name="outputMeshSelector">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+            <horstretch>1</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="toolTip">
+           <string>Model node the volume mesh is written into.</string>
+          </property>
+          <property name="nodeTypes">
+           <stringlist notr="true">
+            <string>vtkMRMLModelNode</string>
+           </stringlist>
+          </property>
+          <property name="showChildNodeTypes">
+           <bool>false</bool>
+          </property>
+          <property name="noneEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="addEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="removeEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="renameEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="SlicerParameterName" stdset="0">
+           <string>outputMesh</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QToolButton" name="outputMeshClipButton">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Cut the volume mesh open to see inside it. The first press puts a box through the middle of the mesh and clips to it, keeping whole elements; the box can then be dragged and resized in the views. Pressing again turns the clipping off and on.</string>
+          </property>
+          <property name="text">
+           <string/>
+          </property>
+          <property name="toolButtonStyle">
+           <enum>Qt::ToolButtonIconOnly</enum>
+          </property>
+          <property name="autoRaise">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QToolButton" name="outputMeshEdgesButton">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Show or hide the edges of the volume mesh</string>
+          </property>
+          <property name="text">
+           <string/>
+          </property>
+          <property name="toolButtonStyle">
+           <enum>Qt::ToolButtonIconOnly</enum>
+          </property>
+          <property name="autoRaise">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QToolButton" name="outputMeshVisibilityButton">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Show or hide the volume mesh</string>
+          </property>
+          <property name="text">
+           <string/>
+          </property>
+          <property name="toolButtonStyle">
+           <enum>Qt::ToolButtonIconOnly</enum>
+          </property>
+          <property name="autoRaise">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="remeshSurfaceLabel">
+        <property name="text">
+         <string>Remesh surface:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="capSurfaceLabel">
+        <property name="text">
+         <string>Cap surface:</string>
+        </property>
+        <property name="indent">
+         <number>10</number>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="0">
+       <widget class="QLabel" name="boundaryLayerLabel">
+        <property name="text">
+         <string>Add boundary layer:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QCheckBox" name="remeshSurfaceCheckBox">
+        <property name="toolTip">
+         <string>Retriangulate the surface into near equilateral cells of the target edge length before it is filled. Turn this off to fill the surface as it arrived, which is only worth doing when it is already meshed the way the solver wants it: the size of the tetrahedra follows the size of the triangles they sit against.</string>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>remeshSurface</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QCheckBox" name="capSurfaceCheckBox">
+        <property name="toolTip">
+         <string>Close every open boundary of the input surface with a cap of its own, each under its own id so that a boundary condition can be assigned to it. Turn this off for a surface that is already closed; a surface left open cannot be filled with tetrahedra at all.</string>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>capSurface</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="1">
+       <widget class="QCheckBox" name="boundaryLayerCheckBox">
+        <property name="toolTip">
+         <string>Line the wall on the inside with layers of prisms, which is what resolves the velocity gradient at the wall and, with it, the wall shear stress. The rest of the volume is filled with tetrahedra as before.</string>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>boundaryLayer</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="targetEdgeLengthLabel">
+        <property name="text">
+         <string>Target edge length:</string>
+        </property>
+        <property name="indent">
+         <number>10</number>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QDoubleSpinBox" name="targetEdgeLengthSpinBox">
+        <property name="toolTip">
+         <string>Edge length the surface triangles aim for. It also sets the thickness of the boundary layer and, through it, the size of the tetrahedra, so it is the one number that says how fine the whole mesh comes out.</string>
+        </property>
+        <property name="suffix">
+         <string notr="true"> mm</string>
+        </property>
+        <property name="decimals">
+         <number>3</number>
+        </property>
+        <property name="minimum">
+         <double>0.001000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>1000.000000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>0.100000000000000</double>
+        </property>
+        <property name="value">
+         <double>1.000000000000000</double>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>targetEdgeLength</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="0">
+       <widget class="QLabel" name="volumeElementScaleFactorLabel">
+        <property name="text">
+         <string>Volume element scale factor:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="1">
+       <widget class="QDoubleSpinBox" name="volumeElementScaleFactorSpinBox">
+        <property name="toolTip">
+         <string>Size of the tetrahedra relative to the surface triangles they sit against. Below 1 the volume mesh is finer than the surface it fills.</string>
+        </property>
+        <property name="decimals">
+         <number>2</number>
+        </property>
+        <property name="minimum">
+         <double>0.010000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>10.000000000000000</double>
+        </property>
+        <property name="singleStep">
+         <double>0.050000000000000</double>
+        </property>
+        <property name="value">
+         <double>0.800000000000000</double>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>volumeElementScaleFactor</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="ctkCollapsibleButton" name="advancedCollapsibleButton">
+     <property name="text">
+      <string>Advanced</string>
+     </property>
+     <property name="collapsed">
+      <bool>true</bool>
+     </property>
+     <layout class="QFormLayout" name="surfaceMeshFormLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="cellEntityIdsArrayNameLabel">
+        <property name="text">
+         <string>Face ids array:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QLineEdit" name="cellEntityIdsArrayNameLineEdit">
+        <property name="toolTip">
+         <string>Name of the cell array that tells the faces of the mesh apart: one id for the wall, one for each cap, and 0 for the volume elements. This is what a solver reads the boundary conditions off, and it is also what holds the wall and the caps apart while the surface is remeshed. If the input surface already carries an array of this name - Clip Vessel writes its face labels into &quot;ModelFaceID&quot; - its ids are kept and any new caps are numbered above them; under any other name the faces of the input are renumbered from scratch.</string>
+        </property>
+        <property name="text">
+         <string notr="true">CellEntityIds</string>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>cellEntityIdsArrayName</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0" colspan="2">
+       <widget class="ctkCollapsibleGroupBox" name="surfaceRemeshingCollapsibleGroupBox">
+        <property name="title">
+         <string>Surface remeshing</string>
+        </property>
+        <property name="collapsed">
+         <bool>true</bool>
+        </property>
+        <layout class="QFormLayout" name="formLayout">
+         <item row="0" column="0">
+          <widget class="QLabel" name="elementSizeModeLabel">
+           <property name="text">
+            <string>Element size mode:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QComboBox" name="elementSizeModeComboBox">
+           <property name="toolTip">
+            <string>Where the wanted size of a surface triangle comes from: one edge length for the whole surface, or a value per point read from an array carried on the input surface, which is how a mesh can be made finer where the vessel is narrow.</string>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>elementSizeMode</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="targetEdgeLengthArrayNameLabel">
+           <property name="text">
+            <string>Edge length array:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QLineEdit" name="targetEdgeLengthArrayNameLineEdit">
+           <property name="toolTip">
+            <string>Name of the point data array of the input surface holding a target edge length per point. Read when the element size mode is set to take it from an array.</string>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>targetEdgeLengthArrayName</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="targetEdgeLengthFactorLabel">
+           <property name="text">
+            <string>Edge length factor:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QDoubleSpinBox" name="targetEdgeLengthFactorSpinBox">
+           <property name="toolTip">
+            <string>What the values of the edge length array are multiplied by, so that a mesh can be made uniformly finer or coarser without recomputing the array.</string>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="minimum">
+            <double>0.010000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>100.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.100000000000000</double>
+           </property>
+           <property name="value">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>targetEdgeLengthFactor</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="minEdgeLengthLabel">
+           <property name="text">
+            <string>Minimum edge length:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="QDoubleSpinBox" name="minEdgeLengthSpinBox">
+           <property name="toolTip">
+            <string>Edge length below which the remesher stops collapsing edges. 0 leaves it free to make a cell as small as the shape asks for.</string>
+           </property>
+           <property name="specialValueText">
+            <string>no limit</string>
+           </property>
+           <property name="suffix">
+            <string notr="true"> mm</string>
+           </property>
+           <property name="decimals">
+            <number>3</number>
+           </property>
+           <property name="minimum">
+            <double>0.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>1000.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.100000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>minEdgeLength</string>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="0">
+          <widget class="QLabel" name="maxEdgeLengthLabel">
+           <property name="text">
+            <string>Maximum edge length:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="1">
+          <widget class="QDoubleSpinBox" name="maxEdgeLengthSpinBox">
+           <property name="toolTip">
+            <string>Edge length above which the remesher keeps splitting, whatever the target says. It also limits the thickness of the boundary layer. 0 leaves both unlimited.</string>
+           </property>
+           <property name="specialValueText">
+            <string>no limit</string>
+           </property>
+           <property name="suffix">
+            <string notr="true"> mm</string>
+           </property>
+           <property name="decimals">
+            <number>3</number>
+           </property>
+           <property name="minimum">
+            <double>0.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>1000.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.100000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>maxEdgeLength</string>
+           </property>
+          </widget>
+         </item>
+         <item row="6" column="0">
+          <widget class="QLabel" name="triangleSplitFactorLabel">
+           <property name="text">
+            <string>Triangle split factor:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="6" column="1">
+          <widget class="QDoubleSpinBox" name="triangleSplitFactorSpinBox">
+           <property name="toolTip">
+            <string>How many times larger than the target a triangle has to be before the remesher splits it about its centre rather than subdividing one of its edges.</string>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="minimum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>100.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.500000000000000</double>
+           </property>
+           <property name="value">
+            <double>5.000000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>triangleSplitFactor</string>
+           </property>
+          </widget>
+         </item>
+         <item row="7" column="0">
+          <widget class="QLabel" name="remeshWallLabel">
+           <property name="text">
+            <string>Remesh wall:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="7" column="1">
+          <widget class="QCheckBox" name="remeshWallCheckBox">
+           <property name="toolTip">
+            <string>Remesh the vessel wall along with the caps. Turn this off to remesh the caps alone and leave the wall exactly as it came in, together with the rim the two share.</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>remeshWall</string>
+           </property>
+          </widget>
+         </item>
+         <item row="8" column="0">
+          <widget class="QLabel" name="cappingMethodLabel">
+           <property name="text">
+            <string>Capping method:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="8" column="1">
+          <widget class="QComboBox" name="cappingMethodComboBox">
+           <property name="toolTip">
+            <string>Shape of the mesh that closes an open boundary. &quot;Simple&quot; fills each boundary on its own, which is what the clipped end of a vessel lumen wants. The annular methods close the ring between an inner and an outer boundary instead, which is the shape the end of a vessel wall of finite thickness has.</string>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>cappingMethod</string>
+           </property>
+          </widget>
+         </item>
+         <item row="9" column="0">
+          <widget class="QLabel" name="outputRemeshedSurfaceLabel">
+           <property name="text">
+            <string>Output remeshed surface:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="9" column="1">
+          <layout class="QHBoxLayout" name="outputRemeshedSurfaceRowLayout">
+           <item>
+            <widget class="qMRMLNodeComboBox" name="outputRemeshedSurfaceSelector">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+               <horstretch>1</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="toolTip">
+              <string>Optional. Model node the remeshed surface alone is written into, which is the surface the volume mesh was built on.</string>
+             </property>
+             <property name="nodeTypes">
+              <stringlist notr="true">
+               <string>vtkMRMLModelNode</string>
+              </stringlist>
+             </property>
+             <property name="showChildNodeTypes">
+              <bool>false</bool>
+             </property>
+             <property name="noneEnabled">
+              <bool>true</bool>
+             </property>
+             <property name="addEnabled">
+              <bool>true</bool>
+             </property>
+             <property name="removeEnabled">
+              <bool>true</bool>
+             </property>
+             <property name="renameEnabled">
+              <bool>true</bool>
+             </property>
+             <property name="SlicerParameterName" stdset="0">
+              <string>outputRemeshedSurface</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QToolButton" name="outputRemeshedSurfaceEdgesButton">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="toolTip">
+              <string>Show or hide the edges of the remeshed surface</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="toolButtonStyle">
+              <enum>Qt::ToolButtonIconOnly</enum>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QToolButton" name="outputRemeshedSurfaceVisibilityButton">
+             <property name="enabled">
+              <bool>false</bool>
+             </property>
+             <property name="toolTip">
+              <string>Show or hide the remeshed surface</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="toolButtonStyle">
+              <enum>Qt::ToolButtonIconOnly</enum>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="2" column="0" colspan="2">
+       <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox">
+        <property name="title">
+         <string>Boundary layer</string>
+        </property>
+        <property name="collapsed">
+         <bool>true</bool>
+        </property>
+        <layout class="QFormLayout" name="formLayout_2">
+         <item row="0" column="0">
+          <widget class="QLabel" name="boundaryLayerOnCapsLabel">
+           <property name="text">
+            <string>Layer on caps:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QCheckBox" name="boundaryLayerOnCapsCheckBox">
+           <property name="toolTip">
+            <string>Grow the boundary layer over the caps as well as over the wall. Turn this off to keep each cap a single flat face with the flow meeting it directly, which is what an inlet or outlet boundary condition wants; the caps are then made past the layer, on the inner surface. A surface that arrives already capped has its caps taken off first and their ids put back on the ones made in their place, so this means the same thing whether or not the ends were closed before.</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>boundaryLayerOnCaps</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="numberOfSubLayersLabel">
+           <property name="text">
+            <string>Number of sublayers:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QSpinBox" name="numberOfSubLayersSpinBox">
+           <property name="toolTip">
+            <string>Number of layers of prisms the boundary layer is made of.</string>
+           </property>
+           <property name="minimum">
+            <number>1</number>
+           </property>
+           <property name="maximum">
+            <number>100</number>
+           </property>
+           <property name="value">
+            <number>2</number>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>numberOfSubLayers</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="subLayerRatioLabel">
+           <property name="text">
+            <string>Sublayer ratio:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QDoubleSpinBox" name="subLayerRatioSpinBox">
+           <property name="toolTip">
+            <string>Thickness of each layer over the thickness of the one outside it. Below 1 the layers get thinner towards the wall, which is where the gradient is steepest.</string>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="minimum">
+            <double>0.010000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>10.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.050000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.500000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>subLayerRatio</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="boundaryLayerThicknessFactorLabel">
+           <property name="text">
+            <string>Thickness factor:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QDoubleSpinBox" name="boundaryLayerThicknessFactorSpinBox">
+           <property name="toolTip">
+            <string>Total thickness of the boundary layer, as a fraction of the target edge length.</string>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="minimum">
+            <double>0.010000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>10.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.050000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.250000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>boundaryLayerThicknessFactor</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="endcapsEdgeLengthFactorLabel">
+           <property name="text">
+            <string>Endcaps edge length factor:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="QDoubleSpinBox" name="endcapsEdgeLengthFactorSpinBox">
+           <property name="toolTip">
+            <string>Multiplies the target edge length for the caps. It is only read when the boundary layer stops short of the caps, because those caps are the only ones remeshed on their own.</string>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="minimum">
+            <double>0.010000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>100.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.100000000000000</double>
+           </property>
+           <property name="value">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>endcapsEdgeLengthFactor</string>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="0">
+          <widget class="QLabel" name="numberOfSubstepsLabel">
+           <property name="text">
+            <string>Number of substeps:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="1">
+          <widget class="QSpinBox" name="numberOfSubstepsSpinBox">
+           <property name="toolTip">
+            <string>Steps the inner surface is marched inwards in. More of them let it get around a tight corner without folding over itself, at the cost of time.</string>
+           </property>
+           <property name="minimum">
+            <number>0</number>
+           </property>
+           <property name="maximum">
+            <number>1000000</number>
+           </property>
+           <property name="value">
+            <number>2000</number>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>numberOfSubsteps</string>
+           </property>
+          </widget>
+         </item>
+         <item row="6" column="0">
+          <widget class="QLabel" name="relaxationLabel">
+           <property name="text">
+            <string>Relaxation:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="6" column="1">
+          <widget class="QDoubleSpinBox" name="relaxationSpinBox">
+           <property name="toolTip">
+            <string>How far the inner surface is allowed to move per substep. Smaller values follow a difficult shape more closely and take longer.</string>
+           </property>
+           <property name="decimals">
+            <number>3</number>
+           </property>
+           <property name="minimum">
+            <double>0.001000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.010000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.010000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>relaxation</string>
+           </property>
+          </widget>
+         </item>
+         <item row="7" column="0">
+          <widget class="QLabel" name="localCorrectionFactorLabel">
+           <property name="text">
+            <string>Local correction factor:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="7" column="1">
+          <widget class="QDoubleSpinBox" name="localCorrectionFactorSpinBox">
+           <property name="toolTip">
+            <string>How strongly the direction a point is swept along is pulled back towards its neighbours where the layer starts to tangle, as it does on the inside of a tight bend.</string>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="minimum">
+            <double>0.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.050000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.450000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>localCorrectionFactor</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="3" column="0" colspan="2">
+       <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox_2">
+        <property name="title">
+         <string>Volume mesh</string>
+        </property>
+        <property name="collapsed">
+         <bool>true</bool>
+        </property>
+        <layout class="QFormLayout" name="formLayout_3">
+         <item row="1" column="0">
+          <widget class="QLabel" name="tetrahedralizeLabel">
+           <property name="text">
+            <string>Tetrahedralize:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QCheckBox" name="tetrahedralizeCheckBox">
+           <property name="toolTip">
+            <string>Split every prism of the boundary layer into tetrahedra, for a solver that takes nothing else.</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>tetrahedralize</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="applyButton">
+     <property name="enabled">
+      <bool>false</bool>
+     </property>
+     <property name="toolTip">
+      <string>Generate the volume mesh.</string>
+     </property>
+     <property name="text">
+      <string>Apply</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <spacer name="verticalSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>qMRMLNodeComboBox</class>
+   <extends>QWidget</extends>
+   <header>qMRMLNodeComboBox.h</header>
+  </customwidget>
+  <customwidget>
+   <class>qMRMLWidget</class>
+   <extends>QWidget</extends>
+   <header>qMRMLWidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ctkCollapsibleButton</class>
+   <extends>QWidget</extends>
+   <header>ctkCollapsibleButton.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ctkCollapsibleGroupBox</class>
+   <extends>QGroupBox</extends>
+   <header>ctkCollapsibleGroupBox.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>CfdMeshGenerator</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>inputSurfaceSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>190</x>
+     <y>350</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>250</x>
+     <y>40</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>CfdMeshGenerator</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>outputMeshSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>190</x>
+     <y>350</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>250</x>
+     <y>70</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>CfdMeshGenerator</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>outputRemeshedSurfaceSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>190</x>
+     <y>350</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>250</x>
+     <y>100</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>
