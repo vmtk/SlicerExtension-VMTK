@@ -31,6 +31,12 @@ from slicer import vtkMRMLModelNode
 # offers 0 in its place, which reads better in a spin box (see meshLengthLimit).
 UNLIMITED_EDGE_LENGTH = 1e16
 
+# Fewest substeps the boundary layer may be swept in. The generator spends the first hundredth of
+# them on an initial warp, so below a hundred it spends none: it then reads the points that warp
+# was to have written, which it never allocated, and what it finds there is whatever the process
+# had at that address (vtkvmtkBoundaryLayerGenerator's IncrementalWarpVectors).
+MINIMUM_SUBSTEPS = 100
+
 
 class ElementSizeMode(enum.Enum):
     """Where the target size of a surface element comes from (vmtkmeshgenerator's elementsizemode).
@@ -157,7 +163,7 @@ class CfdMeshGeneratorParameterNode:
     subLayerRatio: Annotated[float, Minimum(0.0)] = 0.5
     boundaryLayerThicknessFactor: Annotated[float, Minimum(0.0)] = 0.25
     endcapsEdgeLengthFactor: Annotated[float, Minimum(0.0)] = 1.0
-    numberOfSubsteps: Annotated[int, Minimum(0)] = 2000
+    numberOfSubsteps: Annotated[int, Minimum(MINIMUM_SUBSTEPS)] = 2000
     relaxation: Annotated[float, Minimum(0.0)] = 0.01
     localCorrectionFactor: Annotated[float, Minimum(0.0)] = 0.45
 
@@ -660,7 +666,8 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
         :param boundaryLayerThicknessFactor: total thickness of the boundary layer, as a fraction
           of the target edge length.
         :param numberOfSubsteps: steps the inner surface is marched inwards in. More of them let
-          it get around a tight corner without folding over itself.
+          it get around a tight corner without folding over itself. Raised to MINIMUM_SUBSTEPS
+          when it is asked for below that.
         :param relaxation: how far the inner surface moves per substep.
         :param localCorrectionFactor: how strongly a warp vector is pulled back towards its
           neighbours where the layer starts to tangle.
@@ -689,6 +696,8 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
                           for index in range(cellData.GetNumberOfArrays())))
 
         maxEdgeLength = self.meshLengthLimit(maxEdgeLength)
+        # Not a preference but a floor: fewer than this and the sweep reads memory it never wrote.
+        numberOfSubsteps = max(numberOfSubsteps, MINIMUM_SUBSTEPS)
 
         # A boundary layer that is not to be grown over the caps needs the surface still open while
         # the layer is swept; it gets its caps afterwards, on the inner surface. Only then, though:
@@ -1108,8 +1117,12 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
         boundaryLayerGenerator.SetLayerThicknessArrayName(targetEdgeLengthArrayName)
         boundaryLayerGenerator.SetConstantThickness(
             elementSizeMode == ElementSizeMode.EDGE_LENGTH.value)
-        # The surface cells are added back below, from the surfaces they belong to.
+        # The surface cells are added back below, from the surfaces they belong to. The sidewall
+        # cells are not: they are the strips the open boundaries sweep out, which stand where the
+        # caps are about to be made and belong to no other surface, so without them the labelled
+        # boundary of the mesh has a gap around every vessel end.
         boundaryLayerGenerator.SetIncludeSurfaceCells(0)
+        boundaryLayerGenerator.SetIncludeSidewallCells(1)
         boundaryLayerGenerator.SetNumberOfSubLayers(numberOfSubLayers)
         boundaryLayerGenerator.SetNumberOfSubsteps(numberOfSubsteps)
         boundaryLayerGenerator.SetRelaxation(relaxation)
@@ -1121,12 +1134,15 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
         boundaryLayerGenerator.SetMaximumLayerThickness(
             boundaryLayerThicknessFactor * maxEdgeLength)
         boundaryLayerGenerator.SetCellEntityIdsArrayName(cellEntityIdsArrayName)
+        # What the inner surface is called matters to the mesher that fills it: fTetWild reads the
+        # ids off the surface it is given to label the boundary it returns.
+        boundaryLayerGenerator.SetInnerSurfaceCellEntityId(self.wallCellEntityId)
         if not boundaryLayerOnCaps:
             # The sidewalls are the strips that the open boundaries sweep out, so each of them
             # stands where a cap is about to be made. They are marked here and handed the id of
-            # that cap at the end.
+            # that cap at the end. A surface swept with its caps on has no open boundary and so
+            # no sidewalls at all.
             boundaryLayerGenerator.SetSidewallCellEntityId(self.placeholderCellEntityId)
-            boundaryLayerGenerator.SetInnerSurfaceCellEntityId(self.wallCellEntityId)
         boundaryLayerGenerator.Update()
 
         innerSurface = self.meshToSurface(boundaryLayerGenerator.GetInnerSurface())
@@ -1555,6 +1571,52 @@ class CfdMeshGeneratorTest(ScriptedLoadableModuleTest):
             return set()
         return set(int(array.GetTuple1(index)) for index in range(array.GetNumberOfTuples()))
 
+    @staticmethod
+    def surfaceAreaOfCells(mesh, keep):
+        """The total area of the cells of the mesh that keep(cellId) says to count."""
+        total = 0.0
+        for cellId in range(mesh.GetNumberOfCells()):
+            if not keep(cellId):
+                continue
+            cell = mesh.GetCell(cellId)
+            if cell.GetCellDimension() != 2:
+                continue
+            points = [cell.GetPoints().GetPoint(index) for index in range(cell.GetNumberOfPoints())]
+            # Fan the polygon about its first corner. Every 2D cell here is a triangle or a
+            # planar quad, so the fan covers it exactly.
+            for index in range(1, len(points) - 1):
+                total += vtk.vtkTriangle.TriangleArea(points[0], points[index], points[index + 1])
+        return total
+
+    def assertBoundaryIsLabelled(self, mesh, arrayName, message=""):
+        """Every face on the outside of the volume must be a labelled cell of the mesh.
+
+        A boundary condition is assigned per face id, so a solver reading this mesh has to find
+        one on every face it can reach from the outside. Areas rather than cells, because the
+        volume elements and the surface cells that stand against them need not be split the same
+        way: what has to match is the surface they cover.
+        """
+        volume = vtk.vtkExtractCellsByType()
+        volume.SetInputData(mesh)
+        for cellType in (vtk.VTK_TETRA, vtk.VTK_WEDGE, vtk.VTK_HEXAHEDRON,
+                         vtk.VTK_QUADRATIC_TETRA, vtk.VTK_QUADRATIC_WEDGE):
+            volume.AddCellType(cellType)
+        volume.Update()
+        outside = vtk.vtkGeometryFilter()
+        outside.SetInputData(volume.GetOutput())
+        outside.MergingOff()
+        outside.Update()
+
+        outsideArea = self.surfaceAreaOfCells(outside.GetOutput(), lambda cellId: True)
+        ids = mesh.GetCellData().GetArray(arrayName)
+        labelledArea = self.surfaceAreaOfCells(
+            mesh, lambda cellId: ids is not None and int(ids.GetTuple1(cellId)) >= 1)
+        self.assertGreater(outsideArea, 0.0, "the mesh has no volume elements %s" % message)
+        self.assertAlmostEqual(
+            labelledArea / outsideArea, 1.0, delta=0.01,
+            msg="the labelled faces cover %.1f%% of the outside of the volume %s"
+                % (100.0 * labelledArea / outsideArea, message))
+
     def test_CfdMeshGenerator1(self):
         """An open tube must come back as a volume mesh: capped, filled with tetrahedra, and with
         the wall and each of the two caps under an id of its own, so that a boundary condition can
@@ -1664,6 +1726,12 @@ class CfdMeshGeneratorTest(ScriptedLoadableModuleTest):
             self.assertEqual(ids, {0, 1, 2, 3})
             self.assertNotIn(CfdMeshGeneratorLogic.placeholderCellEntityId, ids,
                              "a sidewall cell was left under the placeholder id")
+            if not onCaps:
+                # The strips swept out of the open ends, which stand between the rim of the outer
+                # surface and the cap made past the layer. Nothing else in the mesh is a quad.
+                self.assertTrue(cellTypes.IsType(vtk.VTK_QUAD),
+                                "the open ends were swept into no sidewall cells")
+            self.assertBoundaryIsLabelled(mesh, "CellEntityIds", "(on caps: %s)" % onCaps)
 
         self.delayDisplay("Boundary layer test passed")
 

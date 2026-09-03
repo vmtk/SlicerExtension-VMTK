@@ -873,7 +873,7 @@
             <string>Steps the inner surface is marched inwards in. More of them let it get around a tight corner without folding over itself, at the cost of time.</string>
            </property>
            <property name="minimum">
-            <number>0</number>
+            <number>100</number>
            </property>
            <property name="maximum">
             <number>1000000</number>
