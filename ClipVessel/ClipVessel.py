@@ -156,6 +156,19 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         (self.ui.toggleClipPointsVisibilityButton, "ClipPoints", _("clip points")),
     ]
 
+    # A tool button asks for a taller box than the node selector beside it - it sizes itself
+    # around its icon - so a row comes out ragged, the selector sitting lower than the buttons at
+    # its right. The height to keep is the selector's, and the buttons are held to it, their icons
+    # scaled to what is left inside once the frame has taken its share. Asked of the widgets
+    # rather than written down as a number, so that it stays right whatever the font size, the
+    # style and the screen make of them.
+    rowHeight = self.ui.outputSurfaceModelSelector.sizeHint.height()
+    rowButtons = [button for button, _role, _name in self.inputVisibilityButtons]
+    rowButtons += [self.ui.toggleOutputEdgesButton, self.ui.toggleOutputVisibilityButton]
+    for button in rowButtons:
+        button.setFixedHeight(rowHeight)
+        button.setIconSize(qt.QSize(rowHeight - 8, rowHeight - 8))
+
     self.setParameterNode(self.logic.getParameterNode())
 
     # Connections
@@ -208,18 +221,22 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.extensionScaleWidget.connect('valueChanged(double)', self.onExtensionScaleChanged)
     self.ui.enableManualPlaneOrigin.setIcon(qt.QIcon(self.resourcePath('Icons/ManualPlaneOrigin.svg')))
     self.ui.enableManualPlaneNormal.setIcon(qt.QIcon(self.resourcePath('Icons/ManualPlaneNormal.svg')))
-    self.ui.toggleOutputVisibilityButton.connect("toggled(bool)", self.onToggleOutputVisibilityButton)
-    self.ui.toggleOutputEdgesButton.connect("toggled(bool)", self.onToggleOutputEdgesButton)
+    # None of these carries a checked state. A checked button would be saying what the display
+    # node holds, and nothing tells it when that changes somewhere else - the Data module, another
+    # module's own show/hide - so the mark would sooner or later contradict the scene. They read
+    # the state at the moment they are pressed and turn it around instead.
+    self.ui.toggleOutputVisibilityButton.connect("clicked()", self.onToggleOutputVisibilityButton)
+    self.ui.toggleOutputEdgesButton.connect("clicked()", self.onToggleOutputEdgesButton)
     self.ui.finishPlaneEditingButton.connect("clicked(bool)", self.finishPlaneEditing)
     self.ui.toggleOutputVisibilityButton.setIcon(qt.QIcon(':/Icons/Medium/SlicerVisibleInvisible.png'))
     self.ui.toggleOutputVisibilityButton.setAutoRaise(True)
+    self.ui.toggleOutputEdgesButton.setIcon(qt.QIcon(self.resourcePath('Icons/ToggleEdges.svg')))
     self.ui.toggleOutputEdgesButton.setAutoRaise(True)
     for button, roleName, objectName in self.inputVisibilityButtons:
         button.setIcon(qt.QIcon(':/Icons/Medium/SlicerVisibleInvisible.png'))
         button.setAutoRaise(True)
-        button.connect("toggled(bool)",
-                       lambda checked, roleName=roleName, button=button, objectName=objectName:
-                       self.onToggleNodeVisibility(roleName, checked, button, objectName))
+        button.connect("clicked()",
+                       lambda roleName=roleName: self.onToggleNodeVisibility(roleName))
 
     for nodeSelector, roleName in self.nodeSelectors:
       nodeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
@@ -291,7 +308,6 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     if not slicer.mrmlScene.IsNodePresent(parameterNode):
         parameterNode = None
     self.ui.inputsCollapsibleButton.enabled = parameterNode is not None
-    self.ui.outputsCollapsibleButton.enabled = parameterNode is not None
     self.ui.advancedCollapsibleButton.enabled = parameterNode is not None
     if parameterNode is None:
         return
@@ -856,59 +872,40 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     else:
         displayNode.SetOpacity(opacity)
 
-  def updateOutputVisibilityButton(self):
-    """Sync the Outputs show/hide button with the output model's actual display visibility,
-    without triggering onToggleOutputVisibilityButton (which would otherwise flip visibility
-    right back)."""
+  def outputSurfaceDisplayNode(self):
     outputModelNode = self._parameterNode.GetNodeReference("OutputSurfaceModel") if self._parameterNode else None
-    displayNode = outputModelNode.GetDisplayNode() if outputModelNode else None
-    self.ui.toggleOutputVisibilityButton.enabled = displayNode is not None
-    visible = displayNode.GetVisibility() if displayNode else True
-    wasBlocked = self.ui.toggleOutputVisibilityButton.blockSignals(True)
-    self.ui.toggleOutputVisibilityButton.checked = visible
-    self.ui.toggleOutputVisibilityButton.toolTip = _("Hide output surface") if visible else _("Show output surface")
-    self.ui.toggleOutputVisibilityButton.blockSignals(wasBlocked)
+    return outputModelNode.GetDisplayNode() if outputModelNode else None
 
-  def onToggleOutputVisibilityButton(self, checked=None):
-    outputModelNode = self._parameterNode.GetNodeReference("OutputSurfaceModel") if self._parameterNode else None
-    displayNode = outputModelNode.GetDisplayNode() if outputModelNode else None
+  def updateOutputVisibilityButton(self):
+    """Offer the Outputs show/hide button only while there is something to show or hide. What it
+    would show or hide is not asked here: the button says nothing about the state of the surface,
+    so there is nothing about it to keep in step (see setup)."""
+    self.ui.toggleOutputVisibilityButton.enabled = self.outputSurfaceDisplayNode() is not None
+
+  def onToggleOutputVisibilityButton(self):
+    displayNode = self.outputSurfaceDisplayNode()
     if displayNode:
-        displayNode.SetVisibility(checked)
-    self.ui.toggleOutputVisibilityButton.toolTip = _("Hide output surface") if checked else _("Show output surface")
+        displayNode.SetVisibility(not displayNode.GetVisibility())
 
   def updateOutputEdgesButton(self):
-    """Sync the Outputs edge toggle with the output model display node."""
-    outputModelNode = self._parameterNode.GetNodeReference("OutputSurfaceModel") if self._parameterNode else None
-    displayNode = outputModelNode.GetDisplayNode() if outputModelNode else None
-    self.ui.toggleOutputEdgesButton.enabled = displayNode is not None
-    edgeVisible = displayNode.GetEdgeVisibility() if displayNode else False
-    wasBlocked = self.ui.toggleOutputEdgesButton.blockSignals(True)
-    self.ui.toggleOutputEdgesButton.checked = edgeVisible
-    self.ui.toggleOutputEdgesButton.blockSignals(wasBlocked)
+    """Offer the Outputs edge toggle only while there is a surface whose edges could be drawn."""
+    self.ui.toggleOutputEdgesButton.enabled = self.outputSurfaceDisplayNode() is not None
 
-  def onToggleOutputEdgesButton(self, checked=None):
-    outputModelNode = self._parameterNode.GetNodeReference("OutputSurfaceModel") if self._parameterNode else None
-    displayNode = outputModelNode.GetDisplayNode() if outputModelNode else None
+  def onToggleOutputEdgesButton(self):
+    displayNode = self.outputSurfaceDisplayNode()
     if displayNode:
-        displayNode.SetEdgeVisibility(checked)
+        displayNode.SetEdgeVisibility(not displayNode.GetEdgeVisibility())
 
   def updateInputVisibilityButtons(self):
-    for button, roleName, objectName in self.inputVisibilityButtons:
+    for button, roleName, _objectName in self.inputVisibilityButtons:
         node = self._parameterNode.GetNodeReference(roleName) if self._parameterNode else None
-        displayNode = node.GetDisplayNode() if node else None
-        button.enabled = displayNode is not None
-        visible = displayNode.GetVisibility() if displayNode else True
-        wasBlocked = button.blockSignals(True)
-        button.checked = visible
-        button.toolTip = (_("Hide {object_name}") if visible else _("Show {object_name}")).format(object_name=objectName)
-        button.blockSignals(wasBlocked)
+        button.enabled = (node.GetDisplayNode() if node else None) is not None
 
-  def onToggleNodeVisibility(self, roleName, checked, button, objectName):
+  def onToggleNodeVisibility(self, roleName):
     node = self._parameterNode.GetNodeReference(roleName) if self._parameterNode else None
     displayNode = node.GetDisplayNode() if node else None
     if displayNode:
-        displayNode.SetVisibility(checked)
-    button.toolTip = (_("Hide {object_name}") if checked else _("Show {object_name}")).format(object_name=objectName)
+        displayNode.SetVisibility(not displayNode.GetVisibility())
 
   def finishPlaneEditing(self):
     """Hide temporary plane markups and leave interactive plane editing mode."""
