@@ -968,14 +968,159 @@
          <bool>true</bool>
         </property>
         <layout class="QFormLayout" name="formLayout_3">
+         <item row="0" column="0">
+          <widget class="QLabel" name="mesherLabel">
+           <property name="text">
+            <string>Mesher:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QComboBox" name="mesherComboBox">
+           <property name="toolTip">
+            <string>Which mesher fills the surface. TetGen hands back the surface it was given with tetrahedra behind it, so the mesh meets the surface exactly, and a surface it cannot fill it fails on. fTetWild meshes the shape the surface describes, keeping within the surface tolerance of it, and answers where TetGen fails; it is also the one that can size the elements by position. fTetWild is downloaded the first time it is used.</string>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>mesher</string>
+           </property>
+          </widget>
+         </item>
          <item row="1" column="0">
+          <widget class="QLabel" name="surfaceToleranceLabel">
+           <property name="text">
+            <string>Surface tolerance:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QDoubleSpinBox" name="surfaceToleranceSpinBox">
+           <property name="toolTip">
+            <string>How far the boundary of the mesh may sit from the surface it was made for, the caps included. Smaller follows the surface more closely and takes longer. The default is a thousandth of the size of the surface.</string>
+           </property>
+           <property name="suffix">
+            <string> mm</string>
+           </property>
+           <property name="decimals">
+            <number>3</number>
+           </property>
+           <property name="minimum">
+            <double>0.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>100.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.010000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000000000000000</double>
+           </property>
+           <property name="specialValueText">
+            <string>default</string>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>surfaceTolerance</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="stopEnergyLabel">
+           <property name="text">
+            <string>Stop energy:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QDoubleSpinBox" name="stopEnergySpinBox">
+           <property name="toolTip">
+            <string>How good the worst element has to be before the mesher stops improving the mesh. 3 is a regular tetrahedron and there is no upper bound; below 8 a complicated surface can take a very long time.</string>
+           </property>
+           <property name="decimals">
+            <number>1</number>
+           </property>
+           <property name="minimum">
+            <double>3.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>1000.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>10.000000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>stopEnergy</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="maxOptimizationPassesLabel">
+           <property name="text">
+            <string>Optimization passes:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QSpinBox" name="maxOptimizationPassesSpinBox">
+           <property name="toolTip">
+            <string>How many passes the mesher may spend improving the mesh before it stops, whether or not it has reached the stop energy.</string>
+           </property>
+           <property name="minimum">
+            <number>1</number>
+           </property>
+           <property name="maximum">
+            <number>1000</number>
+           </property>
+           <property name="value">
+            <number>80</number>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>maxOptimizationPasses</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="coarsenLabel">
+           <property name="text">
+            <string>Coarsen:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="QCheckBox" name="coarsenCheckBox">
+           <property name="toolTip">
+            <string>Make the mesh as coarse as the surface tolerance allows rather than as fine as asked for, which gives the fewest elements that still describe the shape.</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>coarsen</string>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="0">
           <widget class="QLabel" name="tetrahedralizeLabel">
            <property name="text">
             <string>Tetrahedralize:</string>
            </property>
           </widget>
          </item>
-         <item row="1" column="1">
+         <item row="5" column="1">
           <widget class="QCheckBox" name="tetrahedralizeCheckBox">
            <property name="toolTip">
             <string>Split every prism of the boundary layer into tetrahedra, for a solver that takes nothing else.</string>

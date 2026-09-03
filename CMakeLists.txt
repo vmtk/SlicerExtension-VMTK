@@ -36,10 +36,10 @@ if(SlicerVMTK_USE_ExtraMarkups)
 endif()
 
 # TetGen comes with VMTK but under a license of its own, so whether it is built is a decision
-# rather than a default. Turning it off drops the TetGen wrapper from VMTK and, with it, the CFD
-# Mesh Generator module, which has no other way to fill a surface with tetrahedra.
+# rather than a default. Turning it off drops the TetGen wrapper from VMTK, and the CFD Mesh
+# Generator module then offers only fTetWild, which it downloads when it is first asked for.
 option(SlicerVMTK_USE_TetGen
-  "Build VMTK's TetGen wrapper and the modules that need it. Check TetGen's own license first." ON)
+  "Build VMTK's TetGen wrapper. Check TetGen's own license first." ON)
 
 #-----------------------------------------------------------------------------
 # SuperBuild setup
@@ -71,9 +71,7 @@ add_subdirectory(BranchClipper)
 add_subdirectory(ArterialCalcificationPreProcessor)
 add_subdirectory(CenterlineDisassembly)
 add_subdirectory(ClipVessel)
-if(SlicerVMTK_USE_TetGen)
-  add_subdirectory(CfdMeshGenerator)
-endif()
+add_subdirectory(CfdMeshGenerator)
 if(SlicerVMTK_USE_ExtraMarkups)
   add_subdirectory(CrossSectionAnalysis)
   add_subdirectory(StenosisMeasurement3D)
