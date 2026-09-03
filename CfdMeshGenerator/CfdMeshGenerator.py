@@ -14,6 +14,7 @@ import enum
 import importlib
 import logging
 import sys
+import time
 import types
 import unittest
 from typing import Annotated
@@ -660,6 +661,11 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
         # The mesh is handed back anyway - what there is of it is the thing to look at to see why
         # - so this is what says the result is not a finished mesh (see process).
         self.lastTetrahedralizationFailed = False
+        # The step log() is currently announcing, and when it started, so that the next call - or
+        # the end of the run - can say how long it took. None between runs and once the last step
+        # of one has been reported.
+        self._stepName = None
+        self._stepStartTime = None
 
     #
     # Which meshers this installation can offer.
@@ -731,7 +737,6 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
         if not parameters.outputMesh:
             raise ValueError(_("No output mesh node"))
 
-        import time
         startTime = time.time()
 
         mesh, remeshedSurface = self.generateMesh(
@@ -901,6 +906,9 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
             self.importPyTetWild()
 
         self.lastTetrahedralizationFailed = False
+        # A run that was interrupted by an earlier exception can leave a step open; start clean.
+        self._stepName = None
+        self._stepStartTime = None
 
         cellData = surface.GetCellData()
         if cellData.GetArray(cellEntityIdsArrayName) is None and cellData.GetNumberOfArrays() > 0:
@@ -963,6 +971,7 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
         sizingField = None
         if (mesher == Mesher.FTETWILD.value
                 and elementSizeMode == ElementSizeMode.EDGE_LENGTH_ARRAY.value):
+            self.log(_("Building sizing field"))
             sizingField = self.edgeLengthSizingField(
                 remeshedSurface if remeshedSurface.GetPointData().GetArray(
                     targetEdgeLengthArrayName) else cappedSurface,
@@ -1017,6 +1026,7 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
             tetrahedralizeFilter.Update()
             mesh = tetrahedralizeFilter.GetOutput()
 
+        self._finishStepLog()
         return mesh, remeshedSurface
 
     #
@@ -2133,13 +2143,27 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
         """
         return UNLIMITED_EDGE_LENGTH if edgeLength <= 0.0 else edgeLength
 
-    @staticmethod
-    def log(message):
-        """Say which step of the pipeline is running. Each of them takes long enough to be worth
-        reporting, and the status bar is the only sign of progress a long meshing run gives."""
+    def log(self, message):
+        """Say which step of the pipeline is running, and log how long the step before it took.
+
+        Each step takes long enough to be worth reporting on its own - the status bar is the only
+        sign of progress a long meshing run gives - and logging its duration once it is known,
+        rather than at the moment it is measured, is what keeps one line per step instead of two.
+        The last step of a run is timed too; see _finishStepLog.
+        """
+        self._finishStepLog()
+        self._stepName = message
+        self._stepStartTime = time.time()
         logging.info(message)
         slicer.util.showStatusMessage(message)
         slicer.app.processEvents()
+
+    def _finishStepLog(self):
+        """Log how long the step log() last announced took, if one is still open."""
+        if self._stepName is not None:
+            logging.info("%s: %.2fs", self._stepName, time.time() - self._stepStartTime)
+            self._stepName = None
+            self._stepStartTime = None
 
     # Marks a node this module has already given a display to, so that a second Apply writes the
     # new mesh into the node it was given and leaves everything else as the user has since set it.
