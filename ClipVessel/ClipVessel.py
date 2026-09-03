@@ -240,6 +240,9 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     for nodeSelector, roleName in self.nodeSelectors:
       nodeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+    # A plane is adjusted against the surface it was opened on, so it goes when that surface does.
+    self.ui.inputSurfaceSelector.connect("currentNodeChanged(vtkMRMLNode*)",
+                                         self.onInputSurfaceChanged)
       
     self.addObserver(slicer.mrmlScene, slicer.vtkMRMLScene.EndBatchProcessEvent,
                      self.onSceneBatchProcessEnded)
@@ -250,6 +253,9 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     """
     Called when the application closes and the module widget is destroyed.
     """
+    # Before the observers go: the plane is this widget's, and there will be no widget left to
+    # take it down or to answer for it once the module has been reloaded.
+    self.hideInteractivePlane()
     self.removeObservers()
     # removeObservers() dropped every observation already; clear the trackers so that any
     # signal still arriving during teardown does not attempt a second removal (which would
@@ -907,19 +913,30 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     if displayNode:
         displayNode.SetVisibility(not displayNode.GetVisibility())
 
-  def finishPlaneEditing(self):
-    """Hide temporary plane markups and leave interactive plane editing mode."""
-    planeNode = self._parameterNode.GetNodeReference("ManualClipPlane") if self._parameterNode else None
-    normalHandleNode = self._parameterNode.GetNodeReference("ManualClipPlaneNormalHandle") if self._parameterNode else None
-    if planeNode:
-        planeNode.SetDisplayVisibility(False)
-    if normalHandleNode:
-        normalHandleNode.SetDisplayVisibility(False)
+  def onInputSurfaceChanged(self, node=None):
+    self.hideInteractivePlane()
+    self.updateManualPlaneButtonStates()
+
+  def hideInteractivePlane(self):
+    """Take the plane being adjusted out of the views, and stop adjusting it.
+
+    A plane stands for one clip point of one surface. Whatever leaves that behind - the module
+    being reloaded, another surface being chosen, the points being replaced - has to take the
+    plane with it, or it is left lying in the views over something it has nothing to do with.
+    """
+    for roleName in ("ManualClipPlane", "ManualClipPlaneNormalHandle"):
+        node = self._parameterNode.GetNodeReference(roleName) if self._parameterNode else None
+        if node:
+            node.SetDisplayVisibility(False)
     self._activeClipPointIndex = -1
     self._activeClipPointId = None
     self._planeEditing = False
-    self.updateManualPlaneButtonStates()
     self.ui.finishPlaneEditingButton.enabled = False
+
+  def finishPlaneEditing(self):
+    """Hide temporary plane markups and leave interactive plane editing mode."""
+    self.hideInteractivePlane()
+    self.updateManualPlaneButtonStates()
     self.ui.clipStatusLabel.text = _("Plane editing finished. Click a clip point to edit another plane.")
     self.ui.clipStatusLabel.styleSheet = ""
 
@@ -1273,16 +1290,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             return
 
     # Stop showing/adjusting whatever plane was up before the points underneath it are replaced.
-    self._activeClipPointIndex = -1
-    self._activeClipPointId = None
-    self._planeEditing = False
-    self.ui.finishPlaneEditingButton.enabled = False
-    planeNode = self._parameterNode.GetNodeReference("ManualClipPlane")
-    if planeNode:
-        planeNode.SetDisplayVisibility(False)
-    normalHandleNode = self._parameterNode.GetNodeReference("ManualClipPlaneNormalHandle")
-    if normalHandleNode:
-        normalHandleNode.SetDisplayVisibility(False)
+    self.hideInteractivePlane()
 
     wasModify = clipPointsNode.StartModify()
     clipPointsNode.RemoveAllControlPoints()
