@@ -114,7 +114,7 @@
            </sizepolicy>
           </property>
           <property name="toolTip">
-           <string>Model node the volume mesh is written into.</string>
+           <string>Model node the volume mesh is written into. Left at &quot;(Create New)&quot;, a node is made for it when Apply is pressed.</string>
           </property>
           <property name="nodeTypes">
            <stringlist notr="true">
@@ -126,6 +126,9 @@
           </property>
           <property name="noneEnabled">
            <bool>true</bool>
+          </property>
+          <property name="noneDisplay">
+           <string>(Create New)</string>
           </property>
           <property name="addEnabled">
            <bool>true</bool>

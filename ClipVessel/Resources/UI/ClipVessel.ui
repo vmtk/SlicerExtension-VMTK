@@ -393,7 +393,7 @@
            </sizepolicy>
           </property>
           <property name="toolTip">
-           <string>Result of clipping input model</string>
+           <string>Result of clipping input model. Left at &quot;(Create New)&quot;, a node is made for it when Apply is pressed.</string>
           </property>
           <property name="nodeTypes">
            <stringlist>
@@ -408,6 +408,9 @@
           </property>
           <property name="noneEnabled">
            <bool>true</bool>
+          </property>
+          <property name="noneDisplay">
+           <string>(Create New)</string>
           </property>
           <property name="addEnabled">
            <bool>true</bool>

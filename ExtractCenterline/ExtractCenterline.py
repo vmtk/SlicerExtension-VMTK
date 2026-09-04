@@ -1132,8 +1132,16 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
 #
 
 class ExtractCenterlineTest(ScriptedLoadableModuleTest):
-    """
-    This is the test case for your scripted module.
+    """A smoke test, for Reload and Test and for the ctest that runs this file.
+
+    It runs the module the way a user does - download a vessel, preprocess it, find its endpoints
+    from the network, then extract the centerline - and leaves the centerline in the scene, so
+    that Clip Vessel has something to be pointed at straight afterwards. The surface it works on
+    is the one ClipVesselTest uses, so the two run one after the other.
+
+    The options are covered in Testing/Python, as separate files so that a failure
+    names the behaviour that broke rather than the one long run it happened during.
+
     Uses ScriptedLoadableModuleTest base class, available at:
     https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
     """
@@ -1150,52 +1158,69 @@ class ExtractCenterlineTest(ScriptedLoadableModuleTest):
         self.test_ExtractCenterline1()
 
     def test_ExtractCenterline1(self):
-        """ Ideally you should have several levels of tests.  At the lowest level
-        tests should exercise the functionality of the logic with different inputs
-        (both valid and invalid).  At higher levels your tests should emulate the
-        way the user would interact with your code and confirm that it still works
-        the way you intended.
-        One of the most important features of the tests is that it should alert other
-        developers when their changes will have an impact on the behavior of your
-        module.  For example, if a developer removes a feature that you depend on,
-        your test should break so they know that the feature is needed.
-        """
-
+        """Extract a centerline from a real vessel, and leave it in the scene ready to be clipped."""
         self.delayDisplay("Starting the test")
 
-        # Get/create input data
-
         import SampleData
-        inputVolume = SampleData.downloadFromURL(
-          nodeNames='MRHead',
-          fileNames='MR-Head.nrrd',
-          uris='https://github.com/Slicer/SlicerTestingData/releases/download/MD5/39b01631b7b38232a220007230624c8e',
-          checksums='MD5:39b01631b7b38232a220007230624c8e')[0]
-        self.delayDisplay('Finished with download and loading')
-
-        inputScalarRange = inputVolume.GetImageData().GetScalarRange()
-        self.assertEqual(inputScalarRange[0], 0)
-        self.assertEqual(inputScalarRange[1], 279)
-
-        outputVolume = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLScalarVolumeNode")
-        threshold = 50
-
-        # Test the module logic
+        inputSurfaceModelNode = SampleData.downloadFromURL(
+            fileNames="aorta-surface.stl",
+            nodeNames="aorta-surface",
+            uris="https://raw.githubusercontent.com/vmtk/vmtk-test-data/master/input/aorta-surface.stl")[0]
+        inputSurfacePolyData = inputSurfaceModelNode.GetPolyData()
+        self.assertGreater(inputSurfacePolyData.GetNumberOfPoints(), 0)
 
         logic = ExtractCenterlineLogic()
 
-        # TODO: ExtractCenterlineLogic.run() needs to be implemented
-        # # Test algorithm with non-inverted threshold
-        # logic.run(inputVolume, outputVolume, threshold, True)
-        # outputScalarRange = outputVolume.GetImageData().GetScalarRange()
-        # self.assertEqual(outputScalarRange[0], inputScalarRange[0])
-        # self.assertEqual(outputScalarRange[1], threshold)
+        # Decimating first is what makes the centerline extraction affordable: it works on a
+        # Voronoi diagram of the surface, which grows with the number of points.
+        self.delayDisplay("Preprocessing the surface")
+        targetNumberOfPoints = 5000.0
+        preprocessedPolyData = logic.preprocess(inputSurfacePolyData, targetNumberOfPoints, 4.0, False)
+        self.assertGreater(preprocessedPolyData.GetNumberOfPoints(), 0)
+        self.assertLess(preprocessedPolyData.GetNumberOfPoints(),
+                        inputSurfacePolyData.GetNumberOfPoints())
 
-        # # Test algorithm with inverted threshold
-        # logic.run(inputVolume, outputVolume, threshold, False)
-        # outputScalarRange = outputVolume.GetImageData().GetScalarRange()
-        # self.assertEqual(outputScalarRange[0], inputScalarRange[0])
-        # self.assertEqual(outputScalarRange[1], inputScalarRange[1])
+        # The network is the cheap answer: a tree through the vessel, enough to say where its
+        # ends are, which is what the endpoints are then read off.
+        self.delayDisplay("Extracting the network")
+        endPointsMarkupsNode = slicer.mrmlScene.AddNewNodeByClass(
+            "vtkMRMLMarkupsFiducialNode", "Centerline endpoints")
+        networkPolyData = logic.extractNetwork(preprocessedPolyData, endPointsMarkupsNode)
+        self.assertGreater(networkPolyData.GetNumberOfPoints(), 0)
 
-        self.delayDisplay('Test passed')
+        endpointPositions = logic.getEndPoints(networkPolyData, startPointPosition=None)
+        # The aorta surface has one inlet and two iliac outlets
+        self.assertGreaterEqual(len(endpointPositions), 3)
+        for position in endpointPositions:
+            endPointsMarkupsNode.AddControlPoint(vtk.vtkVector3d(position))
+
+        # The centerline proper: slower, and the one that carries a radius along it, which is
+        # what Clip Vessel sizes its clip planes by.
+        self.delayDisplay("Extracting the centerline")
+        centerlinePolyData, voronoiDiagramPolyData = logic.extractCenterline(
+            preprocessedPolyData, endPointsMarkupsNode)
+        self.assertGreater(centerlinePolyData.GetNumberOfPoints(), 0)
+        self.assertGreater(centerlinePolyData.GetNumberOfCells(), 0)
+        self.assertIsNotNone(centerlinePolyData.GetPointData().GetArray("Radius"))
+        self.assertGreater(voronoiDiagramPolyData.GetNumberOfPoints(), 0)
+
+        centerlineModelNode = slicer.mrmlScene.AddNewNodeByClass(
+            "vtkMRMLModelNode", inputSurfaceModelNode.GetName() + " centerline")
+        centerlineModelNode.SetAndObserveMesh(centerlinePolyData)
+        centerlineModelNode.CreateDefaultDisplayNodes()
+        centerlineModelNode.GetDisplayNode().SetVisibility(True)
+        centerlineModelNode.GetDisplayNode().SetLineWidth(3)
+
+        # The curve tree is what the module normally hands back beside the model: one curve per
+        # branch, with the radius along it as a measurement.
+        self.delayDisplay("Building the centerline curve tree")
+        centerlineCurveNode = slicer.mrmlScene.AddNewNodeByClass(
+            "vtkMRMLMarkupsCurveNode", "Centerline curve")
+        centerlinePropertiesTableNode = slicer.mrmlScene.AddNewNodeByClass(
+            "vtkMRMLTableNode", "Centerline properties")
+        logic.createCurveTreeFromCenterline(centerlinePolyData, centerlineCurveNode,
+                                            centerlinePropertiesTableNode)
+        self.assertGreater(centerlinePropertiesTableNode.GetTable().GetNumberOfRows(), 0)
+
+        self.delayDisplay("Test passed. The scene holds the centerline, ready to be clipped.")
 

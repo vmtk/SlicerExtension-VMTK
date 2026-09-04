@@ -260,6 +260,22 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.updateGUIFromParameterNode()
     
 
+  def exit(self):
+    """Called each time the user opens a different module.
+
+    The plane is drawn in every view, not only in this module's panel, so a plane left being
+    adjusted follows the user into whatever they switched to - a handle sitting over someone
+    else's model, which drags if it is clicked and belongs to a module that is no longer on
+    screen to say what it is. Editing is finished rather than merely hidden, so that coming back
+    starts from clip points again rather than from a half-adjusted plane the user has since
+    stopped thinking about.
+
+    Only when a plane is actually being adjusted: finishing says so in the status line, and a
+    module switch is no reason to write over what the last run reported there.
+    """
+    if self._planeEditing:
+        self.finishPlaneEditing()
+
   def cleanup(self):
     """
     Called when the application closes and the module widget is destroyed.
@@ -348,7 +364,6 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     inputSurfaceName = inputSurfaceNode.GetName() if inputSurfaceNode else None
     self.ui.outputSurfaceModelSelector.baseName = (
         inputSurfaceName + " clipped" if inputSurfaceName else "Output surface model")
-    self.ensureOutputSurfaceNode(inputSurfaceNode)
     if inputSurfaceNode and inputSurfaceNode.IsA("vtkMRMLSegmentationNode"):
         self.ui.inputSegmentSelectorWidget.setCurrentSegmentID(self._parameterNode.GetParameter("InputSegmentID"))
         self.ui.inputSegmentSelectorWidget.setVisible(True)
@@ -446,11 +461,13 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.clipStatusLabel.text = _("Click a clip point to show and adjust its clip plane.")
     
     # Update buttons states and tooltips
-    if self._parameterNode.GetNodeReference("InputSurface") and self._parameterNode.GetNodeReference("InputCenterlines") and self._parameterNode.GetNodeReference("ClipPoints") and self._parameterNode.GetNodeReference("OutputSurfaceModel"):
+    # The output node is not asked for: left at "(Create New)" one is made on Apply, so only the
+    # inputs have to be picked (see ensureOutputSurfaceNode).
+    if self._parameterNode.GetNodeReference("InputSurface") and self._parameterNode.GetNodeReference("InputCenterlines") and self._parameterNode.GetNodeReference("ClipPoints"):
         self.ui.applyButton.toolTip = _("Clip vessel")
         self.ui.applyButton.enabled = True
     else:
-        self.ui.applyButton.toolTip = _("Select input and output model nodes")
+        self.ui.applyButton.toolTip = _("Select an input model, centerlines and clip points")
         self.ui.applyButton.enabled = False
 
     self.updatingGUIFromParameterNode = False
@@ -462,15 +479,24 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     if self._parameterNode and slicer.mrmlScene.IsNodePresent(self._parameterNode):
         self.updateGUIFromParameterNode()
 
-  def ensureOutputSurfaceNode(self, inputSurfaceNode):
-    """Create and select a default output model when an input surface is available."""
-    if not inputSurfaceNode or self._parameterNode.GetNodeReference("OutputSurfaceModel"):
-        return
+  def ensureOutputSurfaceNode(self):
+    """Make the model the result is to go into, if the selector was left at "(Create New)".
+
+    Called when a run starts and at no other time, so that a module that was only looked at
+    leaves the scene as it found it.
+
+    :return: the output model node, or None with no input surface to name one after.
+    """
+    inputSurfaceNode = self._parameterNode.GetNodeReference("InputSurface") if self._parameterNode else None
+    existingNode = self._parameterNode.GetNodeReference("OutputSurfaceModel") if self._parameterNode else None
+    if existingNode or not inputSurfaceNode:
+        return existingNode
     outputName = inputSurfaceNode.GetName() + " clipped"
     outputModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", outputName)
     outputModelNode.CreateDefaultDisplayNodes()
     self._parameterNode.SetNodeReferenceID("OutputSurfaceModel", outputModelNode.GetID())
     self.ui.outputSurfaceModelSelector.setCurrentNode(outputModelNode)
+    return outputModelNode
 
   def updateParameterNodeFromGUI(self, caller=None, event=None):
     """
@@ -1345,9 +1371,13 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.clipStatusLabel.styleSheet = "QLabel { color: #008000; }"
 
   def scheduleAutoApply(self):
+    # An output node among the conditions, which Apply being enabled no longer implies: live
+    # update follows a result the user has asked for, and must not be what conjures the node to
+    # put one in.
     if (not self._applying and not self.updatingGUIFromParameterNode
         and self.ui.applyButton.checked
         and self.ui.applyButton.enabled
+        and self._parameterNode.GetNodeReference("OutputSurfaceModel")
         and self.hasClipPoints()):
         self.autoApplyTimer.start()
 
@@ -1459,6 +1489,12 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         return
     if self.autoApplyTimer.isActive():
         self.autoApplyTimer.stop()
+    # Asking for a result is what makes somewhere to put it. Not before: picking an input surface
+    # used to be enough to have a node made, which left an empty model behind after any look at
+    # the module that went no further, in a scene the user had not asked to change. The auto-apply
+    # timer cannot reach this - scheduleAutoApply() will not start without an output node - so a
+    # node is only ever made by a press of Apply or by a caller that means to run one.
+    self.ensureOutputSurfaceNode()
     self._applying = True
     try:
         # tryWithErrorDisplay puts the whole traceback in the dialog's details section,
@@ -3399,8 +3435,17 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
 #
 
 class ClipVesselTest(ScriptedLoadableModuleTest):
-  """
-  This is the test case for your scripted module.
+  """A smoke test, for Reload and Test and for the ctest that runs this file.
+
+  It runs the module the way a user does - download a vessel, extract its centerline, find a clip
+  point at each end, cut, extend and cap - and leaves the result in the scene, so that CFD Mesh
+  Generator has something to be pointed at straight afterwards.
+
+  What it does not do is go through every option: each clipping method, each capping method, each
+  transition, the face ids and the widget are in Testing/Python, as separate files
+  so that a failure names the behaviour that broke rather than the one long run it happened
+  during, and so that they can be run one per process.
+
   Uses ScriptedLoadableModuleTest base class, available at:
   https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
   """
@@ -3415,12 +3460,9 @@ class ClipVesselTest(ScriptedLoadableModuleTest):
     self.test_ClipVessel1()
 
   def test_ClipVessel1(self):
-    """End-to-end test: download a vessel surface, extract its centerline (Extract Centerline
-    module logic, with automatic endpoint detection), detect clip points from the centerline
-    terminuses, and compute the clipped vessel with every clipping method."""
+    """Clip a real vessel end to end, and leave it in the scene ready to be meshed."""
     self.delayDisplay("Starting the test")
 
-    # Download and load the input vessel surface
     import SampleData
     inputSurfaceModelNode = SampleData.downloadFromURL(
         fileNames="aorta-surface.stl",
@@ -3429,20 +3471,14 @@ class ClipVesselTest(ScriptedLoadableModuleTest):
     inputSurfacePolyData = inputSurfaceModelNode.GetPolyData()
     self.assertGreater(inputSurfacePolyData.GetNumberOfPoints(), 0)
 
-    # Extract centerline using the Extract Centerline module logic
+    self.delayDisplay("Extracting the centerline")
     import ExtractCenterline
     extractCenterlineLogic = ExtractCenterline.ExtractCenterlineLogic()
-
-    self.delayDisplay("Preprocessing input surface")
-    targetNumberOfPoints = 5000.0
-    decimationAggressiveness = 4.0
-    subdivideInputSurface = False
-    preprocessedPolyData = extractCenterlineLogic.preprocess(inputSurfacePolyData, targetNumberOfPoints,
-                                                             decimationAggressiveness, subdivideInputSurface)
+    preprocessedPolyData = extractCenterlineLogic.preprocess(inputSurfacePolyData, 5000.0, 4.0, False)
     self.assertGreater(preprocessedPolyData.GetNumberOfPoints(), 0)
 
-    self.delayDisplay("Detecting centerline endpoints")
-    endPointsMarkupsNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", "Centerline endpoints")
+    endPointsMarkupsNode = slicer.mrmlScene.AddNewNodeByClass(
+        "vtkMRMLMarkupsFiducialNode", "Centerline endpoints")
     networkPolyData = extractCenterlineLogic.extractNetwork(preprocessedPolyData, endPointsMarkupsNode)
     endpointPositions = extractCenterlineLogic.getEndPoints(networkPolyData, startPointPosition=None)
     # The aorta surface has one inlet and two iliac outlets
@@ -3450,292 +3486,70 @@ class ClipVesselTest(ScriptedLoadableModuleTest):
     for position in endpointPositions:
         endPointsMarkupsNode.AddControlPoint(vtk.vtkVector3d(position))
 
-    self.delayDisplay("Extracting centerline")
-    centerlinePolyData, voronoiDiagramPolyData = extractCenterlineLogic.extractCenterline(
+    centerlinePolyData, _voronoiDiagramPolyData = extractCenterlineLogic.extractCenterline(
         preprocessedPolyData, endPointsMarkupsNode)
     self.assertGreater(centerlinePolyData.GetNumberOfPoints(), 0)
     self.assertIsNotNone(centerlinePolyData.GetPointData().GetArray("Radius"))
     centerlineModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "Centerline model")
     centerlineModelNode.SetAndObserveMesh(centerlinePolyData)
 
-    # Detect clip points from the centerline terminuses (inlet + one point per outlet).
-    # The detected points lie on the centerline, pulled inward from each terminus by
-    # insetFactor times the local vessel radius. The default inset (0.5x) leaves the clip
-    # planes too close to the vessel ends on this coarsely decimated test surface (cuts can
-    # miss the surface or come out non-planar), so a larger inset is used here.
-    clipVesselLogic = ClipVesselLogic()
+    # A clip point at each vessel end, on the centerline and pulled inward from the terminus by
+    # insetFactor times the local radius. The default 0.5x leaves the planes too close to the
+    # ends of this coarsely decimated surface, where a cut can miss it or come out non-planar.
     self.delayDisplay("Detecting clip points")
-    insetFactor = 1.5
-    terminuses = clipVesselLogic.detectCenterlineTerminusClipPoints(centerlineModelNode, insetFactor)
+    logic = ClipVesselLogic()
+    terminuses = logic.detectCenterlineTerminusClipPoints(centerlineModelNode, 1.5)
     self.assertGreaterEqual(len(terminuses), 3)
     clipPointsMarkupsNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", "Clip points")
     for terminus in terminuses:
         pointIndex = clipPointsMarkupsNode.AddControlPointWorld(vtk.vtkVector3d(terminus["position"]))
         clipPointsMarkupsNode.SetNthControlPointLabel(pointIndex, terminus["label"])
-
-    # Compute the clipped vessel
-    cap = True
-    addFlowExtensions = False
-    extensionRatio = 2.0
-    extensionDirection = "BOUNDARY_NORMAL"
-    transitionRatio = 0.5
-
-    # Clip with all clipping methods, each into its own output model node
-    for clippingMethod in ["PLANE", "PLANE_SPHERE", "PLANE_PATCH", "BOX"]:
-        self.delayDisplay("Clipping vessel (%s)" % clippingMethod)
-        outputPolyData = clipVesselLogic.clipVessel(preprocessedPolyData, centerlineModelNode, clipPointsMarkupsNode,
-                                                    cap, addFlowExtensions, extensionRatio, extensionDirection,
-                                                    clippingMethod=clippingMethod)
-        self.assertIsNotNone(outputPolyData)
-        self.assertGreater(outputPolyData.GetNumberOfCells(), 0)
-        # Every clip point must have produced a cut
-        self.assertEqual(clipVesselLogic.lastUnclippedPoints, [])
-        if clippingMethod != "PLANE_SPHERE":
-            # These methods cut with a plane, so every cut must be planar (planarity failures
-            # would silently disable capping) and the capped output must be watertight.
-            # PLANE_SPHERE is exempt: its cut may follow the sphere where the sphere is the
-            # active constraint, which legitimately fails the planarity check.
-            self.assertEqual(clipVesselLogic.lastPlanarityFailures, [])
-            boundaryEdges = vtk.vtkFeatureEdges()
-            boundaryEdges.SetInputData(outputPolyData)
-            boundaryEdges.BoundaryEdgesOn()
-            boundaryEdges.FeatureEdgesOff()
-            boundaryEdges.NonManifoldEdgesOff()
-            boundaryEdges.ManifoldEdgesOff()
-            boundaryEdges.Update()
-            self.assertEqual(boundaryEdges.GetOutput().GetNumberOfCells(), 0)
-        outputModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode",
-            "Clipped vessel (%s)" % clippingMethod)
-        outputModelNode.SetAndObserveMesh(outputPolyData)
-
-    # Clip once per capping method. Each must close the surface with outward facing triangles.
-    # A cap of zero roundness is flat, whichever method made it; only a smooth cap given enough
-    # roundness domes out of the cut plane far enough to reach past the vessel itself.
-    numberOfClipPointsForCaps = clipPointsMarkupsNode.GetNumberOfControlPoints()
-    capMethodDiagonals = {}
-    for capMethod, capRoundness in [("CENTERPOINT", 0.0), ("SIMPLE", 0.0), ("SMOOTH", 0.0), ("SMOOTH", 2.0)]:
-        description = capMethod if capMethod != "SMOOTH" else "%s, roundness %g" % (capMethod, capRoundness)
-        self.delayDisplay("Capping clipped vessel (%s)" % description)
-        cappedPolyData = clipVesselLogic.clipVessel(preprocessedPolyData, centerlineModelNode, clipPointsMarkupsNode,
-                                                    cap, addFlowExtensions, extensionRatio, extensionDirection,
-                                                    clippingMethod="PLANE_PATCH", labelModelFaces=True,
-                                                    capMethod=capMethod, capConstraintFactor=capRoundness)
-        self.assertIsNotNone(cappedPolyData)
-        self.assertEqual(clipVesselLogic.lastUnclippedPoints, [])
-        self.assertEqual(clipVesselLogic.lastPlanarityFailures, [])
-        # Every cell must be a triangle, whichever capper made it
-        self.assertEqual(cappedPolyData.GetPolys().IsHomogeneous(), 3)
-        self.assertEqual(cappedPolyData.GetNumberOfCells(), cappedPolyData.GetNumberOfPolys())
-        # The caps must face the same way as the vessel wall: re-orienting the output must find
-        # nothing to re-wind. Two of the three cappers wind their caps inwards on their own, so
-        # without the fix in capSurface the caps would render as though lit from inside.
-        orientedCaps = vtk.vtkPolyDataNormals()
-        orientedCaps.SetInputData(cappedPolyData)
-        orientedCaps.ComputePointNormalsOff()
-        orientedCaps.ComputeCellNormalsOn()
-        orientedCaps.ConsistencyOn()
-        orientedCaps.AutoOrientNormalsOn()
-        orientedCaps.SplittingOff()
-        orientedCaps.Update()
-        self.assertTrue(np.array_equal(
-            vtk_to_numpy(cappedPolyData.GetPolys().GetConnectivityArray()),
-            vtk_to_numpy(orientedCaps.GetOutput().GetPolys().GetConnectivityArray())))
-        # No normals may survive capping either: the simple capper hands its cap vertices the
-        # normals the vessel wall left on them, which shades the cap as though it were wall.
-        for attributes in [cappedPolyData.GetPointData(), cappedPolyData.GetCellData()]:
-            self.assertIsNone(attributes.GetNormals())
-            self.assertIsNone(attributes.GetArray("Normals"))
-        # The caps must close the surface
-        boundaryEdges = vtk.vtkFeatureEdges()
-        boundaryEdges.SetInputData(cappedPolyData)
-        boundaryEdges.BoundaryEdgesOn()
-        boundaryEdges.FeatureEdgesOff()
-        boundaryEdges.NonManifoldEdgesOff()
-        boundaryEdges.ManifoldEdgesOff()
-        boundaryEdges.Update()
-        self.assertEqual(boundaryEdges.GetOutput().GetNumberOfCells(), 0)
-        # ...and each of them must be labeled as its own face, as with the default capper
-        capFaceIds = vtk_to_numpy(cappedPolyData.GetCellData().GetArray("ModelFaceID"))
-        self.assertEqual(set(int(value) for value in np.unique(capFaceIds)),
-                         set(range(1, numberOfClipPointsForCaps + 2)))
-        if capRoundness == 0.0:
-            # A cap of zero roundness is flat: every point of it lies in one plane, the plane of
-            # the cut it closes. Measured as the spread of the cap's points along the normal of
-            # their own best fit plane, against the width of the cap itself, so that it says
-            # "flat" rather than "small".
-            cappedPoints = vtk_to_numpy(cappedPolyData.GetPoints().GetData())
-            for capFaceId in range(2, numberOfClipPointsForCaps + 2):
-                capPointIds = set()
-                for cellId in np.nonzero(capFaceIds == capFaceId)[0]:
-                    cell = cappedPolyData.GetCell(int(cellId))
-                    for pointIndex in range(cell.GetNumberOfPoints()):
-                        capPointIds.add(cell.GetPointId(pointIndex))
-                self.assertGreater(len(capPointIds), 3, "cap %d has no cells" % capFaceId)
-                capPoints = cappedPoints[sorted(capPointIds)]
-                centered = capPoints - capPoints.mean(axis=0)
-                singularValues, rightVectors = np.linalg.svd(centered)[1:]
-                outOfPlane = np.abs(centered @ rightVectors[-1]).max()
-                capWidth = singularValues[0]
-                self.assertLess(outOfPlane, 0.01 * capWidth,
-                                "%s cap %d is %g out of plane across a width of %g"
-                                % (description, capFaceId, outOfPlane, capWidth))
-        capMethodDiagonals[description] = vtk.vtkBoundingBox(cappedPolyData.GetBounds()).GetDiagonalLength()
-        cappedModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode",
-            "Clipped vessel (cap: %s)" % description)
-        cappedModelNode.SetAndObserveMesh(cappedPolyData)
-    # A flat cap adds nothing to the extent of the surface, whichever method made it, so all
-    # three agree with the centre point capper. Roundness is what changes that, and it has to be
-    # enough of it: a modest dome is still inside the bounding box of the vessel, which is set by
-    # the vessel rather than by its ends, so the box only grows once the cap reaches past it.
-    self.assertAlmostEqual(capMethodDiagonals["SIMPLE"], capMethodDiagonals["CENTERPOINT"], delta=0.01)
-    self.assertAlmostEqual(capMethodDiagonals["SMOOTH, roundness 0"], capMethodDiagonals["CENTERPOINT"], delta=0.01)
-    self.assertGreater(capMethodDiagonals["SMOOTH, roundness 2"], capMethodDiagonals["CENTERPOINT"])
-
-    # Clip again with flow extensions added to the open vessel ends, once per transition method,
-    # and once more with the cross-section shape of the vessel ends preserved
-    extensionOptions = [("LINEAR", True), ("THIN_PLATE_SPLINE", True), ("RAMP", True), ("RAMP", False)]
-    for transitionMethod, transitionToCircularCrossSection in extensionOptions:
-        description = "%s%s" % (transitionMethod,
-                                "" if transitionToCircularCrossSection else ", preserved cross-section")
-        self.delayDisplay("Clipping vessel with flow extensions (%s)" % description)
-        extendedPolyData = clipVesselLogic.clipVessel(preprocessedPolyData, centerlineModelNode, clipPointsMarkupsNode,
-                                                      cap, True, extensionRatio, extensionDirection,
-                                                      transitionRatio=transitionRatio,
-                                                      transitionMethod=transitionMethod,
-                                                      transitionToCircularCrossSection=transitionToCircularCrossSection)
-        self.assertIsNotNone(extendedPolyData)
-        self.assertGreater(extendedPolyData.GetNumberOfCells(), 0)
-        self.assertEqual(clipVesselLogic.lastUnclippedPoints, [])
-        # The extensions must make the model larger than the plain clipped output
-        extendedBounds = vtk.vtkBoundingBox(extendedPolyData.GetBounds())
-        clippedBounds = vtk.vtkBoundingBox(outputPolyData.GetBounds())
-        self.assertGreater(extendedBounds.GetDiagonalLength(), clippedBounds.GetDiagonalLength())
-        extendedModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode",
-            "Clipped vessel (flow extensions, %s)" % description)
-        extendedModelNode.SetAndObserveMesh(extendedPolyData)
-
-    # Clip once more with a per-endpoint extension length scale factor: only the inlet
-    # extension is scaled, the outlet extensions keep the common length.
-    inletScaleFactor = 2.5
-    inletPointId = clipPointsMarkupsNode.GetNthControlPointID(0)  # the first detected terminus is the inlet
-    self.delayDisplay("Clipping vessel with the inlet flow extension scaled %gx" % inletScaleFactor)
-    # The infinite-plane method is used so that each cut removes the entire end piece: the
-    # localized methods can leave slivers of the original vessel end (outside their local
-    # sphere) beyond the clip plane, which would corrupt the extension length measurement.
-    unscaledPolyData = clipVesselLogic.clipVessel(preprocessedPolyData, centerlineModelNode, clipPointsMarkupsNode,
-                                                  False, True, extensionRatio, extensionDirection,
-                                                  clippingMethod="PLANE",
-                                                  transitionRatio=transitionRatio, transitionMethod="RAMP")
-    scaledPolyData = clipVesselLogic.clipVessel(preprocessedPolyData, centerlineModelNode, clipPointsMarkupsNode,
-                                                False, True, extensionRatio, extensionDirection,
-                                                clippingMethod="PLANE",
-                                                transitionRatio=transitionRatio, transitionMethod="RAMP",
-                                                extensionScaleFactors={inletPointId: inletScaleFactor})
-    self.assertEqual(clipVesselLogic.lastUnclippedPoints, [])
-
-    def extensionTipDistance(polyData, origin, normal, radius):
-        """How far the surface reaches beyond a clip plane along its outward normal, within a
-        cylinder of twice the local vessel radius around the extension axis. The default
-        localized clipping method leaves distant parts of the vessel beyond the (infinite,
-        oblique) clip plane, so the reach may only be measured near the extension itself."""
-        offsets = vtk_to_numpy(polyData.GetPoints().GetData()) - np.asarray(origin)
-        heights = offsets.dot(np.asarray(normal))
-        lateralDistances = np.linalg.norm(offsets - np.outer(heights, np.asarray(normal)), axis=1)
-        return float(np.max(heights[lateralDistances < 2.0 * radius]))
-
-    # Each cut removed the local end region beyond its clip plane, so whatever reaches beyond
-    # the plane near the extension axis is that end's flow extension; the farthest such point
-    # measures its length.
-    for controlPointIndex in range(clipPointsMarkupsNode.GetNumberOfControlPoints()):
-        origin, normal, radius = clipVesselLogic.automaticClipPlane(centerlineModelNode, clipPointsMarkupsNode, controlPointIndex)
-        unscaledLength = extensionTipDistance(unscaledPolyData, origin, normal, radius)
-        scaledLength = extensionTipDistance(scaledPolyData, origin, normal, radius)
-        if controlPointIndex == 0:
-            # The inlet extension must be scaled by about the requested factor (extensions are
-            # built in whole layers, so the length only matches to within a layer).
-            self.assertGreater(scaledLength, 0.8 * inletScaleFactor * unscaledLength)
-            self.assertLess(scaledLength, 1.2 * inletScaleFactor * unscaledLength)
-        else:
-            # The outlet extensions must be unaffected by the inlet's scale factor.
-            self.assertAlmostEqual(scaledLength, unscaledLength, delta=0.01)
-    unscaledModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "Clipped vessel (unscaled extensions)")
-    unscaledModelNode.SetAndObserveMesh(unscaledPolyData)
-    scaledModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "Clipped vessel (inlet extension scaled)")
-    scaledModelNode.SetAndObserveMesh(scaledPolyData)
-    # Face labeling: wall id 1, then one cap per clip point in clip point order. Run it with and
-    # without flow extensions, since extensions move each cap several radii from the clip plane
-    # it grew from, which is the case the cap-to-clip-point matching has to cope with.
     numberOfClipPoints = clipPointsMarkupsNode.GetNumberOfControlPoints()
-    clipPlanes = [clipVesselLogic.automaticClipPlane(centerlineModelNode, clipPointsMarkupsNode, index)
-                  for index in range(numberOfClipPoints)]
-    for addExtensions in [False, True]:
-        self.delayDisplay("Labeling model faces (%s flow extensions)" % ("with" if addExtensions else "without"))
-        labeledPolyData = clipVesselLogic.clipVessel(preprocessedPolyData, centerlineModelNode, clipPointsMarkupsNode,
-                                                     cap, addExtensions, extensionRatio, extensionDirection,
-                                                     transitionRatio=transitionRatio, labelModelFaces=True)
-        faceIdArray = labeledPolyData.GetCellData().GetArray("ModelFaceID")
-        self.assertIsNotNone(faceIdArray)
-        self.assertTrue(faceIdArray.IsA("vtkIntArray"))
-        self.assertEqual(faceIdArray.GetNumberOfTuples(), labeledPolyData.GetNumberOfCells())
-        faceIds = vtk_to_numpy(faceIdArray)
-        self.assertEqual(clipVesselLogic.lastWallFaceId, 1)
-        self.assertEqual(clipVesselLogic.lastExistingFaceIdMap, {})
-        self.assertEqual(set(int(value) for value in np.unique(faceIds)), set(range(1, numberOfClipPoints + 2)))
-        self.assertGreater(np.count_nonzero(faceIds == 1), np.count_nonzero(faceIds != 1))
-        self.assertEqual(len(clipVesselLogic.lastFaceIdAssignments), numberOfClipPoints)
-        cellCenters = vtk.vtkCellCenters()
-        cellCenters.SetInputData(labeledPolyData)
-        cellCenters.Update()
-        centers = vtk_to_numpy(cellCenters.GetOutput().GetPoints().GetData())
-        for faceId, pointLabel in clipVesselLogic.lastFaceIdAssignments:
-            index = faceId - 2
-            self.assertEqual(pointLabel, clipPointsMarkupsNode.GetNthControlPointLabel(index))
-            # Each cap must sit on its own clip plane's axis, and beyond the plane once an
-            # extension has pushed it down the removed branch.
-            origin, normal, radius = clipPlanes[index]
-            offset = centers[faceIds == faceId].mean(axis=0) - np.array(origin)
-            alongNormal = float(np.dot(offset, normal))
-            self.assertLess(float(np.linalg.norm(offset - alongNormal * np.array(normal))), radius)
-            if addExtensions:
-                self.assertGreater(alongNormal, 0.0)
 
-    # Uncapped: no caps to tell apart, so the whole surface is wall.
-    self.delayDisplay("Labeling model faces (uncapped)")
-    uncappedPolyData = clipVesselLogic.clipVessel(preprocessedPolyData, centerlineModelNode, clipPointsMarkupsNode,
-                                                  False, False, extensionRatio, extensionDirection, labelModelFaces=True)
-    self.assertEqual(set(int(value) for value in np.unique(
-        vtk_to_numpy(uncappedPolyData.GetCellData().GetArray("ModelFaceID")))), {1})
-    self.assertEqual(clipVesselLogic.lastFaceIdAssignments, [])
+    self.delayDisplay("Clipping, extending and capping")
+    outputPolyData = logic.clipVessel(
+        preprocessedPolyData, centerlineModelNode, clipPointsMarkupsNode,
+        cap=True, addFlowExtensions=True, extensionRatio=2.0,
+        extensionDirection="BOUNDARY_NORMAL", transitionRatio=0.5,
+        labelModelFaces=True)
 
-    # An input that already carries labels: face 10 compacts to 1, the wall takes 2 and the caps
-    # follow, and no cap is fused into the pre-existing face (which can only shrink as it is
-    # clipped, never grow).
-    self.delayDisplay("Labeling model faces (input already labeled)")
-    prelabeledInput = vtk.vtkPolyData()
-    prelabeledInput.DeepCopy(preprocessedPolyData)
-    patchCellCount = prelabeledInput.GetNumberOfCells() // 10
-    prelabeledValues = np.zeros(prelabeledInput.GetNumberOfCells(), dtype=np.int32)
-    prelabeledValues[:patchCellCount] = 10
-    prelabeledArray = numpy_to_vtk(prelabeledValues, deep=True, array_type=vtk.VTK_INT)
-    prelabeledArray.SetName("ModelFaceID")
-    prelabeledInput.GetCellData().AddArray(prelabeledArray)
-    prelabeledPolyData = clipVesselLogic.clipVessel(prelabeledInput, centerlineModelNode, clipPointsMarkupsNode,
-                                                    cap, False, extensionRatio, extensionDirection, labelModelFaces=True)
-    prelabeledFaceIds = vtk_to_numpy(prelabeledPolyData.GetCellData().GetArray("ModelFaceID"))
-    self.assertEqual(clipVesselLogic.lastExistingFaceIdMap, {10: 1})
-    self.assertEqual(clipVesselLogic.lastWallFaceId, 2)
-    self.assertEqual(set(int(value) for value in np.unique(prelabeledFaceIds)),
-                     set(range(1, numberOfClipPoints + 3)))
-    self.assertGreater(np.count_nonzero(prelabeledFaceIds == 1), 0)
-    self.assertLessEqual(np.count_nonzero(prelabeledFaceIds == 1), patchCellCount)
-    # The internal cap bookkeeping array must not leak into the output
-    self.assertIsNone(prelabeledPolyData.GetCellData().GetArray(clipVesselLogic.capBoundaryIdsArrayName))
+    self.assertIsNotNone(outputPolyData)
+    self.assertGreater(outputPolyData.GetNumberOfCells(), 0)
+    # Every clip point cut, and every cut was planar - a non-planar one turns capping off
+    self.assertEqual(logic.lastUnclippedPoints, [])
+    self.assertEqual(logic.lastPlanarityFailures, [])
 
-    # Show all models as surface with edges
-    for modelNode in slicer.util.getNodesByClass("vtkMRMLModelNode"):
-        modelNode.CreateDefaultDisplayNodes()
-        displayNode = modelNode.GetDisplayNode()
-        displayNode.SetVisibility(True)
-        displayNode.SetEdgeVisibility(True)
+    # Closed, so that a mesher has a solid to fill
+    boundaryEdges = vtk.vtkFeatureEdges()
+    boundaryEdges.SetInputData(outputPolyData)
+    boundaryEdges.BoundaryEdgesOn()
+    boundaryEdges.FeatureEdgesOff()
+    boundaryEdges.NonManifoldEdgesOff()
+    boundaryEdges.ManifoldEdgesOff()
+    boundaryEdges.Update()
+    self.assertEqual(boundaryEdges.GetOutput().GetNumberOfCells(), 0)
 
-    self.delayDisplay("Test passed")
+    # Wall 1, then one cap per clip point, which is what a solver reads its boundary conditions
+    # off and what CFD Mesh Generator carries through to the volume mesh
+    faceIds = vtk_to_numpy(outputPolyData.GetCellData().GetArray("ModelFaceID"))
+    self.assertEqual(set(int(value) for value in np.unique(faceIds)),
+                     set(range(1, numberOfClipPoints + 2)))
+    self.assertEqual(logic.lastWallFaceId, 1)
+
+    # The boundary labels reach the output, which is how CFD Mesh Generator names the caps it
+    # makes after the same vessel ends
+    self.assertIsNotNone(outputPolyData.GetPointData().GetArray(logic.boundaryLabelsArrayName))
+
+    outputModelNode = slicer.mrmlScene.AddNewNodeByClass(
+        "vtkMRMLModelNode", inputSurfaceModelNode.GetName() + " clipped")
+    outputModelNode.SetAndObserveMesh(outputPolyData)
+    outputModelNode.CreateDefaultDisplayNodes()
+    outputModelNode.GetDisplayNode().SetVisibility(True)
+    outputModelNode.GetDisplayNode().SetEdgeVisibility(True)
+    # Coloured by face, the way the module leaves its own output, so that the ends can be told
+    # apart in the views before the mesh is made
+    outputModelNode.GetDisplayNode().SetActiveScalar(
+        "ModelFaceID", vtk.vtkAssignAttribute.CELL_DATA)
+    outputModelNode.GetDisplayNode().SetScalarVisibility(True)
+
+    self.delayDisplay("Test passed. The scene holds the clipped vessel, ready to be meshed.")

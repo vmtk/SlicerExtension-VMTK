@@ -1,7 +1,7 @@
-# Face labeling tests
+# Clip Vessel tests
 
 See how to run the tests in the
-[developer notes](../../../../Docs/Developers.md#testing).
+[developer notes](../../../Docs/Developers.md#testing).
 
 ## Logic tests
 
@@ -43,7 +43,7 @@ which has not seen what the first one did, and that one it cleans up itself.
 
 ## Tests on a real vessel surface
 
-These three build their case from `ClipVesselTestFixture.py`, which downloads a vessel surface,
+These build their case from `ClipVesselTestFixture.py`, which downloads a vessel surface,
 extracts its centerline and places a clip point at each end. That module is deliberately not named
 `test_*`, so a collector imports it rather than collecting it, and it builds the case once per
 process and hands the same one to each test.
@@ -53,9 +53,15 @@ process and hands the same one to each test.
 | `test_ClipVesselLabelingEndToEnd.py` | the whole pipeline capped, with and without flow extensions: every cap carries its own clip point's id and sits where that clip point is |
 | `test_ClipVesselBoundaryStages.py` | only the cuts open boundaries: no mesh defect survives to be capped as a face nobody asked for |
 | `test_ClipVesselLabelPlacement.py` | labels the input carried stay on the geometry they came from, measured with a cell locator rather than by cell index |
+| `test_ClipVesselClippingMethods.py` | every clipping method cuts at every clip point, and the three that cut with a plane cut flat and cap watertight |
+| `test_ClipVesselCappingOnAVessel.py` | every capping method closes the vessel with outward facing triangles carrying no normals, flat unless roundness was asked for |
+| `test_ClipVesselFlowExtensions.py` | every transition method grows an extension, and a length asked for at one end reaches no other |
+| `test_ClipVesselOutputNode.py` | the output model is made when Apply is pressed and not before |
+| `test_ClipVesselPlaneEditingExit.py` | leaving the module takes the interactive clip plane down |
 
-The last two were diagnostics to paste into a session after an Apply, which printed what they
-found and left the reading to you. They now build their own case and check it.
+`test_ClipVesselBoundaryStages` and `test_ClipVesselLabelPlacement` were diagnostics to paste
+into a session after an Apply, which printed what they found and left the reading to you. They now
+build their own case and check it.
 `test_ClipVesselLabelPlacement` labels two patches well away from every clip point: a patch on a
 vessel end is mostly cut away, and where the remnant's centre of mass ends up says nothing about
 whether the labels stayed put.

@@ -120,7 +120,7 @@ From Slicer's Python console, where `__name__` is `__main__`, so the file's own 
 its suite:
 
 ```
-exec(open(r'.../ClipVessel/Testing/Python/FaceLabeling/test_ClipVesselCellOrder.py').read())
+exec(open(r'.../ClipVessel/Testing/Python/test_ClipVesselCellOrder.py').read())
 ```
 
 Or through CTest, by the name CMake gave it -- the test name is the file name with a `py_` prefix:

@@ -16,7 +16,6 @@ import logging
 import sys
 import time
 import types
-import unittest
 from typing import Annotated
 
 import qt
@@ -532,11 +531,13 @@ class CfdMeshGeneratorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 and array.GetDataType() in integerTypes]
 
     def _updateApplyButton(self) -> None:
-        if self._parameterNode and self._parameterNode.inputSurface and self._parameterNode.outputMesh:
+        # The output node is not asked for: left at "(Create New)" one is made on Apply (see
+        # onApplyButton). Only the input has to be picked, there being nothing to mesh without it.
+        if self._parameterNode and self._parameterNode.inputSurface:
             self.ui.applyButton.toolTip = _("Generate the volume mesh")
             self.ui.applyButton.enabled = True
         else:
-            self.ui.applyButton.toolTip = _("Select an input surface and an output mesh node")
+            self.ui.applyButton.toolTip = _("Select an input surface")
             self.ui.applyButton.enabled = False
 
     def _updateMesherChoices(self) -> None:
@@ -606,6 +607,12 @@ class CfdMeshGeneratorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Once more before running: a node is often picked before it holds a surface, and until it
         # does there is nothing to read the name of its face ids array from.
         self._followInputSurface()
+        # Nowhere to put the mesh yet, so make somewhere. Through the selector rather than the
+        # scene, so that the node is made the way its "Create new" entry makes one - the same node
+        # type and the same baseName, which _followInputSurface has already named after the input -
+        # and comes back selected, so a second press writes to it rather than making another.
+        if self._parameterNode.outputMesh is None:
+            self.ui.outputMeshSelector.addNode()
         if self._parameterNode.mesher == Mesher.FTETWILD and not self.logic.isFTetWildAvailable():
             if not self.offerToInstallFTetWild():
                 return
@@ -2314,7 +2321,15 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
 
 
 class CfdMeshGeneratorTest(ScriptedLoadableModuleTest):
-    """Uses ScriptedLoadableModuleTest base class, available at:
+    """A smoke test, for Reload and Test and for the ctest that runs this file.
+
+    What it checks is that the module is loaded and that its pipeline runs end to end on the
+    simplest surface there is. Everything else - each mesher in turn, the boundary layer, the
+    face ids, the widget, and a real vessel rather than a tube - is in Testing/Python,
+    as separate files so that a failure names the behaviour that broke rather than the one long
+    run it happened during, and so that they can be run one per process.
+
+    Uses ScriptedLoadableModuleTest base class, available at:
     https://github.com/Slicer/Slicer/blob/main/Base/Python/slicer/ScriptedLoadableModule.py
     """
 
@@ -2323,62 +2338,38 @@ class CfdMeshGeneratorTest(ScriptedLoadableModuleTest):
         slicer.mrmlScene.Clear()
 
     def runTest(self):
-        """Run as few or as many tests as needed here."""
         self.setUp()
-        for test in (self.test_CfdMeshGenerator1,
-                     self.test_CfdMeshGeneratorWithoutRemeshing,
-                     self.test_CfdMeshGeneratorRemeshingTheCapsAlone,
-                     self.test_CfdMeshGeneratorBoundaryLayer,
-                     self.test_CfdMeshGeneratorFoldedBoundaryLayer,
-                     self.test_CfdMeshGeneratorKeepsTheLabelsOfTheInput,
-                     self.test_CfdMeshGeneratorLayerOffImportedCaps,
-                     self.test_CfdMeshGeneratorNamesCapsAfterVesselEnds,
-                     self.test_CfdMeshGeneratorClipping,
-                     self.test_CfdMeshGeneratorReapplyLeavesTheDisplayAlone,
-                     self.test_CfdMeshGeneratorFTetWildSizesByPosition,
-                     self.test_CfdMeshGeneratorFTetWildIsAskedForBeforeItIsUsed):
-            try:
-                test()
-            except unittest.SkipTest as reason:
-                # Reload and Test calls this rather than the unittest runner, and a skip raised
-                # here would look like a failed run rather than a test that had nothing to do.
-                self.delayDisplay("Skipped %s: %s" % (test.__name__, reason))
+        self.test_CfdMeshGenerator1()
 
-    @staticmethod
-    def meshers():
-        """The meshers to put each behaviour to, which is every one this installation has.
+    def test_CfdMeshGenerator1(self):
+        """An open tube must come back as a volume mesh: capped, filled with tetrahedra, and with
+        the wall and each of the two caps under an id of its own, so that a boundary condition can
+        be assigned to each of them.
 
-        fTetWild is installed if it is missing, so that a machine with a network connection tests
-        both; one without tests what it has, which is the same choice a user has there.
+        TetGen only. fTetWild is a download, and a smoke test is not the place to reach for the
+        network; Testing/Python puts every behaviour to both.
         """
+        self.delayDisplay("Starting the test")
+
         logic = CfdMeshGeneratorLogic()
-        found = []
-        if logic.isTetGenAvailable():
-            found.append(Mesher.TETGEN.value)
-        if logic.isFTetWildAvailable():
-            found.append(Mesher.FTETWILD.value)
-        else:
-            try:
-                slicer.util.pip_install(FTETWILD_REQUIREMENT)
-            except Exception:
-                logging.warning("fTetWild could not be installed, so it is left untested.")
-            else:
-                if logic.isFTetWildAvailable():
-                    found.append(Mesher.FTETWILD.value)
-        return found
+        if not logic.isTetGenAvailable():
+            self.delayDisplay("Skipped: this installation was built without TetGen")
+            return
 
-    def requireFTetWild(self):
-        """Skip the test that called this if fTetWild is not to be had."""
-        if Mesher.FTETWILD.value not in self.meshers():
-            self.skipTest("fTetWild is not installed and could not be installed")
+        mesh, remeshedSurface = logic.generateMesh(
+            self.openTube(), targetEdgeLength=0.4, mesher=Mesher.TETGEN.value)
 
-    @staticmethod
-    def fasterFTetWild(mesher):
-        """The arguments that keep an fTetWild run in a test suite short. Its default is eighty
-        passes of improvement, which is more than a tube of two thousand elements needs."""
-        if mesher != Mesher.FTETWILD.value:
-            return {}
-        return dict(maxOptimizationPasses=20)
+        self.assertGreater(remeshedSurface.GetNumberOfCells(), 0)
+        cellTypes = vtk.vtkCellTypes()
+        mesh.GetCellTypes(cellTypes)
+        self.assertTrue(cellTypes.IsType(vtk.VTK_TETRA), "the mesh holds no tetrahedra")
+        # 0 for the tetrahedra, 1 for the wall, and one id per cap above it.
+        ids = mesh.GetCellData().GetArray("CellEntityIds")
+        self.assertEqual(
+            set(int(ids.GetTuple1(index)) for index in range(ids.GetNumberOfTuples())),
+            {0, 1, 2, 3})
+
+        self.delayDisplay("Test passed")
 
     @staticmethod
     def openTube(numberOfAxialPoints=12, numberOfCircumferentialPoints=24, height=10.0, radius=1.0):
@@ -2403,544 +2394,3 @@ class CfdMeshGeneratorTest(ScriptedLoadableModuleTest):
         surface.SetPoints(points)
         surface.SetPolys(polys)
         return surface
-
-    @staticmethod
-    def cellEntityIds(mesh, arrayName="CellEntityIds"):
-        array = mesh.GetCellData().GetArray(arrayName)
-        if array is None:
-            return set()
-        return set(int(array.GetTuple1(index)) for index in range(array.GetNumberOfTuples()))
-
-    @staticmethod
-    def surfaceAreaOfCells(mesh, keep):
-        """The total area of the cells of the mesh that keep(cellId) says to count."""
-        total = 0.0
-        for cellId in range(mesh.GetNumberOfCells()):
-            if not keep(cellId):
-                continue
-            cell = mesh.GetCell(cellId)
-            if cell.GetCellDimension() != 2:
-                continue
-            points = [cell.GetPoints().GetPoint(index) for index in range(cell.GetNumberOfPoints())]
-            # Fan the polygon about its first corner. Every 2D cell here is a triangle or a
-            # planar quad, so the fan covers it exactly.
-            for index in range(1, len(points) - 1):
-                total += vtk.vtkTriangle.TriangleArea(points[0], points[index], points[index + 1])
-        return total
-
-    def assertTetrahedraArePositive(self, mesh, message=""):
-        """Every volume element must be wound the way VTK winds one.
-
-        A solver handed an element that is inside out reads a negative volume for it, and the
-        mesh it computes on is not the mesh it was shown. It is worth asking wherever a sweep or
-        a mesher decides the order of an element's corners for itself.
-        """
-        inverted = 0
-        for cellId in range(mesh.GetNumberOfCells()):
-            cell = mesh.GetCell(cellId)
-            if cell.GetCellDimension() != 3:
-                continue
-            points = [mesh.GetPoint(cell.GetPointId(index))
-                      for index in range(cell.GetNumberOfPoints())]
-            if cell.GetCellType() == vtk.VTK_TETRA:
-                if vtk.vtkTetra.ComputeVolume(*points[:4]) <= 0.0:
-                    inverted += 1
-            elif cell.GetCellType() == vtk.VTK_WEDGE:
-                # The base triangle's normal has to point away from the face opposite it.
-                normal = [0.0, 0.0, 0.0]
-                vtk.vtkTriangle.ComputeNormal(points[0], points[1], points[2], normal)
-                base = [sum(point[axis] for point in points[:3]) / 3.0 for axis in range(3)]
-                top = [sum(point[axis] for point in points[3:]) / 3.0 for axis in range(3)]
-                if sum(normal[axis] * (top[axis] - base[axis]) for axis in range(3)) > 0.0:
-                    inverted += 1
-        self.assertEqual(inverted, 0,
-                         "%d volume elements are inside out %s" % (inverted, message))
-
-    def assertBoundaryIsLabelled(self, mesh, arrayName, message=""):
-        """Every face on the outside of the volume must be a labelled cell of the mesh.
-
-        A boundary condition is assigned per face id, so a solver reading this mesh has to find
-        one on every face it can reach from the outside. Areas rather than cells, because the
-        volume elements and the surface cells that stand against them need not be split the same
-        way: what has to match is the surface they cover.
-        """
-        volume = vtk.vtkExtractCellsByType()
-        volume.SetInputData(mesh)
-        for cellType in (vtk.VTK_TETRA, vtk.VTK_WEDGE, vtk.VTK_HEXAHEDRON,
-                         vtk.VTK_QUADRATIC_TETRA, vtk.VTK_QUADRATIC_WEDGE):
-            volume.AddCellType(cellType)
-        volume.Update()
-        outside = vtk.vtkGeometryFilter()
-        outside.SetInputData(volume.GetOutput())
-        outside.MergingOff()
-        outside.Update()
-
-        outsideArea = self.surfaceAreaOfCells(outside.GetOutput(), lambda cellId: True)
-        ids = mesh.GetCellData().GetArray(arrayName)
-        labelledArea = self.surfaceAreaOfCells(
-            mesh, lambda cellId: ids is not None and int(ids.GetTuple1(cellId)) >= 1)
-        self.assertGreater(outsideArea, 0.0, "the mesh has no volume elements %s" % message)
-        self.assertAlmostEqual(
-            labelledArea / outsideArea, 1.0, delta=0.01,
-            msg="the labelled faces cover %.1f%% of the outside of the volume %s"
-                % (100.0 * labelledArea / outsideArea, message))
-
-    def test_CfdMeshGenerator1(self):
-        """An open tube must come back as a volume mesh: capped, filled with tetrahedra, and with
-        the wall and each of the two caps under an id of its own, so that a boundary condition can
-        be assigned to each of them."""
-        self.delayDisplay("Starting the test")
-
-        logic = CfdMeshGeneratorLogic()
-        for mesher in self.meshers():
-            mesh, remeshedSurface = logic.generateMesh(
-                self.openTube(), targetEdgeLength=0.4, mesher=mesher,
-                **self.fasterFTetWild(mesher))
-
-            self.assertGreater(remeshedSurface.GetNumberOfCells(), 0)
-            cellTypes = vtk.vtkCellTypes()
-            mesh.GetCellTypes(cellTypes)
-            self.assertTrue(cellTypes.IsType(vtk.VTK_TETRA),
-                            "the mesh holds no tetrahedra (%s)" % mesher)
-            # 0 for the tetrahedra, 1 for the wall, and one id per cap above it.
-            self.assertEqual(self.cellEntityIds(mesh), {0, 1, 2, 3}, mesher)
-            self.assertBoundaryIsLabelled(mesh, "CellEntityIds", "(%s)" % mesher)
-            self.assertTetrahedraArePositive(mesh, mesher)
-
-        self.delayDisplay("Test passed")
-
-    def test_CfdMeshGeneratorWithoutRemeshing(self):
-        """A surface asked to be filled as it arrived still has to be filled.
-
-        Remeshing is what used to triangulate the surface on its way past, and a cap is one
-        polygon until something does: the sizing function has nothing to say about a cell that is
-        not a triangle, and TetGen, handed a face it was given no sizes for, does not fail on it
-        so much as take the application with it.
-        """
-        self.delayDisplay("Starting the test without remeshing")
-
-        logic = CfdMeshGeneratorLogic()
-        surface = self.openTube()
-        for mesher in self.meshers():
-            mesh, remeshedSurface = logic.generateMesh(
-                surface, skipRemeshing=True, mesher=mesher, **self.fasterFTetWild(mesher))
-
-            self.assertEqual(set(remeshedSurface.GetCellType(cellId)
-                                 for cellId in range(remeshedSurface.GetNumberOfCells())),
-                             {vtk.VTK_TRIANGLE},
-                             "the surface was handed on with a polygon in it")
-            # The wall it arrived with, kept: only the caps are new.
-            self.assertLess(remeshedSurface.GetNumberOfCells(), surface.GetNumberOfCells() + 100)
-            cellTypes = vtk.vtkCellTypes()
-            mesh.GetCellTypes(cellTypes)
-            self.assertTrue(cellTypes.IsType(vtk.VTK_TETRA),
-                            "the mesh holds no tetrahedra (%s)" % mesher)
-            self.assertEqual(self.cellEntityIds(mesh), {0, 1, 2, 3}, mesher)
-
-        self.delayDisplay("Test without remeshing passed")
-
-    def test_CfdMeshGeneratorRemeshingTheCapsAlone(self):
-        """The wall can be left as it arrived while the caps are remeshed.
-
-        That is the point of excluding a face from the remesher: it edits no cell of an excluded
-        face and moves no point one of them uses, so the wall keeps every cell it had and the caps
-        go on meeting it along the rim they share.
-        """
-        self.delayDisplay("Starting the caps-only remeshing test")
-
-        logic = CfdMeshGeneratorLogic()
-        surface = self.openTube()
-        capped = logic.capSurface(surface, "CellEntityIds", "simple")
-
-        remeshed = logic.remeshSurface(
-            capped, "CellEntityIds", elementSizeMode="edgelength", targetEdgeLength=0.4,
-            targetEdgeLengthArrayName="", targetEdgeLengthFactor=1.0, triangleSplitFactor=5.0,
-            maxEdgeLength=1e16, minEdgeLength=0.0,
-            excludedEntityIds=[CfdMeshGeneratorLogic.wallCellEntityId])
-
-        ids = remeshed.GetCellData().GetArray("CellEntityIds")
-        wallCells = sum(1 for cellId in range(remeshed.GetNumberOfCells())
-                        if int(ids.GetTuple1(cellId)) == CfdMeshGeneratorLogic.wallCellEntityId)
-        self.assertEqual(wallCells, surface.GetNumberOfCells(),
-                         "the wall was remeshed after all")
-        self.assertGreater(remeshed.GetNumberOfCells() - wallCells, 60,
-                           "the caps were not remeshed")
-
-        edges = vtk.vtkFeatureEdges()
-        edges.SetInputData(remeshed)
-        edges.BoundaryEdgesOn()
-        edges.NonManifoldEdgesOn()
-        edges.FeatureEdgesOff()
-        edges.ManifoldEdgesOff()
-        edges.Update()
-        self.assertEqual(edges.GetOutput().GetNumberOfCells(), 0,
-                         "the caps no longer meet the wall along their rim")
-
-        self.delayDisplay("Caps-only remeshing test passed")
-
-    def test_CfdMeshGeneratorBoundaryLayer(self):
-        """The same tube, lined with prisms, whether the layer is grown over the caps or stops
-        short of them. The layer must be made of prisms and the space it leaves must still be
-        filled with tetrahedra - a mesh that came back hollow would look like a mesh until a
-        solver opened it. The caps must be there to carry the flow conditions too, including the
-        sidewall cells swept out of each open end, which are named after the cap they belong to
-        only once everything has been put together."""
-        self.delayDisplay("Starting the boundary layer test")
-
-        logic = CfdMeshGeneratorLogic()
-        for mesher in self.meshers():
-            for onCaps in (True, False):
-                where = "(%s, on caps: %s)" % (mesher, onCaps)
-                mesh, _remeshedSurface = logic.generateMesh(
-                    self.openTube(), targetEdgeLength=0.4, boundaryLayer=True,
-                    boundaryLayerOnCaps=onCaps, mesher=mesher, **self.fasterFTetWild(mesher))
-
-                cellTypes = vtk.vtkCellTypes()
-                mesh.GetCellTypes(cellTypes)
-                self.assertTrue(cellTypes.IsType(vtk.VTK_WEDGE),
-                                "the boundary layer holds no prisms " + where)
-                self.assertTrue(cellTypes.IsType(vtk.VTK_TETRA),
-                                "the mesh is hollow inside its boundary layer " + where)
-                self.assertFalse(logic.lastTetrahedralizationFailed, where)
-                ids = self.cellEntityIds(mesh)
-                self.assertEqual(ids, {0, 1, 2, 3}, where)
-                self.assertNotIn(CfdMeshGeneratorLogic.placeholderCellEntityId, ids,
-                                 "a sidewall cell was left under the placeholder id " + where)
-                if not onCaps:
-                    # The strips swept out of the open ends, which stand between the rim of the
-                    # outer surface and the cap made past the layer. Nothing else is a quad.
-                    self.assertTrue(cellTypes.IsType(vtk.VTK_QUAD),
-                                    "the open ends were swept into no sidewall cells " + where)
-                self.assertBoundaryIsLabelled(mesh, "CellEntityIds", where)
-                self.assertTetrahedraArePositive(mesh, where)
-
-        self.delayDisplay("Boundary layer test passed")
-
-    def test_CfdMeshGeneratorFoldedBoundaryLayer(self):
-        """A layer too thick for the vessel folds through itself, and TetGen does not survive
-        being handed the result, so it must be turned away before it gets there."""
-        self.delayDisplay("Starting the folded boundary layer test")
-
-        logic = CfdMeshGeneratorLogic()
-        with self.assertRaises(RuntimeError):
-            logic.generateMesh(self.openTube(), targetEdgeLength=0.4, boundaryLayer=True,
-                               boundaryLayerThicknessFactor=8.0)
-
-        self.delayDisplay("Folded boundary layer test passed")
-
-    def test_CfdMeshGeneratorLayerOffImportedCaps(self):
-        """"Layer on caps" has to mean something for a surface that arrives capped as well.
-
-        Not capping is what keeps a layer off the caps of a surface whose ends are still open, but
-        it does nothing for one that was closed before it got here: the sweep runs over the caps
-        it already has. The caps have to come off first, and the ids they carried have to come
-        back on the caps made in their place, or a solver reading the inlet by its number reads
-        the wrong end of the vessel.
-        """
-        self.delayDisplay("Starting the imported caps test")
-
-        logic = CfdMeshGeneratorLogic()
-        closed = logic.capSurface(self.openTube(), "ModelFaceID", "simple")
-        targetEdgeLength = 0.4
-        layerThickness = 0.25 * targetEdgeLength
-
-        def gapToTheInlet(mesh):
-            """How far the tetrahedra keep from the cap at z = 0. A layer grown over that cap
-            stands between the two; without one they meet it directly. The cap face itself looks
-            the same either way, so this is what the flag can be read off."""
-            gap = None
-            for cellId in range(mesh.GetNumberOfCells()):
-                if mesh.GetCellType(cellId) != vtk.VTK_TETRA:
-                    continue
-                cell = mesh.GetCell(cellId)
-                for index in range(cell.GetNumberOfPoints()):
-                    z = mesh.GetPoint(cell.GetPointId(index))[2]
-                    gap = z if gap is None else min(gap, z)
-            return gap
-
-        for mesher in self.meshers():
-            for onCaps in (False, True):
-                where = "(%s, on caps: %s)" % (mesher, onCaps)
-                mesh, _remeshedSurface = logic.generateMesh(
-                    closed, targetEdgeLength=targetEdgeLength,
-                    cellEntityIdsArrayName="ModelFaceID", skipCapping=True, boundaryLayer=True,
-                    boundaryLayerOnCaps=onCaps, mesher=mesher, **self.fasterFTetWild(mesher))
-
-                gap = gapToTheInlet(mesh)
-                self.assertIsNotNone(gap, "the mesh holds no tetrahedra " + where)
-                if onCaps:
-                    self.assertGreater(gap, 0.5 * layerThickness,
-                                       "no layer was grown over the cap " + where)
-                else:
-                    self.assertLess(gap, 0.5 * layerThickness,
-                                    "the layer was grown over the cap after all " + where)
-                self.assertEqual(
-                    self.cellEntityIds(mesh, "ModelFaceID"), {0, 1, 2, 3},
-                    "the caps did not come back under the ids they arrived with " + where)
-
-        self.delayDisplay("Imported caps test passed")
-
-    def test_CfdMeshGeneratorNamesCapsAfterVesselEnds(self):
-        """A cap is named after the vessel end it closes, whether the surface says which end that
-        is or only where it is.
-
-        A surface from Clip Vessel carries the labels that say it, and then the id of an end is
-        the one Clip Vessel gives it - the same one every run, whatever order the boundaries come
-        out of the extractor in. A surface that has lost them falls back to where the cap was,
-        which has to reach the same answer or a solver reads the inlet condition off the outlet.
-        """
-        self.delayDisplay("Starting the cap naming test")
-
-        import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
-
-        logic = CfdMeshGeneratorLogic()
-        labeler = vtkvmtkComputationalGeometry.vtkvmtkPolyDataBoundaryLabeler()
-        labeler.SetInputData(self.openTube())
-        labeler.SetBoundaryLabelsArrayName(logic.boundaryLabelsArrayName)
-        labeler.SetBoundaryPointOrderArrayName(logic.boundaryPointOrderArrayName)
-        # A label is the id of the cap that closes its boundary, so the boundaries are numbered
-        # above the wall this module sets its caps into. It is the labeler's own default too; said
-        # here because a surface labelled for some other wall would be capped over the wall's face.
-        labeler.SetCellEntityIdOffset(logic.wallCellEntityId)
-        labeler.Update()
-
-        def middleOfEachFace(mesh):
-            """How far along the tube each face sits, so that an id can be read against the end
-            it is on: the tube runs from z = 0 to z = 10."""
-            array = mesh.GetCellData().GetArray("ModelFaceID")
-            sums, counts = {}, {}
-            for cellId in range(mesh.GetNumberOfCells()):
-                if mesh.GetCellType(cellId) not in (vtk.VTK_TRIANGLE, vtk.VTK_QUAD,
-                                                    vtk.VTK_POLYGON):
-                    continue
-                entityId = int(array.GetTuple1(cellId))
-                cell = mesh.GetCell(cellId)
-                for index in range(cell.GetNumberOfPoints()):
-                    sums[entityId] = sums.get(entityId, 0.0) + mesh.GetPoint(
-                        cell.GetPointId(index))[2]
-                    counts[entityId] = counts.get(entityId, 0) + 1
-            return {faceId: sums[faceId] / counts[faceId] for faceId in sums}
-
-        labelled = labeler.GetOutput()
-        capped = logic.capSurface(labelled, "ModelFaceID", "simple")
-        middles = middleOfEachFace(capped)
-        self.assertEqual(sorted(middles), [1, 2, 3])
-        # the point data and the cell data are one numbering: the end labelled 2 is face 2
-        boundaryLabels = set(
-            int(labelled.GetPointData().GetArray(logic.boundaryLabelsArrayName).GetTuple1(pointId))
-            for pointId in range(labelled.GetNumberOfPoints()))
-        self.assertEqual(sorted(label for label in boundaryLabels if label >= 0), [2, 3])
-        self.assertLess(middles[2], 1.0, "the cap of the first vessel end is not face 2")
-        self.assertGreater(middles[3], 9.0, "the cap of the second vessel end is not face 3")
-
-        # Taken off and rebuilt past a boundary layer, with and without anything saying which end
-        # is which, the ids have to come back on the same ends.
-        for mesher in self.meshers():
-            for keepLabels in (True, False):
-                where = "(%s, labels kept: %s)" % (mesher, keepLabels)
-                surface = vtk.vtkPolyData()
-                surface.DeepCopy(capped)
-                if not keepLabels:
-                    surface.GetPointData().RemoveArray(logic.boundaryLabelsArrayName)
-                    surface.GetPointData().RemoveArray(logic.boundaryPointOrderArrayName)
-
-                mesh, _remeshedSurface = logic.generateMesh(
-                    surface, targetEdgeLength=0.4, cellEntityIdsArrayName="ModelFaceID",
-                    skipCapping=True, boundaryLayer=True, boundaryLayerOnCaps=False,
-                    mesher=mesher, **self.fasterFTetWild(mesher))
-
-                middles = middleOfEachFace(mesh)
-                self.assertLess(middles[2], 1.0, "face 2 came back on the wrong end " + where)
-                self.assertGreater(middles[3], 9.0, "face 3 came back on the wrong end " + where)
-
-        self.delayDisplay("Cap naming test passed")
-
-    def test_CfdMeshGeneratorClipping(self):
-        """The clip box is the model's own bounding box, halved along its shortest side, and it
-        keeps whole elements.
-
-        Cutting through the elements would show faces that are not element faces, which is
-        exactly what someone looking inside a mesh must not be shown.
-        """
-        self.delayDisplay("Starting the clipping test")
-
-        logic = CfdMeshGeneratorLogic()
-        modelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "mesh")
-        modelNode.SetAndObserveMesh(self.openTube(height=10.0, radius=1.0))
-
-        clipNode = logic.clipWithABoxThroughTheMiddle(modelNode)
-        self.assertIsNotNone(clipNode)
-        self.assertEqual(clipNode.GetClippingMethod(), slicer.vtkMRMLClipNode.WholeCells)
-        self.assertTrue(modelNode.GetDisplayNode().GetClipping())
-        self.assertIs(modelNode.GetDisplayNode().GetClipNode(), clipNode)
-
-        roiNode = clipNode.GetNthClippingNode(0)
-        self.assertTrue(roiNode.IsA("vtkMRMLMarkupsROINode"))
-        # The tube is 2 across and 10 long, so the box is halved across and left alone along it.
-        self.assertEqual([round(value, 3) for value in roiNode.GetSize()], [1.0, 2.0, 10.0])
-        self.assertEqual([round(value, 3) for value in roiNode.GetCenter()], [0.0, 0.0, 5.0])
-        self.assertTrue(roiNode.GetDisplayNode().GetVisibility())
-        self.assertAlmostEqual(roiNode.GetDisplayNode().GetFillOpacity(), 0.05)
-
-        self.delayDisplay("Clipping test passed")
-
-    def test_CfdMeshGeneratorReapplyLeavesTheDisplayAlone(self):
-        """A second Apply writes the new mesh into the node it was given and touches nothing else.
-
-        Meshing is something to try a few times at different sizes, and each try would otherwise
-        undo the colour, the opacity and the visibility the last one was being looked at through.
-        """
-        self.delayDisplay("Starting the reapply test")
-
-        logic = CfdMeshGeneratorLogic()
-        modelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "mesh")
-        modelNode.SetAndObserveMesh(logic.capSurface(self.openTube(), "CellEntityIds", "simple"))
-
-        logic.showMeshInScene(modelNode, "CellEntityIds")
-        displayNode = modelNode.GetDisplayNode()
-        self.assertIsNotNone(displayNode, "the first run gave the output no display")
-        self.assertTrue(displayNode.GetScalarVisibility(), "the faces are not coloured apart")
-
-        displayNode.SetColor(0.1, 0.8, 0.3)
-        displayNode.SetOpacity(0.4)
-        displayNode.SetScalarVisibility(False)
-        displayNode.SetVisibility(False)
-
-        logic.showMeshInScene(modelNode, "CellEntityIds")
-        self.assertIs(modelNode.GetDisplayNode(), displayNode, "the display node was replaced")
-        self.assertEqual(displayNode.GetColor(), (0.1, 0.8, 0.3))
-        self.assertAlmostEqual(displayNode.GetOpacity(), 0.4)
-        self.assertFalse(displayNode.GetScalarVisibility())
-        self.assertFalse(displayNode.GetVisibility())
-
-        self.delayDisplay("Reapply test passed")
-
-    def test_CfdMeshGeneratorKeepsTheLabelsOfTheInput(self):
-        """A surface that arrives already capped and labelled - as one from Clip Vessel does -
-        keeps its faces, and the rim between a cap and the wall survives remeshing.
-
-        The ids are what hold the two apart while the remesher works. Read under the wrong name
-        the surface is one face as far as the remesher is concerned, and it smooths the rim away:
-        the cap stops being flat, which is what a solver's inlet condition needs it to be.
-        """
-        self.delayDisplay("Starting the kept labels test")
-
-        logic = CfdMeshGeneratorLogic()
-        labelled = logic.capSurface(self.openTube(), "ModelFaceID", "simple")
-        _mesh, remeshedSurface = logic.generateMesh(
-            labelled, targetEdgeLength=0.4, cellEntityIdsArrayName="ModelFaceID", skipCapping=True)
-
-        ids = remeshedSurface.GetCellData().GetArray("ModelFaceID")
-        self.assertIsNotNone(ids, "the labels of the input were not carried through")
-        self.assertEqual(sorted(set(int(ids.GetTuple1(index))
-                                    for index in range(ids.GetNumberOfTuples()))), [1, 2, 3])
-
-        for capId in (2, 3):
-            heights = []
-            for cellId in range(remeshedSurface.GetNumberOfCells()):
-                if int(ids.GetTuple1(cellId)) != capId:
-                    continue
-                cell = remeshedSurface.GetCell(cellId)
-                heights.extend(remeshedSurface.GetPoint(cell.GetPointId(index))[2]
-                               for index in range(cell.GetNumberOfPoints()))
-            self.assertTrue(heights, "cap %d lost every cell it had" % capId)
-            self.assertLess(max(heights) - min(heights), 1e-6,
-                            "cap %d is no longer flat, so its rim was not held" % capId)
-
-        self.delayDisplay("Kept labels test passed")
-
-    def test_CfdMeshGeneratorFTetWildSizesByPosition(self):
-        """A size asked for per point has to come out as elements of that size.
-
-        This is what fTetWild is here for that TetGen cannot do: the switch TetGen reads a size
-        function through answers differently each run, so the volume it fills is sized by one
-        number throughout however finely the surface is graded. A vessel that is narrow in one
-        place and wide in another wants the mesh fine in the narrow part and no finer than it has
-        to be elsewhere, which is the whole of the saving.
-        """
-        self.requireFTetWild()
-        self.delayDisplay("Starting the sizing by position test")
-
-        logic = CfdMeshGeneratorLogic()
-        # A tube whose lower half asks for cells a third the size of its upper half. Finer than
-        # the tube the other tests use: asked to grade a surface into triangles far from the size
-        # of the ones it was given, the remesher hands back one with holes in it, and no mesher
-        # can do anything with that (the run refuses, which is the next test but one).
-        surface = logic.capSurface(
-            self.openTube(numberOfAxialPoints=40, numberOfCircumferentialPoints=48),
-            "CellEntityIds", "simple")
-        sizes = vtk.vtkDoubleArray()
-        sizes.SetName("Size")
-        sizes.SetNumberOfTuples(surface.GetNumberOfPoints())
-        for pointId in range(surface.GetNumberOfPoints()):
-            sizes.SetTuple1(pointId, 0.2 if surface.GetPoint(pointId)[2] < 5.0 else 0.6)
-        surface.GetPointData().AddArray(sizes)
-
-        mesh, _remeshedSurface = logic.generateMesh(
-            surface, mesher=Mesher.FTETWILD.value, skipCapping=True,
-            elementSizeMode=ElementSizeMode.EDGE_LENGTH_ARRAY.value,
-            targetEdgeLengthArrayName="Size", volumeElementScaleFactor=1.0,
-            maxOptimizationPasses=20)
-
-        volumes = {True: [], False: []}
-        for cellId in range(mesh.GetNumberOfCells()):
-            if mesh.GetCellType(cellId) != vtk.VTK_TETRA:
-                continue
-            cell = mesh.GetCell(cellId)
-            points = [mesh.GetPoint(cell.GetPointId(index)) for index in range(4)]
-            middle = sum(point[2] for point in points) / 4.0
-            volumes[middle < 5.0].append(abs(vtk.vtkTetra.ComputeVolume(*points)))
-
-        self.assertTrue(volumes[True] and volumes[False], "the mesh does not span the tube")
-        fine = sum(volumes[True]) / len(volumes[True])
-        coarse = sum(volumes[False]) / len(volumes[False])
-        # Three times the edge length is twenty-seven times the volume; anything past a few times
-        # says the field was read, and nothing like it says the field was ignored.
-        self.assertGreater(coarse / fine, 4.0,
-                           "the half asked for coarse cells got cells %.2f times the size of the "
-                           "half asked for fine ones" % (coarse / fine))
-
-        self.delayDisplay("Sizing by position test passed")
-
-    def test_CfdMeshGeneratorFTetWildIsAskedForBeforeItIsUsed(self):
-        """A mesher that is not installed has to say so, and say what would install it.
-
-        fTetWild is downloaded rather than built in, so a scene set to it can be opened on a
-        machine that has never had it. What comes of pressing Apply there should be a sentence
-        naming the package, not an ImportError out of the middle of the pipeline.
-        """
-        self.delayDisplay("Starting the missing fTetWild test")
-
-        logic = CfdMeshGeneratorLogic()
-
-        class Blocked:
-            """Stands in for a machine that has never installed the package: asked for it, the
-            import machinery finds nothing, which is what it does when it is not there."""
-
-            @staticmethod
-            def find_spec(name, path=None, target=None):
-                if name.split(".")[0] == "pytetwild":
-                    raise ModuleNotFoundError("No module named %r" % name, name=name)
-                return None
-
-        hidden = {name: module for name, module in sys.modules.items()
-                  if name.split(".")[0] == "pytetwild"}
-        for name in hidden:
-            del sys.modules[name]
-        sys.meta_path.insert(0, Blocked)
-        try:
-            self.assertFalse(logic.isFTetWildAvailable(),
-                             "fTetWild was reported available with its package hidden")
-            with self.assertRaises(RuntimeError) as raised:
-                logic.generateMesh(self.openTube(), mesher=Mesher.FTETWILD.value)
-            self.assertIn("pytetwild", str(raised.exception),
-                          "the message does not name the package to install")
-        finally:
-            sys.meta_path.remove(Blocked)
-            sys.modules.update(hidden)
-
-        # And with the package back, the same call gets as far as meshing.
-        self.assertTrue(logic.isFTetWildAvailable() or not hidden,
-                        "the package was not put back after the test hid it")
-
-        self.delayDisplay("Missing fTetWild test passed")
