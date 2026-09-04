@@ -3437,9 +3437,16 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
 class ClipVesselTest(ScriptedLoadableModuleTest):
   """A smoke test, for Reload and Test and for the ctest that runs this file.
 
-  It runs the module the way a user does - download a vessel, extract its centerline, find a clip
-  point at each end, cut, extend and cap - and leaves the result in the scene, so that CFD Mesh
-  Generator has something to be pointed at straight afterwards.
+  It drives the module the way a user does: the vessel and its centerline go in the scene, the
+  inputs and the options go on the module's parameter node, the parameter node is shown in the
+  GUI, and then the buttons are pressed - Detect clip points and Apply - rather than the logic
+  being called behind the widget's back. What the widget does between the two is then part of
+  what is tested: the clip points node and the output node it makes, the preprocessing it runs,
+  the colouring it sets up, and a broken reference in a button handler.
+
+  The centerline is extracted with Extract Centerline's logic, that being the step before this
+  module rather than part of it. The result is left in the scene, so that CFD Mesh Generator has
+  something to be pointed at straight afterwards.
 
   What it does not do is go through every option: each clipping method, each capping method, each
   transition, the face ids and the widget are in Testing/Python, as separate files
@@ -3458,6 +3465,21 @@ class ClipVesselTest(ScriptedLoadableModuleTest):
   def runTest(self):
     self.setUp()
     self.test_ClipVessel1()
+
+  def moduleWidget(self):
+    """The module's own widget, the one the application drives.
+
+    Slicer builds it, parents it, gives it the scene and runs setup(), so this is the same
+    object a user has in front of them. Selecting the module is what normally builds it, but
+    that needs the module selector in the main window, which a test run started with
+    --no-main-window has not got; getModuleWidget builds the representation on demand either
+    way, so the selection is best effort.
+    """
+    try:
+      slicer.util.selectModule("ClipVessel")
+    except RuntimeError:
+      pass
+    return slicer.util.getModuleWidget("ClipVessel")
 
   def test_ClipVessel1(self):
     """Clip a real vessel end to end, and leave it in the scene ready to be meshed."""
@@ -3493,26 +3515,67 @@ class ClipVesselTest(ScriptedLoadableModuleTest):
     centerlineModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "Centerline model")
     centerlineModelNode.SetAndObserveMesh(centerlinePolyData)
 
+    # The parameter node first, and filled in before anything can look at it: the module's
+    # parameter node selector picks up a node of its own class as soon as one is in the scene,
+    # and reads every parameter off it the moment it does. One that has not had its defaults
+    # set yet is read as empty strings.
+    widget = self.moduleWidget()
+    logic = widget.logic
+    parameterNode = logic.getParameterNode()
+    logic.setDefaultParameters(parameterNode)
+
+    # Everything the user would set, put on the parameter node rather than into the widgets:
+    # the parameter node is what the module reads, and what a saved scene restores. The output
+    # is left at "(Create New)", which is how a user leaves it: Apply makes the node. The
+    # surface is the raw one, and the module decimates it itself, to the size the centerline
+    # was extracted at.
+    parameterNode.SetNodeReferenceID("InputSurface", inputSurfaceModelNode.GetID())
+    parameterNode.SetNodeReferenceID("InputCenterlines", centerlineModelNode.GetID())
+    parameterNode.SetParameter("PreprocessInputSurface", "true")
+    parameterNode.SetParameter("TargetNumberOfPoints", "5000")
+    parameterNode.SetParameter("DecimationAggressiveness", "4.0")
+    parameterNode.SetParameter("SubdivideInputSurface", "false")
     # A clip point at each vessel end, on the centerline and pulled inward from the terminus by
-    # insetFactor times the local radius. The default 0.5x leaves the planes too close to the
-    # ends of this coarsely decimated surface, where a cut can miss it or come out non-planar.
+    # this many local radii. The default 0.5x leaves the planes too close to the ends of this
+    # coarsely decimated surface, where a cut can miss it or come out non-planar.
+    parameterNode.SetParameter("ClipPointInsetFactor", "1.5")
+    parameterNode.SetParameter("CapOutputSurface", "true")
+    parameterNode.SetParameter("ExtendOutputSurface", "true")
+    parameterNode.SetParameter("ExtensionRatio", "2.0")
+    parameterNode.SetParameter("ExtensionTransitionRatio", "0.5")
+    parameterNode.SetParameter("ExtensionDirection", "BOUNDARY_NORMAL")
+    parameterNode.SetParameter("LabelModelFaces", "true")
+
+    # ...and then shown in the GUI, which is what the parameter node selector at the top of the
+    # module does. From here on the widget is driven by its own buttons.
+    widget.setParameterNode(parameterNode)
+    self.assertIs(widget.ui.parameterNodeSelector.currentNode(), parameterNode,
+                  "the parameter node was not shown in the module")
+    self.assertIs(widget.ui.inputSurfaceSelector.currentNode(), inputSurfaceModelNode,
+                  "the input surface did not reach the GUI")
+    self.assertAlmostEqual(widget.ui.clipPointInsetFactorWidget.value, 1.5,
+                           msg="the inset factor did not reach the GUI")
+
+    # "Detect clip points": the module finds the vessel ends from the centerline and makes the
+    # markups node to put them in, since none was chosen.
     self.delayDisplay("Detecting clip points")
-    logic = ClipVesselLogic()
-    terminuses = logic.detectCenterlineTerminusClipPoints(centerlineModelNode, 1.5)
-    self.assertGreaterEqual(len(terminuses), 3)
-    clipPointsMarkupsNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", "Clip points")
-    for terminus in terminuses:
-        pointIndex = clipPointsMarkupsNode.AddControlPointWorld(vtk.vtkVector3d(terminus["position"]))
-        clipPointsMarkupsNode.SetNthControlPointLabel(pointIndex, terminus["label"])
+    widget.onDetectClipPointsButton()
+
+    clipPointsMarkupsNode = parameterNode.GetNodeReference("ClipPoints")
+    self.assertIsNotNone(clipPointsMarkupsNode, "detection made no clip points node")
     numberOfClipPoints = clipPointsMarkupsNode.GetNumberOfControlPoints()
+    self.assertGreaterEqual(numberOfClipPoints, 3)
 
+    # "Apply": preprocess, cut at every clip point, extend, cap and label. Through the click
+    # handler, which is where the module asks before decimating a labelled surface - this one
+    # is not, so it goes straight on.
     self.delayDisplay("Clipping, extending and capping")
-    outputPolyData = logic.clipVessel(
-        preprocessedPolyData, centerlineModelNode, clipPointsMarkupsNode,
-        cap=True, addFlowExtensions=True, extensionRatio=2.0,
-        extensionDirection="BOUNDARY_NORMAL", transitionRatio=0.5,
-        labelModelFaces=True)
+    widget.onApplyButtonClicked()
 
+    outputModelNode = parameterNode.GetNodeReference("OutputSurfaceModel")
+    self.assertIsNotNone(outputModelNode, "Apply made no node to write the result into")
+    self.assertEqual(outputModelNode.GetName(), inputSurfaceModelNode.GetName() + " clipped")
+    outputPolyData = outputModelNode.GetPolyData()
     self.assertIsNotNone(outputPolyData)
     self.assertGreater(outputPolyData.GetNumberOfCells(), 0)
     # Every clip point cut, and every cut was planar - a non-planar one turns capping off
@@ -3540,16 +3603,13 @@ class ClipVesselTest(ScriptedLoadableModuleTest):
     # makes after the same vessel ends
     self.assertIsNotNone(outputPolyData.GetPointData().GetArray(logic.boundaryLabelsArrayName))
 
-    outputModelNode = slicer.mrmlScene.AddNewNodeByClass(
-        "vtkMRMLModelNode", inputSurfaceModelNode.GetName() + " clipped")
-    outputModelNode.SetAndObserveMesh(outputPolyData)
-    outputModelNode.CreateDefaultDisplayNodes()
-    outputModelNode.GetDisplayNode().SetVisibility(True)
-    outputModelNode.GetDisplayNode().SetEdgeVisibility(True)
-    # Coloured by face, the way the module leaves its own output, so that the ends can be told
-    # apart in the views before the mesh is made
-    outputModelNode.GetDisplayNode().SetActiveScalar(
-        "ModelFaceID", vtk.vtkAssignAttribute.CELL_DATA)
-    outputModelNode.GetDisplayNode().SetScalarVisibility(True)
+    # What a user sees afterwards: the output coloured by face, so that the ends can be told
+    # apart in the views before the mesh is made.
+    displayNode = outputModelNode.GetDisplayNode()
+    self.assertIsNotNone(displayNode, "the output was given no display")
+    self.assertTrue(displayNode.GetVisibility())
+    self.assertTrue(displayNode.GetScalarVisibility(), "the output is not coloured by face")
+    self.assertEqual(displayNode.GetActiveScalarName(), "ModelFaceID")
+    displayNode.SetEdgeVisibility(True)
 
     self.delayDisplay("Test passed. The scene holds the clipped vessel, ready to be meshed.")

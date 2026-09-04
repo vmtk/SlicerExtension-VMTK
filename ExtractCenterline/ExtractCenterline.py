@@ -177,10 +177,19 @@ class ExtractCenterlineWidget(ScriptedLoadableModuleWidget, VTKObservationMixin)
         else:
             self.ui.inputSegmentSelectorWidget.setVisible(False)
 
-        self.ui.targetKPointCountWidget.value = float(self._parameterNode.GetParameter("TargetNumberOfPoints"))/1000.0
+        # A parameter that has not been set reads as an empty string, which is not a number. That
+        # happens whenever the GUI is updated from a node the defaults have not reached yet: one
+        # just added to the scene, or one being torn down with the scene while this module is not
+        # the one on screen. float() then raises inside a Qt slot, where the exception is printed
+        # and swallowed and the rest of this method does not run.
+        def numericParameter(parameterName):
+            value = self._parameterNode.GetParameter(parameterName)
+            return float(value if value else ExtractCenterlineLogic.DEFAULT_PARAMETERS[parameterName])
 
-        self.ui.decimationAggressivenessWidget.value = float(self._parameterNode.GetParameter("DecimationAggressiveness"))
-        self.ui.curveSamplingDistanceSpinBox.value = float(self._parameterNode.GetParameter("CurveSamplingDistance"))
+        self.ui.targetKPointCountWidget.value = numericParameter("TargetNumberOfPoints")/1000.0
+
+        self.ui.decimationAggressivenessWidget.value = numericParameter("DecimationAggressiveness")
+        self.ui.curveSamplingDistanceSpinBox.value = numericParameter("CurveSamplingDistance")
 
         # do not block signals so that related widgets are enabled/disabled according to its state
         self.ui.preprocessInputSurfaceModelCheckBox.checked = (self._parameterNode.GetParameter("PreprocessInputSurface") == "true")
@@ -407,22 +416,25 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
         self.frenetNormalArrayName = 'FrenetNormal'
         self.frenetBinormalArrayName = 'FrenetBinormal'
 
+    # What a parameter node is given when it has no value of its own, and what the GUI falls back
+    # to when it is asked to show a node the defaults have not reached yet.
+    # The target point count is small on purpose, so that a smooth mesh is fast; the size of the
+    # mesh is mainly decided by DecimationAggressiveness anyway.
+    DEFAULT_PARAMETERS = {
+        "TargetNumberOfPoints": "5000",
+        "DecimationAggressiveness": "4.0",
+        "PreprocessInputSurface": "true",
+        "SubdivideInputSurface": "false",
+        "CurveSamplingDistance": "1.0",
+    }
+
     def setDefaultParameters(self, parameterNode):
         """
         Initialize parameter node with default settings.
         """
-        # We choose a small target point number value, so that we can get fast speed
-        # for smooth meshes. Actual mesh size will mainly determined by DecimationAggressiveness value.
-        if not parameterNode.GetParameter("TargetNumberOfPoints"):
-            parameterNode.SetParameter("TargetNumberOfPoints", "5000")
-        if not parameterNode.GetParameter("DecimationAggressiveness"):
-            parameterNode.SetParameter("DecimationAggressiveness", "4.0")
-        if not parameterNode.GetParameter("PreprocessInputSurface"):
-            parameterNode.SetParameter("PreprocessInputSurface", "true")
-        if not parameterNode.GetParameter("SubdivideInputSurface"):
-            parameterNode.SetParameter("SubdivideInputSurface", "false")
-        if not parameterNode.GetParameter("CurveSamplingDistance"):
-            parameterNode.SetParameter("CurveSamplingDistance", "1.0")
+        for parameterName, value in self.DEFAULT_PARAMETERS.items():
+            if not parameterNode.GetParameter(parameterName):
+                parameterNode.SetParameter(parameterName, value)
 
     def polyDataFromNode(self, surfaceNode, segmentId):
         if not surfaceNode:
@@ -1134,13 +1146,18 @@ class ExtractCenterlineLogic(ScriptedLoadableModuleLogic):
 class ExtractCenterlineTest(ScriptedLoadableModuleTest):
     """A smoke test, for Reload and Test and for the ctest that runs this file.
 
-    It runs the module the way a user does - download a vessel, preprocess it, find its endpoints
-    from the network, then extract the centerline - and leaves the centerline in the scene, so
-    that Clip Vessel has something to be pointed at straight afterwards. The surface it works on
-    is the one ClipVesselTest uses, so the two run one after the other.
+    It drives the module the way a user does: the inputs and outputs are put on a parameter node,
+    the parameter node is set in the GUI, and then the buttons are pressed - Auto-detect endpoints
+    and Apply - rather than the logic being called behind the widget's back. What the widget does
+    between the two is then part of what is tested, which is where a broken reference in a button
+    handler shows up.
 
-    The options are covered in Testing/Python, as separate files so that a failure
-    names the behaviour that broke rather than the one long run it happened during.
+    It leaves the centerline in the scene, so that Clip Vessel has something to be pointed at
+    straight afterwards. The surface it works on is the one ClipVesselTest uses, so the two run
+    one after the other.
+
+    The options are covered in Testing/Python, as separate files so that a failure names the
+    behaviour that broke rather than the one long run it happened during.
 
     Uses ScriptedLoadableModuleTest base class, available at:
     https://github.com/Slicer/Slicer/blob/master/Base/Python/slicer/ScriptedLoadableModule.py
@@ -1157,6 +1174,21 @@ class ExtractCenterlineTest(ScriptedLoadableModuleTest):
         self.setUp()
         self.test_ExtractCenterline1()
 
+    def moduleWidget(self):
+        """The module's own widget, the one the application drives.
+
+        Slicer builds it, parents it, gives it the scene and runs setup(), so this is the same
+        object a user has in front of them. Selecting the module is what normally builds it, but
+        that needs the module selector in the main window, which a test run started with
+        --no-main-window has not got; getModuleWidget builds the representation on demand either
+        way, so the selection is best effort.
+        """
+        try:
+            slicer.util.selectModule("ExtractCenterline")
+        except RuntimeError:
+            pass
+        return slicer.util.getModuleWidget("ExtractCenterline")
+
     def test_ExtractCenterline1(self):
         """Extract a centerline from a real vessel, and leave it in the scene ready to be clipped."""
         self.delayDisplay("Starting the test")
@@ -1166,61 +1198,100 @@ class ExtractCenterlineTest(ScriptedLoadableModuleTest):
             fileNames="aorta-surface.stl",
             nodeNames="aorta-surface",
             uris="https://raw.githubusercontent.com/vmtk/vmtk-test-data/master/input/aorta-surface.stl")[0]
-        inputSurfacePolyData = inputSurfaceModelNode.GetPolyData()
-        self.assertGreater(inputSurfacePolyData.GetNumberOfPoints(), 0)
+        self.assertGreater(inputSurfaceModelNode.GetPolyData().GetNumberOfPoints(), 0)
 
+        # The parameter node first, and filled in before anything can look at it: the module's
+        # parameter node selector picks up a node of its own class as soon as one is in the scene,
+        # and reads every parameter off it the moment it does. One that has not had its defaults
+        # set yet is read as empty strings.
         logic = ExtractCenterlineLogic()
+        parameterNode = logic.getParameterNode()
+        logic.setDefaultParameters(parameterNode)
 
+        widget = self.moduleWidget()
+
+        # The outputs a user picks in the Outputs section. Every one of them is optional, and the
+        # module does the work each is asked for and no more, so asking for all of them is what
+        # puts the whole pipeline through its paces.
+        outputs = [
+            ("PreprocessedSurface", "vtkMRMLModelNode", "Preprocessed surface"),
+            ("MeshErrors", "vtkMRMLMarkupsFiducialNode", "Mesh errors"),
+            ("NetworkModel", "vtkMRMLModelNode", "Network model"),
+            ("NetworkCurve", "vtkMRMLMarkupsCurveNode", "Network curve"),
+            ("NetworkProperties", "vtkMRMLTableNode", "Network properties"),
+            ("CenterlineModel", "vtkMRMLModelNode", inputSurfaceModelNode.GetName() + " centerline"),
+            ("CenterlineCurve", "vtkMRMLMarkupsCurveNode", "Centerline curve"),
+            ("CenterlineProperties", "vtkMRMLTableNode", "Centerline properties"),
+            ("VoronoiDiagram", "vtkMRMLModelNode", "Voronoi diagram"),
+        ]
+        outputNodes = {}
+        for roleName, className, nodeName in outputs:
+            outputNodes[roleName] = slicer.mrmlScene.AddNewNodeByClass(className, nodeName)
+
+        # Everything the user would set, put on the parameter node rather than into the widgets:
+        # the parameter node is what the module reads, and what a saved scene restores.
+        parameterNode.SetNodeReferenceID("InputSurface", inputSurfaceModelNode.GetID())
+        for roleName, node in outputNodes.items():
+            parameterNode.SetNodeReferenceID(roleName, node.GetID())
         # Decimating first is what makes the centerline extraction affordable: it works on a
         # Voronoi diagram of the surface, which grows with the number of points.
-        self.delayDisplay("Preprocessing the surface")
-        targetNumberOfPoints = 5000.0
-        preprocessedPolyData = logic.preprocess(inputSurfacePolyData, targetNumberOfPoints, 4.0, False)
+        parameterNode.SetParameter("PreprocessInputSurface", "true")
+        parameterNode.SetParameter("SubdivideInputSurface", "false")
+        parameterNode.SetParameter("TargetNumberOfPoints", "5000")
+        parameterNode.SetParameter("DecimationAggressiveness", "4.0")
+        parameterNode.SetParameter("CurveSamplingDistance", "1.0")
+
+        # ...and then shown in the GUI, which is what the parameter node selector at the top of
+        # the module does. From here on the widget is driven by its own buttons.
+        widget.setParameterNode(parameterNode)
+        self.assertIs(widget.ui.parameterNodeSelector.currentNode(), parameterNode,
+                      "the parameter node was not shown in the module")
+        self.assertIs(widget.ui.inputSurfaceSelector.currentNode(), inputSurfaceModelNode,
+                      "the input surface did not reach the GUI")
+
+        # "Auto-detect endpoints": the module finds the vessel ends from the network and makes
+        # the markups node to put them in, since none was chosen.
+        self.delayDisplay("Auto-detecting the endpoints")
+        widget.onAutoDetectEndPoints()
+
+        endPointsMarkupsNode = parameterNode.GetNodeReference("EndPoints")
+        self.assertIsNotNone(endPointsMarkupsNode, "auto-detection made no endpoints node")
+        # The aorta surface has one inlet and two iliac outlets
+        self.assertGreaterEqual(endPointsMarkupsNode.GetNumberOfControlPoints(), 3)
+
+        # "Apply": preprocess, look for mesh errors, extract the network, then the centerline.
+        self.delayDisplay("Applying")
+        widget.onApplyButton()
+
+        preprocessedPolyData = outputNodes["PreprocessedSurface"].GetPolyData()
+        self.assertIsNotNone(preprocessedPolyData)
         self.assertGreater(preprocessedPolyData.GetNumberOfPoints(), 0)
         self.assertLess(preprocessedPolyData.GetNumberOfPoints(),
-                        inputSurfacePolyData.GetNumberOfPoints())
+                        inputSurfaceModelNode.GetPolyData().GetNumberOfPoints(),
+                        "the surface was not decimated")
 
-        # The network is the cheap answer: a tree through the vessel, enough to say where its
-        # ends are, which is what the endpoints are then read off.
-        self.delayDisplay("Extracting the network")
-        endPointsMarkupsNode = slicer.mrmlScene.AddNewNodeByClass(
-            "vtkMRMLMarkupsFiducialNode", "Centerline endpoints")
-        networkPolyData = logic.extractNetwork(preprocessedPolyData, endPointsMarkupsNode)
+        networkPolyData = outputNodes["NetworkModel"].GetPolyData()
+        self.assertIsNotNone(networkPolyData)
         self.assertGreater(networkPolyData.GetNumberOfPoints(), 0)
+        self.assertGreater(outputNodes["NetworkProperties"].GetTable().GetNumberOfRows(), 0)
 
-        endpointPositions = logic.getEndPoints(networkPolyData, startPointPosition=None)
-        # The aorta surface has one inlet and two iliac outlets
-        self.assertGreaterEqual(len(endpointPositions), 3)
-        for position in endpointPositions:
-            endPointsMarkupsNode.AddControlPoint(vtk.vtkVector3d(position))
-
-        # The centerline proper: slower, and the one that carries a radius along it, which is
-        # what Clip Vessel sizes its clip planes by.
-        self.delayDisplay("Extracting the centerline")
-        centerlinePolyData, voronoiDiagramPolyData = logic.extractCenterline(
-            preprocessedPolyData, endPointsMarkupsNode)
+        centerlinePolyData = outputNodes["CenterlineModel"].GetPolyData()
+        self.assertIsNotNone(centerlinePolyData)
         self.assertGreater(centerlinePolyData.GetNumberOfPoints(), 0)
         self.assertGreater(centerlinePolyData.GetNumberOfCells(), 0)
-        self.assertIsNotNone(centerlinePolyData.GetPointData().GetArray("Radius"))
-        self.assertGreater(voronoiDiagramPolyData.GetNumberOfPoints(), 0)
+        # The radius is what everything downstream is built on: Clip Vessel sizes its clip planes
+        # by it, and the curve tree reports it as a measurement.
+        self.assertIsNotNone(centerlinePolyData.GetPointData().GetArray("Radius"),
+                             "the centerline carries no radius")
+        self.assertGreater(outputNodes["VoronoiDiagram"].GetPolyData().GetNumberOfPoints(), 0)
+        self.assertGreater(outputNodes["CenterlineProperties"].GetTable().GetNumberOfRows(), 0)
+        self.assertGreater(outputNodes["CenterlineCurve"].GetNumberOfControlPoints(), 1)
 
-        centerlineModelNode = slicer.mrmlScene.AddNewNodeByClass(
-            "vtkMRMLModelNode", inputSurfaceModelNode.GetName() + " centerline")
-        centerlineModelNode.SetAndObserveMesh(centerlinePolyData)
+        # The centerline is what Clip Vessel is pointed at, so it is the one left visible.
+        centerlineModelNode = outputNodes["CenterlineModel"]
         centerlineModelNode.CreateDefaultDisplayNodes()
         centerlineModelNode.GetDisplayNode().SetVisibility(True)
         centerlineModelNode.GetDisplayNode().SetLineWidth(3)
-
-        # The curve tree is what the module normally hands back beside the model: one curve per
-        # branch, with the radius along it as a measurement.
-        self.delayDisplay("Building the centerline curve tree")
-        centerlineCurveNode = slicer.mrmlScene.AddNewNodeByClass(
-            "vtkMRMLMarkupsCurveNode", "Centerline curve")
-        centerlinePropertiesTableNode = slicer.mrmlScene.AddNewNodeByClass(
-            "vtkMRMLTableNode", "Centerline properties")
-        logic.createCurveTreeFromCenterline(centerlinePolyData, centerlineCurveNode,
-                                            centerlinePropertiesTableNode)
-        self.assertGreater(centerlinePropertiesTableNode.GetTable().GetNumberOfRows(), 0)
 
         self.delayDisplay("Test passed. The scene holds the centerline, ready to be clipped.")
 
