@@ -102,6 +102,79 @@ class CfdMeshGeneratorFTetWildTest(CfdMeshGeneratorTestCase):
         self.assertTrue(logic.isFTetWildAvailable() or not hidden,
                         "the package was not put back after the test hid it")
 
+    def test_CfdMeshGeneratorFTetWildRunsInAnotherPython(self):
+        """fTetWild can be run in a Python other than the one the pipeline runs in, and the
+        mesh is the same mesh.
+
+        This is what a Mac running an Intel build of Slicer on an Apple silicon processor needs:
+        there is no pytetwild for the Python it has, and there is one for the processor. The
+        pipeline hands the surface to the other interpreter by file and reads the tetrahedra
+        back the same way. Here the other interpreter is this one, started afresh - what is put
+        to the test is the handing over, and that needs no second Python to be wrong about.
+        """
+        self.requireFTetWild()
+        logic = CfdMeshGeneratorLogic()
+        if logic.fTetWildPython is not None:
+            self.skipTest("fTetWild already runs in another Python here")
+
+        surface = self.openTube()
+        inProcess, _surface = logic.generateMesh(
+            surface, targetEdgeLength=0.4, mesher=Mesher.FTETWILD.value,
+            **self.fasterFTetWild(Mesher.FTETWILD.value))
+
+        logic.fTetWildPython = sys.executable
+        self.assertTrue(logic.isFTetWildAvailable(),
+                        "fTetWild was not found in %s" % sys.executable)
+        elsewhere, _surface = logic.generateMesh(
+            surface, targetEdgeLength=0.4, mesher=Mesher.FTETWILD.value,
+            **self.fasterFTetWild(Mesher.FTETWILD.value))
+
+        self.assertFalse(logic.lastTetrahedralizationFailed)
+        # Near enough rather than the same: fTetWild does not give the same mesh twice even in
+        # one process, so what is asked is that the same surface came back meshed the same way.
+        self.assertAlmostEqual(
+            elsewhere.GetNumberOfCells() / inProcess.GetNumberOfCells(), 1.0, delta=0.1,
+            msg="the mesh made in another Python (%d cells) is not the mesh made here (%d)"
+                % (elsewhere.GetNumberOfCells(), inProcess.GetNumberOfCells()))
+        self.assertEqual(self.cellEntityIds(elsewhere), {0, 1, 2, 3})
+        self.assertBoundaryIsLabelled(elsewhere, "CellEntityIds")
+
+    def test_CfdMeshGeneratorFTetWildReportsAPythonThatCannotRunIt(self):
+        """An interpreter that cannot run fTetWild is reported as such, not as a surface that
+        could not be filled: the two are told apart, because they are answered differently."""
+        logic = CfdMeshGeneratorLogic()
+        logic.fTetWildPython = "no-such-python-anywhere"
+        self.assertFalse(logic.isFTetWildAvailable())
+        with self.assertRaises(RuntimeError) as raised:
+            logic.generateMesh(self.openTube(), mesher=Mesher.FTETWILD.value)
+        self.assertIn("pytetwild", str(raised.exception))
+
+
+    def test_CfdMeshGeneratorFTetWildEnvironmentIsOnlyForRosetta(self):
+        """A Python environment of its own is asked for only where Slicer's Python cannot host
+        fTetWild, and that is one place: an Intel Slicer under Rosetta on an Apple silicon Mac.
+
+        Everywhere else the interpreter is run as itself and no Python is looked for on the
+        machine, so the answer here says which side of that line this machine is on and that
+        the pieces agree with each other about it.
+        """
+        from CfdMeshGeneratorLib import FTetWild
+
+        separate = FTetWild.needsSeparateEnvironment()
+        if sys.platform != "darwin":
+            self.assertFalse(separate, "a separate environment was asked for off macOS")
+        if separate:
+            self.assertEqual(FTetWild.interpreterCommand("python")[:2], ["arch", "-arm64"])
+            self.assertEqual(FTetWild.hardwareArchitecture(), "aarch64")
+        else:
+            self.assertEqual(FTetWild.interpreterCommand("python"), ["python"])
+            self.assertIsNone(FTetWild.findSystemPython() if sys.platform != "darwin" else None)
+        # The commands that make an environment are built without running anything, and each
+        # of the two ways ends by installing the pinned package into the venv.
+        for commands in (FTetWild.venvCommands("dir", "python3"),
+                         FTetWild.uvCommands("dir", "uv")):
+            self.assertEqual(len(commands), 2)
+            self.assertIn(FTetWild.REQUIREMENT, commands[1][0])
 
 
 if __name__ == "__main__":

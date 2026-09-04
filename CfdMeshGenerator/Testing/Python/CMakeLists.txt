@@ -29,6 +29,10 @@ slicer_add_python_test(SCRIPT test_CfdMeshGeneratorFTetWild.py
 slicer_add_python_test(SCRIPT test_CfdMeshGeneratorClippedAorta.py
                        SLICER_ARGS --disable-cli-modules)
 
+# Runs the pipeline in a process of its own, the way Apply does
+slicer_add_python_test(SCRIPT test_CfdMeshGeneratorSeparateProcess.py
+                       SLICER_ARGS --disable-cli-modules)
+
 # Builds the module widget
 slicer_add_python_test(SCRIPT test_CfdMeshGeneratorWidget.py
                        SLICER_ARGS --disable-cli-modules)

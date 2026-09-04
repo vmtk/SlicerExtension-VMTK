@@ -355,33 +355,53 @@
      </property>
      <layout class="QFormLayout" name="surfaceMeshFormLayout">
       <item row="0" column="0">
-       <widget class="QLabel" name="cellEntityIdsArrayNameLabel">
+       <widget class="QLabel" name="cellEntityIdsArrayNamesLabel">
         <property name="text">
          <string>Face ids array:</string>
         </property>
        </widget>
       </item>
       <item row="0" column="1">
-       <widget class="QLineEdit" name="cellEntityIdsArrayNameLineEdit">
+       <widget class="QLineEdit" name="cellEntityIdsArrayNamesLineEdit">
         <property name="toolTip">
-         <string>Name of the cell array that tells the faces of the mesh apart: one id for the wall, one for each cap, and 0 for the volume elements. This is what a solver reads the boundary conditions off, and it is also what holds the wall and the caps apart while the surface is remeshed. If the input surface already carries an array of this name - Clip Vessel writes its face labels into &quot;ModelFaceID&quot; - its ids are kept and any new caps are numbered above them; under any other name the faces of the input are renumbered from scratch.</string>
+         <string>Names of the cell array that tells the faces of the mesh apart, separated by commas: one id for the wall, one for each cap, and 0 for the volume elements. This is what a solver reads the boundary conditions off, and it is also what holds the wall and the caps apart while the surface is remeshed. The first name the input surface carries is used, its ids are kept and any new caps are numbered above them; if it carries none of them, the faces of the input are renumbered from scratch under the first name. &quot;CellEntityIds&quot; is VMTK's name and &quot;ModelFaceID&quot; is the one SimVascular reads a model's faces by, which Clip Vessel writes its face labels into.</string>
         </property>
         <property name="text">
-         <string notr="true">CellEntityIds</string>
+         <string notr="true">CellEntityIds, ModelFaceID</string>
         </property>
         <property name="SlicerParameterName" stdset="0">
-         <string>cellEntityIdsArrayName</string>
+         <string>cellEntityIdsArrayNames</string>
         </property>
        </widget>
       </item>
       <item row="1" column="0">
+       <widget class="QLabel" name="capIdsArrayNameLabel">
+        <property name="text">
+         <string>Cap ids array:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="capIdsArrayNameLineEdit">
+        <property name="toolTip">
+         <string>Name of a cell array of the input surface that says which cells are caps: 1 or more on a cap, anything less on the wall. Where the surface carries it, a face of the face ids array is a cap if its cells say so, and the wall may be numbered in as many faces as it likes - a model from SimVascular has its wall in several faces and its caps under &quot;CapID&quot;. Where it does not, the wall is face 1 and every face numbered above it is a cap, which is how Clip Vessel numbers them. Leave empty to go by the face numbering alone.</string>
+        </property>
+        <property name="text">
+         <string notr="true">CapID</string>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>capIdsArrayName</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
        <widget class="QLabel" name="boundaryLabelsArrayNameLabel">
         <property name="text">
          <string>Boundary labels array:</string>
         </property>
        </widget>
       </item>
-      <item row="1" column="1">
+      <item row="2" column="1">
        <widget class="QLineEdit" name="boundaryLabelsArrayNameLineEdit">
         <property name="toolTip">
          <string>Name of the point data array that says which vessel end each boundary point belongs to. Where the input surface carries it - Clip Vessel writes it into what it hands over - each cap is named after the end it closes, so that a cap keeps the same id from one run to the next and the same id Clip Vessel gave it; where it does not, the caps are numbered in the order the boundaries are found. &quot;BoundaryLabels&quot; is the name the VMTK filters use by default.</string>
@@ -394,14 +414,14 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="0">
+      <item row="3" column="0">
        <widget class="QLabel" name="boundaryPointOrderArrayNameLabel">
         <property name="text">
          <string>Point order array:</string>
         </property>
        </widget>
       </item>
-      <item row="2" column="1">
+      <item row="3" column="1">
        <widget class="QLineEdit" name="boundaryPointOrderArrayNameLineEdit">
         <property name="toolTip">
          <string>Name of the point data array holding each boundary point&apos;s position around its own boundary, which is what makes the ring of a boundary readable without extracting it again. It travels with the boundary labels array and is read alongside it.</string>
@@ -414,7 +434,27 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="0" colspan="2">
+      <item row="4" column="0">
+       <widget class="QLabel" name="carriedCellArraysLabel">
+        <property name="text">
+         <string>Carried cell arrays:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QLineEdit" name="carriedCellArraysLineEdit">
+        <property name="toolTip">
+         <string>Names of cell arrays of the input surface to carry onto the output, separated by commas. Each is carried face by face: every cell of the output that stands on a face of the input is given the value the input&apos;s cells on that face carry, and the volume elements - and any cap made here rather than brought in - are given -1. For a surface whose caps are numbered by an array of its own, such as a CapID that gives one number to every outlet: the numbering arrives on the mesh, on exactly the faces it was on.</string>
+        </property>
+        <property name="placeholderText">
+         <string>e.g. CapID</string>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>carriedCellArrays</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="0" colspan="2">
        <widget class="ctkCollapsibleGroupBox" name="surfaceRemeshingCollapsibleGroupBox">
         <property name="title">
          <string>Surface remeshing</string>
@@ -734,7 +774,7 @@
         </layout>
        </widget>
       </item>
-      <item row="4" column="0" colspan="2">
+      <item row="6" column="0" colspan="2">
        <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox">
         <property name="title">
          <string>Boundary layer</string>
@@ -1002,7 +1042,7 @@
         </layout>
        </widget>
       </item>
-      <item row="5" column="0" colspan="2">
+      <item row="7" column="0" colspan="2">
        <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox_2">
         <property name="title">
          <string>Volume mesh</string>
@@ -1196,17 +1236,14 @@
     </widget>
    </item>
    <item>
-    <spacer name="verticalSpacer">
-     <property name="orientation">
-      <enum>Qt::Vertical</enum>
+    <widget class="QTextEdit" name="logTextEdit">
+     <property name="toolTip">
+      <string>What the run says as it goes: each step as it starts and how long it took, what the pipeline warns about, and why it stopped if it did. Cleared when Apply is pressed. The same lines go to the application log.</string>
      </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>20</width>
-       <height>40</height>
-      </size>
+     <property name="readOnly">
+      <bool>true</bool>
      </property>
-    </spacer>
+    </widget>
    </item>
   </layout>
  </widget>

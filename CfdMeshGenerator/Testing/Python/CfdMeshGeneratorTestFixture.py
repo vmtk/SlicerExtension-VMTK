@@ -12,7 +12,7 @@ import unittest
 import slicer
 import vtk
 
-from CfdMeshGenerator import CfdMeshGeneratorLogic, FTETWILD_REQUIREMENT, Mesher
+from CfdMeshGenerator import CfdMeshGeneratorLogic, Mesher
 
 
 def ensureCfdMeshGeneratorModuleRegistered():
@@ -123,8 +123,10 @@ class CfdMeshGeneratorTestCase(unittest.TestCase):
     def meshers():
         """The meshers to put each behaviour to, which is every one this installation has.
 
-        fTetWild is installed if it is missing, so that a machine with a network connection tests
-        both; one without tests what it has, which is the same choice a user has there.
+        fTetWild is installed if it is missing - wherever the module would install it, which on
+        a Mac running an Intel build on Apple silicon is a Python environment of its own - so
+        that a machine with a network connection tests both; one without tests what it has,
+        which is the same choice a user has there.
         """
         logic = CfdMeshGeneratorLogic()
         found = []
@@ -134,7 +136,7 @@ class CfdMeshGeneratorTestCase(unittest.TestCase):
             found.append(Mesher.FTETWILD.value)
         else:
             try:
-                slicer.util.pip_install(FTETWILD_REQUIREMENT)
+                logic.installFTetWild()
             except Exception:
                 logging.warning("fTetWild could not be installed, so it is left untested.")
             else:

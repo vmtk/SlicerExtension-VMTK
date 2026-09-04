@@ -117,6 +117,99 @@ class CfdMeshGeneratorFaceIdsTest(CfdMeshGeneratorTestCase):
                             "cap %d is no longer flat, so its rim was not held" % capId)
 
 
+    def test_CfdMeshGeneratorCarriesCellArraysFaceByFace(self):
+        """An array of the input surface asked to be carried arrives on the output, face by face.
+
+        A surface that numbers its caps by an array of its own - one number for the inlet and
+        one for every outlet, say - keeps that numbering on the mesh: every cell of a face the
+        input had gets the value the face had, whatever the remesher made of its cells, and the
+        volume elements get -1, which no face is. The remeshed surface carries it too.
+        """
+        logic = CfdMeshGeneratorLogic()
+        # Capped here, and labelled so that the caps are two faces - 2 and 3 - which the array
+        # numbers 1 and 1: the case of two outlets under one number, which a face id cannot
+        # express and a carried array can.
+        surface = logic.capSurface(self.openTube(), "CellEntityIds", "simple")
+        faceIds = surface.GetCellData().GetArray("CellEntityIds")
+        capIds = vtk.vtkIntArray()
+        capIds.SetName("CapID")
+        capIds.SetNumberOfTuples(surface.GetNumberOfCells())
+        for cellId in range(surface.GetNumberOfCells()):
+            capIds.SetTuple1(cellId, 1 if faceIds.GetTuple1(cellId) > 1 else -1)
+        surface.GetCellData().AddArray(capIds)
+
+        for mesher in self.meshers():
+            mesh, remeshedSurface = logic.generateMesh(
+                surface, targetEdgeLength=0.4, skipCapping=True, mesher=mesher,
+                carriedCellArrays=["CapID", "NoSuchArray"], **self.fasterFTetWild(mesher))
+
+            for output in (mesh, remeshedSurface):
+                carried = output.GetCellData().GetArray("CapID")
+                self.assertIsNotNone(carried, "CapID was not carried onto the output (%s)" % mesher)
+                self.assertIsNone(output.GetCellData().GetArray("NoSuchArray"))
+                ids = output.GetCellData().GetArray("CellEntityIds")
+                for cellId in range(output.GetNumberOfCells()):
+                    faceId = int(ids.GetTuple1(cellId))
+                    expected = (-1 if output.GetCell(cellId).GetCellDimension() == 3
+                                else 1 if faceId > 1 else -1)
+                    self.assertEqual(int(carried.GetTuple1(cellId)), expected,
+                                     "cell %d on face %d carries the wrong CapID (%s)"
+                                     % (cellId, faceId, mesher))
+            self.assertIn(1, set(int(mesh.GetCellData().GetArray("CapID").GetTuple1(cellId))
+                                 for cellId in range(mesh.GetNumberOfCells())),
+                          "no cell of the mesh is a cap (%s)" % mesher)
+
+    def test_CfdMeshGeneratorReadsTheFacesFromWhicheverNameTheSurfaceCarries(self):
+        """The face ids array is the first of the names offered that the surface carries, and
+        the first name of all when it carries none.
+
+        A surface arrives labelled under whatever name the tool that labelled it uses - VMTK's
+        CellEntityIds, SimVascular's ModelFaceID - and both are offered by default, so that
+        either is read as labelled without the name being typed in.
+        """
+        logic = CfdMeshGeneratorLogic()
+        choose = logic.chooseCellEntityIdsArrayName
+
+        unlabelled = self.openTube()
+        self.assertEqual(choose(unlabelled, "CellEntityIds, ModelFaceID"), "CellEntityIds")
+        self.assertEqual(choose(unlabelled, ["ModelFaceID", "CellEntityIds"]), "ModelFaceID")
+
+        fromSimVascular = logic.capSurface(self.openTube(), "ModelFaceID", "simple")
+        self.assertEqual(choose(fromSimVascular, "CellEntityIds, ModelFaceID"), "ModelFaceID")
+        # Whitespace around the commas is not part of a name.
+        self.assertEqual(choose(fromSimVascular, "  CellEntityIds ,ModelFaceID , "), "ModelFaceID")
+        # The first the surface carries, in the order offered, where it carries more than one.
+        both = vtk.vtkPolyData()
+        both.DeepCopy(fromSimVascular)
+        secondName = vtk.vtkIntArray()
+        secondName.DeepCopy(both.GetCellData().GetArray("ModelFaceID"))
+        secondName.SetName("CellEntityIds")
+        both.GetCellData().AddArray(secondName)
+        self.assertEqual(choose(both, "CellEntityIds, ModelFaceID"), "CellEntityIds")
+        self.assertEqual(choose(both, "ModelFaceID, CellEntityIds"), "ModelFaceID")
+
+        with self.assertRaises(ValueError):
+            choose(unlabelled, " , ")
+
+        # And through the parameter node, the way Apply goes: a surface labelled under
+        # ModelFaceID comes out labelled under ModelFaceID, ids kept.
+        inputNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "tube")
+        inputNode.SetAndObserveMesh(fromSimVascular)
+        outputNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "mesh")
+        parameterNode = logic.getParameterNode()
+        parameterNode.inputSurface = inputNode
+        parameterNode.outputMesh = outputNode
+        parameterNode.targetEdgeLength = 0.4
+        parameterNode.boundaryLayer = False
+        self.assertEqual(parameterNode.cellEntityIdsArrayNames, "CellEntityIds, ModelFaceID")
+        self.assertEqual(logic.meshingArguments(parameterNode)["cellEntityIdsArrayName"],
+                         "ModelFaceID")
+        if logic.isTetGenAvailable():
+            logic.process(parameterNode)
+            mesh = outputNode.GetMesh()
+            self.assertIsNone(mesh.GetCellData().GetArray("CellEntityIds"))
+            self.assertEqual(self.cellEntityIds(mesh, "ModelFaceID"), {0, 1, 2, 3})
+
 
 if __name__ == "__main__":
     # Run by slicer_add_python_test as "Slicer --python-script", which reports the outcome through

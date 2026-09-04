@@ -2,20 +2,30 @@
 
 This is VMTK's vmtkmeshgenerator script as a Slicer module. The script itself cannot be run here:
 it drives the pipeline through the `vmtk` Python package, which the Slicer extension does not
-install - only the wrapped C++ classes are available. The pipeline below is the same one, built
-out of those classes directly, and every parameter the script exposes is exposed here under the
-same name, meaning and default - bar the few a dialog reads better asking the other way round: a
-surface is asked to be capped and remeshed rather than to have capping and remeshing skipped, and
-an edge length limit of 0 is the script's "no limit".
+install - only the wrapped C++ classes are available. The pipeline is the same one, built out of
+those classes directly, in CfdMeshGeneratorLib.MeshingPipeline, and every parameter the script
+exposes is exposed here under the same name, meaning and default - bar the few a dialog reads
+better asking the other way round: a surface is asked to be capped and remeshed rather than to
+have capping and remeshing skipped, and an edge length limit of 0 is the script's "no limit".
+
+Apply does not run the pipeline in the application. It hands the surface and the parameters to
+CfdMeshGeneratorLib.MeshingWorker, running in a PythonSlicer of its own, and reads the mesh back
+from it: a run can then be cancelled, and a mesher that crashes takes that process rather than
+this one. It is also what lets fTetWild be run in a Python other than Slicer's where Slicer's
+cannot host it (see CfdMeshGeneratorLib.FTetWild).
 """
 
-import dataclasses
-import enum
-import importlib
+import collections
+import json
 import logging
+import os
+import queue
+import shutil
+import signal
+import subprocess
 import sys
+import threading
 import time
-import types
 from typing import Annotated
 
 import qt
@@ -30,98 +40,17 @@ from slicer.parameterNodeWrapper import parameterNodeWrapper, Minimum
 
 from slicer import vtkMRMLModelNode
 
-
-# What vmtkmeshgenerator uses for an edge length that is not to be limited. It is not infinity
-# because the remesher compares areas against it; it only has to be past any real mesh. The module
-# offers 0 in its place, which reads better in a spin box (see meshLengthLimit).
-UNLIMITED_EDGE_LENGTH = 1e16
-
-# Fewest substeps the boundary layer may be swept in. The generator spends the first hundredth of
-# them on an initial warp, so below a hundred it spends none: it then reads the points that warp
-# was to have written, which it never allocated, and what it finds there is whatever the process
-# had at that address (vtkvmtkBoundaryLayerGenerator's IncrementalWarpVectors).
-MINIMUM_SUBSTEPS = 100
-
-# Point data arrays saying which vessel end each boundary point belongs to, under the names VMTK's
-# own filters read and write by default (vtkvmtkBoundaryLabels::GetDefaultBoundaryLabelsArrayName),
-# which are the names Clip Vessel writes them with. A boundary that carries them is named by the
-# end it closes rather than by the order the extractor happened to find it in, which is what lets a
-# cap be given the same id every run - and the same id Clip Vessel gives it. The label is that id:
-# boundary labels and face ids are one numbering, so the end labelled 2 in the point data is the
-# face numbered 2 in the cell data, here and in Clip Vessel. Every filter here that rebuilds the
-# mesh carries them across, the surface projection putting them back on what the remesher hands
-# over, so they are still there when the inner surface is capped. They can be changed so that a
-# surface already carrying arrays under these names, meaning something else, is not mistaken for a
-# labeled one.
-DEFAULT_BOUNDARY_LABELS_ARRAY_NAME = "BoundaryLabels"
-DEFAULT_BOUNDARY_POINT_ORDER_ARRAY_NAME = "BoundaryPointOrder"
-
-# What to install when fTetWild is asked for. Pinned rather than floating: the mesh a version
-# gives is the mesh it gives, and a solver run is worth being able to repeat.
-FTETWILD_REQUIREMENT = "pytetwild==0.4.2"
+from CfdMeshGeneratorLib import FTetWild, MeshingWorker
+from CfdMeshGeneratorLib.MeshingPipeline import (  # noqa: F401 - re-exported for scripts and tests
+    DEFAULT_BOUNDARY_LABELS_ARRAY_NAME, DEFAULT_BOUNDARY_POINT_ORDER_ARRAY_NAME,
+    DEFAULT_CAP_IDS_ARRAY_NAME,
+    FTETWILD_REQUIREMENT, MINIMUM_SUBSTEPS, UNLIMITED_EDGE_LENGTH,
+    CappingMethod, ElementSizeMode, Mesher, MeshingPipeline, VolumeMeshing)
 
 
-class ElementSizeMode(enum.Enum):
-    """Where the target size of a surface element comes from (vmtkmeshgenerator's elementsizemode).
-
-    The remesher works in areas throughout; both modes give it the edge length of the equilateral
-    triangle of that area, either as one number for the whole surface or as a value per point
-    carried on the surface itself.
-    """
-
-    EDGE_LENGTH = "edgelength"
-    EDGE_LENGTH_ARRAY = "edgelengtharray"
-
-    def label(self):
-        return {
-            ElementSizeMode.EDGE_LENGTH: _("Constant edge length"),
-            ElementSizeMode.EDGE_LENGTH_ARRAY: _("Edge length from array"),
-        }[self]
-
-
-class CappingMethod(enum.Enum):
-    """Shape of the mesh that closes an open boundary of the input surface.
-
-    "Simple" fills each boundary with a fan of triangles, which is what the clipped end of a
-    vessel lumen wants. The two annular methods close the gap between an inner and an outer
-    boundary instead, which is the shape the end of a vessel wall of finite thickness has;
-    "concave annular" allows that ring to be non-convex.
-    """
-
-    SIMPLE = "simple"
-    ANNULAR = "annular"
-    CONCAVE_ANNULAR = "concaveannular"
-
-    def label(self):
-        return {
-            CappingMethod.SIMPLE: _("Simple"),
-            CappingMethod.ANNULAR: _("Annular"),
-            CappingMethod.CONCAVE_ANNULAR: _("Concave annular"),
-        }[self]
-
-
-class Mesher(enum.Enum):
-    """Which mesher fills the surface with tetrahedra.
-
-    They answer differently shaped questions. TetGen is handed the surface as a boundary it may
-    not touch, and returns the same triangles it was given with tetrahedra behind them; the mesh
-    meets the surface exactly, and a surface it cannot fill is one it fails on - loudly at best.
-    fTetWild is handed the surface as a shape to stay within a tolerance of, and meshes what it
-    makes of it; the boundary comes back retriangulated and slightly moved, and almost nothing
-    makes it fail.
-
-    fTetWild is not built into the extension: it arrives as the pytetwild package, downloaded
-    from PyPI the first time it is asked for.
-    """
-
-    TETGEN = "tetgen"
-    FTETWILD = "ftetwild"
-
-    def label(self):
-        return {
-            Mesher.TETGEN: _("TetGen"),
-            Mesher.FTETWILD: _("fTetWild"),
-        }[self]
+class MeshingCancelledError(Exception):
+    """A run was stopped by cancel() before it finished. Not an error to show a dialog for: it
+    is what was asked for."""
 
 
 #
@@ -163,40 +92,6 @@ Denis Zorin and Daniele Panozzo (ACM Transactions on Graphics 39(4), SIGGRAPH 20
 Mozilla Public License 2.0. It is used through the pytetwild package of the PyVista project,
 which the module downloads from PyPI the first time fTetWild is asked for.
 """)
-
-
-@dataclasses.dataclass
-class VolumeMeshing:
-    """What the mesher needs to know to fill a surface, whichever mesher it is.
-
-    Gathered into one object so that the steps between the surface and the volume - which differ
-    by whether there is a boundary layer, not by which mesher is running - can carry it through
-    without naming the parameters of either.
-    """
-
-    mesher: str = Mesher.TETGEN.value
-
-    # The edge length the tetrahedra aim for: the size the surface was meshed at, scaled.
-    edgeLength: float = 0.8
-
-    # A target edge length per point of a background mesh, as (points, tetrahedra, lengths), for
-    # fTetWild to interpolate over. None asks for one size throughout. TetGen ignores it: the
-    # switch that reads a size per point takes it from a background mesh of its own making and
-    # answers differently each run (see runTetGen).
-    sizingField: object = None
-
-    # How far the boundary of the mesh may sit from the surface it was made for, in mm. Only
-    # fTetWild has such a thing; 0 asks for its default, a thousandth of the bounding box.
-    surfaceTolerance: float = 0.0
-
-    # fTetWild stops improving the mesh once its worst element scores below this. The score is a
-    # conformal AMIPS energy, which is 3 for a regular tetrahedron and grows without bound as one
-    # flattens.
-    stopEnergy: float = 10.0
-    maxOptimizationPasses: int = 80
-
-    # Make the mesh as coarse as the tolerance allows, rather than as fine as asked for.
-    coarsen: bool = False
 
 
 #
@@ -245,9 +140,20 @@ class CfdMeshGeneratorParameterNode:
     maxOptimizationPasses: Annotated[int, Minimum(1)] = 80
     coarsen: bool = False
     tetrahedralize: bool = False
-    cellEntityIdsArrayName: str = "CellEntityIds"
+    # The names the face ids may be under, comma-separated; the first one the input surface
+    # carries is used, and the first of all of them if it carries none. VMTK's own name and the
+    # one SimVascular reads the faces of a model by, so that a surface from either is read as
+    # labelled without the name being typed in (see MeshingPipeline.chooseCellEntityIdsArrayName).
+    cellEntityIdsArrayNames: str = "CellEntityIds, ModelFaceID"
+    # Cell array saying which cells are caps, 1 or more on a cap. Where the input carries it,
+    # the caps are the faces it marks and the wall may be in any number of faces; where it does
+    # not, the wall is face 1 and every face above it is a cap (see MeshingPipeline.isCapId).
+    capIdsArrayName: str = DEFAULT_CAP_IDS_ARRAY_NAME
     boundaryLabelsArrayName: str = DEFAULT_BOUNDARY_LABELS_ARRAY_NAME
     boundaryPointOrderArrayName: str = DEFAULT_BOUNDARY_POINT_ORDER_ARRAY_NAME
+    # Cell arrays of the input surface to carry onto the faces of the output, comma-separated;
+    # see MeshingPipeline.carryCellArrays().
+    carriedCellArrays: str = ""
 
     # Boundary layer
     boundaryLayer: bool = False
@@ -346,12 +252,64 @@ class CfdMeshGeneratorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         self.ui.applyButton.connect("clicked(bool)", self.onApplyButton)
 
+        # What the run says goes under the button as well as to the application log: the log
+        # window is where a user looks while a mesh takes its minutes, and where the reason a
+        # run stopped is still to be read after the dialog about it has been closed.
+        self.logic.logCallback = self.addLog
+
         # Make sure parameter node is initialized (needed for module reload)
         self.initializeParameterNode()
+
+    def addLog(self, text: str, level: int = logging.INFO) -> None:
+        """Append a message to the log window, warnings and errors in a colour of their own.
+
+        One line per message and no blank line between them: each message is a sentence, ended
+        with a full stop where whatever said it left one off, and that is what tells one from
+        the next. The window is emptied once it grows past what is worth scrolling back
+        through; a run that has said that much has said it to the application log too.
+        """
+        logTextEdit = self.ui.logTextEdit
+        if len(logTextEdit.plainText) > 1024 * 256:
+            logTextEdit.clear()
+            logTextEdit.append(_("Log cleared."))
+        text = " ".join(text.split())
+        if text and text[-1] not in ".!?:":
+            text += "."
+        # Escaped by hand: what Qt offers for it wraps the text in a paragraph, and a paragraph
+        # appended to a paragraph is set off from it by a blank line.
+        escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        if level >= logging.ERROR:
+            escaped = '<span style="color: #d02020;">%s</span>' % escaped
+        elif level >= logging.WARNING:
+            escaped = '<span style="color: #d08000;">%s</span>' % escaped
+        logTextEdit.append(escaped)
+        logTextEdit.ensureCursorVisible()
+        logTextEdit.repaint()
+
+    def onReload(self) -> None:
+        """Reload the module's own package before the module file, so that an edit to the
+        pipeline is picked up by the Reload button as well as an edit to this file.
+
+        Reloading the module file alone re-executes it, and the `from CfdMeshGeneratorLib ...`
+        lines in it hand back the modules already imported. Each is re-executed in place first,
+        in the order they import one another, so that what the module file then imports is
+        what is on disk. A worker started after this runs from disk anyway.
+        """
+        import importlib
+
+        import CfdMeshGeneratorLib
+        from CfdMeshGeneratorLib import FTetWild, MeshingPipeline, MeshingWorker
+
+        for module in (CfdMeshGeneratorLib, FTetWild, MeshingPipeline, MeshingWorker):
+            logging.debug("Reloading %s", module.__name__)
+            importlib.reload(module)
+        ScriptedLoadableModuleWidget.onReload(self)
 
     def cleanup(self) -> None:
         """Called when the application closes and the module widget is destroyed."""
         self.removeObservers()
+        # A meshing process left running would outlive the application.
+        self.logic.cancel()
 
     def enter(self) -> None:
         """Called each time the user opens this module."""
@@ -470,11 +428,12 @@ class CfdMeshGeneratorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         surface that was picked.
 
         The array matters more than it looks: it is what holds the wall and the caps apart while
-        the surface is remeshed, and a surface that arrives already labelled - as one from Clip
-        Vessel does, under "ModelFaceID" - carries its labels under a name of its own. Left
-        pointing at a name the input does not use, the pipeline would renumber every cell of it
-        into one face and the remesher would then be free to smooth the rim between a cap and the
-        wall away, so the name is taken from the input rather than waited for.
+        the surface is remeshed, and a surface that arrives already labelled carries its labels
+        under a name of its own. Left pointing at names the input does not use, the pipeline
+        would renumber every cell of it into one face and the remesher would then be free to
+        smooth the rim between a cap and the wall away. The usual names are offered by default,
+        so a surface from Clip Vessel or SimVascular is found labelled as it is; one labelled
+        under some other name, and only one, has that name put first.
         """
         surfaceNode = self._parameterNode.inputSurface if self._parameterNode else None
         surfaceNodeId = surfaceNode.GetID() if surfaceNode else None
@@ -503,18 +462,21 @@ class CfdMeshGeneratorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 name=surfaceNode.GetName())
 
         surface = surfaceNode.GetPolyData()
-        if surface is None or surface.GetCellData().GetArray(
-                self._parameterNode.cellEntityIdsArrayName) is not None:
+        if surface is None:
+            return
+        names = MeshingPipeline.splitArrayNames(self._parameterNode.cellEntityIdsArrayNames)
+        if any(surface.GetCellData().GetArray(name) is not None for name in names):
             return
         candidates = self.faceIdsArrayNames(surface)
         if len(candidates) == 1:
             logging.info("Reading the faces of %s from its %s array.",
                          surfaceNode.GetName(), candidates[0])
-            self._parameterNode.cellEntityIdsArrayName = candidates[0]
+            self._parameterNode.cellEntityIdsArrayNames = ", ".join([candidates[0]] + names)
         elif candidates and justPicked:
-            logging.warning("%s carries more than one array its faces could be read from (%s); "
-                            "leaving the face ids array name as it is.",
-                            surfaceNode.GetName(), ", ".join(candidates))
+            logging.warning("%s carries more than one array its faces could be read from (%s) "
+                            "and none of the names offered (%s); leaving the face ids array "
+                            "names as they are.",
+                            surfaceNode.GetName(), ", ".join(candidates), ", ".join(names))
 
     @staticmethod
     def faceIdsArrayNames(surface):
@@ -530,7 +492,21 @@ class CfdMeshGeneratorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 if array.GetName() and array.GetNumberOfComponents() == 1
                 and array.GetDataType() in integerTypes]
 
-    def _updateApplyButton(self) -> None:
+    def _updateApplyButton(self, running=None) -> None:
+        """Make the one button say what pressing it would do: start a run, or stop the one that
+        is going.
+
+        :param running: whether a run is in progress, where the logic cannot yet say - it is
+          asked to start one only after the button has been turned round.
+        """
+        if running is None:
+            running = self.logic.isRunning
+        if running:
+            self.ui.applyButton.text = _("Cancel")
+            self.ui.applyButton.toolTip = _("Stop generating the mesh")
+            self.ui.applyButton.enabled = True
+            return
+        self.ui.applyButton.text = _("Apply")
         # The output node is not asked for: left at "(Create New)" one is made on Apply (see
         # onApplyButton). Only the input has to be picked, there being nothing to mesh without it.
         if self._parameterNode and self._parameterNode.inputSurface:
@@ -603,7 +579,12 @@ class CfdMeshGeneratorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.endcapsEdgeLengthFactorSpinBox.enabled = endcaps
 
     def onApplyButton(self) -> None:
-        """Run processing when user clicks "Apply" button."""
+        """Run processing when user clicks "Apply" button - or stop it, when the button says
+        Cancel: the run is in a process of its own, and the event loop keeps turning while it
+        goes, so the same button is there to be pressed again."""
+        if self.logic.isRunning:
+            self.logic.cancel()
+            return
         # Once more before running: a node is often picked before it holds a surface, and until it
         # does there is nothing to read the name of its face ids array from.
         self._followInputSurface()
@@ -616,10 +597,24 @@ class CfdMeshGeneratorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if self._parameterNode.mesher == Mesher.FTETWILD and not self.logic.isFTetWildAvailable():
             if not self.offerToInstallFTetWild():
                 return
+        self.ui.logTextEdit.plainText = ""
         try:
-            with slicer.util.tryWithErrorDisplay(_("Failed to generate the mesh."), waitCursor=True):
-                self.logic.process(self._parameterNode)
+            self._updateApplyButton(running=True)
+            # No wait cursor: the run is in another process and the application is not busy, so
+            # the cursor should not say it is - and the Cancel button is there to be pressed.
+            with slicer.util.tryWithErrorDisplay(_("Failed to generate the mesh.")):
+                try:
+                    self.logic.process(self._parameterNode)
+                except MeshingCancelledError:
+                    # What was asked for, so nothing to put a dialog up about.
+                    self.logic.say(_("Meshing cancelled."))
+                except Exception as error:
+                    # Into the log window too, where it can still be read once the dialog
+                    # about it has been closed.
+                    self.logic.say(str(error), logging.ERROR)
+                    raise
         finally:
+            self._updateApplyButton(running=False)
             # The outputs have their display nodes now, so their buttons have something to act on.
             # In a finally, because a run that stopped half way still wrote what it had.
             self._updateVisibilityButtons()
@@ -628,16 +623,13 @@ class CfdMeshGeneratorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         """Ask to download fTetWild, and say whether it can be used afterwards.
 
         Asking rather than simply doing it: this reaches out to the network and installs software
-        into the application, which is not something a press of Apply should be taken to mean.
+        into the application - or, on a Mac whose Slicer cannot host it, a Python of its own
+        beside it - which is not something a press of Apply should be taken to mean.
         """
-        if not slicer.util.confirmOkCancelDisplay(_(
-                "fTetWild is not installed. It comes as the Python package {requirement}, under "
-                "the Mozilla Public License 2.0, which can be downloaded and installed now. This "
-                "needs an internet connection and takes a moment; it is only done once."
-        ).format(requirement=FTETWILD_REQUIREMENT)):
+        if not slicer.util.confirmOkCancelDisplay(self.logic.describeFTetWildInstallation()):
             return False
         with slicer.util.tryWithErrorDisplay(_("Failed to install fTetWild."), waitCursor=True):
-            slicer.util.pip_install(FTETWILD_REQUIREMENT)
+            self.logic.installFTetWild()
         return self.logic.isFTetWildAvailable()
 
 
@@ -646,111 +638,180 @@ class CfdMeshGeneratorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 #
 
 
-class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
-    """The meshing pipeline, with no GUI of its own, so that it can be scripted.
+class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic, MeshingPipeline):
+    """The meshing pipeline in the application: what runs it, where, and what becomes of the
+    result.
+
+    The pipeline itself is MeshingPipeline, inherited whole, so that any step of it can be run in
+    this process by a script or a test. process() - what Apply runs - does not run it here: it
+    hands the surface to MeshingWorker in a PythonSlicer of its own, so that the run can be
+    cancelled, and so that a mesher that crashes takes that process rather than the application.
 
     Uses ScriptedLoadableModuleLogic base class, available at:
     https://github.com/Slicer/Slicer/blob/main/Base/Python/slicer/ScriptedLoadableModule.py
     """
 
-    # Entity id given to the cells that came from the input surface. The caps are numbered upwards
-    # from it, so a wall cell can always be told from a cap cell - which is what makes the id array
-    # usable as a boundary condition map, and what lets the remesher be pointed at the caps alone.
-    # It is also what the boundary labels of a surface are numbered above, so that a label is the
-    # id of the cap that closes it (see DEFAULT_BOUNDARY_LABELS_ARRAY_NAME); a surface labeled for
-    # some other wall would have its ends capped over the faces of this one.
-    wallCellEntityId = 1
-
-    # Id parked on the sidewall cells of a boundary layer that was not grown over the caps, until
-    # each of them is handed the id of the cap it ran into (see nameSidewallsAfterTheirCap). Any
-    # value no cap can take would do; this is the one vmtkmeshgenerator uses.
-    placeholderCellEntityId = 9999
-
-
-    # The names the boundary labels are read under when a caller gives none of its own; see
-    # DEFAULT_BOUNDARY_LABELS_ARRAY_NAME for what they hold and why they travel with the mesh.
-    boundaryLabelsArrayName = DEFAULT_BOUNDARY_LABELS_ARRAY_NAME
-    boundaryPointOrderArrayName = DEFAULT_BOUNDARY_POINT_ORDER_ARRAY_NAME
-
-    # Smallest angle, in radians, that an edge may subtend before the remesher collapses it. This
-    # is vmtksurfaceremeshing's own default rather than the filter's, which is more than twice as
-    # large; vmtkmeshgenerator does not offer it (see remeshSurface).
-    collapseAngleThreshold = 0.2
+    # Whether fTetWild is to be run in a Python environment of its own rather than in Slicer's
+    # Python. None asks FTetWild.needsSeparateEnvironment(), which says so only on a Mac running
+    # an Intel build on an Apple silicon processor; a test sets it to walk that path elsewhere.
+    separateFTetWildEnvironment = None
 
     def __init__(self) -> None:
         ScriptedLoadableModuleLogic.__init__(self)
-        # Whether the last run ended with the mesher refusing to fill the surface it was given.
-        # The mesh is handed back anyway - what there is of it is the thing to look at to see why
-        # - so this is what says the result is not a finished mesh (see process).
-        self.lastTetrahedralizationFailed = False
-        # The step log() is currently announcing, and when it started, so that the next call - or
-        # the end of the run - can say how long it took. None between runs and once the last step
-        # of one has been reported.
-        self._stepName = None
-        self._stepStartTime = None
-
-    #
-    # Which meshers this installation can offer.
-    #
-
-    @staticmethod
-    def isTetGenAvailable():
-        """Whether VMTK was built with TetGen. Its licence makes that a decision, so a build
-        that was made without it has no wrapper class at all rather than one that refuses."""
-        import vtkvmtkMiscPython as vtkvmtkMisc
-
-        return hasattr(vtkvmtkMisc, "vtkvmtkTetGenWrapper")
-
-    @staticmethod
-    def importPyTetWild():
-        """The pytetwild module, which is fTetWild. Raises RuntimeError if it is not installed.
-
-        The import is worth a wrapper of its own because pytetwild 0.4.2 imports pyvista at the
-        top of its package - for an accessor it registers on pyvista's own classes - without
-        guarding it, so importing pytetwild alone fails on an installation that has no pyvista.
-        Installing pyvista to answer that would bring a second VTK into a process that already
-        has one, which is a worse thing to be wrong about than a missing accessor, so an empty
-        module stands in its place for the length of the import and is taken out again after.
-        """
-        stub = "pyvista" not in sys.modules
-        if stub:
-            sys.modules["pyvista"] = types.ModuleType("pyvista")
-        try:
-            return importlib.import_module("pytetwild")
-        except ImportError as error:
-            # A failed import can leave the half-built package behind, and a later import would
-            # then hand back what it got to instead of trying again.
-            for name in [name for name in sys.modules if name.split(".")[0] == "pytetwild"]:
-                del sys.modules[name]
-            raise RuntimeError(_(
-                "fTetWild is not installed. It comes as the Python package {requirement}, which "
-                "the module offers to download when fTetWild is chosen and Apply is pressed."
-            ).format(requirement=FTETWILD_REQUIREMENT)) from error
-        finally:
-            if stub:
-                del sys.modules["pyvista"]
-
-    @classmethod
-    def isFTetWildAvailable(cls):
-        """Whether fTetWild can be used right now. It is imported rather than looked for: a
-        package that is installed but cannot be imported is not one to offer."""
-        try:
-            cls.importPyTetWild()
-        except RuntimeError:
-            return False
-        return True
-
-    @classmethod
-    def availableMeshers(cls):
-        """The meshers this installation can offer, in the order they are presented."""
-        return [mesher for mesher in Mesher
-                if mesher != Mesher.TETGEN or cls.isTetGenAvailable()]
+        MeshingPipeline.__init__(self)
+        self.fTetWildPython = self.fTetWildInterpreter()
+        self.stepCallback = self.showStep
+        # Called with (text, logging level) for everything a run says - each step, what the
+        # pipeline warns about, how it ended - for whoever is showing it to the user. The
+        # application log gets it regardless.
+        self.logCallback = None
+        # The worker process while one is running, and whether it was asked to stop.
+        self._worker = None
+        self._cancelled = False
 
     def getParameterNode(self):
         return CfdMeshGeneratorParameterNode(super().getParameterNode())
 
+    def say(self, text, level=logging.INFO):
+        """Tell the user something about the run: the log window, if there is one, and the
+        application log.
+
+        The application log is written here rather than by the caller, so that a line from the
+        worker - which logged it there already, in its own process - arrives in this process's
+        log exactly once, at the level it had.
+        """
+        logging.log(level, text)
+        self.show(text, level)
+
+    def show(self, text, level=logging.INFO):
+        """Put a message in front of the user without logging it - for what has been logged
+        already, by the pipeline here or in the worker."""
+        if self.logCallback:
+            self.logCallback(text, level)
+        slicer.app.processEvents()
+
+    def showStep(self, message):
+        """Say which step is running where a user looks for it: the log window is the only
+        sign of progress a long meshing run gives. The pipeline logs the step itself."""
+        self._stepName = message
+        self.show(message)
+
+    #
+    # Where fTetWild is run, and how it gets there.
+    #
+
+    @classmethod
+    def fTetWildInterpreter(cls):
+        """The Python fTetWild is run in, or None for this one. See FTetWild."""
+        explicit = os.environ.get(FTetWild.PYTHON_ENVIRONMENT_VARIABLE)
+        if explicit:
+            return explicit
+        separate = cls.separateFTetWildEnvironment
+        if separate is None:
+            separate = FTetWild.needsSeparateEnvironment()
+        if not separate:
+            return None
+        return FTetWild.environmentPython(cls.fTetWildEnvironmentDirectory())
+
+    @staticmethod
+    def fTetWildEnvironmentDirectory():
+        """Where the Python environment made for fTetWild lives: with the user's settings, which
+        is where Slicer keeps what it downloads for a user."""
+        return os.path.join(os.path.dirname(slicer.app.slicerUserSettingsFilePath),
+                            "CfdMeshGenerator", "fTetWild")
+
+    def describeFTetWildInstallation(self):
+        """What installFTetWild() would do on this machine, for a dialog to ask about."""
+        if self.fTetWildPython is None:
+            return _(
+                "fTetWild is not installed. It comes as the Python package {requirement}, under "
+                "the Mozilla Public License 2.0, which can be downloaded and installed now. This "
+                "needs an internet connection and takes a moment; it is only done once."
+            ).format(requirement=FTETWILD_REQUIREMENT)
+        if os.environ.get(FTetWild.PYTHON_ENVIRONMENT_VARIABLE):
+            return _(
+                "fTetWild is not installed in {python}, which the {variable} environment "
+                "variable names as the Python to run it in. Install {requirement} there."
+            ).format(python=self.fTetWildPython, variable=FTetWild.PYTHON_ENVIRONMENT_VARIABLE,
+                     requirement=FTETWILD_REQUIREMENT)
+        systemPython = FTetWild.findSystemPython()
+        if systemPython:
+            how = _("a virtual environment is made on the arm64 Python at {python}, and "
+                    "fTetWild is installed into it").format(python=systemPython)
+        else:
+            how = _("no Python new enough for it was found on this Mac, so uv is installed "
+                    "into Slicer's Python and fetches an arm64 CPython {version} to make a "
+                    "virtual environment on, a hundred or so megabytes in all").format(
+                version=FTetWild.PYTHON_VERSION)
+        return _(
+            "fTetWild is not installed. It comes as the Python package {requirement}, under the "
+            "Mozilla Public License 2.0, and this Slicer cannot host it: it is an Intel build "
+            "running on an Apple silicon processor, and the package is only made for the "
+            "processor itself. A Python environment of its own can be made for it now, under "
+            "{directory}: {how}. This needs an internet connection and a few minutes; it is "
+            "only done once."
+        ).format(requirement=FTETWILD_REQUIREMENT, directory=self.fTetWildEnvironmentDirectory(),
+                 how=how)
+
+    def installFTetWild(self):
+        """Install fTetWild where this installation runs it. Reaches out to the network.
+
+        Where that is a Python environment of its own, it is made the way SDFStent makes one:
+        a venv on the machine's own arm64 Python, run as arm64. uv is the fallback for a Mac
+        whose Pythons are all too old for pytetwild. Whatever was there before is removed
+        first - this is only reached when fTetWild could not be run, so what was there was
+        not working, which is what SDFStent does with a venv that will not start as arm64.
+        """
+        if self.fTetWildPython is None:
+            slicer.util.pip_install(FTETWILD_REQUIREMENT)
+        elif os.environ.get(FTetWild.PYTHON_ENVIRONMENT_VARIABLE):
+            raise RuntimeError(self.describeFTetWildInstallation())
+        else:
+            directory = self.fTetWildEnvironmentDirectory()
+            if os.path.isdir(directory):
+                logging.info("Removing the Python environment at %s, which could not run "
+                             "fTetWild, to make it afresh", directory)
+                shutil.rmtree(directory, ignore_errors=True)
+            os.makedirs(directory, exist_ok=True)
+            systemPython = FTetWild.findSystemPython()
+            if systemPython:
+                logging.info("Making a Python environment for fTetWild under %s on %s",
+                             directory, systemPython)
+                commands = FTetWild.venvCommands(directory, systemPython)
+            else:
+                logging.info("No Python on this machine can host fTetWild; making a Python "
+                             "environment for it under %s with uv", directory)
+                try:
+                    import uv
+                except ImportError:
+                    slicer.util.pip_install("uv")
+                    import uv
+                commands = FTetWild.uvCommands(directory, uv.find_uv_bin())
+            for command, environment in commands:
+                self.say(_("Running: {command}").format(command=" ".join(command)))
+                process = slicer.util.launchConsoleProcess(command, updateEnvironment=environment)
+                slicer.util.logProcessOutput(
+                    process, logCallback=lambda line: self.logCallback and self.logCallback(line))
+        if not self.isFTetWildAvailable():
+            raise RuntimeError(_("fTetWild was installed, but still cannot be run."))
+
+    #
+    # Running the pipeline in a process of its own.
+    #
+
+    @property
+    def isRunning(self):
+        """Whether a meshing process is going right now."""
+        return self._worker is not None and self._worker.poll() is None
+
     def process(self, parameters: CfdMeshGeneratorParameterNode) -> None:
-        """Mesh the input surface of the given parameter node into its output nodes."""
+        """Mesh the input surface of the given parameter node into its output nodes.
+
+        In a process of its own (see generateMeshInSeparateProcess), which is what makes it
+        possible to stop: cancel() kills the process, and this then raises
+        MeshingCancelledError. The event loop is kept turning meanwhile, so the button that
+        started the run can be pressed to stop it.
+        """
         if not parameters.inputSurface:
             raise ValueError(_("No input surface"))
         if not parameters.inputSurface.GetPolyData():
@@ -758,11 +819,54 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
                                "is already meshed; this module takes the surface that bounds one."))
         if not parameters.outputMesh:
             raise ValueError(_("No output mesh node"))
+        if self.isRunning:
+            raise RuntimeError(_("A mesh is already being generated."))
 
         startTime = time.time()
 
-        mesh, remeshedSurface = self.generateMesh(
-            parameters.inputSurface.GetPolyData(),
+        arguments = self.meshingArguments(parameters)
+        cellEntityIdsArrayName = arguments["cellEntityIdsArrayName"]
+        mesh, remeshedSurface = self.generateMeshInSeparateProcess(
+            parameters.inputSurface.GetPolyData(), **arguments)
+
+        parameters.outputMesh.SetAndObserveMesh(mesh)
+        if self.showMeshInScene(parameters.outputMesh, cellEntityIdsArrayName, showEdges=True):
+            # The mesh was made from the input surface, so it stands exactly where the surface
+            # does and is hidden behind it. Only the first time it is shown: after that the
+            # surface is visible because it was turned back on, and a run at another edge length
+            # is no reason to undo that.
+            self.hideNode(parameters.inputSurface)
+        if parameters.outputRemeshedSurface:
+            parameters.outputRemeshedSurface.SetAndObserveMesh(remeshedSurface)
+            self.showMeshInScene(parameters.outputRemeshedSurface, cellEntityIdsArrayName)
+
+        self.say(_("Meshing completed in {seconds:.1f} seconds: {cells} cells, {points} points.")
+                 .format(seconds=time.time() - startTime, cells=mesh.GetNumberOfCells(),
+                         points=mesh.GetNumberOfPoints()))
+
+        # Said out loud rather than left in the log: what comes back is a hollow shell that looks
+        # like a mesh until it is opened, and a solver would not accept it.
+        if self.lastTetrahedralizationFailed:
+            mesherName = parameters.mesher.label()
+            if parameters.boundaryLayer:
+                raise RuntimeError(_(
+                    "{mesher} could not fill the space left inside the boundary layer, so the "
+                    "output holds the layer and the surface but no tetrahedra. The layer has "
+                    "most likely folded over itself, which it does first where a cap meets the "
+                    "wall at a corner: turn \"Layer on caps\" off, make the layer thinner, or "
+                    "give it more substeps to settle over.").format(mesher=mesherName))
+            raise RuntimeError(_(
+                "{mesher} could not fill the surface with tetrahedra, so the output holds only "
+                "the surface. The surface it was given is not one it can fill: check that the "
+                "input is closed and does not cross itself.").format(mesher=mesherName))
+
+    @classmethod
+    def meshingArguments(cls, parameters: CfdMeshGeneratorParameterNode) -> dict:
+        """The arguments of generateMesh(), read off the parameter node. The face ids array is
+        the one of those offered that the input surface carries; see
+        chooseCellEntityIdsArrayName()."""
+        surface = parameters.inputSurface.GetPolyData() if parameters.inputSurface else None
+        return dict(
             targetEdgeLength=parameters.targetEdgeLength,
             targetEdgeLengthArrayName=parameters.targetEdgeLengthArrayName,
             targetEdgeLengthFactor=parameters.targetEdgeLengthFactor,
@@ -770,7 +874,9 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
             endcapsEdgeLengthFactor=parameters.endcapsEdgeLengthFactor,
             maxEdgeLength=parameters.maxEdgeLength,
             minEdgeLength=parameters.minEdgeLength,
-            cellEntityIdsArrayName=parameters.cellEntityIdsArrayName,
+            cellEntityIdsArrayName=cls.chooseCellEntityIdsArrayName(
+                surface, parameters.cellEntityIdsArrayNames),
+            capIdsArrayName=parameters.capIdsArrayName.strip(),
             boundaryLabelsArrayName=parameters.boundaryLabelsArrayName,
             boundaryPointOrderArrayName=parameters.boundaryPointOrderArrayName,
             elementSizeMode=parameters.elementSizeMode.value,
@@ -792,1451 +898,191 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
             numberOfSubsteps=parameters.numberOfSubsteps,
             relaxation=parameters.relaxation,
             localCorrectionFactor=parameters.localCorrectionFactor,
-            tetrahedralize=parameters.tetrahedralize)
+            tetrahedralize=parameters.tetrahedralize,
+            carriedCellArrays=cls.splitArrayNames(parameters.carriedCellArrays))
 
-        parameters.outputMesh.SetAndObserveMesh(mesh)
-        if self.showMeshInScene(parameters.outputMesh, parameters.cellEntityIdsArrayName,
-                                showEdges=True):
-            # The mesh was made from the input surface, so it stands exactly where the surface
-            # does and is hidden behind it. Only the first time it is shown: after that the
-            # surface is visible because it was turned back on, and a run at another edge length
-            # is no reason to undo that.
-            self.hideNode(parameters.inputSurface)
-        if parameters.outputRemeshedSurface:
-            parameters.outputRemeshedSurface.SetAndObserveMesh(remeshedSurface)
-            self.showMeshInScene(parameters.outputRemeshedSurface, parameters.cellEntityIdsArrayName)
+    def generateMeshInSeparateProcess(self, surface, **arguments):
+        """generateMesh(), run by MeshingWorker in a PythonSlicer of its own.
 
-        logging.info("Meshing completed in %.2f seconds: %d cells, %d points",
-                     time.time() - startTime, mesh.GetNumberOfCells(), mesh.GetNumberOfPoints())
+        The surface goes to the worker as a file and the mesh comes back as one, through a
+        directory made for the run and removed after it. What the worker prints meanwhile is
+        relayed to the log as it arrives, and the steps it announces to the status bar.
 
-        # Said out loud rather than left in the log: what comes back is a hollow shell that looks
-        # like a mesh until it is opened, and a solver would not accept it.
-        if self.lastTetrahedralizationFailed:
-            mesherName = parameters.mesher.label()
-            if parameters.boundaryLayer:
-                raise RuntimeError(_(
-                    "{mesher} could not fill the space left inside the boundary layer, so the "
-                    "output holds the layer and the surface but no tetrahedra. The layer has "
-                    "most likely folded over itself, which it does first where a cap meets the "
-                    "wall at a corner: turn \"Layer on caps\" off, make the layer thinner, or "
-                    "give it more substeps to settle over.").format(mesher=mesherName))
-            raise RuntimeError(_(
-                "{mesher} could not fill the surface with tetrahedra, so the output holds only "
-                "the surface. The surface it was given is not one it can fill: check that the "
-                "input is closed and does not cross itself.").format(mesher=mesherName))
-
-    def generateMesh(self, surface, *,
-                     targetEdgeLength=1.0,
-                     targetEdgeLengthArrayName="",
-                     targetEdgeLengthFactor=1.0,
-                     triangleSplitFactor=5.0,
-                     endcapsEdgeLengthFactor=1.0,
-                     maxEdgeLength=0.0,
-                     minEdgeLength=0.0,
-                     cellEntityIdsArrayName="CellEntityIds",
-                     boundaryLabelsArrayName=None,
-                     boundaryPointOrderArrayName=None,
-                     elementSizeMode="edgelength",
-                     cappingMethod="simple",
-                     skipCapping=False,
-                     skipRemeshing=False,
-                     remeshCapsOnly=False,
-                     mesher=Mesher.TETGEN.value,
-                     volumeElementScaleFactor=0.8,
-                     surfaceTolerance=0.0,
-                     stopEnergy=10.0,
-                     maxOptimizationPasses=80,
-                     coarsen=False,
-                     boundaryLayer=False,
-                     boundaryLayerOnCaps=False,
-                     numberOfSubLayers=2,
-                     subLayerRatio=0.5,
-                     boundaryLayerThicknessFactor=0.25,
-                     numberOfSubsteps=2000,
-                     relaxation=0.01,
-                     localCorrectionFactor=0.45,
-                     tetrahedralize=False):
-        """Fill the surface with tetrahedra, the way VMTK's vmtkmeshgenerator does.
-
-        The surface is capped, remeshed into near equilateral triangles, optionally lined on the
-        inside with a prismatic boundary layer, and whatever space is left over is filled by the
-        mesher asked for. Every cell of the result carries an entity id in cellEntityIdsArrayName:
-        wallCellEntityId for the wall, one id per cap above it, and 0 for the volume elements.
-
-        :param surface: the surface to mesh, as vtkPolyData. It is not modified.
-        :param targetEdgeLength: edge length the surface triangles aim for, in mm.
-        :param targetEdgeLengthArrayName: point data array holding a target edge length per point,
-          read when elementSizeMode is "edgelengtharray". It also gives the boundary layer its
-          thickness, which is then a fraction of the local edge length rather than a constant.
-        :param targetEdgeLengthFactor: what the values of that array are multiplied by.
-        :param triangleSplitFactor: how much larger than the target a triangle has to be before
-          the remesher splits it about its centre rather than subdividing an edge.
-        :param endcapsEdgeLengthFactor: multiplies the target edge length for the caps, which are
-          remeshed on their own only when a boundary layer stops short of them.
-        :param maxEdgeLength: upper limit on the edge length, 0 for none. It also limits the
-          thickness of the boundary layer.
-        :param minEdgeLength: lower limit on the edge length.
-        :param cellEntityIdsArrayName: name of the cell array the face ids are written into.
-        :param boundaryLabelsArrayName: point data array saying which vessel end each boundary
-          point belongs to, which is what lets a cap be given the same id every run - and the
-          same id Clip Vessel, which writes the array, gives it. None uses the logic default.
-        :param boundaryPointOrderArrayName: point data array holding each boundary point's index
-          within its own boundary, which travels with the labels. None uses the logic default.
-        :param elementSizeMode: "edgelength" for one length over the whole surface, or
-          "edgelengtharray" to read it per point from targetEdgeLengthArrayName.
-        :param cappingMethod: "simple", "annular" or "concaveannular"; see CappingMethod.
-        :param skipCapping: take the surface as already closed, and do not cap it.
-        :param skipRemeshing: fill the surface as it is, without remeshing it first.
-        :param remeshCapsOnly: remesh the caps and leave the wall as it is.
-        :param mesher: which mesher fills the surface, "tetgen" or "ftetwild"; see Mesher.
-        :param volumeElementScaleFactor: size of the tetrahedra relative to the target edge
-          length of the surface.
-        :param surfaceTolerance: how far the boundary of the mesh may sit from the surface it
-          was made for, in mm, 0 for the mesher's own default. fTetWild only: TetGen keeps the
-          surface it is given exactly.
-        :param stopEnergy: how good the worst element has to be before fTetWild stops improving
-          the mesh. 3 is a regular tetrahedron and there is no upper bound.
-        :param maxOptimizationPasses: how many passes fTetWild may spend improving the mesh.
-        :param coarsen: make the mesh as coarse as the tolerance allows rather than as fine as
-          asked for (fTetWild only).
-        :param boundaryLayer: line the wall on the inside with layers of prisms, which is what
-          resolves the velocity gradient at the wall.
-        :param boundaryLayerOnCaps: grow the boundary layer over the caps as well as the wall.
-          Off keeps each cap one flat face with the flow meeting it directly, which is what an
-          inlet or outlet condition wants; the caps are then made after the layer, on the inner
-          surface. A surface that arrived already capped has its caps taken off first and their
-          ids put back on the ones made in their place, so that the setting means the same thing
-          whether the ends were closed before the surface got here or not.
-        :param numberOfSubLayers: number of prism layers.
-        :param subLayerRatio: thickness of each layer over the thickness of the next one out.
-        :param boundaryLayerThicknessFactor: total thickness of the boundary layer, as a fraction
-          of the target edge length.
-        :param numberOfSubsteps: steps the inner surface is marched inwards in. More of them let
-          it get around a tight corner without folding over itself. Raised to MINIMUM_SUBSTEPS
-          when it is asked for below that.
-        :param relaxation: how far the inner surface moves per substep.
-        :param localCorrectionFactor: how strongly a warp vector is pulled back towards its
-          neighbours where the layer starts to tangle.
-        :param tetrahedralize: split every prism of the boundary layer into tetrahedra, for a
-          solver that takes nothing else.
-        :return: (mesh, remeshedSurface), a vtkUnstructuredGrid and the vtkPolyData it was built
-          on. The surface is the capped input when remeshing was skipped.
+        :raises MeshingCancelledError: if cancel() was called before the worker finished.
+        :raises RuntimeError: if the worker died without a result - which is what a mesher that
+          crashed leaves behind - or if the pipeline raised; a ValueError it raised is raised
+          again as one.
         """
-        import vtkvmtkMiscPython as vtkvmtkMisc
-
-        if surface is None or surface.GetNumberOfCells() == 0:
-            raise ValueError(_("The input surface is empty"))
-
-        # Asked and answered before anything is meshed, so that a mesher that cannot run says so
-        # now rather than after the minutes the surface takes to prepare.
+        directory = slicer.util.tempDirectory("CfdMeshGenerator")
         try:
-            mesher = Mesher(mesher).value
-        except ValueError:
-            raise ValueError(_("There is no mesher called \"{mesher}\". The ones there are: "
-                               "{available}.").format(
-                mesher=mesher,
-                available=", ".join(choice.value for choice in Mesher))) from None
-        if mesher == Mesher.TETGEN.value and not self.isTetGenAvailable():
-            raise RuntimeError(_("This installation was built without TetGen, which its licence "
-                                 "makes a decision rather than a default. Choose fTetWild."))
-        if mesher == Mesher.FTETWILD.value:
-            self.importPyTetWild()
-
-        boundaryLabelsArrayName = boundaryLabelsArrayName or self.boundaryLabelsArrayName
-        boundaryPointOrderArrayName = (boundaryPointOrderArrayName
-                                       or self.boundaryPointOrderArrayName)
-
-        self.lastTetrahedralizationFailed = False
-        # A run that was interrupted by an earlier exception can leave a step open; start clean.
-        self._stepName = None
-        self._stepStartTime = None
-
-        cellData = surface.GetCellData()
-        if cellData.GetArray(cellEntityIdsArrayName) is None and cellData.GetNumberOfArrays() > 0:
-            # Worth saying out loud: the ids are what hold one face against another while the
-            # surface is remeshed, so a surface whose labels are not read comes back not merely
-            # unlabelled but with the boundaries between its faces smoothed away.
-            logging.warning(
-                "The input surface carries no %s array, so its faces are numbered afresh and no "
-                "boundary it already had is held while it is remeshed. It does carry: %s.",
-                cellEntityIdsArrayName,
-                ", ".join(cellData.GetArrayName(index) or "(unnamed)"
-                          for index in range(cellData.GetNumberOfArrays())))
-
-        maxEdgeLength = self.meshLengthLimit(maxEdgeLength)
-        # Not a preference but a floor: fewer than this and the sweep reads memory it never wrote.
-        numberOfSubsteps = max(numberOfSubsteps, MINIMUM_SUBSTEPS)
-
-        # A boundary layer that is not to be grown over the caps needs the surface still open while
-        # the layer is swept; it gets its caps afterwards, on the inner surface. Only then, though:
-        # with no layer to keep off them, leaving the surface open would just hand TetGen a
-        # surface with holes in it.
-        layerOffTheCaps = boundaryLayer and not boundaryLayerOnCaps
-        capsTakenOff = {}
-        if skipCapping or layerOffTheCaps:
-            self.log(_("Not capping surface"))
-            cappedSurface = self.withCellEntityIds(surface, cellEntityIdsArrayName)
-            if layerOffTheCaps:
-                # A surface that arrived capped - one from Clip Vessel has been closed already -
-                # is opened again here. Not capping it is not enough to keep the layer off its
-                # caps when the caps are already part of it: the sweep would run straight over
-                # them, whatever the setting says.
-                cappedSurface, capsTakenOff = self.openCappedEnds(
-                    cappedSurface, cellEntityIdsArrayName,
-                    boundaryLabelsArrayName=boundaryLabelsArrayName)
-        else:
-            self.log(_("Capping surface"))
-            cappedSurface = self.capSurface(
-                surface, cellEntityIdsArrayName, cappingMethod,
-                boundaryLabelsArrayName=boundaryLabelsArrayName,
-                boundaryPointOrderArrayName=boundaryPointOrderArrayName)
-
-        if skipRemeshing:
-            # Triangles all the same: a cap is one polygon as the capper leaves it, the sizing
-            # function has nothing to say about a cell that is not a triangle, and TetGen is left
-            # with a face it was given no sizes for. Remeshing would have triangulated the surface
-            # on its way past; with it skipped, this is where that happens.
-            remeshedSurface = self.triangulate(self.cleanSurface(cappedSurface))
-        else:
-            self.log(_("Remeshing surface"))
-            remeshedSurface = self.remeshSurface(
-                cappedSurface, cellEntityIdsArrayName, elementSizeMode=elementSizeMode,
-                targetEdgeLength=targetEdgeLength,
-                targetEdgeLengthArrayName=targetEdgeLengthArrayName,
-                targetEdgeLengthFactor=targetEdgeLengthFactor,
-                triangleSplitFactor=triangleSplitFactor,
-                maxEdgeLength=maxEdgeLength, minEdgeLength=minEdgeLength,
-                excludedEntityIds=[self.wallCellEntityId] if remeshCapsOnly else [])
-
-        # A size per point, where the surface was meshed to one and the mesher can read one. The
-        # remesher was given the same array to size its triangles by, so the volume elements come
-        # out graded the way the surface is. TetGen is not offered it: the switch that reads a
-        # size per point answers differently each run (see runTetGen), so it is sized by one
-        # number throughout, as it was before either mesher was a choice.
-        sizingField = None
-        if (mesher == Mesher.FTETWILD.value
-                and elementSizeMode == ElementSizeMode.EDGE_LENGTH_ARRAY.value):
-            self.log(_("Building sizing field"))
-            sizingField = self.edgeLengthSizingField(
-                remeshedSurface if remeshedSurface.GetPointData().GetArray(
-                    targetEdgeLengthArrayName) else cappedSurface,
-                targetEdgeLengthArrayName,
-                factor=targetEdgeLengthFactor * volumeElementScaleFactor,
-                minEdgeLength=minEdgeLength, maxEdgeLength=maxEdgeLength)
-            if sizingField is None:
-                logging.warning(
-                    "The surface carries no %s array to size the volume elements by, so they are "
-                    "all sized alike.", targetEdgeLengthArrayName)
-
-        # The size the volume elements aim for, from the size the surface was meshed at. Where
-        # each mesher takes it as one number for the whole volume and where it takes a number per
-        # point is a difference between them; see fillVolume.
-        volumeMeshing = VolumeMeshing(
-            mesher=mesher,
-            edgeLength=targetEdgeLength * volumeElementScaleFactor,
-            sizingField=sizingField,
-            surfaceTolerance=surfaceTolerance,
-            stopEnergy=stopEnergy,
-            maxOptimizationPasses=maxOptimizationPasses,
-            coarsen=coarsen)
-
-        if not boundaryLayer:
-            mesh = self.fillWithTetrahedra(remeshedSurface, cellEntityIdsArrayName,
-                                           volumeMeshing, outputSurfaceElements=True)
-        else:
-            mesh = self.meshWithBoundaryLayer(
-                remeshedSurface, cappedSurface, cellEntityIdsArrayName,
-                elementSizeMode=elementSizeMode,
-                targetEdgeLength=targetEdgeLength,
-                targetEdgeLengthArrayName=targetEdgeLengthArrayName,
-                targetEdgeLengthFactor=targetEdgeLengthFactor,
-                triangleSplitFactor=triangleSplitFactor,
-                endcapsEdgeLengthFactor=endcapsEdgeLengthFactor,
-                maxEdgeLength=maxEdgeLength, minEdgeLength=minEdgeLength,
-                cappingMethod=cappingMethod,
-                volumeMeshing=volumeMeshing,
-                boundaryLayerOnCaps=boundaryLayerOnCaps,
-                numberOfSubLayers=numberOfSubLayers,
-                subLayerRatio=subLayerRatio,
-                boundaryLayerThicknessFactor=boundaryLayerThicknessFactor,
-                numberOfSubsteps=numberOfSubsteps,
-                relaxation=relaxation,
-                localCorrectionFactor=localCorrectionFactor,
-                capsTakenOff=capsTakenOff,
-                boundaryLabelsArrayName=boundaryLabelsArrayName,
-                boundaryPointOrderArrayName=boundaryPointOrderArrayName)
-
-        if tetrahedralize:
-            self.log(_("Tetrahedralizing"))
-            tetrahedralizeFilter = vtkvmtkMisc.vtkvmtkUnstructuredGridTetraFilter()
-            tetrahedralizeFilter.SetInputData(mesh)
-            tetrahedralizeFilter.Update()
-            mesh = tetrahedralizeFilter.GetOutput()
-
-        self._finishStepLog()
-        return mesh, remeshedSurface
-
-    #
-    # The steps of the pipeline, one per vmtk script that vmtkmeshgenerator drives.
-    #
-
-    def capSurface(self, surface, cellEntityIdsArrayName, cappingMethod, capsTakenOff=None,
-                   boundaryLabelsArrayName=None, boundaryPointOrderArrayName=None):
-        """The surface with every open boundary closed, each cap under an id of its own, and the
-        cells that came from the input under wallCellEntityId (vmtksurfacecapper).
-
-        :param capsTakenOff: the caps this surface's ends were closed with before they were taken
-          off, as openCappedEnds() records them, so that the caps made now can be given their ids
-          back. See nameCapsAfterTheirVesselEnd() for how a cap is matched to the end it closes.
-        :param boundaryLabelsArrayName: point data array the boundary labels are read from; None
-          (or an empty name) uses the one the logic is configured with.
-        :param boundaryPointOrderArrayName: point data array the boundary point order is read
-          from; None (or an empty name) uses the one the logic is configured with.
-        """
-        import vtkvmtkMiscPython as vtkvmtkMisc
-
-        if cappingMethod == CappingMethod.SIMPLE.value:
-            capper = vtkvmtkMisc.vtkvmtkSimpleCapPolyData()
-        elif cappingMethod == CappingMethod.ANNULAR.value:
-            capper = vtkvmtkMisc.vtkvmtkAnnularCapPolyData()
-        elif cappingMethod == CappingMethod.CONCAVE_ANNULAR.value:
-            try:
-                import vtkvmtkContribPython as vtkvmtkContrib
-            except ImportError:
-                raise RuntimeError(_("The concave annular capping method is not available in this "
-                                     "build of the VMTK library. Choose another capping method."))
-            capper = vtkvmtkContrib.vtkvmtkConcaveAnnularCapPolyData()
-        else:
-            raise ValueError(_("Unknown capping method: {method}").format(method=cappingMethod))
-
-        capper.SetInputData(surface)
-        capper.SetCellEntityIdsArrayName(cellEntityIdsArrayName)
-        capper.SetCellEntityIdOffset(self.wallCellEntityId)
-        self.nameCapsAfterTheirVesselEnd(
-            capper, surface, capsTakenOff,
-            boundaryLabelsArrayName=boundaryLabelsArrayName,
-            boundaryPointOrderArrayName=boundaryPointOrderArrayName)
-        capper.Update()
-        return capper.GetOutput()
-
-    def nameCapsAfterTheirVesselEnd(self, capper, surface, capsTakenOff=None,
-                                    boundaryLabelsArrayName=None,
-                                    boundaryPointOrderArrayName=None):
-        """Tell the capper what id to give the cap of each boundary it is about to close.
-
-        Left to itself the capper numbers the caps in the order the boundaries came out of the
-        extractor, which is an order nothing else knows. Where the surface still says which vessel
-        end each boundary is - Clip Vessel writes that into it, and the filters here carry it
-        across - the cap of an end can be named after the end instead: the same id every run, and
-        the id Clip Vessel gives it. Where the surface arrived capped and those caps were taken
-        off to keep the boundary layer away from them, the id to give back is the one the cap that
-        closed that end was carrying.
-
-        The ids the capper is given are indexed by boundary id, and what a boundary id means is
-        what the labels are worth: the label itself where they still describe the surface, and the
-        position in the extraction order where they do not. Which of the two it will be is asked
-        here rather than assumed, because being wrong about it means naming an inlet after an
-        outlet.
-
-        With the labels in use and no cap to give an id back to, there is nothing to say: a label
-        is already the cell entity id of the cap that closes its boundary - the labeler numbers
-        the boundaries of a surface above the wall, where this module numbers its caps - so the
-        capper left to itself gives every cap the id this would have chosen for it anyway.
-        """
-        import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
-
-        # The annular cappers close the ring between two boundaries rather than one boundary each,
-        # and take no labels; which end is which is not a question they answer.
-        if not hasattr(capper, "SetBoundaryCellEntityIds"):
-            return
-
-        boundaryLabelsArrayName = boundaryLabelsArrayName or self.boundaryLabelsArrayName
-        boundaryPointOrderArrayName = (boundaryPointOrderArrayName
-                                       or self.boundaryPointOrderArrayName)
-
-        boundaries = vtk.vtkPolyData()
-        boundaryLabels = vtk.vtkIdList()
-        useLabels = vtkvmtkComputationalGeometry.vtkvmtkBoundaryLabels.GetOrExtractBoundaries(
-            surface, boundaryLabelsArrayName, boundaryPointOrderArrayName,
-            boundaries, boundaryLabels)
-        if useLabels:
-            capper.SetBoundaryLabelsArrayName(boundaryLabelsArrayName)
-            capper.SetBoundaryPointOrderArrayName(boundaryPointOrderArrayName)
-
-        capsTakenOff = capsTakenOff or {}
-        capIdsByLabel = {cap["label"]: capId for capId, cap in capsTakenOff.items()
-                         if cap["label"] is not None}
-        chosenIds = {}
-        for index in range(boundaries.GetNumberOfCells()):
-            boundaryId = int(boundaryLabels.GetId(index)) if useLabels else index
-            if useLabels and boundaryId in capIdsByLabel:
-                chosenIds[boundaryId] = capIdsByLabel[boundaryId]
-            elif capsTakenOff:
-                # Nothing says which end this is, so the cap that stood here says it: the new one
-                # is built on the surface the old one's rim was swept to, a layer's thickness away
-                # at most, and the vessel ends are further apart than that.
-                centre = self.boundaryCentre(boundaries, index)
-                chosenIds[boundaryId] = min(
-                    capsTakenOff,
-                    key=lambda capId: vtk.vtkMath.Distance2BetweenPoints(
-                        centre, capsTakenOff[capId]["centre"]))
-
-        if not chosenIds:
-            return
-        if len(set(chosenIds.values())) != len(chosenIds):
-            logging.warning("Two of the caps that were taken off this surface would be put back "
-                            "under the same id, so every cap is left to the id its boundary "
-                            "carries instead.")
-            return
-
-        # Indexed by boundary id, with -1 for any the capper is left to number itself.
-        boundaryCellEntityIds = vtk.vtkIdTypeArray()
-        for boundaryId in range(max(chosenIds) + 1):
-            boundaryCellEntityIds.InsertNextValue(chosenIds.get(boundaryId, -1))
-        capper.SetBoundaryCellEntityIds(boundaryCellEntityIds)
-
-    @staticmethod
-    def boundaryCentre(boundaries, index):
-        """The middle of one of the boundaries the extractor found."""
-        points = boundaries.GetCell(index).GetPoints()
-        total = [0.0, 0.0, 0.0]
-        for pointIndex in range(points.GetNumberOfPoints()):
-            point = points.GetPoint(pointIndex)
-            for axis in range(3):
-                total[axis] += point[axis]
-        return tuple(value / max(1, points.GetNumberOfPoints()) for value in total)
-
-    @staticmethod
-    def withCellEntityIds(surface, cellEntityIdsArrayName):
-        """The surface, given an all-zero entity id array if it does not already carry one.
-
-        A copy, because the pipeline goes on to hand this to filters that read the array, and the
-        caller's surface is not ours to add arrays to.
-        """
-        copied = vtk.vtkPolyData()
-        copied.DeepCopy(surface)
-        if copied.GetCellData().GetArray(cellEntityIdsArrayName) is None:
-            cellEntityIdsArray = vtk.vtkIntArray()
-            cellEntityIdsArray.SetName(cellEntityIdsArrayName)
-            cellEntityIdsArray.SetNumberOfTuples(copied.GetNumberOfCells())
-            cellEntityIdsArray.FillComponent(0, 0.0)
-            copied.GetCellData().AddArray(cellEntityIdsArray)
-        return copied
-
-    def openCappedEnds(self, surface, cellEntityIdsArrayName, boundaryLabelsArrayName=None):
-        """The surface with the caps it arrived with taken off, and where each of them was.
-
-        A cap is a face numbered above the wall, which is how this module numbers the caps it
-        makes and how Clip Vessel numbers the ones it makes. A surface that carries none - one
-        whose ends are still open, which is what vmtkmeshgenerator expects to be given - comes
-        back untouched.
-
-        :return: (surface, capsTakenOff), the surface with its cap faces removed and, for each cap
-          taken off, what is needed to give the cap made in its place the same id: the vessel end
-          it closed where the surface says which that is, and the middle of it either way.
-        """
-        entityIdsArray = surface.GetCellData().GetArray(cellEntityIdsArrayName)
-        if entityIdsArray is None:
-            return surface, {}
-        boundaryLabels = surface.GetPointData().GetArray(
-            boundaryLabelsArrayName or self.boundaryLabelsArrayName)
-
-        pointSums = {}
-        pointCounts = {}
-        labelCounts = {}
-        for cellId in range(surface.GetNumberOfCells()):
-            entityId = int(entityIdsArray.GetTuple1(cellId))
-            if entityId <= self.wallCellEntityId:
-                continue
-            cell = surface.GetCell(cellId)
-            for index in range(cell.GetNumberOfPoints()):
-                pointId = cell.GetPointId(index)
-                point = surface.GetPoint(pointId)
-                total = pointSums.setdefault(entityId, [0.0, 0.0, 0.0])
-                for axis in range(3):
-                    total[axis] += point[axis]
-                pointCounts[entityId] = pointCounts.get(entityId, 0) + 1
-                if boundaryLabels is not None:
-                    # A cap's own points carry no label; the ones it shares with the rim of the
-                    # vessel end it closes carry that end's.
-                    label = int(boundaryLabels.GetTuple1(pointId))
-                    if label >= 0:
-                        counts = labelCounts.setdefault(entityId, {})
-                        counts[label] = counts.get(label, 0) + 1
-
-        capsTakenOff = {}
-        for entityId, total in pointSums.items():
-            counts = labelCounts.get(entityId, {})
-            capsTakenOff[entityId] = {
-                "centre": tuple(value / pointCounts[entityId] for value in total),
-                "label": max(counts, key=counts.get) if counts else None,
-            }
-
-        if not capsTakenOff:
-            return surface, {}
-
-        self.log(_("Opening the capped ends"))
-        threshold = vtk.vtkThreshold()
-        threshold.SetInputData(surface)
-        threshold.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_CELLS,
-                                         cellEntityIdsArrayName)
-        threshold.SetThresholdFunction(vtk.vtkThreshold.THRESHOLD_LOWER)
-        threshold.SetLowerThreshold(self.wallCellEntityId + 0.5)
-        threshold.Update()
-        geometryFilter = vtk.vtkGeometryFilter()
-        geometryFilter.SetInputData(threshold.GetOutput())
-        geometryFilter.Update()
-        opened = self.cleanSurface(geometryFilter.GetOutput())
-
-        # Numbering the wall 1 and the caps above it is this module's convention and Clip Vessel's,
-        # but the ids on a surface from somewhere else mean whatever that somewhere else meant by
-        # them, and cutting the wrong faces out of a vessel wall is not a small mistake. What the
-        # faces were taken to be is therefore checked against what taking them off did: lifting a
-        # cap off leaves exactly one hole where it was.
-        holes = self.numberOfOpenBoundaries(opened)
-        if holes != len(capsTakenOff):
-            logging.warning(
-                "The faces numbered above %d are not the caps of this surface - taking them off "
-                "left %d hole(s) where %d were expected - so it is meshed as it arrived, with the "
-                "boundary layer grown over them.",
-                self.wallCellEntityId, holes, len(capsTakenOff))
-            return surface, {}
-
-        logging.info("Took %d cap(s) off the input surface, so that the boundary layer is not "
-                     "grown over them.", len(capsTakenOff))
-        return opened, capsTakenOff
-
-    @staticmethod
-    def numberOfOpenBoundaries(surface):
-        """How many separate holes the surface has."""
-        featureEdges = vtk.vtkFeatureEdges()
-        featureEdges.SetInputData(surface)
-        featureEdges.BoundaryEdgesOn()
-        featureEdges.FeatureEdgesOff()
-        featureEdges.NonManifoldEdgesOff()
-        featureEdges.ManifoldEdgesOff()
-        featureEdges.Update()
-        if featureEdges.GetOutput().GetNumberOfCells() == 0:
-            return 0
-        connectivity = vtk.vtkPolyDataConnectivityFilter()
-        connectivity.SetInputData(featureEdges.GetOutput())
-        connectivity.SetExtractionModeToAllRegions()
-        connectivity.Update()
-        return connectivity.GetNumberOfExtractedRegions()
-
-    def remeshSurface(self, surface, cellEntityIdsArrayName, *, elementSizeMode, targetEdgeLength,
-                      targetEdgeLengthArrayName, targetEdgeLengthFactor, triangleSplitFactor,
-                      maxEdgeLength, minEdgeLength, excludedEntityIds):
-        """The surface retriangulated into near equilateral cells of the wanted size
-        (vmtksurfaceremeshing).
-
-        Cells of an excluded entity are left exactly as they are, and so are the points they use,
-        so that remeshing the caps alone leaves the wall - and the rim they share - untouched.
-        """
-        import vtkvmtkDifferentialGeometryPython as vtkvmtkDifferentialGeometry
-
-        triangleFilter = vtk.vtkTriangleFilter()
-        triangleFilter.SetInputData(self.cleanSurface(surface))
-        triangleFilter.Update()
-        surface = triangleFilter.GetOutput()
-
-        # The remesher sizes cells by area throughout; an edge length is the area of the
-        # equilateral triangle of that side.
-        targetAreaArrayName = "TargetArea"
-        fromArray = elementSizeMode == ElementSizeMode.EDGE_LENGTH_ARRAY.value
-        if fromArray:
-            if not targetEdgeLengthArrayName:
-                raise ValueError(_("No target edge length array name was given"))
-            if surface.GetPointData().GetArray(targetEdgeLengthArrayName) is None:
-                raise ValueError(_("The input surface carries no point data array named "
-                                   "{name}").format(name=targetEdgeLengthArrayName))
-            calculator = vtk.vtkArrayCalculator()
-            calculator.SetInputData(surface)
-            calculator.AddScalarArrayName(targetEdgeLengthArrayName, 0)
-            calculator.SetFunction("%f^2 * 0.25 * sqrt(3) * %s^2"
-                                   % (targetEdgeLengthFactor, targetEdgeLengthArrayName))
-            calculator.SetResultArrayName(targetAreaArrayName)
-            calculator.Update()
-            surface = calculator.GetOutput()
-
-        excludedIds = vtk.vtkIdList()
-        for excludedId in excludedEntityIds:
-            excludedIds.InsertNextId(int(excludedId))
-
-        remeshing = vtkvmtkDifferentialGeometry.vtkvmtkPolyDataSurfaceRemeshing()
-        remeshing.SetInputData(surface)
-        if cellEntityIdsArrayName:
-            remeshing.SetCellEntityIdsArrayName(cellEntityIdsArrayName)
-        if fromArray:
-            remeshing.SetElementSizeModeToTargetAreaArray()
-            remeshing.SetTargetAreaArrayName(targetAreaArrayName)
-        else:
-            remeshing.SetElementSizeModeToTargetArea()
-        remeshing.SetTargetArea(self.equilateralTriangleArea(targetEdgeLength))
-        remeshing.SetTriangleSplitFactor(triangleSplitFactor)
-        # vmtksurfaceremeshing asks for a smaller collapse angle threshold than the filter itself
-        # defaults to, and vmtkmeshgenerator does not offer it. It is worth setting rather than
-        # inheriting: with the filter's own value the remesher collapses edges it should leave
-        # alone, and hands back a surface with edges shared by three cells, which is not something
-        # TetGen can fill - it walks off the end of such a mesh and takes the process with it.
-        remeshing.SetCollapseAngleThreshold(self.collapseAngleThreshold)
-        remeshing.SetMaxArea(self.equilateralTriangleArea(maxEdgeLength))
-        remeshing.SetMinArea(self.equilateralTriangleArea(minEdgeLength))
-        remeshing.SetExcludedEntityIds(excludedIds)
-        remeshing.Update()
-        return remeshing.GetOutput()
-
-    def growLayerOutwards(self, innerBoundary, cellEntityIdsArrayName, *, boundaryLayerOnCaps,
-                          referenceSurface, elementSizeMode, targetEdgeLength,
-                          targetEdgeLengthArrayName, targetEdgeLengthFactor, maxEdgeLength,
-                          numberOfSubLayers, subLayerRatio, boundaryLayerThicknessFactor,
-                          numberOfSubsteps, relaxation, localCorrectionFactor):
-        """A boundary layer grown outwards from the boundary of a volume already meshed.
-
-        The other way round from the sweep that precedes it, and for a mesher that will not be
-        told where to put its boundary: fTetWild answers with a triangulation of its own, so a
-        layer swept inwards before it would not meet what it returns. The layer is grown from
-        what it returns instead, outwards, and the wall of the vessel ends up where the outside
-        of the layer lands rather than exactly where the surface was - within the thickness of
-        the layer of it, which is the same order as the surface tolerance already allows.
-
-        :return: (the layer cells, the surface bounding it on the outside, the cap cells set
-          aside, or None when the layer is grown over the caps as well)
-        """
-        import vtkvmtkMiscPython as vtkvmtkMisc
-
-        if boundaryLayerOnCaps:
-            sweptSurface, caps = innerBoundary, None
-        else:
-            # The caps are not swept: each of them stays one flat face for the flow to meet.
-            sweptSurface = self.meshToSurface(self.cellsWithEntityId(
-                innerBoundary, cellEntityIdsArrayName, self.wallCellEntityId, keepAbove=False))
-            caps = self.cellsWithEntityId(
-                innerBoundary, cellEntityIdsArrayName, self.wallCellEntityId, keepAbove=True)
-
-        if targetEdgeLengthArrayName:
-            # The thickness is read per point where it is not constant, and the boundary fTetWild
-            # returns carries no arrays at all, so it is fetched from the surface it stands for.
-            projection = vtkvmtkMisc.vtkvmtkSurfaceProjection()
-            projection.SetInputData(sweptSurface)
-            projection.SetReferenceSurface(referenceSurface)
-            projection.Update()
-            sweptSurface = projection.GetOutput()
-
-        # The boundary of a set of tetrahedra is already wound to face outwards, and asking which
-        # way is out of a wall with no caps on it would be asking about the wrong shape, so the
-        # normals are taken from the winding as it stands.
-        sweptSurface = self.surfaceNormals(sweptSurface, autoOrient=False)
-
-        # The prisms are built from the swept cell and its copy one layer along, in that order,
-        # and a prism is only the right way out if the normal of the first face points away from
-        # the second. Sweeping outwards puts the second face on the side the normals point to, so
-        # the cells are wound the other way before the sweep - the normals, which say where to
-        # sweep, are left alone.
-        reversed = vtk.vtkReverseSense()
-        reversed.SetInputData(sweptSurface)
-        reversed.ReverseCellsOn()
-        reversed.ReverseNormalsOff()
-        reversed.Update()
-        sweptMesh = self.surfaceToMesh(reversed.GetOutput())
-
-        self.log(_("Growing boundary layer"))
-        generator = vtkvmtkMisc.vtkvmtkBoundaryLayerGenerator()
-        generator.SetInputData(sweptMesh)
-        generator.SetWarpVectorsArrayName("Normals")
-        # The normals point out of the surface and this layer grows outwards along them.
-        generator.SetNegateWarpVectors(False)
-        generator.SetLayerThicknessArrayName(targetEdgeLengthArrayName)
-        generator.SetConstantThickness(elementSizeMode == ElementSizeMode.EDGE_LENGTH.value)
-        generator.SetIncludeSurfaceCells(0)
-        generator.SetIncludeSidewallCells(1)
-        generator.SetNumberOfSubLayers(numberOfSubLayers)
-        generator.SetNumberOfSubsteps(numberOfSubsteps)
-        generator.SetRelaxation(relaxation)
-        generator.SetLocalCorrectionFactor(localCorrectionFactor)
-        # The sublayers are counted from the surface handed over, and that surface is now the
-        # inner face of the layer rather than the wall, so the ratio between them is inverted to
-        # keep the thinnest prism against the wall, which is what it is there for.
-        generator.SetSubLayerRatio(1.0 / subLayerRatio if subLayerRatio > 0.0 else 1.0)
-        generator.SetLayerThickness(boundaryLayerThicknessFactor * targetEdgeLength)
-        generator.SetLayerThicknessRatio(boundaryLayerThicknessFactor * targetEdgeLengthFactor)
-        generator.SetMaximumLayerThickness(boundaryLayerThicknessFactor * maxEdgeLength)
-        generator.SetCellEntityIdsArrayName(cellEntityIdsArrayName)
-        generator.SetSidewallCellEntityId(self.placeholderCellEntityId)
-        generator.SetInnerSurfaceCellEntityId(self.wallCellEntityId)
-        generator.Update()
-
-        # The outermost copy of the swept surface is the wall of the vessel. It comes back under
-        # one id, and the ids it went in with - which for a layer grown over the caps say which
-        # cells are wall and which are cap - are put back on it; the generator copies the surface
-        # cell for cell, so they are the same cells in the same order.
-        outerGrid = generator.GetInnerSurface()
-        outerGrid.GetCellData().GetArray(cellEntityIdsArrayName).DeepCopy(
-            sweptMesh.GetCellData().GetArray(cellEntityIdsArrayName))
-        # Wound back the way a surface bounding a volume is wound.
-        outward = vtk.vtkReverseSense()
-        outward.SetInputData(self.meshToSurface(outerGrid))
-        outward.ReverseCellsOn()
-        outward.ReverseNormalsOff()
-        outward.Update()
-        return generator.GetOutput(), self.surfaceToMesh(outward.GetOutput()), caps
-
-    @staticmethod
-    def cellsWithEntityId(mesh, cellEntityIdsArrayName, entityId, keepAbove):
-        """The cells of the mesh whose face id is above the given one, or at most it."""
-        threshold = vtk.vtkThreshold()
-        threshold.SetInputData(mesh)
-        threshold.SetInputArrayToProcess(0, 0, 0, vtk.vtkDataObject.FIELD_ASSOCIATION_CELLS,
-                                         cellEntityIdsArrayName)
-        if keepAbove:
-            threshold.SetThresholdFunction(vtk.vtkThreshold.THRESHOLD_UPPER)
-            threshold.SetUpperThreshold(entityId + 0.5)
-        else:
-            threshold.SetThresholdFunction(vtk.vtkThreshold.THRESHOLD_LOWER)
-            threshold.SetLowerThreshold(entityId + 0.5)
-        threshold.Update()
-        return threshold.GetOutput()
-
-    def edgeLengthSizingField(self, surface, targetEdgeLengthArrayName, factor,
-                              minEdgeLength, maxEdgeLength):
-        """A background mesh carrying the target edge length at each of its points, for a mesher
-        that sizes its elements by position.
-
-        The sizes live on the surface, and the volume behind it has to be given them too, so they
-        are carried onto the points of a grid laid over the whole shape - each point taking the
-        size of the surface point nearest it. What the mesher then reads at any point of the
-        volume is those sizes interpolated over the cell of the grid it falls in.
-
-        A regular grid split into tetrahedra rather than a triangulation of the surface points
-        themselves: the surfaces here are rings of points around a tube and flat discs closing
-        it, which is the arrangement a Delaunay triangulation is least able to make sense of.
-
-        :return: (points, tetrahedra, edge lengths) as arrays, or None if the surface carries no
-          such array.
-        """
-        import math
-
-        import numpy as np
-        from vtk.util import numpy_support
-        import vtkvmtkMiscPython as vtkvmtkMisc
-
-        lengths = surface.GetPointData().GetArray(targetEdgeLengthArrayName)
-        if lengths is None:
-            return None
-        lengths = numpy_support.vtk_to_numpy(lengths).astype(np.float64).ravel() * factor
-        positive = lengths[lengths > 0.0]
-        if positive.size == 0:
-            return None
-
-        # Fine enough to hold the smallest size asked for, and coarse enough that the grid stays
-        # a lookup table rather than a mesh in its own right.
-        bounds = surface.GetBounds()
-        diagonal = surface.GetLength()
-        spacing = min(max(float(positive.min()), diagonal / 100.0), diagonal / 8.0)
-        padding = 2.0 * spacing
-
-        image = vtk.vtkImageData()
-        image.SetOrigin(bounds[0] - padding, bounds[2] - padding, bounds[4] - padding)
-        image.SetSpacing(spacing, spacing, spacing)
-        image.SetDimensions(*[
-            int(math.ceil((bounds[2 * axis + 1] - bounds[2 * axis] + 2.0 * padding) / spacing)) + 1
-            for axis in range(3)])
-
-        toTetrahedra = vtk.vtkDataSetTriangleFilter()
-        toTetrahedra.SetInputData(image)
-        toTetrahedra.TetrahedraOnlyOn()
-        toTetrahedra.Update()
-        background = toTetrahedra.GetOutput()
-
-        # The projection wants a surface to read from and points to write onto; the grid's own
-        # points, with no cells, are all it needs of the grid.
-        nodes = vtk.vtkPolyData()
-        nodes.SetPoints(background.GetPoints())
-        projection = vtkvmtkMisc.vtkvmtkSurfaceProjection()
-        projection.SetInputData(nodes)
-        projection.SetReferenceSurface(surface)
-        projection.Update()
-
-        values = numpy_support.vtk_to_numpy(
-            projection.GetOutput().GetPointData().GetArray(targetEdgeLengthArrayName))
-        values = values.astype(np.float64).ravel() * factor
-        # A size of zero or less is not a size, and the mesher refuses the whole field over one.
-        floor = max(minEdgeLength, 1e-6 * diagonal)
-        ceiling = maxEdgeLength if maxEdgeLength < UNLIMITED_EDGE_LENGTH else None
-        values = np.clip(values, floor, ceiling)
-
-        points = numpy_support.vtk_to_numpy(
-            background.GetPoints().GetData()).astype(np.float64)
-        tetrahedra = numpy_support.vtk_to_numpy(
-            background.GetCells().GetConnectivityArray()).reshape(-1, 4)
-        # The field is read by finding the tetrahedron a point falls in, which asks that they be
-        # wound the right way round.
-        corners = points[tetrahedra]
-        inverted = np.einsum(
-            "ij,ij->i",
-            np.cross(corners[:, 1] - corners[:, 0], corners[:, 2] - corners[:, 0]),
-            corners[:, 3] - corners[:, 0]) < 0.0
-        tetrahedra[inverted] = tetrahedra[inverted][:, [0, 2, 1, 3]]
-
-        return points, np.ascontiguousarray(tetrahedra, dtype=np.int32), values
-
-    def fillWithTetrahedra(self, surface, cellEntityIdsArrayName, volumeMeshing,
-                           outputSurfaceElements):
-        """The volume enclosed by the surface, filled with tetrahedra (vmtktetgen)."""
-        surfaceMesh = self.surfaceToMesh(surface)
-
-        mesh = self.fillVolume(surfaceMesh, cellEntityIdsArrayName, outputSurfaceElements,
-                               volumeMeshing)
-
-        if self.numberOfVolumeCells(mesh) == 0 and surfaceMesh.GetNumberOfCells() > 0:
-            logging.warning("An error occurred during tetrahedralization. "
-                            "Only the surface mesh is returned.")
-            self.lastTetrahedralizationFailed = True
-            return surfaceMesh
-        return mesh
-
-    def meshWithBoundaryLayer(self, remeshedSurface, referenceSurface, cellEntityIdsArrayName, *,
-                              elementSizeMode, targetEdgeLength, targetEdgeLengthArrayName,
-                              targetEdgeLengthFactor, triangleSplitFactor, endcapsEdgeLengthFactor,
-                              maxEdgeLength, minEdgeLength, cappingMethod,
-                              volumeMeshing, boundaryLayerOnCaps, numberOfSubLayers,
-                              subLayerRatio, boundaryLayerThicknessFactor, numberOfSubsteps,
-                              relaxation, localCorrectionFactor, capsTakenOff=None,
-                              boundaryLabelsArrayName=None,
-                              boundaryPointOrderArrayName=None):
-        """The surface lined on the inside with layers of prisms, and everything those leave free
-        filled with tetrahedra.
-
-        The prisms are made by sweeping the surface inwards along its own normals; what is still
-        empty inside is meshed against the innermost swept surface, and the two are put back
-        together at the end.
-        """
-        import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
-        import vtkvmtkMiscPython as vtkvmtkMisc
-
-        # The remesher keeps no point data, so the array the layer thickness is read from is
-        # carried back onto the remeshed surface from the surface it was given on.
-        projection = vtkvmtkMisc.vtkvmtkSurfaceProjection()
-        projection.SetInputData(remeshedSurface)
-        projection.SetReferenceSurface(referenceSurface)
-        projection.Update()
-
-        outerSurfaceMesh = self.surfaceToMesh(self.surfaceNormals(projection.GetOutput()))
-
-        self.log(_("Generating boundary layer"))
-        boundaryLayerGenerator = vtkvmtkMisc.vtkvmtkBoundaryLayerGenerator()
-        boundaryLayerGenerator.SetInputData(outerSurfaceMesh)
-        boundaryLayerGenerator.SetWarpVectorsArrayName("Normals")
-        # The normals point out of the surface and the layer grows into it.
-        boundaryLayerGenerator.SetNegateWarpVectors(True)
-        boundaryLayerGenerator.SetLayerThicknessArrayName(targetEdgeLengthArrayName)
-        boundaryLayerGenerator.SetConstantThickness(
-            elementSizeMode == ElementSizeMode.EDGE_LENGTH.value)
-        # The surface cells are added back below, from the surfaces they belong to. The sidewall
-        # cells are not: they are the strips the open boundaries sweep out, which stand where the
-        # caps are about to be made and belong to no other surface, so without them the labelled
-        # boundary of the mesh has a gap around every vessel end.
-        boundaryLayerGenerator.SetIncludeSurfaceCells(0)
-        boundaryLayerGenerator.SetIncludeSidewallCells(1)
-        boundaryLayerGenerator.SetNumberOfSubLayers(numberOfSubLayers)
-        boundaryLayerGenerator.SetNumberOfSubsteps(numberOfSubsteps)
-        boundaryLayerGenerator.SetRelaxation(relaxation)
-        boundaryLayerGenerator.SetLocalCorrectionFactor(localCorrectionFactor)
-        boundaryLayerGenerator.SetSubLayerRatio(subLayerRatio)
-        boundaryLayerGenerator.SetLayerThickness(boundaryLayerThicknessFactor * targetEdgeLength)
-        boundaryLayerGenerator.SetLayerThicknessRatio(
-            boundaryLayerThicknessFactor * targetEdgeLengthFactor)
-        boundaryLayerGenerator.SetMaximumLayerThickness(
-            boundaryLayerThicknessFactor * maxEdgeLength)
-        boundaryLayerGenerator.SetCellEntityIdsArrayName(cellEntityIdsArrayName)
-        # What the inner surface is called matters to the mesher that fills it: fTetWild reads the
-        # ids off the surface it is given to label the boundary it returns.
-        boundaryLayerGenerator.SetInnerSurfaceCellEntityId(self.wallCellEntityId)
-        if not boundaryLayerOnCaps:
-            # The sidewalls are the strips that the open boundaries sweep out, so each of them
-            # stands where a cap is about to be made. They are marked here and handed the id of
-            # that cap at the end. A surface swept with its caps on has no open boundary and so
-            # no sidewalls at all.
-            boundaryLayerGenerator.SetSidewallCellEntityId(self.placeholderCellEntityId)
-        boundaryLayerGenerator.Update()
-
-        innerGrid = boundaryLayerGenerator.GetInnerSurface()
-        if boundaryLayerOnCaps:
-            # The inner surface comes back under one id, being all of it wall as far as the sweep
-            # is concerned. It is a closed surface here, though - the caps were swept along with
-            # the rest - so it is handed the ids of the surface it was swept from, which say
-            # which of its cells are cap. The sweep copies the surface cell for cell, so they are
-            # the same cells in the same order. What reads them is the mesher: a boundary that
-            # comes back retriangulated is labelled from the surface it was made for.
-            innerGrid.GetCellData().GetArray(cellEntityIdsArrayName).DeepCopy(
-                outerSurfaceMesh.GetCellData().GetArray(cellEntityIdsArrayName))
-        innerSurface = self.meshToSurface(innerGrid)
-
-        # A layer swept inwards folds over itself if it is thicker than the vessel has room for,
-        # and it goes first where the surface turns a corner - the rim where a cap meets the wall.
-        # TetGen does not merely fail on what comes out of that: it walks off the end of the
-        # tangled surface and takes the application down with it, so the sweep is asked for the
-        # one thing that has to be true of it before TetGen is handed anything. A surface swept
-        # inwards covers less than it started with; one that has folded through itself can cover
-        # more. This is a net rather than a proof - a small enough fold adds little area - but it
-        # is what catches the case that is worth catching.
-        outerArea = self.surfaceArea(remeshedSurface)
-        innerArea = self.surfaceArea(innerSurface)
-        if outerArea > 0.0 and innerArea > 1.05 * outerArea:
-            raise RuntimeError(_(
-                "The boundary layer folded over itself: swept inwards, it covers more than the "
-                "surface it was grown from. Make the layer thinner, ask for fewer sublayers, or "
-                "give it more substeps to settle over; turning \"Layer on caps\" off also keeps "
-                "it away from the corner where a cap meets the wall, which is where a layer "
-                "folds first."))
-
-        if not boundaryLayerOnCaps:
-            self.log(_("Capping inner surface"))
-            # Where the surface arrived with caps of its own, the ids they carried are the ones a
-            # solver has been told to read, so the caps built in their place are given them back.
-            innerSurface = self.triangulate(
-                self.capSurface(innerSurface, cellEntityIdsArrayName, cappingMethod,
-                                capsTakenOff,
-                                boundaryLabelsArrayName=boundaryLabelsArrayName,
-                                boundaryPointOrderArrayName=boundaryPointOrderArrayName))
-
-            self.log(_("Remeshing endcaps"))
-            innerSurface = self.remeshSurface(
-                innerSurface, cellEntityIdsArrayName, elementSizeMode=elementSizeMode,
-                targetEdgeLength=targetEdgeLength * endcapsEdgeLengthFactor,
-                targetEdgeLengthArrayName=targetEdgeLengthArrayName,
-                targetEdgeLengthFactor=targetEdgeLengthFactor * endcapsEdgeLengthFactor,
-                triangleSplitFactor=triangleSplitFactor,
-                maxEdgeLength=maxEdgeLength, minEdgeLength=minEdgeLength,
-                excludedEntityIds=[self.wallCellEntityId])
-
-        innerSurfaceMesh = self.surfaceToMesh(innerSurface)
-
-        # A mesher that keeps the surface it is given needs nothing back from the space it filled
-        # but the tetrahedra: the face against the boundary layer is one the layer already
-        # carries. A mesher that answers with a boundary of its own is asked for that boundary,
-        # because the layer is then grown from it rather than the other way about.
-        keepsTheSurface = volumeMeshing.mesher == Mesher.TETGEN.value
-        filled = self.fillVolume(innerSurfaceMesh, cellEntityIdsArrayName,
-                                 outputSurfaceElements=not keepsTheSurface,
-                                 volumeMeshing=volumeMeshing)
-        if self.numberOfVolumeCells(filled) == 0 and outerSurfaceMesh.GetNumberOfCells() > 0:
-            logging.warning("An error occurred during tetrahedralization. Only the surface mesh "
-                            "and the boundary layer are returned.")
-            self.lastTetrahedralizationFailed = True
-
-        self.log(_("Assembling final mesh"))
-        appendFilter = vtkvmtkComputationalGeometry.vtkvmtkAppendFilter()
-
-        if keepsTheSurface:
-            if not boundaryLayerOnCaps:
-                # The outer surface was never capped, so every one of its cells is wall.
-                outerSurfaceMesh.GetCellData().GetArray(cellEntityIdsArrayName).FillComponent(
-                    0, self.wallCellEntityId)
-            appendFilter.AddInputData(outerSurfaceMesh)
-            appendFilter.AddInputData(boundaryLayerGenerator.GetOutput())
-            appendFilter.AddInputData(filled)
-            if not boundaryLayerOnCaps:
-                # The caps were made on the inner surface, past the boundary layer, so they are
-                # taken from there: everything the capper numbered above the wall.
-                appendFilter.AddInputData(self.cellsWithEntityId(
-                    innerSurfaceMesh, cellEntityIdsArrayName, self.wallCellEntityId,
-                    keepAbove=True))
-        else:
-            # The layer swept inwards has served its purpose: it said how much room to leave
-            # inside the surface, and the mesher has filled what was left. The layer that ends up
-            # in the mesh is grown back out of what came back, so that its inner face is made of
-            # the very cells the tetrahedra are bounded by.
-            volumeMesh, innerBoundary = self.splitByDimension(filled)
-            layerMesh, outerMesh, capsMesh = self.growLayerOutwards(
-                innerBoundary, cellEntityIdsArrayName,
-                boundaryLayerOnCaps=boundaryLayerOnCaps,
-                referenceSurface=referenceSurface,
-                elementSizeMode=elementSizeMode,
-                targetEdgeLength=targetEdgeLength,
-                targetEdgeLengthArrayName=targetEdgeLengthArrayName,
-                targetEdgeLengthFactor=targetEdgeLengthFactor,
-                maxEdgeLength=maxEdgeLength,
-                numberOfSubLayers=numberOfSubLayers,
-                subLayerRatio=subLayerRatio,
-                boundaryLayerThicknessFactor=boundaryLayerThicknessFactor,
-                numberOfSubsteps=numberOfSubsteps,
-                relaxation=relaxation,
-                localCorrectionFactor=localCorrectionFactor)
-
-            # The same question the inward sweep is asked, of the sweep that goes the other way:
-            # a layer grown outwards folds where the surface turns a concave corner.
-            grownArea = self.surfaceArea(self.meshToSurface(outerMesh))
-            if outerArea > 0.0 and grownArea > 1.5 * outerArea:
+            inputPath = os.path.join(directory, "input.vtp")
+            parametersPath = os.path.join(directory, "parameters.json")
+            meshPath = os.path.join(directory, "mesh.vtu")
+            surfacePath = os.path.join(directory, "surface.vtp")
+            resultPath = os.path.join(directory, "result.json")
+            MeshingWorker.write(inputPath, surface)
+            with open(parametersPath, "w") as parametersFile:
+                json.dump({"arguments": arguments, "fTetWildPython": self.fTetWildPython},
+                          parametersFile)
+
+            # -u: what the worker says is to arrive as it is said, not when a buffer fills.
+            command = [self.pythonSlicerExecutable(), "-u", MeshingWorker.__file__,
+                       "--input", inputPath, "--parameters", parametersPath,
+                       "--output-mesh", meshPath, "--output-surface", surfacePath,
+                       "--result", resultPath]
+            returnCode, output = self.runWorker(command)
+
+            if self._cancelled:
+                raise MeshingCancelledError(_("Meshing was cancelled."))
+            result = None
+            if os.path.isfile(resultPath):
+                with open(resultPath) as resultFile:
+                    result = json.load(resultFile)
+            if result is None:
                 raise RuntimeError(_(
-                    "The boundary layer folded over itself as it was grown outwards from the "
-                    "volume mesh. Make the layer thinner, or ask for fewer sublayers."))
-
-            appendFilter.AddInputData(outerMesh)
-            appendFilter.AddInputData(layerMesh)
-            appendFilter.AddInputData(volumeMesh)
-            if capsMesh is not None:
-                appendFilter.AddInputData(capsMesh)
-
-        appendFilter.Update()
-        mesh = appendFilter.GetOutput()
-
-        if not boundaryLayerOnCaps:
-            self.nameSidewallsAfterTheirCap(mesh, cellEntityIdsArrayName)
-        return mesh
+                    "The meshing process ended without a result (exit code {code}), which is "
+                    "what a mesher that crashed on its input leaves behind. The end of what it "
+                    "said:\n{output}").format(code=returnCode, output=output))
+            if "error" in result:
+                errorType = ValueError if result["error"]["type"] == "ValueError" else RuntimeError
+                raise errorType(result["error"]["message"])
+            self.lastTetrahedralizationFailed = bool(result.get("tetrahedralizationFailed"))
+            return self.readMesh(meshPath), self.readSurface(surfacePath)
+        finally:
+            shutil.rmtree(directory, ignore_errors=True)
 
     @staticmethod
-    def maximumElementVolume(edgeLength):
-        """The volume a tetrahedron is allowed to reach: that of the regular one whose edge is
-        the size asked for."""
-        return edgeLength ** 3 / (6.0 * 2.0 ** 0.5)
+    def pythonSlicerExecutable():
+        """The PythonSlicer this application runs its Python with, to run the worker in: the
+        same interpreter, with the same packages and the same wrapped VMTK classes."""
+        executable = sys.executable
+        if "PythonSlicer" not in os.path.basename(executable):
+            executable = shutil.which("PythonSlicer") or executable
+        return executable
 
-    @staticmethod
-    def numberOfVolumeCells(mesh):
-        """How many three dimensional cells the mesh holds. What says a fill worked: a mesh may
-        carry the boundary triangles of a volume that was never filled."""
-        return sum(1 for cellId in range(mesh.GetNumberOfCells())
-                   if mesh.GetCell(cellId).GetCellDimension() == 3)
+    def runWorker(self, command):
+        """Run the worker and relay what it says until it ends, keeping the event loop turning.
 
-    def fillVolume(self, surfaceMesh, cellEntityIdsArrayName, outputSurfaceElements,
-                   volumeMeshing):
-        """The surface mesh filled with tetrahedra by the mesher that was asked for.
-
-        Both meshers answer the same way: the tetrahedra first, under entity id 0, and then -
-        when asked for - the triangles bounding them, each under the id of the face of the input
-        it stands on. What differs is everything behind that; see runTetGen and runFTetWild.
+        :return: (exit code, the last lines it printed, as one string)
         """
-        self.log(_("Generating volume mesh ({mesher})").format(
-            mesher=Mesher(volumeMeshing.mesher).label()))
-        if volumeMeshing.mesher == Mesher.TETGEN.value:
-            return self.runTetGen(
-                surfaceMesh, cellEntityIdsArrayName, outputSurfaceElements,
-                maxElementVolume=self.maximumElementVolume(volumeMeshing.edgeLength))
-        return self.runFTetWild(surfaceMesh, cellEntityIdsArrayName, outputSurfaceElements,
-                                volumeMeshing)
+        environment = os.environ.copy()
+        # The worker imports the wrapped VMTK classes and this module's own package from wherever
+        # this process found them, which an extension built rather than installed passes to the
+        # application on its command line and not in the environment.
+        environment["PYTHONPATH"] = os.pathsep.join(
+            [path for path in sys.path if path and os.path.isdir(path)]
+            + [path for path in environment.get("PYTHONPATH", "").split(os.pathsep) if path])
+        # VTK, built to report leaks, reports them at exit in a dialog on Windows, and a dialog in
+        # a process with no window to show it in is a process that never exits. This is the
+        # switch that has it write them to stderr instead, where they are relayed like the rest.
+        environment["DASHBOARD_TEST_FROM_CTEST"] = "1"
+        popenArguments = {}
+        if os.name == "nt":
+            startupInfo = subprocess.STARTUPINFO()
+            startupInfo.dwFlags = subprocess.STARTF_USESHOWWINDOW
+            startupInfo.wShowWindow = subprocess.SW_HIDE
+            popenArguments["startupinfo"] = startupInfo
+        else:
+            # A process group of its own, so that cancel() can take the worker and any
+            # interpreter it started for fTetWild down together.
+            popenArguments["start_new_session"] = True
 
-    def runTetGen(self, surfaceMesh, cellEntityIdsArrayName, outputSurfaceElements,
-                  maxElementVolume):
-        """The surface mesh filled with tetrahedra of at most the given volume (vmtktetgen).
-        The tetrahedra come out under entity id 0.
+        self._cancelled = False
+        self._worker = subprocess.Popen(
+            command, env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            universal_newlines=True, **popenArguments)
+        lines = queue.Queue()
 
-        The size is asked for as a cap on the volume of an element rather than through the point
-        by point sizing function vmtkmeshgenerator hands over, because the switch that reads that
-        function - TetGen's -m - takes its sizes from a background mesh, and with none given
-        TetGen builds one by duplicating the mesh it is refining. What comes of that is not a
-        refusal but a coin toss: the same surface, meshed twice over in one session, comes back
-        forty thousand tetrahedra one time and empty the next. A volume cap goes through the
-        switch TetGen has had since its first release, and gives the same mesh every time - on a
-        clipped aorta, a slightly finer one than the sizing function was asking for, and better
-        shaped at its worst.
-        """
-        import vtkvmtkMiscPython as vtkvmtkMisc
+        def readOutput():
+            while True:
+                try:
+                    line = self._worker.stdout.readline()
+                except UnicodeDecodeError:
+                    continue
+                if not line:
+                    break
+                lines.put(line.rstrip("\r\n"))
+            lines.put(None)
 
-        tetgen = vtkvmtkMisc.vtkvmtkTetGenWrapper()
-        tetgen.SetInputData(surfaceMesh)
-        # Mesh the volume bounded by the given faces (a piecewise linear complex), keeping those
-        # faces as they are, and drop the worst of the flat tetrahedra that meshing leaves behind.
-        tetgen.SetPLC(1)
-        tetgen.SetQuality(1)
-        tetgen.SetNoBoundarySplit(1)
-        tetgen.SetRemoveSliver(1)
-        tetgen.SetOrder(1)
-        # The quality bounds vmtktetgen asks for, which are not the ones the wrapper defaults to:
-        # a radius-edge ratio no worse than sqrt(2), and dihedral angles inside 10 to 165 degrees.
-        tetgen.SetMinRatio(1.414)
-        tetgen.SetMinDihedral(10.0)
-        tetgen.SetMaxDihedral(165.0)
-        tetgen.SetFixedVolume(1)
-        tetgen.SetMaxVolume(maxElementVolume)
-        tetgen.SetCellEntityIdsArrayName(cellEntityIdsArrayName)
-        tetgen.SetOutputSurfaceElements(1 if outputSurfaceElements else 0)
-        tetgen.SetOutputVolumeElements(1)
-        tetgen.Update()
-        # A TetGen run that threw hands back an empty mesh rather than raising; what it makes of
-        # that is left to the caller, as it is in vmtkmeshgenerator.
-        return tetgen.GetOutput()
+        reader = threading.Thread(target=readOutput, daemon=True)
+        reader.start()
 
-    def runFTetWild(self, surfaceMesh, cellEntityIdsArrayName, outputSurfaceElements,
-                    volumeMeshing):
-        """The surface mesh filled with tetrahedra by fTetWild. The tetrahedra come out under
-        entity id 0, and the triangles bounding them under the id of the face they stand on.
-
-        fTetWild does not fill the surface it is given so much as mesh the shape that surface
-        describes: it keeps every tetrahedron whose winding number says it is inside, and the
-        boundary it returns is its own triangulation, sitting within the tolerance of the one it
-        was handed rather than on it. So the surface has to be closed and facing outwards, and
-        the ids have to be read back off it afterwards by position, neither of which TetGen ever
-        needed. What is gained for that is a mesher that answers where TetGen fails, and one that
-        takes a size per point.
-        """
-        import numpy as np
-        from vtk.util import numpy_support
-
-        pytetwild = self.importPyTetWild()
-
-        # Orienting only reorders the corners of a triangle, so the cells stay in their order and
-        # keep their ids - which is what lets the ids be read off this surface further down.
-        surface = self.surfaceNormals(self.triangulate(self.meshToSurface(surfaceMesh)))
-        polys = surface.GetPolys()
-        if surface.GetNumberOfCells() != surface.GetNumberOfPolys() or not polys.IsHomogeneous():
-            raise ValueError(_("fTetWild takes a surface of triangles, and this one holds other "
-                               "cells as well."))
-
-        # A hole in the surface is not something fTetWild refuses. It decides what is inside by
-        # winding number, and that number leaks out through a hole: what comes back is a mesh
-        # filling part of the shape, which looks like a mesh and is not one. Asked here, where it
-        # can still be said which surface was wrong, rather than discovered in a solver.
-        openEdges = self.numberOfOpenEdges(surface)
-        if openEdges:
-            raise RuntimeError(_(
-                "The surface to be filled is not closed: {count} of its edges are open or shared "
-                "by more than two triangles. fTetWild answers such a surface with a mesh of the "
-                "part of it that is closed rather than refusing, so it is refused here. Remeshing "
-                "is the usual cause when the target edge length is far from the size of the "
-                "triangles the surface arrived with; try a target closer to those, or turn "
-                "remeshing off.").format(count=openEdges))
-
-        vertices = np.ascontiguousarray(
-            numpy_support.vtk_to_numpy(surface.GetPoints().GetData()), dtype=np.float64)
-        faces = np.ascontiguousarray(
-            numpy_support.vtk_to_numpy(polys.GetConnectivityArray()).reshape(-1, 3),
-            dtype=np.int32)
-
-        # The tolerance is asked for in mm and given as a fraction of the bounding box diagonal,
-        # which is what fTetWild measures it in.
-        diagonal = surface.GetLength()
-        epsilon = (volumeMeshing.surfaceTolerance / diagonal
-                   if volumeMeshing.surfaceTolerance > 0.0 and diagonal > 0.0 else 1e-3)
-
-        arguments = dict(
-            edge_length_abs=volumeMeshing.edgeLength,
-            epsilon=epsilon,
-            stop_energy=volumeMeshing.stopEnergy,
-            num_opt_iter=volumeMeshing.maxOptimizationPasses,
-            coarsen=volumeMeshing.coarsen,
-            optimize=True,
-            # fTetWild numbers the corners of a tetrahedron the other way round from VTK.
-            vtk_ordering=True,
-            quiet=True)
-        if volumeMeshing.sizingField is not None:
-            backgroundPoints, backgroundTetrahedra, backgroundLengths = volumeMeshing.sizingField
-            arguments.update(
-                # The sizes in the field are absolute, and the mesh is refined onto them from
-                # whatever it was built at; starting from the largest of them means refining
-                # everywhere the field asks for something smaller, and nowhere else.
-                edge_length_abs=float(backgroundLengths.max()),
-                bg_vertices=backgroundPoints,
-                bg_tets=backgroundTetrahedra,
-                bg_values=backgroundLengths)
-
+        lastLines = collections.deque(maxlen=30)
         try:
-            meshPoints, tetrahedra = pytetwild.tetrahedralize(vertices, faces, **arguments)
-        except Exception:
-            # Answering an unfillable surface with an empty mesh rather than an exception is what
-            # the TetGen wrapper does, and what the callers of both are written around.
-            logging.exception("fTetWild failed to fill the surface")
-            self.lastTetrahedralizationFailed = True
-            return vtk.vtkUnstructuredGrid()
+            while True:
+                try:
+                    line = lines.get(timeout=0.05)
+                except queue.Empty:
+                    slicer.app.processEvents()
+                    continue
+                if line is None:
+                    break
+                lastLines.append(line)
+                self.relayWorkerLine(line)
+            returnCode = self._worker.wait()
+        finally:
+            self._worker = None
+        return returnCode, "\n".join(lastLines)
 
-        # Single precision on purpose. Everything else in the pipeline holds its points that way
-        # - the boundary layer generator allocates plain vtkPoints - and the filter that puts the
-        # layer and the tetrahedra back together welds points by comparing coordinates, so a mesh
-        # carrying doubles would sit against the layer without ever joining it.
-        meshPoints = np.ascontiguousarray(meshPoints, dtype=np.float32)
-        tetrahedra = np.ascontiguousarray(tetrahedra, dtype=np.int64)
+    def relayWorkerLine(self, line):
+        """Pass one line of the worker's output on: a step to the status bar and the log window,
+        the rest to the logs at the level it was logged at there.
 
-        boundary = self.boundaryFacesOfTetrahedra(tetrahedra)
-        boundaryIds = self.nearestCellEntityIds(
-            surface, cellEntityIdsArrayName, meshPoints[boundary].mean(axis=1))
-        if not outputSurfaceElements:
-            boundary = boundary[:0]
-            boundaryIds = boundaryIds[:0]
+        A step is announced twice by the worker - once as a step, then as the INFO line its own
+        logging writes - and only the step is shown, so that the window does not say everything
+        twice; the INFO line goes to the application log alone.
+        """
+        if line.startswith(MeshingWorker.STEP_PREFIX):
+            self.showStep(line[len(MeshingWorker.STEP_PREFIX):])
+            return
+        # The worker's own logging writes each line with its level in front; anything else -
+        # what VTK prints, a traceback - arrives as it is.
+        levelName, separator, message = line.partition(": ")
+        level = {"DEBUG": logging.DEBUG, "INFO": logging.INFO, "WARNING": logging.WARNING,
+                 "ERROR": logging.ERROR, "CRITICAL": logging.ERROR}.get(levelName)
+        if level is None:
+            level, message = logging.INFO, line
+        logging.log(level, message)
+        if level == logging.INFO and message == self._stepName:
+            return
+        self.show(message, level)
 
-        points = vtk.vtkPoints()
-        points.SetData(numpy_support.numpy_to_vtk(meshPoints, deep=True,
-                                                  array_type=vtk.VTK_FLOAT))
+    def cancel(self) -> None:
+        """Stop the run in progress, if there is one; process() then raises
+        MeshingCancelledError. Nothing of the run is kept."""
+        worker = self._worker
+        if worker is None or worker.poll() is not None:
+            return
+        self._cancelled = True
+        self.say(_("Stopping the meshing process."))
+        if os.name == "nt":
+            # The worker may have an interpreter of its own running fTetWild under it; /T takes
+            # the whole tree, which terminate() would not.
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(worker.pid)],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           **FTetWild.hiddenWindowArguments())
+        else:
+            os.killpg(worker.pid, signal.SIGTERM)
 
-        connectivity = np.concatenate([tetrahedra.ravel(), boundary.ravel()])
-        offsets = np.concatenate([
-            np.arange(0, 4 * len(tetrahedra) + 1, 4, dtype=np.int64),
-            4 * len(tetrahedra) + np.arange(3, 3 * len(boundary) + 1, 3, dtype=np.int64)])
-        cells = vtk.vtkCellArray()
-        cells.SetData(numpy_support.numpy_to_vtkIdTypeArray(offsets, deep=True),
-                      numpy_support.numpy_to_vtkIdTypeArray(connectivity, deep=True))
-        cellTypes = np.concatenate([
-            np.full(len(tetrahedra), vtk.VTK_TETRA, dtype=np.uint8),
-            np.full(len(boundary), vtk.VTK_TRIANGLE, dtype=np.uint8)])
-
+    @staticmethod
+    def readMesh(path):
+        reader = vtk.vtkXMLUnstructuredGridReader()
+        reader.SetFileName(path)
+        reader.Update()
         mesh = vtk.vtkUnstructuredGrid()
-        mesh.SetPoints(points)
-        mesh.SetCells(numpy_support.numpy_to_vtk(cellTypes, deep=True,
-                                                 array_type=vtk.VTK_UNSIGNED_CHAR), cells)
-
-        ids = numpy_support.numpy_to_vtk(
-            np.concatenate([np.zeros(len(tetrahedra), dtype=np.int32), boundaryIds]),
-            deep=True, array_type=vtk.VTK_INT)
-        ids.SetName(cellEntityIdsArrayName)
-        mesh.GetCellData().AddArray(ids)
+        mesh.ShallowCopy(reader.GetOutput())
         return mesh
 
     @staticmethod
-    def numberOfOpenEdges(surface):
-        """How many edges of the surface are open or shared by more than two cells, which is how
-        many places it is not the boundary of a solid."""
-        edges = vtk.vtkFeatureEdges()
-        edges.SetInputData(surface)
-        edges.BoundaryEdgesOn()
-        edges.NonManifoldEdgesOn()
-        edges.FeatureEdgesOff()
-        edges.ManifoldEdgesOff()
-        edges.Update()
-        return edges.GetOutput().GetNumberOfCells()
-
-    @staticmethod
-    def boundaryFacesOfTetrahedra(tetrahedra):
-        """The faces of the given tetrahedra that no second tetrahedron shares, facing outwards.
-
-        Read off the connectivity rather than out of a filter, so that the faces are made of the
-        same point ids the tetrahedra are - which is what lets the layer that is grown from them
-        join them again.
-        """
-        import numpy as np
-
-        # VTK's face table for a tetrahedron. Each face is wound so that its normal points out of
-        # a tetrahedron whose own corners are numbered the way VTK numbers them.
-        faces = tetrahedra[:, [[0, 2, 1], [0, 1, 3], [1, 2, 3], [2, 0, 3]]].reshape(-1, 3)
-        _, first, counts = np.unique(np.sort(faces, axis=1), axis=0,
-                                     return_index=True, return_counts=True)
-        return faces[np.sort(first[counts == 1])]
-
-    @staticmethod
-    def nearestCellEntityIds(surface, cellEntityIdsArrayName, points):
-        """The face id of the surface cell nearest each of the given points.
-
-        This is how a boundary that was retriangulated gets its face ids back. It holds because
-        the new boundary lies within the tolerance of the old one, which is far smaller than the
-        cells of either; the one place it can be read either way is the line where two faces
-        meet, and a cell astride that line is on the line whichever id it is given.
-        """
-        import numpy as np
-
-        ids = surface.GetCellData().GetArray(cellEntityIdsArrayName)
-        if ids is None:
-            return np.zeros(len(points), dtype=np.int32)
-
-        locator = vtk.vtkStaticCellLocator()
-        locator.SetDataSet(surface)
-        locator.BuildLocator()
-
-        cell = vtk.vtkGenericCell()
-        closestPoint = [0.0, 0.0, 0.0]
-        cellId = vtk.reference(0)
-        subId = vtk.reference(0)
-        squaredDistance = vtk.reference(0.0)
-
-        found = np.empty(len(points), dtype=np.int32)
-        for index, point in enumerate(points):
-            locator.FindClosestPoint([float(value) for value in point], closestPoint, cell,
-                                     cellId, subId, squaredDistance)
-            found[index] = int(ids.GetTuple1(cellId.get()))
-        return found
-
-    @staticmethod
-    def splitByDimension(mesh):
-        """The mesh split into its volume elements and the surface cells bounding them."""
-        volume = vtk.vtkExtractCellsByType()
-        volume.SetInputData(mesh)
-        for cellType in (vtk.VTK_TETRA, vtk.VTK_WEDGE, vtk.VTK_HEXAHEDRON):
-            volume.AddCellType(cellType)
-        volume.Update()
-
-        boundary = vtk.vtkExtractCellsByType()
-        boundary.SetInputData(mesh)
-        for cellType in (vtk.VTK_TRIANGLE, vtk.VTK_QUAD):
-            boundary.AddCellType(cellType)
-        boundary.Update()
-
-        surface = vtk.vtkGeometryFilter()
-        surface.SetInputData(boundary.GetOutput())
-        surface.MergingOff()
-        surface.Update()
-        return volume.GetOutput(), surface.GetOutput()
-
-    def nameSidewallsAfterTheirCap(self, mesh, cellEntityIdsArrayName):
-        """Hand every sidewall cell of the boundary layer the id of the cap it runs into.
-
-        A boundary layer that stopped short of the caps swept each open boundary into a strip of
-        cells standing where the vessel end is, between the cap made on the inner surface and the
-        rim of the outer one. Those strips are part of that end and have to answer to the same
-        boundary condition, but they were made before the caps were numbered, so they come out
-        under a placeholder id. Each strip touches its own cap and no other, so the id spreads
-        from the cap cells outwards over everything still carrying the placeholder.
-        """
-        surfaceCellTypes = (vtk.VTK_TRIANGLE, vtk.VTK_QUADRATIC_TRIANGLE, vtk.VTK_QUAD)
-        cellEntityIdsArray = mesh.GetCellData().GetArray(cellEntityIdsArrayName)
-        if cellEntityIdsArray is None:
-            return
-        mesh.BuildLinks()
-
-        cellPointIds = vtk.vtkIdList()
-        singlePointId = vtk.vtkIdList()
-        singlePointId.SetNumberOfIds(1)
-        neighbourCellIds = vtk.vtkIdList()
-
-        def spreadFrom(seedCellId, capEntityId):
-            frontier = [seedCellId]
-            while frontier:
-                cellId = frontier.pop()
-                mesh.GetCellPoints(cellId, cellPointIds)
-                for index in range(cellPointIds.GetNumberOfIds()):
-                    singlePointId.SetId(0, cellPointIds.GetId(index))
-                    mesh.GetCellNeighbors(cellId, singlePointId, neighbourCellIds)
-                    for neighbourIndex in range(neighbourCellIds.GetNumberOfIds()):
-                        neighbourCellId = neighbourCellIds.GetId(neighbourIndex)
-                        if mesh.GetCellType(neighbourCellId) not in surfaceCellTypes:
-                            continue
-                        if cellEntityIdsArray.GetTuple1(neighbourCellId) != self.placeholderCellEntityId:
-                            continue
-                        cellEntityIdsArray.SetTuple1(neighbourCellId, capEntityId)
-                        frontier.append(neighbourCellId)
-
-        for cellId in range(mesh.GetNumberOfCells()):
-            if mesh.GetCellType(cellId) not in surfaceCellTypes:
-                continue
-            cellEntityId = cellEntityIdsArray.GetTuple1(cellId)
-            if cellEntityId in (0, self.wallCellEntityId, self.placeholderCellEntityId):
-                continue
-            spreadFrom(cellId, cellEntityId)
+    def readSurface(path):
+        surface = vtk.vtkPolyData()
+        surface.ShallowCopy(MeshingWorker.readSurface(path))
+        return surface
 
     #
-    # Small conversions, one per vmtk script that only wraps a VTK filter.
+    # What becomes of the result in the scene.
     #
 
-    @staticmethod
-    def cleanSurface(surface):
-        """The surface with its coincident points merged into one and its unused points dropped.
-
-        A cell that the merge leaves degenerate is dropped rather than turned into a line or a
-        vertex, which is what vtkCleanPolyData does if it is let. A line lying among the polygons
-        is no use to anything downstream - TetGen refuses one, and the sizing function skips it -
-        and it is not harmless either: vtkTriangleFilter loses track of the cell data of a surface
-        that carries both, so the face ids come back scattered over the wrong cells. Dropping the
-        cell instead leaves the surface closed and manifold, because a triangle whose two
-        coincident corners have become one point covers its one remaining edge twice over.
-        """
-        cleaner = vtk.vtkCleanPolyData()
-        cleaner.SetInputData(surface)
-        cleaner.ConvertPolysToLinesOff()
-        cleaner.ConvertLinesToPointsOff()
-        cleaner.ConvertStripsToPolysOff()
-        cleaner.Update()
-        return cleaner.GetOutput()
-
-    def surfaceToMesh(self, surface):
-        """The surface as an unstructured grid, cleaned first (vmtksurfacetomesh)."""
-        import vtkvmtkMiscPython as vtkvmtkMisc
-
-        surfaceToMeshFilter = vtkvmtkMisc.vtkvmtkPolyDataToUnstructuredGridFilter()
-        surfaceToMeshFilter.SetInputData(self.cleanSurface(surface))
-        surfaceToMeshFilter.Update()
-        return surfaceToMeshFilter.GetOutput()
-
-    @staticmethod
-    def meshToSurface(mesh):
-        """The surface of an unstructured grid (vmtkmeshtosurface)."""
-        meshToSurfaceFilter = vtk.vtkGeometryFilter()
-        meshToSurfaceFilter.SetInputData(mesh)
-        meshToSurfaceFilter.Update()
-        return meshToSurfaceFilter.GetOutput()
-
-    @staticmethod
-    def surfaceNormals(surface, autoOrient=True):
-        """The surface carrying an outward normal per point (vmtksurfacenormals).
-
-        Since the VTK 9.4 refactor vtkPolyDataNormals passes normals it was given through
-        untouched, so any the surface came with are dropped first - the boundary layer is swept
-        along these, and one left pointing the wrong way sweeps a layer out of the vessel rather
-        than into it.
-
-        autoOrient off computes the normals from the winding of the cells as they are, and leaves
-        that winding alone. For a surface already known to face outwards it is the more careful
-        of the two: deciding which way is out is a question about the whole surface, so asking it
-        of a piece of one - a wall with its caps taken off, say - answers about the piece.
-        """
-        withoutNormals = vtk.vtkPolyData()
-        withoutNormals.ShallowCopy(surface)
-        withoutNormals.GetPointData().SetNormals(None)
-        withoutNormals.GetCellData().SetNormals(None)
-
-        normalsFilter = vtk.vtkPolyDataNormals()
-        normalsFilter.SetInputData(withoutNormals)
-        normalsFilter.SetAutoOrientNormals(1 if autoOrient else 0)
-        normalsFilter.SetConsistency(1 if autoOrient else 0)
-        normalsFilter.ComputeCellNormalsOff()
-        normalsFilter.SplittingOff()
-        normalsFilter.Update()
-        surfaceWithNormals = normalsFilter.GetOutput()
-        surfaceWithNormals.GetPointData().GetNormals().SetName("Normals")
-        return surfaceWithNormals
-
-    @staticmethod
-    def triangulate(surface):
-        """The surface with every cell split into triangles."""
-        triangleFilter = vtk.vtkTriangleFilter()
-        triangleFilter.SetInputData(surface)
-        triangleFilter.PassLinesOff()
-        triangleFilter.PassVertsOff()
-        triangleFilter.Update()
-        return triangleFilter.GetOutput()
-
-    @staticmethod
-    def surfaceArea(surface):
-        """The total area of the surface. It says nothing about the surface being closed, which
-        is what makes it usable on the vessel wall before its ends are capped."""
-        massProperties = vtk.vtkMassProperties()
-        massProperties.SetInputData(surface)
-        massProperties.Update()
-        return massProperties.GetSurfaceArea()
-
-    @staticmethod
-    def equilateralTriangleArea(edgeLength):
-        """The area of the equilateral triangle of the given side, which is what an edge length
-        comes to for a remesher that sizes its cells by area."""
-        return 0.25 * 3.0 ** 0.5 * edgeLength ** 2
-
-    @staticmethod
-    def meshLengthLimit(edgeLength):
-        """An edge length limit, with 0 read as no limit at all.
-
-        vmtkmeshgenerator writes "no limit" as an edge length past any real mesh; 0 says the same
-        thing without the reader having to recognise the number.
-        """
-        return UNLIMITED_EDGE_LENGTH if edgeLength <= 0.0 else edgeLength
-
-    def log(self, message):
-        """Say which step of the pipeline is running, and log how long the step before it took.
-
-        Each step takes long enough to be worth reporting on its own - the status bar is the only
-        sign of progress a long meshing run gives - and logging its duration once it is known,
-        rather than at the moment it is measured, is what keeps one line per step instead of two.
-        The last step of a run is timed too; see _finishStepLog.
-        """
-        self._finishStepLog()
-        self._stepName = message
-        self._stepStartTime = time.time()
-        logging.info(message)
-        slicer.util.showStatusMessage(message)
-        slicer.app.processEvents()
-
-    def _finishStepLog(self):
-        """Log how long the step log() last announced took, if one is still open."""
-        if self._stepName is not None:
-            logging.info("%s: %.2fs", self._stepName, time.time() - self._stepStartTime)
-            self._stepName = None
-            self._stepStartTime = None
-
-    # Marks a node this module has already given a display to, so that a second Apply writes the
-    # new mesh into the node it was given and leaves everything else as the user has since set it.
     def clipWithABoxThroughTheMiddle(self, modelNode):
         """Clip the model to a box laid over the middle of it, and show the box.
 
@@ -2347,11 +1193,17 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
 class CfdMeshGeneratorTest(ScriptedLoadableModuleTest):
     """A smoke test, for Reload and Test and for the ctest that runs this file.
 
-    What it checks is that the module is loaded and that its pipeline runs end to end on the
-    simplest surface there is. Everything else - each mesher in turn, the boundary layer, the
-    face ids, the widget, and a real vessel rather than a tube - is in Testing/Python,
-    as separate files so that a failure names the behaviour that broke rather than the one long
-    run it happened during, and so that they can be run one per process.
+    It drives the module the way a user does: a surface is put in the scene, the parameters go
+    on the module's parameter node, the parameter node is shown in the GUI, and Apply is pressed
+    - rather than the logic being called behind the widget's back. What the widget does around
+    the pipeline is then part of what is tested: the output node it makes, the process it starts
+    and reads back, the display it sets up, and a broken reference in the button handler.
+
+    What it checks is that the pipeline runs end to end on the simplest surface there is.
+    Everything else - each mesher in turn, the boundary layer, the face ids, cancelling, and a
+    real vessel rather than a tube - is in Testing/Python, as separate files so that a failure
+    names the behaviour that broke rather than the one long run it happened during, and so that
+    they can be run one per process.
 
     Uses ScriptedLoadableModuleTest base class, available at:
     https://github.com/Slicer/Slicer/blob/main/Base/Python/slicer/ScriptedLoadableModule.py
@@ -2365,6 +1217,21 @@ class CfdMeshGeneratorTest(ScriptedLoadableModuleTest):
         self.setUp()
         self.test_CfdMeshGenerator1()
 
+    def moduleWidget(self):
+        """The module's own widget, the one the application drives.
+
+        Slicer builds it, parents it, gives it the scene and runs setup(), so this is the same
+        object a user has in front of them. Selecting the module is what normally builds it, but
+        that needs the module selector in the main window, which a test run started with
+        --no-main-window has not got; getModuleWidget builds the representation on demand either
+        way, so the selection is best effort.
+        """
+        try:
+            slicer.util.selectModule("CfdMeshGenerator")
+        except RuntimeError:
+            pass
+        return slicer.util.getModuleWidget("CfdMeshGenerator")
+
     def test_CfdMeshGenerator1(self):
         """An open tube must come back as a volume mesh: capped, filled with tetrahedra, and with
         the wall and each of the two caps under an id of its own, so that a boundary condition can
@@ -2375,23 +1242,63 @@ class CfdMeshGeneratorTest(ScriptedLoadableModuleTest):
         """
         self.delayDisplay("Starting the test")
 
-        logic = CfdMeshGeneratorLogic()
-        if not logic.isTetGenAvailable():
+        widget = self.moduleWidget()
+        if not widget.logic.isTetGenAvailable():
             self.delayDisplay("Skipped: this installation was built without TetGen")
             return
 
-        mesh, remeshedSurface = logic.generateMesh(
-            self.openTube(), targetEdgeLength=0.4, mesher=Mesher.TETGEN.value)
+        inputSurfaceNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "tube")
+        inputSurfaceNode.SetAndObserveMesh(self.openTube())
+        inputSurfaceNode.CreateDefaultDisplayNodes()
 
-        self.assertGreater(remeshedSurface.GetNumberOfCells(), 0)
+        # Everything the user would set, put on the parameter node rather than into the widgets:
+        # the parameter node is what the module reads, and what a saved scene restores. The
+        # output is left at "(Create New)", which is how a user leaves it: Apply makes the node.
+        parameterNode = widget.logic.getParameterNode()
+        parameterNode.inputSurface = inputSurfaceNode
+        parameterNode.outputMesh = None
+        # Coarser than this and TetGen is handed a surface it cannot fill.
+        parameterNode.targetEdgeLength = 0.4
+        parameterNode.mesher = Mesher.TETGEN
+        parameterNode.boundaryLayer = False
+
+        # ...and then shown in the GUI. From here on the widget is driven by its own button.
+        widget.setParameterNode(parameterNode)
+        self.assertIs(widget.ui.inputSurfaceSelector.currentNode(), inputSurfaceNode,
+                      "the input surface did not reach the GUI")
+        self.assertTrue(widget.ui.applyButton.enabled, "Apply is not offered with an input picked")
+
+        self.delayDisplay("Applying")
+        widget.onApplyButton()
+
+        outputMeshNode = parameterNode.outputMesh
+        self.assertIsNotNone(outputMeshNode, "Apply made no node to write the mesh into")
+        self.assertIn("tube", outputMeshNode.GetName(), "the output is not named after the input")
+        mesh = outputMeshNode.GetMesh()
+        self.assertIsNotNone(mesh, "the output node holds no mesh")
         cellTypes = vtk.vtkCellTypes()
         mesh.GetCellTypes(cellTypes)
         self.assertTrue(cellTypes.IsType(vtk.VTK_TETRA), "the mesh holds no tetrahedra")
-        # 0 for the tetrahedra, 1 for the wall, and one id per cap above it.
+        # 0 for the tetrahedra, 1 for the wall, and one id per cap above it, under the first of
+        # the default names, the tube arriving unlabelled.
         ids = mesh.GetCellData().GetArray("CellEntityIds")
+        self.assertIsNotNone(ids, "the mesh carries no face ids")
         self.assertEqual(
             set(int(ids.GetTuple1(index)) for index in range(ids.GetNumberOfTuples())),
             {0, 1, 2, 3})
+        self.assertFalse(widget.logic.lastTetrahedralizationFailed)
+        self.assertFalse(widget.logic.isRunning)
+
+        # What a user sees afterwards: the mesh with its elements drawn, coloured by face, and
+        # the surface it was made from out of its way.
+        displayNode = outputMeshNode.GetDisplayNode()
+        self.assertIsNotNone(displayNode, "the mesh was given no display")
+        self.assertTrue(displayNode.GetVisibility())
+        self.assertTrue(displayNode.GetEdgeVisibility(), "the elements of the mesh are not drawn")
+        self.assertTrue(displayNode.GetScalarVisibility(), "the faces are not coloured apart")
+        self.assertFalse(inputSurfaceNode.GetDisplayNode().GetVisibility(),
+                         "the input surface is still in front of the mesh")
+        self.assertEqual(widget.ui.applyButton.text, "Apply", "the button still reads Cancel")
 
         self.delayDisplay("Test passed")
 
