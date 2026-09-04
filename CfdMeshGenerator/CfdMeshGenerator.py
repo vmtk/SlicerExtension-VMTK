@@ -449,7 +449,11 @@ class CfdMeshGeneratorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # A node is often picked before it holds anything - the module picks the first model
             # in the scene when it opens, and a surface is written into a node that was made for
             # it - and there is nothing to read the name of a face ids array from until it does.
-            if self._observedInputSurfaceNode:
+            # Only if it is still observed: the observations are all taken off at once when the
+            # scene closes, and asking to take one off again is answered with a warning.
+            if self._observedInputSurfaceNode and self.hasObserver(
+                    self._observedInputSurfaceNode, vtkMRMLModelNode.MeshModifiedEvent,
+                    self._onParameterNodeModified):
                 self.removeObserver(self._observedInputSurfaceNode,
                                     vtkMRMLModelNode.MeshModifiedEvent, self._onParameterNodeModified)
             self._observedInputSurfaceNode = surfaceNode
