@@ -1535,6 +1535,18 @@ class MeshingPipeline:
         """
         self.log(_("Generating volume mesh ({mesher})").format(
             mesher=Mesher(volumeMeshing.mesher).label()))
+        # Asked of both meshers before either is handed the surface. fTetWild answers a surface
+        # with a hole by meshing the part of it that is closed; TetGen walks off the end of it
+        # and takes its process with it, which is reported as a crash and says nothing about
+        # why. A remeshed surface, or one capped after a sweep, is where a hole comes from.
+        openEdges = self.numberOfOpenEdges(self.meshToSurface(surfaceMesh))
+        if openEdges:
+            raise RuntimeError(_(
+                "The surface to be filled is not closed: {count} of its edges are open or shared "
+                "by more than two triangles, and a mesher cannot fill a surface with a hole in "
+                "it. Remeshing is the usual cause when the target edge length is far from the "
+                "size of the triangles the surface arrived with; try a target closer to those, "
+                "or turn remeshing off.").format(count=openEdges))
         if volumeMeshing.mesher == Mesher.TETGEN.value:
             return self.runTetGen(
                 surfaceMesh, cellEntityIdsArrayName, outputSurfaceElements,
