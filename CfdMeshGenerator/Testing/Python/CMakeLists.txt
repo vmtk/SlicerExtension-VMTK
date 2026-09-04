@@ -23,6 +23,8 @@ slicer_add_python_test(SCRIPT test_CfdMeshGeneratorFaceIds.py
                        SLICER_ARGS --disable-cli-modules)
 slicer_add_python_test(SCRIPT test_CfdMeshGeneratorFTetWild.py
                        SLICER_ARGS --disable-cli-modules)
+slicer_add_python_test(SCRIPT test_CfdMeshGeneratorNetgen.py
+                       SLICER_ARGS --disable-cli-modules)
 
 # Works on the clipped aorta of VMTK's test data, which lives in the build tree; the test says so
 # and skips where it is not there.

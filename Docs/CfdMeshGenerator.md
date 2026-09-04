@@ -11,14 +11,18 @@ The surface goes through four steps, which the sections of the panel follow:
 - *Cap surface* closes every open boundary with a cap of its own, each under its own id, so that a boundary condition can be assigned to it. A surface that is already closed does not need this; a surface left open cannot be filled with tetrahedra at all.
 - *Remesh surface* retriangulates the surface into near equilateral cells of the target edge length. Turn it off only for a surface that is already meshed the way the solver wants it, because the size of the tetrahedra follows the size of the triangles they sit against. *Remesh wall* off remeshes the caps alone and leaves the wall exactly as it came in.
 - *Add boundary layer* lines the wall on the inside with layers of prisms.
-- The rest of the volume is filled with tetrahedra by the *Mesher* chosen, TetGen or fTetWild. *Tetrahedralize* splits the prisms of the boundary layer too, for a solver that takes nothing else.
+- The rest of the volume is filled with tetrahedra by the *Mesher* chosen, TetGen, fTetWild or Netgen. *Tetrahedralize* splits the prisms of the boundary layer too, for a solver that takes nothing else.
 
 ## Mesher
-Two meshers fill the surface, and they answer differently shaped questions.
+Three meshers fill the surface, and they answer differently shaped questions.
 
 *TetGen* is handed the surface as a boundary it may not touch, and hands back the same triangles with tetrahedra behind them. The mesh meets the surface exactly, which is what a mesh built on a carefully prepared surface wants. A surface it cannot fill it fails on.
 
-*fTetWild* is handed the surface as a shape to stay within *Surface tolerance* of, and meshes what it makes of it. The boundary comes back retriangulated and moved by up to that tolerance, and each face keeps its id by being matched to the face of the input nearest it. In exchange it fills surfaces TetGen refuses, and it is the one that can size the elements by position: with *Element size mode* set to read an array, only fTetWild grades the volume to match, TetGen sizing it by one number throughout.
+*fTetWild* is handed the surface as a shape to stay within *Surface tolerance* of, and meshes what it makes of it. The boundary comes back retriangulated and moved by up to that tolerance, and each face keeps its id by being matched to the face of the input nearest it. In exchange it fills surfaces TetGen refuses, and it sizes the elements by position: with *Element size mode* set to read an array, fTetWild grades the volume to match, as Netgen does, TetGen sizing it by one number throughout.
+
+*Netgen* is asked TetGen's question and answers it with fTetWild's strengths. It keeps the surface it is given, triangle for triangle, so the mesh meets the surface exactly and a boundary layer swept from it joins the tetrahedra the way it does under TetGen; and it sizes the elements by position, so a surface graded by an array gets a volume graded to match. *Grading* says how fast the tetrahedra may grow away from the surface - 1 is as fast as they can, and a small value keeps the whole volume near the size of the finest part of the surface - and *Netgen optimization steps* is how many passes it spends improving the mesh once it has filled the surface. A surface it cannot fill it gives up on rather than crashing on, and the module says so.
+
+Netgen is not built into the extension either. It arrives as the `netgen-mesher` package, which the module offers to download from PyPI the first time Netgen is chosen; it has a wheel for every Python that Slicer runs on, so it is always installed into Slicer's own. Netgen is under the GNU Lesser General Public License 2.1, which carries none of TetGen's conditions on commercial use.
 
 fTetWild is not built into the extension. It arrives as the `pytetwild` package, which the module offers to download from PyPI the first time fTetWild is chosen; this needs an internet connection and is done once. There is no package for Intel Macs. On an Apple silicon Mac running an Intel build of Slicer the module instead makes a Python environment of its own for it, beside the Slicer settings (under `CfdMeshGenerator/fTetWild`), the way SlicerSimVascular's SDF Stent module does: a virtual environment on the Mac's own Python run as arm64 - the Command Line Tools' `/usr/bin/python3`, a python.org install, or Homebrew's, the first of them that is Python 3.10 to 3.14 - with fTetWild installed into it. Where none of those is new enough, `uv` is installed into Slicer's Python and fetches an arm64 CPython to build the environment on. Either way this needs macOS 15 or later, which is what the package is built for. An environment set up by hand can be used instead by pointing the `SLICER_CFDMESHGENERATOR_FTETWILD_PYTHON` environment variable at its interpreter. TetGen is not always there either: its licence makes building it a decision, and where it was not built its entry cannot be chosen.
 
@@ -31,7 +35,7 @@ With a boundary layer, fTetWild takes a different route to the same result: the 
 
 Element count grows with the cube of the size, so halving the edge length is about eight times the mesh: on a clipped aorta, 3 mm gives some 39 thousand tetrahedra, 1.5 mm some 106 thousand, and 1 mm some 411 thousand. Start coarse.
 
-Set *Element size mode* to take the size from an array instead, and the target edge length is read per point from an array carried on the input surface, so the mesh can be made finer where the vessel is narrow. *Edge length factor* then scales the whole array at once, without recomputing it. The surface follows such an array whichever mesher is used; the volume behind it follows the array only under fTetWild.
+Set *Element size mode* to take the size from an array instead, and the target edge length is read per point from an array carried on the input surface, so the mesh can be made finer where the vessel is narrow. *Edge length factor* then scales the whole array at once, without recomputing it. The surface follows such an array whichever mesher is used; the volume behind it follows the array under fTetWild and Netgen, TetGen sizing it by one number throughout.
 
 Asking the remesher for triangles far from the size of the ones the surface arrived with can leave it with holes, which no mesher can fill. fTetWild says so and stops rather than handing back a mesh of the part of the surface that was closed.
 
@@ -69,8 +73,10 @@ Each node selector has buttons beside it that show or hide the node and turn its
 ## Acknowledgement
 This module wraps the mesh generation pipeline of the [Vascular Modeling Toolkit](http://www.vmtk.org), developed by Luca Antiga and David Steinman.
 
-The volume mesh is generated by TetGen, by Hang Si, or by fTetWild.
+The volume mesh is generated by TetGen, by Hang Si, by fTetWild, or by Netgen.
 
 TetGen is licensed under the terms of the MIT license with exceptions, one of which is that distribution of it for any commercial purpose is permissible only by direct arrangement with the copyright owner; for private, research and educational purposes it can be used at no cost and without further arrangements. Anyone putting this module to commercial use should read TetGen's license first.
 
 fTetWild is ["Fast Tetrahedral Meshing in the Wild"](https://github.com/wildmeshing/fTetWild), by Yixin Hu, Teseo Schneider, Bolun Wang, Denis Zorin and Daniele Panozzo (ACM Transactions on Graphics 39(4), SIGGRAPH 2020), under the Mozilla Public License 2.0. It is used through the [pytetwild](https://github.com/pyvista/pytetwild) package of the PyVista project.
+
+[Netgen](https://github.com/NGSolve/netgen) is the mesh generator of Joachim Schöberl and the NGSolve project, under the GNU Lesser General Public License 2.1. It is used through the `netgen-mesher` package.

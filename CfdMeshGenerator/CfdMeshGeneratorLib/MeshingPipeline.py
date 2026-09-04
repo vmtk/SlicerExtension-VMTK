@@ -19,7 +19,7 @@ import time
 
 import vtk
 
-from CfdMeshGeneratorLib import FTetWild
+from CfdMeshGeneratorLib import FTetWild, Netgen
 
 try:
     from slicer.i18n import tr as _
@@ -62,6 +62,9 @@ DEFAULT_CAP_IDS_ARRAY_NAME = "CapID"
 
 # What to install when fTetWild is asked for; see FTetWild for where it is installed to.
 FTETWILD_REQUIREMENT = FTetWild.REQUIREMENT
+
+# What to install when Netgen is asked for, which is always into this Python; see Netgen.
+NETGEN_REQUIREMENT = Netgen.REQUIREMENT
 
 
 class ElementSizeMode(enum.Enum):
@@ -113,18 +116,40 @@ class Mesher(enum.Enum):
     makes of it; the boundary comes back retriangulated and slightly moved, and almost nothing
     makes it fail.
 
-    fTetWild is not built into the extension: it arrives as the pytetwild package, downloaded
-    from PyPI the first time it is asked for.
+    Netgen is asked TetGen's question and brings fTetWild's strength to it: it keeps the surface
+    it is given, triangle for triangle, and fills the inside of it, sizing the tetrahedra by
+    position where a size per point is given. A surface it cannot fill it gives up on, quietly,
+    with no tetrahedra behind it.
+
+    Neither of the last two is built into the extension: fTetWild arrives as the pytetwild
+    package and Netgen as netgen-mesher, each downloaded from PyPI the first time it is asked
+    for.
     """
 
     TETGEN = "tetgen"
     FTETWILD = "ftetwild"
+    NETGEN = "netgen"
 
     def label(self):
         return {
             Mesher.TETGEN: _("TetGen"),
             Mesher.FTETWILD: _("fTetWild"),
+            Mesher.NETGEN: _("Netgen"),
         }[self]
+
+    @property
+    def keepsTheSurface(self):
+        """Whether the mesher hands back the triangles it was given, over the same points, with
+        the tetrahedra behind them - or a boundary of its own making within a tolerance of them.
+        Which of the two decides how a boundary layer is put together with the tetrahedra; see
+        MeshingPipeline.meshWithBoundaryLayer."""
+        return self != Mesher.FTETWILD
+
+    @property
+    def sizesByPosition(self):
+        """Whether the mesher reads a target edge length per point of the volume, so that the
+        tetrahedra can be graded the way the surface is."""
+        return self != Mesher.TETGEN
 
 
 @dataclasses.dataclass
@@ -141,10 +166,11 @@ class VolumeMeshing:
     # The edge length the tetrahedra aim for: the size the surface was meshed at, scaled.
     edgeLength: float = 0.8
 
-    # A target edge length per point of a background mesh, as (points, tetrahedra, lengths), for
-    # fTetWild to interpolate over. None asks for one size throughout. TetGen ignores it: the
-    # switch that reads a size per point takes it from a background mesh of its own making and
-    # answers differently each run (see runTetGen).
+    # A target edge length per point of a background mesh, as (points, tetrahedra, lengths).
+    # fTetWild interpolates it over the tetrahedra; Netgen reads the points and the lengths
+    # alone, lowering its own size field at each. None asks for one size throughout. TetGen
+    # ignores it: the switch that reads a size per point takes it from a background mesh of its
+    # own making and answers differently each run (see runTetGen).
     sizingField: object = None
 
     # How far the boundary of the mesh may sit from the surface it was made for, in mm. Only
@@ -159,6 +185,14 @@ class VolumeMeshing:
 
     # Make the mesh as coarse as the tolerance allows, rather than as fine as asked for.
     coarsen: bool = False
+
+    # How fast Netgen lets the element size change from one element to the next, 0 to 1: at 1
+    # the tetrahedra grow away from the surface as fast as they can, and near 0 the whole volume
+    # is meshed at the size of the finest part of the surface.
+    netgenGrading: float = 0.3
+
+    # Passes Netgen spends improving the mesh once it has filled the surface.
+    netgenOptimizationSteps: int = 3
 
 
 
@@ -240,6 +274,21 @@ class MeshingPipeline:
             "the module offers to download when fTetWild is chosen and Apply is pressed."
         ).format(requirement=FTetWild.REQUIREMENT))
 
+    @staticmethod
+    def isNetgenAvailable():
+        """Whether Netgen can be used right now, in this process, which is the only place it is
+        run. Imported rather than looked for, as fTetWild is."""
+        return Netgen.isAvailable()
+
+    def requireNetgen(self):
+        """Raise RuntimeError, saying how to get it, if Netgen cannot be run."""
+        if self.isNetgenAvailable():
+            return
+        raise RuntimeError(_(
+            "Netgen is not installed. It comes as the Python package {requirement}, which the "
+            "module offers to download when Netgen is chosen and Apply is pressed."
+        ).format(requirement=Netgen.REQUIREMENT))
+
     def availableMeshers(self):
         """The meshers this installation can offer, in the order they are presented."""
         return [mesher for mesher in Mesher
@@ -295,6 +344,8 @@ class MeshingPipeline:
                      stopEnergy=10.0,
                      maxOptimizationPasses=80,
                      coarsen=False,
+                     netgenGrading=0.3,
+                     netgenOptimizationSteps=3,
                      boundaryLayer=False,
                      boundaryLayerOnCaps=False,
                      numberOfSubLayers=2,
@@ -342,7 +393,8 @@ class MeshingPipeline:
         :param skipCapping: take the surface as already closed, and do not cap it.
         :param skipRemeshing: fill the surface as it is, without remeshing it first.
         :param remeshCapsOnly: remesh the caps and leave the wall as it is.
-        :param mesher: which mesher fills the surface, "tetgen" or "ftetwild"; see Mesher.
+        :param mesher: which mesher fills the surface, "tetgen", "ftetwild" or "netgen"; see
+          Mesher.
         :param volumeElementScaleFactor: size of the tetrahedra relative to the target edge
           length of the surface.
         :param surfaceTolerance: how far the boundary of the mesh may sit from the surface it
@@ -353,6 +405,10 @@ class MeshingPipeline:
         :param maxOptimizationPasses: how many passes fTetWild may spend improving the mesh.
         :param coarsen: make the mesh as coarse as the tolerance allows rather than as fine as
           asked for (fTetWild only).
+        :param netgenGrading: how fast Netgen lets the element size change from one element to
+          the next, 0 to 1 (Netgen only).
+        :param netgenOptimizationSteps: passes Netgen spends improving the mesh once it has
+          filled the surface (Netgen only).
         :param boundaryLayer: line the wall on the inside with layers of prisms, which is what
           resolves the velocity gradient at the wall.
         :param boundaryLayerOnCaps: grow the boundary layer over the caps as well as the wall.
@@ -394,9 +450,12 @@ class MeshingPipeline:
                 available=", ".join(choice.value for choice in Mesher))) from None
         if mesher == Mesher.TETGEN.value and not self.isTetGenAvailable():
             raise RuntimeError(_("This installation was built without TetGen, which its licence "
-                                 "makes a decision rather than a default. Choose fTetWild."))
+                                 "makes a decision rather than a default. Choose fTetWild or "
+                                 "Netgen."))
         if mesher == Mesher.FTETWILD.value:
             self.requireFTetWild()
+        if mesher == Mesher.NETGEN.value:
+            self.requireNetgen()
 
         boundaryLabelsArrayName = boundaryLabelsArrayName or self.boundaryLabelsArrayName
         boundaryPointOrderArrayName = (boundaryPointOrderArrayName
@@ -494,9 +553,9 @@ class MeshingPipeline:
         # remesher was given the same array to size its triangles by, so the volume elements come
         # out graded the way the surface is. TetGen is not offered it: the switch that reads a
         # size per point answers differently each run (see runTetGen), so it is sized by one
-        # number throughout, as it was before either mesher was a choice.
+        # number throughout, as it was before any other mesher was a choice.
         sizingField = None
-        if (mesher == Mesher.FTETWILD.value
+        if (Mesher(mesher).sizesByPosition
                 and elementSizeMode == ElementSizeMode.EDGE_LENGTH_ARRAY.value):
             self.log(_("Building sizing field"))
             sizingField = self.edgeLengthSizingField(
@@ -520,7 +579,9 @@ class MeshingPipeline:
             surfaceTolerance=surfaceTolerance,
             stopEnergy=stopEnergy,
             maxOptimizationPasses=maxOptimizationPasses,
-            coarsen=coarsen)
+            coarsen=coarsen,
+            netgenGrading=netgenGrading,
+            netgenOptimizationSteps=netgenOptimizationSteps)
 
         if not boundaryLayer:
             mesh = self.fillWithTetrahedra(remeshedSurface, cellEntityIdsArrayName,
@@ -1436,11 +1497,11 @@ class MeshingPipeline:
 
         innerSurfaceMesh = self.surfaceToMesh(innerSurface)
 
-        # A mesher that keeps the surface it is given needs nothing back from the space it filled
-        # but the tetrahedra: the face against the boundary layer is one the layer already
-        # carries. A mesher that answers with a boundary of its own is asked for that boundary,
-        # because the layer is then grown from it rather than the other way about.
-        keepsTheSurface = volumeMeshing.mesher == Mesher.TETGEN.value
+        # A mesher that keeps the surface it is given - TetGen, Netgen - needs nothing back from
+        # the space it filled but the tetrahedra: the face against the boundary layer is one the
+        # layer already carries. A mesher that answers with a boundary of its own is asked for
+        # that boundary, because the layer is then grown from it rather than the other way about.
+        keepsTheSurface = Mesher(volumeMeshing.mesher).keepsTheSurface
         filled = self.fillVolume(innerSurfaceMesh, cellEntityIdsArrayName,
                                  outputSurfaceElements=not keepsTheSurface,
                                  volumeMeshing=volumeMeshing)
@@ -1529,9 +1590,10 @@ class MeshingPipeline:
                    volumeMeshing):
         """The surface mesh filled with tetrahedra by the mesher that was asked for.
 
-        Both meshers answer the same way: the tetrahedra first, under entity id 0, and then -
+        Every mesher answers the same way: the tetrahedra first, under entity id 0, and then -
         when asked for - the triangles bounding them, each under the id of the face of the input
-        it stands on. What differs is everything behind that; see runTetGen and runFTetWild.
+        it stands on. What differs is everything behind that; see runTetGen, runFTetWild and
+        runNetgen.
         """
         self.log(_("Generating volume mesh ({mesher})").format(
             mesher=Mesher(volumeMeshing.mesher).label()))
@@ -1551,6 +1613,9 @@ class MeshingPipeline:
             return self.runTetGen(
                 surfaceMesh, cellEntityIdsArrayName, outputSurfaceElements,
                 maxElementVolume=self.maximumElementVolume(volumeMeshing.edgeLength))
+        if volumeMeshing.mesher == Mesher.NETGEN.value:
+            return self.runNetgen(surfaceMesh, cellEntityIdsArrayName, outputSurfaceElements,
+                                  volumeMeshing)
         return self.runFTetWild(surfaceMesh, cellEntityIdsArrayName, outputSurfaceElements,
                                 volumeMeshing)
 
@@ -1689,6 +1754,109 @@ class MeshingPipeline:
         if not outputSurfaceElements:
             boundary = boundary[:0]
             boundaryIds = boundaryIds[:0]
+        return self.meshFromArrays(meshPoints, tetrahedra, boundary, boundaryIds,
+                                   cellEntityIdsArrayName)
+
+    def runNetgen(self, surfaceMesh, cellEntityIdsArrayName, outputSurfaceElements,
+                  volumeMeshing):
+        """The surface mesh filled with tetrahedra by Netgen. The tetrahedra come out under
+        entity id 0, and the triangles bounding them - which are the input's own - under the id
+        of the face each arrived with.
+
+        Netgen is asked TetGen's question: here is a boundary, fill the inside of it. It keeps
+        every triangle and every point it is given, so the boundary needs no reading back by
+        position, and a boundary layer swept from the surface meets the tetrahedra exactly, as
+        it does with TetGen. What it has over TetGen is that it takes a size per point, and that
+        a surface it cannot fill is answered with nothing rather than with a crash.
+        """
+        import numpy as np
+        from vtk.util import numpy_support
+
+        # Orienting only reorders the corners of a triangle, so the cells stay in their order and
+        # keep their ids. Netgen fills the side the triangles face away from, so they must face
+        # out; a surface that faces inwards as a whole is turned round again in Netgen itself.
+        surface = self.surfaceNormals(self.triangulate(self.meshToSurface(surfaceMesh)))
+        polys = surface.GetPolys()
+        if surface.GetNumberOfCells() != surface.GetNumberOfPolys() or not polys.IsHomogeneous():
+            raise ValueError(_("Netgen takes a surface of triangles, and this one holds other "
+                               "cells as well."))
+
+        vertices = np.ascontiguousarray(
+            numpy_support.vtk_to_numpy(surface.GetPoints().GetData()), dtype=np.float64)
+        faces = np.ascontiguousarray(
+            numpy_support.vtk_to_numpy(polys.GetConnectivityArray()).reshape(-1, 3),
+            dtype=np.int32)
+        ids = surface.GetCellData().GetArray(cellEntityIdsArrayName)
+        if ids is not None:
+            faceIds = numpy_support.vtk_to_numpy(ids).astype(np.int32).ravel()
+        else:
+            faceIds = np.zeros(len(faces), dtype=np.int32)
+
+        arguments = dict(
+            maxh=volumeMeshing.edgeLength,
+            grading=volumeMeshing.netgenGrading,
+            optimizationSteps=volumeMeshing.netgenOptimizationSteps)
+        if volumeMeshing.sizingField is not None:
+            backgroundPoints, _backgroundTetrahedra, backgroundLengths = volumeMeshing.sizingField
+            # The sizes in the field are absolute, and Netgen's field is only ever lowered from
+            # the size asked for overall; starting from the largest of them means going finer
+            # everywhere the field asks for something smaller, and nowhere else. The tetrahedra
+            # of the background mesh are for fTetWild, which interpolates over them; Netgen
+            # holds a field of its own and is told the sizes at the points alone.
+            arguments.update(
+                maxh=float(backgroundLengths.max()),
+                sizingPoints=backgroundPoints,
+                sizingLengths=backgroundLengths)
+
+        try:
+            meshPoints, tetrahedra, boundary, boundaryIds = Netgen.tetrahedralize(
+                vertices, faces, faceIds, **arguments)
+        except Netgen.TetrahedralizationError:
+            # Answering an unfillable surface with an empty mesh rather than an exception is what
+            # the TetGen wrapper does, and what the callers of every mesher are written around.
+            logging.exception("Netgen failed to fill the surface")
+            self.lastTetrahedralizationFailed = True
+            return vtk.vtkUnstructuredGrid()
+
+        # Netgen gives up on a surface it cannot finish without saying so in anything but its
+        # own output, and what it leaves then is a mesh of part of the volume: tetrahedra whose
+        # outside is not the surface they were to fill. Told apart here by counting the faces
+        # of the tetrahedra that no second tetrahedron shares, which are the surface when the
+        # volume was filled and more than the surface when it was not.
+        if len(self.boundaryFacesOfTetrahedra(tetrahedra)) != len(boundary):
+            logging.error("Netgen filled only part of the surface: the tetrahedra it made are "
+                          "bounded by %d triangles where the surface has %d",
+                          len(self.boundaryFacesOfTetrahedra(tetrahedra)), len(boundary))
+            self.lastTetrahedralizationFailed = True
+            return vtk.vtkUnstructuredGrid()
+
+        # Single precision, as for fTetWild: the filter that puts the boundary layer and the
+        # tetrahedra back together welds points by comparing coordinates, and the layer holds
+        # its points that way. The points of the surface were single precision to begin with,
+        # so they come back through Netgen unchanged to the bit, and the layer welds to them
+        # exactly; the points Netgen added inside are rounded, which nothing else stands on.
+        meshPoints = np.ascontiguousarray(meshPoints, dtype=np.float32)
+        tetrahedra = np.ascontiguousarray(tetrahedra, dtype=np.int64)
+        boundary = np.ascontiguousarray(boundary, dtype=np.int64)
+        boundaryIds = np.ascontiguousarray(boundaryIds, dtype=np.int32)
+        if not outputSurfaceElements:
+            boundary = boundary[:0]
+            boundaryIds = boundaryIds[:0]
+        return self.meshFromArrays(meshPoints, tetrahedra, boundary, boundaryIds,
+                                   cellEntityIdsArrayName)
+
+    @staticmethod
+    def meshFromArrays(meshPoints, tetrahedra, boundary, boundaryIds, cellEntityIdsArrayName):
+        """An unstructured grid of the given tetrahedra, under entity id 0, followed by the
+        given boundary triangles, each under its own id: the shape every mesher's answer takes.
+
+        :param meshPoints: the points, as an (n, 3) float32 array.
+        :param tetrahedra: (t, 4) point ids, wound the way VTK winds a tetrahedron.
+        :param boundary: (b, 3) point ids of the triangles bounding them; may be empty.
+        :param boundaryIds: (b,) the entity id of each of those triangles.
+        """
+        import numpy as np
+        from vtk.util import numpy_support
 
         points = vtk.vtkPoints()
         points.SetData(numpy_support.numpy_to_vtk(meshPoints, deep=True,
@@ -1711,7 +1879,8 @@ class MeshingPipeline:
                                                  array_type=vtk.VTK_UNSIGNED_CHAR), cells)
 
         ids = numpy_support.numpy_to_vtk(
-            np.concatenate([np.zeros(len(tetrahedra), dtype=np.int32), boundaryIds]),
+            np.concatenate([np.zeros(len(tetrahedra), dtype=np.int32),
+                            np.asarray(boundaryIds, dtype=np.int32)]),
             deep=True, array_type=vtk.VTK_INT)
         ids.SetName(cellEntityIdsArrayName)
         mesh.GetCellData().AddArray(ids)

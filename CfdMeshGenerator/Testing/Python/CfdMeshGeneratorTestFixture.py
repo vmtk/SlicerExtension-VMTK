@@ -123,31 +123,37 @@ class CfdMeshGeneratorTestCase(unittest.TestCase):
     def meshers():
         """The meshers to put each behaviour to, which is every one this installation has.
 
-        fTetWild is installed if it is missing - wherever the module would install it, which on
-        a Mac running an Intel build on Apple silicon is a Python environment of its own - so
-        that a machine with a network connection tests both; one without tests what it has,
-        which is the same choice a user has there.
+        fTetWild and Netgen are installed if they are missing - wherever the module would
+        install them, which for fTetWild on a Mac running an Intel build on Apple silicon is a
+        Python environment of its own - so that a machine with a network connection tests all
+        three; one without tests what it has, which is the same choice a user has there.
         """
         logic = CfdMeshGeneratorLogic()
         found = []
         if logic.isTetGenAvailable():
             found.append(Mesher.TETGEN.value)
-        if logic.isFTetWildAvailable():
-            found.append(Mesher.FTETWILD.value)
-        else:
-            try:
-                logic.installFTetWild()
-            except Exception:
-                logging.warning("fTetWild could not be installed, so it is left untested.")
-            else:
-                if logic.isFTetWildAvailable():
-                    found.append(Mesher.FTETWILD.value)
+        for mesher, isAvailable, install in (
+                (Mesher.FTETWILD, logic.isFTetWildAvailable, logic.installFTetWild),
+                (Mesher.NETGEN, logic.isNetgenAvailable, logic.installNetgen)):
+            if not isAvailable():
+                try:
+                    install()
+                except Exception:
+                    logging.warning("%s could not be installed, so it is left untested.",
+                                    mesher.label())
+            if isAvailable():
+                found.append(mesher.value)
         return found
 
     def requireFTetWild(self):
         """Skip the test that called this if fTetWild is not to be had."""
         if Mesher.FTETWILD.value not in self.meshers():
             self.skipTest("fTetWild is not installed and could not be installed")
+
+    def requireNetgen(self):
+        """Skip the test that called this if Netgen is not to be had."""
+        if Mesher.NETGEN.value not in self.meshers():
+            self.skipTest("Netgen is not installed and could not be installed")
 
     @staticmethod
     def fasterFTetWild(mesher):

@@ -1061,7 +1061,7 @@
          <item row="0" column="1">
           <widget class="QComboBox" name="mesherComboBox">
            <property name="toolTip">
-            <string>Which mesher fills the surface. TetGen hands back the surface it was given with tetrahedra behind it, so the mesh meets the surface exactly, and a surface it cannot fill it fails on. fTetWild meshes the shape the surface describes, keeping within the surface tolerance of it, and answers where TetGen fails; it is also the one that can size the elements by position. fTetWild is downloaded the first time it is used.</string>
+            <string>Which mesher fills the surface. TetGen hands back the surface it was given with tetrahedra behind it, so the mesh meets the surface exactly, and a surface it cannot fill it fails on. fTetWild meshes the shape the surface describes, keeping within the surface tolerance of it, and answers where TetGen fails; it is also one that can size the elements by position. Netgen keeps the surface it is given like TetGen and sizes the elements by position like fTetWild, and gives up rather than crashing on a surface it cannot fill. fTetWild and Netgen are each downloaded the first time they are used.</string>
            </property>
            <property name="SlicerParameterName" stdset="0">
             <string>mesher</string>
@@ -1197,13 +1197,77 @@
           </widget>
          </item>
          <item row="5" column="0">
+          <widget class="QLabel" name="netgenGradingLabel">
+           <property name="text">
+            <string>Grading:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="1">
+          <widget class="QDoubleSpinBox" name="netgenGradingSpinBox">
+           <property name="toolTip">
+            <string>How fast the tetrahedra may grow away from the surface: at 1 as fast as they can, and near 0 the whole volume is meshed at the size of the finest part of the surface. Netgen only.</string>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="minimum">
+            <double>0.010000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.050000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.300000000000000</double>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>netgenGrading</string>
+           </property>
+          </widget>
+         </item>
+         <item row="6" column="0">
+          <widget class="QLabel" name="netgenOptimizationStepsLabel">
+           <property name="text">
+            <string>Netgen optimization steps:</string>
+           </property>
+           <property name="indent">
+            <number>10</number>
+           </property>
+          </widget>
+         </item>
+         <item row="6" column="1">
+          <widget class="QSpinBox" name="netgenOptimizationStepsSpinBox">
+           <property name="toolTip">
+            <string>How many passes Netgen spends improving the mesh once it has filled the surface. Netgen only.</string>
+           </property>
+           <property name="minimum">
+            <number>0</number>
+           </property>
+           <property name="maximum">
+            <number>100</number>
+           </property>
+           <property name="value">
+            <number>3</number>
+           </property>
+           <property name="SlicerParameterName" stdset="0">
+            <string>netgenOptimizationSteps</string>
+           </property>
+          </widget>
+         </item>
+         <item row="7" column="0">
           <widget class="QLabel" name="tetrahedralizeLabel">
            <property name="text">
             <string>Tetrahedralize:</string>
            </property>
           </widget>
          </item>
-         <item row="5" column="1">
+         <item row="7" column="1">
           <widget class="QCheckBox" name="tetrahedralizeCheckBox">
            <property name="toolTip">
             <string>Split every prism of the boundary layer into tetrahedra, for a solver that takes nothing else.</string>
