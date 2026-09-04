@@ -50,11 +50,14 @@ class ClipVesselCapMethodsTest(unittest.TestCase):
         labeler.SetInputData(openTube())
         labeler.SetBoundaryLabelsArrayName(self.logic.boundaryLabelsArrayName)
         labeler.SetBoundaryPointOrderArrayName(self.logic.boundaryPointOrderArrayName)
+        # A label is the cell entity id of the cap that closes its boundary, so the labels are
+        # numbered above the wall the caps will be set into: the same wall the capper is given.
+        labeler.SetCellEntityIdOffset(WALL_ID)
         labeler.Update()
         self.labelledSurface = labeler.GetOutput()
         self.boundaryLabels = sorted(labeler.GetBoundaryLabels().GetId(i)
                                      for i in range(labeler.GetNumberOfBoundaries()))
-        self.assertEqual(self.boundaryLabels, [0, 1])
+        self.assertEqual(self.boundaryLabels, [WALL_ID + 1, WALL_ID + 2])
 
     def capIds(self, capMethod):
         capped = self.logic.capSurface(self.labelledSurface, CELL_ENTITY_IDS, WALL_ID,

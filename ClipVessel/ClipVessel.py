@@ -29,6 +29,15 @@ _TRANSITION_METHOD_IDS = ("LINEAR", "THIN_PLATE_SPLINE", "RAMP")
 # "ModelFaceID" is the name SimVascular and its meshing tools read the faces of a model by.
 _DEFAULT_MODEL_FACE_ID_ARRAY_NAME = "ModelFaceID"
 
+# Names of the point data arrays that say which vessel end each boundary point belongs to. These
+# are the names VMTK's own filters read and write by default
+# (vtkvmtkBoundaryLabels::GetDefaultBoundaryLabelsArrayName), and the names CFD Mesh Generator
+# looks for on a surface clipped here. They can be changed so that a surface already carrying
+# arrays under these names - a labeling of its own, meaning something else - is not mistaken for
+# a labeled one, and so that the output can be made to match whatever a downstream tool reads.
+_DEFAULT_BOUNDARY_LABELS_ARRAY_NAME = "BoundaryLabels"
+_DEFAULT_BOUNDARY_POINT_ORDER_ARRAY_NAME = "BoundaryPointOrder"
+
 # Shape of the mesh that closes a clipped end, one VMTK capping filter each (the methods of the
 # vmtksurfacecapper script that apply to a surface with single, unpaired open boundaries).
 _CAP_METHOD_IDS = ("CENTERPOINT", "SIMPLE", "SMOOTH")
@@ -183,6 +192,8 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.capTargetEdgeLengthWidget.connect('valueChanged(double)', self.updateParameterNodeFromGUI)
     self.ui.labelModelFacesCheckBox.connect("toggled(bool)", self.onLabelModelFacesToggled)
     self.ui.modelFaceIdArrayNameLineEdit.connect("editingFinished()", self.onModelFaceIdArrayNameEditingFinished)
+    self.ui.boundaryLabelsArrayNameLineEdit.connect("editingFinished()", self.onBoundaryArrayNamesEditingFinished)
+    self.ui.boundaryPointOrderArrayNameLineEdit.connect("editingFinished()", self.onBoundaryArrayNamesEditingFinished)
     self.ui.addFlowExtensionsCheckBox.connect("toggled(bool)", self.updateParameterNodeFromGUI)
     self.ui.parameterNodeSelector.connect('currentNodeChanged(vtkMRMLNode*)', self.setParameterNode)
     self.ui.applyButton.connect('clicked(bool)', self.onApplyButtonClicked)
@@ -380,6 +391,11 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.modelFaceIdArrayNameLineEdit.text = modelFaceIdArrayName
     self.ui.modelFaceIdArrayNameLabel.enabled = labelModelFaces
     self.ui.modelFaceIdArrayNameLineEdit.enabled = labelModelFaces
+    for lineEdit, parameterName in ((self.ui.boundaryLabelsArrayNameLineEdit, "BoundaryLabelsArrayName"),
+                                    (self.ui.boundaryPointOrderArrayNameLineEdit, "BoundaryPointOrderArrayName")):
+        arrayName = self._parameterNode.GetParameter(parameterName)
+        if lineEdit.text != arrayName:
+            lineEdit.text = arrayName
     addFlowExtensions = (self._parameterNode.GetParameter("ExtendOutputSurface") == "true")
     self.ui.addFlowExtensionsCheckBox.checked = addFlowExtensions
     # The per-endpoint extension length scale only has an effect when flow extensions are added.
@@ -660,6 +676,22 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.modelFaceIdArrayNameLineEdit.text = modelFaceIdArrayName
     self._parameterNode.SetParameter("ModelFaceIdArrayName", modelFaceIdArrayName)
     self.updateOutputFaceColoring()
+
+  def onBoundaryArrayNamesEditingFinished(self):
+    """Write the boundary label array names back to the parameter node once the user is done
+    editing them. An empty name cannot address a point array, so it falls back to the default."""
+    if self._parameterNode is None:
+        return
+    for lineEdit, parameterName, defaultName in (
+            (self.ui.boundaryLabelsArrayNameLineEdit, "BoundaryLabelsArrayName",
+             _DEFAULT_BOUNDARY_LABELS_ARRAY_NAME),
+            (self.ui.boundaryPointOrderArrayNameLineEdit, "BoundaryPointOrderArrayName",
+             _DEFAULT_BOUNDARY_POINT_ORDER_ARRAY_NAME)):
+        arrayName = lineEdit.text.strip()
+        if not arrayName:
+            arrayName = defaultName
+            lineEdit.text = arrayName
+        self._parameterNode.SetParameter(parameterName, arrayName)
 
   def onSnapClipPointsToCenterlineToggled(self, checked=None):
     self.updateParameterNodeFromGUI()
@@ -1469,6 +1501,10 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             labelModelFaces = self._parameterNode.GetParameter("LabelModelFaces") == "true"
             modelFaceIdArrayName = (self._parameterNode.GetParameter("ModelFaceIdArrayName")
                                     or _DEFAULT_MODEL_FACE_ID_ARRAY_NAME)
+            boundaryLabelsArrayName = (self._parameterNode.GetParameter("BoundaryLabelsArrayName")
+                                       or _DEFAULT_BOUNDARY_LABELS_ARRAY_NAME)
+            boundaryPointOrderArrayName = (self._parameterNode.GetParameter("BoundaryPointOrderArrayName")
+                                           or _DEFAULT_BOUNDARY_POINT_ORDER_ARRAY_NAME)
             addFlowExtensions = self._parameterNode.GetParameter("ExtendOutputSurface") == "true"
             extensionDirection = _normalizedOptionId(self._parameterNode.GetParameter("ExtensionDirection"))
             transitionMethod = _normalizedOptionId(self._parameterNode.GetParameter("TransitionMethod"))
@@ -1487,7 +1523,8 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                                                    self._extensionLengthScaleFactors,
                                                    labelModelFaces, modelFaceIdArrayName,
                                                    capMethod, capConstraintFactor, capNumberOfRings,
-                                                   remeshCaps, capTargetEdgeLength)
+                                                   remeshCaps, capTargetEdgeLength,
+                                                   boundaryLabelsArrayName, boundaryPointOrderArrayName)
 
             outputModelNode.SetAndObserveMesh(outputPolyData)
             if not outputModelNode.GetDisplayNode():
@@ -1644,6 +1681,10 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
         parameterNode.SetParameter("LabelModelFaces", "false")
     if not parameterNode.GetParameter("ModelFaceIdArrayName"):
         parameterNode.SetParameter("ModelFaceIdArrayName", _DEFAULT_MODEL_FACE_ID_ARRAY_NAME)
+    if not parameterNode.GetParameter("BoundaryLabelsArrayName"):
+        parameterNode.SetParameter("BoundaryLabelsArrayName", _DEFAULT_BOUNDARY_LABELS_ARRAY_NAME)
+    if not parameterNode.GetParameter("BoundaryPointOrderArrayName"):
+        parameterNode.SetParameter("BoundaryPointOrderArrayName", _DEFAULT_BOUNDARY_POINT_ORDER_ARRAY_NAME)
     if not parameterNode.GetParameter("ExtensionRatio"):
         parameterNode.SetParameter("ExtensionRatio", "2")
     if not parameterNode.GetParameter("ExtensionTransitionRatio"):
@@ -1763,7 +1804,9 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
   def capSurface(self, surface, cellEntityIdsArrayName=None, cellEntityIdOffset=0,
                  capMethod=_DEFAULT_CAP_METHOD,
                  constraintFactor=_DEFAULT_CAP_CONSTRAINT_FACTOR,
-                 numberOfRings=_DEFAULT_CAP_NUMBER_OF_RINGS):
+                 numberOfRings=_DEFAULT_CAP_NUMBER_OF_RINGS,
+                 boundaryLabelsArrayName=None,
+                 boundaryPointOrderArrayName=None):
     """Close every open boundary of the surface. capMethod picks the shape of the cap mesh, one
     VMTK capping filter each:
       "CENTERPOINT" - a fan of triangles from the barycenter of the hole (vtkvmtkCapPolyData)
@@ -1781,12 +1824,15 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
     its values but still numbers the caps from cellEntityIdOffset up, so new cap ids land on ids
     already in use - clipVessel() passes a private array name for that reason.
 
-    Each cap takes the label of the boundary it closes, which is the index of the clip point
-    that opened it (see labelClipBoundaries), so a cap can be traced back to its cut without
-    anything having to be numbered or translated. All three cappers read the labels, so that
-    holds whichever method is chosen. A hole no cut opened carries no label, and its cap keeps
-    the i+1+cellEntityIdOffset the capper derives from the extraction order - which is why the
-    offset has to sit above every clip point index.
+    Each cap takes the label of the boundary it closes, which is the face id worked out for the
+    cut that opened it (see labelClipBoundaries), so a cap comes out under the id the output is
+    to know it by, with nothing to translate. All three cappers read the labels, so that holds
+    whichever method is chosen. Every boundary carries a label - the labeler gives a hole no cut
+    opened a fresh one above the ids already spoken for - so the positional numbering the capper
+    falls back to is not reached, and cellEntityIdOffset only ever lands on the wall.
+
+    boundaryLabelsArrayName and boundaryPointOrderArrayName are the point data arrays the labels
+    are read from; None (or an empty name) uses the ones the logic is configured with.
 
     Caution: the simple and smooth cappers need a triangulated input to leave the cells of the
     input alone (see _CAP_METHODS_NEEDING_TRIANGLES); callers that match cells of the output up
@@ -1817,8 +1863,10 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
     # choice of method does not change which cut a cap is named after. A surface that does not
     # carry them is not one this module produced: the filter says so and falls back to its own
     # numbering, rather than this module quietly identifying boundaries by extraction order.
-    surfaceCapper.SetBoundaryLabelsArrayName(self.boundaryLabelsArrayName)
-    surfaceCapper.SetBoundaryPointOrderArrayName(self.boundaryPointOrderArrayName)
+    surfaceCapper.SetBoundaryLabelsArrayName(
+        boundaryLabelsArrayName or self.boundaryLabelsArrayName)
+    surfaceCapper.SetBoundaryPointOrderArrayName(
+        boundaryPointOrderArrayName or self.boundaryPointOrderArrayName)
 
     if cellEntityIdsArrayName:
         surfaceCapper.SetCellEntityIdsArrayName(cellEntityIdsArrayName)
@@ -1841,10 +1889,14 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
   capBoundaryIdsArrayName = "__ClipVesselCapBoundaryIds"
 
   # Carry which clip point opened which boundary through the filters that rebuild the mesh, in the
-  # surface's own point data (see labelClipBoundaries). Private names, so that a surface the user
-  # brought in with arrays of its own cannot be mistaken for a labeled one.
-  boundaryLabelsArrayName = "__ClipVesselBoundaryLabels"
-  boundaryPointOrderArrayName = "__ClipVesselBoundaryPointOrder"
+  # surface's own point data (see labelClipBoundaries). These are the names VMTK's own filters
+  # read and write by default (vtkvmtkBoundaryLabels::GetDefaultBoundaryLabelsArrayName), and
+  # unlike the bookkeeping arrays above they are part of the output: they are left on the surface
+  # this module hands back, so that a later run - or another module - can tell which vessel end
+  # each boundary is. A surface that arrives carrying arrays under these names is taken to be
+  # labeled already, which is why the names can be overridden per run (see clipVessel).
+  boundaryLabelsArrayName = _DEFAULT_BOUNDARY_LABELS_ARRAY_NAME
+  boundaryPointOrderArrayName = _DEFAULT_BOUNDARY_POINT_ORDER_ARRAY_NAME
 
   def capTargetArea(self, surface, entityIds, capEntityId, targetEdgeLength=0.0):
     """The triangle area a uniform mesh of the cap carrying capEntityId should aim for.
@@ -2119,8 +2171,38 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
     values, counts = np.unique(neighbourFaceIds, return_counts=True)
     return int(values[np.argmax(counts)])
 
+  def faceIdLayout(self, surface, faceIdArrayName, cellDataSurvives=True):
+    """Where the wall and the caps sit in the face id numbering, worked out from the surface
+    before it is capped.
+
+    The layout is decided here rather than in labelModelFaces() because the boundaries have to be
+    labelled with the ids their caps will get, and that happens long before there is a cap to
+    number. A boundary's label is its cap's face id (see labelClipBoundaries), so the two cannot
+    be worked out independently and hope to agree.
+
+    Nothing about the layout depends on the capping: any face the surface already carries is
+    compacted onto firstFaceId, firstFaceId+1, ..., the wall takes the id after those, and the
+    caps follow it, one per clip point.
+
+    :param cellDataSurvives: whether the face ids the surface carries will still be on it when it
+      is capped. Growing a flow extension rebuilds the mesh and keeps no cell data, so the ids are
+      gone by then and no id is set aside for them.
+    :return: (wallFaceId, firstCapFaceId).
+    """
+    numberOfExistingFaces = 0
+    hasWallCells = True
+    array = surface.GetCellData().GetArray(faceIdArrayName) if faceIdArrayName else None
+    if array is not None and cellDataSurvives and array.GetNumberOfTuples() == surface.GetNumberOfCells():
+        faceIds = vtk_to_numpy(array).astype(np.int64)
+        numberOfExistingFaces = len(set(int(value) for value in np.unique(faceIds) if int(value) > 0))
+        # An input that labels every cell has no wall, and then no id is set aside for one, or the
+        # caps would start past a face that does not exist.
+        hasWallCells = bool(np.any(faceIds <= 0))
+    wallFaceId = self.firstFaceId + numberOfExistingFaces
+    return wallFaceId, wallFaceId + 1 if hasWallCells else wallFaceId
+
   def labelModelFaces(self, surface, planeSpecifications, faceIdArrayName, existingFaceIds=None,
-                      wallCellEntityId=0):
+                      wallCellEntityId=0, wallFaceId=None, firstCapFaceId=None):
     """Tag every cell of the output surface with an integer face id, in the faceIdArrayName cell
     data array, so that a CFD setup can assign a boundary condition per face and a remesher can
     keep the wall/cap boundaries as sharp feature edges.
@@ -2129,22 +2211,29 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
     renumbered onto firstFaceId, firstFaceId+1, ... in ascending order of its original id; the
     vessel wall - every cell left unlabeled, flow extensions included - takes the next id, unless
     the input labeled every cell and there is no wall; then the caps, in clip point order. With
-    nothing pre-existing that is just wall=1, caps=2,3,...
+    nothing pre-existing that is just wall=1, caps=2,3,... See faceIdLayout(), which is where the
+    layout is settled, before the boundaries are labelled.
 
     Caps follow the clip points rather than the capping filter's own boundary order, which
     shifts as clip points move and would renumber the faces of a configured simulation between
     runs. Which cap belongs to which clip point is settled by labelClipBoundaries(), which writes
-    the clip point's index onto the points of the boundary it opened; the capper reads those
-    labels and puts the clip point's id on the cap closing each. A clip point that made no cut
+    the face id the clip point's cap is to have onto the points of the boundary it opened; the
+    capper reads those labels and gives each cap the one it finds. So there is nothing to
+    translate here: a cap's boundary id already is its face id. A clip point that made no cut
     leaves its id unused rather than shifting the others.
 
     :param existingFaceIds: the ids the input carried, one per input cell, in cell order;
       clipVessel reads them before capping, which does not carry cell data through. When None
       they are read off the surface, which is only correct if it has not been capped since.
     :param wallCellEntityId: the value the capping filter left on the cells it copied from its
-      input, which is what tells a cap cell from a wall cell. A cap carries the id of the clip point
-      whose cut opened the boundary it closes (i+1 for clip point i); a cap closing a boundary no cut
-      opened carries an id the capper derived itself, which falls outside that range.
+      input, which is what tells a cap cell from a wall cell. A cap carries the face id of the
+      vessel end it closes, which is above the wall's; a cap closing a boundary no cut opened
+      carries a fresh id above those, which falls outside the clip points' range.
+    :param wallFaceId: the id to give the wall, and :param firstCapFaceId: the id of the cap of
+      clip point 0, both from faceIdLayout(). They are passed in rather than derived again so
+      that they cannot come out different from the ones the boundaries were labelled with - the
+      ids the input carried can be dropped between the two calls, and are, whenever a flow
+      extension is grown. None derives them here, for a caller outside clipVessel().
     :return: [(faceId, clipPointLabel)] for the caps. lastWallFaceId and lastExistingFaceIdMap
       describe the rest.
     """
@@ -2191,24 +2280,30 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
 
     # The wall is every cell left unlabeled. An input that labels every cell has no wall, and
     # then no id is set aside for one, or the caps would start past a face that does not exist.
-    wallFaceId = self.firstFaceId + len(existingFaceIdMap)
-    faceIds = np.where(compactedIds > 0, compactedIds, wallFaceId)
+    # Where the layout was settled before the boundaries were labelled - which is how clipVessel
+    # runs, because a boundary is labelled with the face id its cap will have - it is taken as it
+    # was decided then. Deriving it again from ids that may since have been dropped would put the
+    # wall where a cap is expected.
     hasWallCells = bool(np.any((compactedIds == 0) & ~isCapCell))
-    firstCapFaceId = wallFaceId + 1 if hasWallCells else wallFaceId
+    if wallFaceId is None or firstCapFaceId is None:
+        wallFaceId = self.firstFaceId + len(existingFaceIdMap)
+        firstCapFaceId = wallFaceId + 1 if hasWallCells else wallFaceId
+    faceIds = np.where(compactedIds > 0, compactedIds, wallFaceId)
 
     # Caps, numbered in clip point order.
     capAssignments = []
     if capBoundaryIds is not None:
         boundaryIds = [int(value) for value in np.unique(capBoundaryIds[isCapCell])]
 
-        # Each cap carries the id of the clip point whose cut opened the boundary it closes, put
-        # there by clipModel() and brought this far by the capper; a cap value outside the clip
-        # point range belongs to a hole no cut accounts for.
+        # Each cap already carries the face id of the vessel end it closes: labelClipBoundaries()
+        # put that id on the points of the boundary the cut opened and the capper gave the cap
+        # the label it found there, so there is nothing to map. A value outside the range the
+        # clip points were given belongs to a hole no cut accounts for.
         numberOfClipPoints = len(planeSpecifications)
         faceIdByBoundaryId = {}
         for boundaryId in boundaryIds:
-            if 0 <= boundaryId < numberOfClipPoints:
-                faceIdByBoundaryId[boundaryId] = firstCapFaceId + boundaryId
+            if firstCapFaceId <= boundaryId < firstCapFaceId + numberOfClipPoints:
+                faceIdByBoundaryId[boundaryId] = boundaryId
 
         labelByPointIndex = {specification["index"]: specification["label"]
                              for specification in planeSpecifications}
@@ -2400,8 +2495,10 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
     vtk.vtkMath.Normalize(normal)
     return normal
 
-  def labelClipBoundaries(self, surface, planeSpecifications, tolerance=None):
-    """Label each open boundary of the clipped surface with the index of the clip point that opened it.
+  def labelClipBoundaries(self, surface, planeSpecifications, tolerance=None,
+                          boundaryLabelsArrayName=None, boundaryPointOrderArrayName=None,
+                          firstCapFaceId=None):
+    """Label each open boundary of the clipped surface with the face id its cap is to have.
 
     A boundary is attributed to a clip point only when *every* one of its points lies in that clip
     point's plane, so a hole the input already had, or another cut's boundary, cannot be claimed by
@@ -2419,14 +2516,33 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
     not: vtkvmtkPolyDataFlowExtensionsFilter moves it to the tip of the extension it grows, and
     vtkvmtkCapPolyData reads it to decide which cap is which.
 
-    A boundary no clip point opened gets a label above the last clip point index, so it can never
-    be mistaken for one that was cut.
+    A boundary no clip point opened gets a label above the last clip point's, so it can never be
+    mistaken for one that was cut.
+
+    The label is the face id, not a name that later has to be turned into one. A boundary label
+    and a cell entity id are the same numbering throughout - VMTK's cappers give a cap the label
+    they find on the boundary it closes - so the vessel end that is face 3 in the output's cell
+    data is the end labelled 3 in its point data, in this module and in every module downstream.
+    That is what firstCapFaceId settles: the ids the caps will take, worked out from the surface
+    by faceIdLayout() before anything is labelled.
+
+    boundaryLabelsArrayName and boundaryPointOrderArrayName are the point data arrays the answer
+    is written into; None (or an empty name) uses the ones the logic is configured with.
+
+    :param firstCapFaceId: the face id of the cap of clip point 0, from faceIdLayout(). None
+      numbers the caps as an unlabelled surface would be numbered, which is what a caller with no
+      face ids of its own wants.
 
     :return: (labeled surface, set of clip point indices that were matched to no boundary). A clip
       point is unmatched when it never cut, or when a later cut removed the boundary it opened.
     """
     if tolerance is None:
         tolerance = self.planarityToleranceMm
+
+    if firstCapFaceId is None:
+        # No layout was worked out, so the caps take the ids the capping filter gives a surface
+        # it has to number itself: the wall, then one per boundary above it.
+        firstCapFaceId = self.firstFaceId + 1
 
     planeOrigins = vtk.vtkPoints()
     planeNormals = vtk.vtkDoubleArray()
@@ -2435,15 +2551,21 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
     for specification in planeSpecifications:
         planeOrigins.InsertNextPoint(specification["origin"])
         planeNormals.InsertNextTuple3(*specification["normal"])
-        # The label of a boundary is the index of the clip point that opened it, so that every
-        # per-boundary list below is indexed by clip point without a translation step.
-        planeLabels.InsertNextId(specification["index"])
+        # The label of a boundary is the face id of the cap that will close it, so a clip point's
+        # index and its face id differ by firstCapFaceId and nothing else has to be translated.
+        planeLabels.InsertNextId(firstCapFaceId + specification["index"])
 
     labeler = vtkvmtkComputationalGeometry.vtkvmtkPolyDataBoundaryLabeler()
     labeler.SetInputData(surface)
-    labeler.SetBoundaryLabelsArrayName(self.boundaryLabelsArrayName)
-    labeler.SetBoundaryPointOrderArrayName(self.boundaryPointOrderArrayName)
+    labeler.SetBoundaryLabelsArrayName(
+        boundaryLabelsArrayName or self.boundaryLabelsArrayName)
+    labeler.SetBoundaryPointOrderArrayName(
+        boundaryPointOrderArrayName or self.boundaryPointOrderArrayName)
     labeler.SetLabelingModeToOnPlane()
+    # Where the fresh labels of the boundaries no cut opened start: above the last face already
+    # spoken for, so a hole the input had cannot be given the id of an existing face or of the
+    # wall. The filter reads this as the wall's own id and numbers upwards from it.
+    labeler.SetCellEntityIdOffset(firstCapFaceId - 1)
     labeler.SetMaximumDistanceFromPlane(tolerance)
     # MaximumDistanceFromPlaneOrigin is left unset: a single distance would have to be loose
     # enough for the widest vessel end, which makes it no constraint at all on the narrow ones.
@@ -2453,7 +2575,9 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
     labeler.Update()
 
     unmatched = labeler.GetUnmatchedPlaneLabels()
-    unmatchedClipPointIndices = set(unmatched.GetId(index) for index in range(unmatched.GetNumberOfIds()))
+    # Reported as face ids, the way they were given; the caller counts in clip points.
+    unmatchedClipPointIndices = set(unmatched.GetId(index) - firstCapFaceId
+                                    for index in range(unmatched.GetNumberOfIds()))
     return labeler.GetOutput(), unmatchedClipPointIndices
 
   def clipModel(self, surface, planeOrigin, planeNormal, localRadius=None, clippingMethod="PLANE_PATCH", sphereRadiusFactor=2.5):
@@ -2884,7 +3008,8 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
         
   def extendVessel(self, surfacePolyData, centerlinesPolyData, extensionRatio, extensionDirection,
                    transitionRatio=None, transitionMethod=None, transitionToCircularCrossSection=None,
-                   extensionLengthScaleFactors=None):
+                   extensionLengthScaleFactors=None,
+                   boundaryLabelsArrayName=None, boundaryPointOrderArrayName=None):
     """Adds flow extensions to all boundaries.
     :param extensionRatio: length of each extension, as a multiple of the mean radius of the
       boundary that it is attached to. Defaults to self.ExtensionRatio.
@@ -2900,6 +3025,10 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
       length, indexed by boundary id; None leaves all extension lengths unscaled. A boundary's id
       is its label from the boundary labels this module writes (see labelClipBoundaries), which is
       the index of the clip point that opened it.
+    :param boundaryLabelsArrayName: point data array the boundary labels are read from, and
+      carried across to the tip of each extension; None uses the logic default.
+    :param boundaryPointOrderArrayName: point data array holding each boundary point's index
+      within its own boundary; None uses the logic default.
     :return: the extended surface. Growing an extension replaces the boundary it grew from with a
       new one at the tip, but the filter carries the boundary's label across to it, so a vessel end
       is still the same vessel end afterwards and nothing has to be renumbered.
@@ -2918,8 +3047,10 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
     extensionsFilter.SetInputData(surfacePolyData)
     # Read the boundaries from the labels, and carry each one across to the tip of its own
     # extension, so that a vessel end keeps its identity through the rebuild.
-    extensionsFilter.SetBoundaryLabelsArrayName(self.boundaryLabelsArrayName)
-    extensionsFilter.SetBoundaryPointOrderArrayName(self.boundaryPointOrderArrayName)
+    extensionsFilter.SetBoundaryLabelsArrayName(
+        boundaryLabelsArrayName or self.boundaryLabelsArrayName)
+    extensionsFilter.SetBoundaryPointOrderArrayName(
+        boundaryPointOrderArrayName or self.boundaryPointOrderArrayName)
     extensionsFilter.SetCenterlines(centerlinesPolyData)
     extensionsFilter.SetAdaptiveExtensionLength(self.AdaptiveExtensionLength)
     extensionsFilter.SetAdaptiveExtensionRadius(self.AdaptiveExtensionRadius)
@@ -2960,7 +3091,9 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
                  capConstraintFactor=_DEFAULT_CAP_CONSTRAINT_FACTOR,
                  capNumberOfRings=_DEFAULT_CAP_NUMBER_OF_RINGS,
                  remeshCaps=False,
-                 capTargetEdgeLength=_DEFAULT_CAP_TARGET_EDGE_LENGTH):
+                 capTargetEdgeLength=_DEFAULT_CAP_TARGET_EDGE_LENGTH,
+                 boundaryLabelsArrayName=None,
+                 boundaryPointOrderArrayName=None):
     """Clips the vessel.
     :param surfacePolyData: input surface
     :param centerlinesPolyData: input centerlines
@@ -2992,6 +3125,13 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
       distribution, leaving the vessel wall untouched; see remeshCaps()
     :param capTargetEdgeLength: edge length a remeshed cap aims for, in mm; 0 sizes each cap
       after the surface around its own rim
+    :param boundaryLabelsArrayName: point data array that says which vessel end each boundary
+      point belongs to. It is written into the output rather than removed from it, so that a
+      later run - or another module, CFD Mesh Generator among them - can still tell the ends
+      apart; None uses the logic default.
+    :param boundaryPointOrderArrayName: point data array holding each boundary point's index
+      within its own boundary, which is what makes the ring of a boundary readable back from the
+      output; None uses the logic default.
     :return: polydata containing clipped vessel
     """
 
@@ -3103,11 +3243,24 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
         addFlowExtensions = False
         cap = False
 
+    # Where the faces of the output will sit, decided here because the boundaries are about to be
+    # labelled with the ids their caps will take, and the two have to be the same numbering. Read
+    # off the clipped surface, which is what the ids of the input have come down to by now; a flow
+    # extension rebuilds the mesh and keeps no cell data, so with one to grow there are no ids left
+    # to set aside room for.
+    faceIdArrayName = (modelFaceIdArrayName or "").strip() if labelModelFaces else ""
+    wallFaceId, firstCapFaceId = self.faceIdLayout(
+        surface, faceIdArrayName, cellDataSurvives=not addFlowExtensions)
+
     # Which cut opened which boundary, settled once here, while the boundaries still lie exactly
     # where the cuts left them, and written into the surface's own point data. From here on a
-    # vessel end is referred to by its label, which is the index of the clip point that opened it,
+    # vessel end is referred to by its label, which is the face id of the cap that will close it,
     # and which the filters that rebuild the mesh carry with the points rather than renumber.
-    surface, unmatchedClipPointIndices = self.labelClipBoundaries(surface, planeSpecifications)
+    surface, unmatchedClipPointIndices = self.labelClipBoundaries(
+        surface, planeSpecifications,
+        boundaryLabelsArrayName=boundaryLabelsArrayName,
+        boundaryPointOrderArrayName=boundaryPointOrderArrayName,
+        firstCapFaceId=firstCapFaceId)
     unidentifiedLabels = [specification["label"] for specification in planeSpecifications
                           if specification["index"] in unmatchedClipPointIndices]
     if unidentifiedLabels:
@@ -3127,22 +3280,24 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
                             "flow extensions rebuilds the mesh and does not preserve cell data.")
         boundaryScaleFactors = None
         if extensionScaleFactors and any(abs(scaleFactor - 1.0) > 1e-6 for scaleFactor in extensionScaleFactors.values()):
-            # One factor per boundary id, and a boundary id is a clip point index, so entry i
-            # belongs to clip point i. A boundary no cut opened - a hole the input already had -
-            # carries a label above the last clip point index, falls off the end of the list, and
-            # is left unscaled rather than inheriting the factor of whichever clip point happens
-            # to be nearest.
+            # One factor per boundary id, and a boundary id is the cap's face id, so entry i
+            # belongs to the vessel end that is face i. A boundary no cut opened - a hole the
+            # input already had - carries a label above the last clip point's, falls off the end
+            # of the list, and is left unscaled rather than inheriting the factor of whichever
+            # clip point happens to be nearest.
             # Written at the boundary id rather than appended, so that the list is indexed the
             # way the filter reads it however planeSpecifications happens to be ordered.
-            boundaryScaleFactors = [1.0] * (max(specification["index"]
-                                                for specification in planeSpecifications) + 1)
+            boundaryScaleFactors = [1.0] * (firstCapFaceId + max(specification["index"]
+                                                                 for specification in planeSpecifications) + 1)
             for specification in planeSpecifications:
                 clipPointId = clipPointsMarkupsNode.GetNthControlPointID(specification["index"])
-                boundaryScaleFactors[specification["index"]] = extensionScaleFactors.get(clipPointId, 1.0)
+                boundaryScaleFactors[firstCapFaceId + specification["index"]] = extensionScaleFactors.get(clipPointId, 1.0)
         surface = self.extendVessel(
             surface, centerlinesPolyData, extensionRatio, extensionDirection,
             transitionRatio, transitionMethod, transitionToCircularCrossSection,
-            boundaryScaleFactors)
+            boundaryScaleFactors,
+            boundaryLabelsArrayName=boundaryLabelsArrayName,
+            boundaryPointOrderArrayName=boundaryPointOrderArrayName)
 
     if cap and capMethod in _CAP_METHODS_NEEDING_TRIANGLES:
         # Ahead of the face ids being read, so that they still line up cell for cell with the
@@ -3150,7 +3305,6 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
         # it splits a cell into).
         surface = self.triangulateSurface(surface)
 
-    faceIdArrayName = (modelFaceIdArrayName or "").strip() if labelModelFaces else ""
     if labelModelFaces and not faceIdArrayName:
         logging.warning("Clip Vessel skipped labeling the faces: no face id array name was given.")
 
@@ -3169,11 +3323,14 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
                 firstPolyCell = surface.GetNumberOfVerts() + surface.GetNumberOfLines()
                 existingFaceIds = existingFaceIds[firstPolyCell:firstPolyCell + surface.GetNumberOfPolys()]
 
-    # A cap takes the label of the boundary it closes, and every boundary has one: the clip point
-    # index for a boundary a cut opened, and a fresh label above those for a hole no cut accounts
-    # for. So the value the capper leaves on the cells it copied is the one thing that must not
-    # be a label, and no label is negative.
-    wallCellEntityId = -1
+    # A cap takes the label of the boundary it closes, and every boundary has one: the face id
+    # worked out for the cut that opened it, and a fresh id above those for a hole no cut accounts
+    # for. The value the capper leaves on the cells it copied is what tells a wall cell from a cap
+    # cell, so it is the last id below the caps - the wall's own where the surface has a wall, and
+    # the id below the first cap where it has none, an input that labelled every cell leaving no
+    # face for one. Either way it is the number the boundaries were labelled above, so no cap can
+    # carry it.
+    wallCellEntityId = firstCapFaceId - 1
 
     # Cap all the holes that are in the surface
     if cap:
@@ -3186,7 +3343,9 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
                                   self.capBoundaryIdsArrayName if (faceIdArrayName or remeshCaps) else None,
                                   wallCellEntityId,
                                   capMethod=capMethod, constraintFactor=capConstraintFactor,
-                                  numberOfRings=capNumberOfRings)
+                                  numberOfRings=capNumberOfRings,
+                                  boundaryLabelsArrayName=boundaryLabelsArrayName,
+                                  boundaryPointOrderArrayName=boundaryPointOrderArrayName)
 
     # After capping and extensions: extensions drop cell data, and the caps only exist once the
     # capper has made them.
@@ -3195,7 +3354,9 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
         slicer.util.showStatusMessage(_("Labeling faces..."))
         slicer.app.processEvents()
         self.lastFaceIdAssignments = self.labelModelFaces(surface, planeSpecifications, faceIdArrayName,
-                                                          existingFaceIds, wallCellEntityId)
+                                                          existingFaceIds, wallCellEntityId,
+                                                          wallFaceId=wallFaceId,
+                                                          firstCapFaceId=firstCapFaceId)
 
     # Last of all: the remesher rebuilds the mesh and keeps only the one cell array it is given,
     # so anything that matches cells of the output up with cells of the input - the face labels
@@ -3212,18 +3373,14 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
             surface.GetCellData().SetActiveScalars(faceIdArrayName)
         else:
             # Nothing labeled the faces, so the capper's own per-boundary ids say which cells are
-            # caps. They carry wallCellEntityId on the wall, which is negative and would read to
-            # the remesher as "no entity", so they are shifted onto 0 for the wall and 1 up for
-            # the caps (see remeshCaps).
+            # caps. They are the face ids the output would have had - the wall's on the wall and
+            # one above it per cap - so they are non-negative and the remesher can be handed them
+            # as they stand (see remeshCaps).
             capBoundaryArray = surface.GetCellData().GetArray(self.capBoundaryIdsArrayName)
             if capBoundaryArray is not None:
-                entityIds = vtk_to_numpy(capBoundaryArray).astype(np.int64) - wallCellEntityId
-                entityIdsArray = numpy_to_vtk(entityIds.astype(np.int32), deep=True, array_type=vtk.VTK_INT)
-                entityIdsArray.SetName(self.capBoundaryIdsArrayName)
-                surface.GetCellData().RemoveArray(self.capBoundaryIdsArrayName)
-                surface.GetCellData().AddArray(entityIdsArray)
+                entityIds = vtk_to_numpy(capBoundaryArray).astype(np.int64)
                 surface = self.remeshCaps(surface, self.capBoundaryIdsArrayName,
-                                          [value for value in np.unique(entityIds) if value > 0],
+                                          [value for value in np.unique(entityIds) if value != wallCellEntityId],
                                           capTargetEdgeLength)
             surface.GetCellData().RemoveArray(self.capBoundaryIdsArrayName)   # internal bookkeeping
 

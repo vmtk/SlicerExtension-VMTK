@@ -119,11 +119,14 @@ class ClipVesselCapRemeshingTest(unittest.TestCase):
                                       height=HEIGHT, radius=RADIUS))
         labeler.SetBoundaryLabelsArrayName(self.logic.boundaryLabelsArrayName)
         labeler.SetBoundaryPointOrderArrayName(self.logic.boundaryPointOrderArrayName)
+        # A label is the cell entity id of the cap that closes its boundary, so the boundaries are
+        # numbered above the wall the caps will be set into - the same wall the capper is given.
+        labeler.SetCellEntityIdOffset(WALL_ID)
         labeler.Update()
         self.labelledSurface = labeler.GetOutput()
         self.capIds = sorted(labeler.GetBoundaryLabels().GetId(index)
                              for index in range(labeler.GetNumberOfBoundaries()))
-        self.assertEqual(self.capIds, [0, 1])
+        self.assertEqual(self.capIds, [WALL_ID + 1, WALL_ID + 2])
 
     def cappedSurface(self, capMethod=ClipVessel._DEFAULT_CAP_METHOD):
         return self.logic.capSurface(self.labelledSurface, CELL_ENTITY_IDS, WALL_ID,

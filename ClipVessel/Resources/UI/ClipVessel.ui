@@ -1077,6 +1077,52 @@
         </layout>
        </widget>
       </item>
+      <item>
+       <widget class="ctkCollapsibleGroupBox" name="boundaryLabelsCollapsibleGroupBox">
+        <property name="title">
+         <string>Boundary label arrays</string>
+        </property>
+        <property name="collapsed">
+         <bool>true</bool>
+        </property>
+        <layout class="QFormLayout" name="formLayout_6">
+         <item row="0" column="0">
+          <widget class="QLabel" name="boundaryLabelsArrayNameLabel">
+           <property name="text">
+            <string>Boundary labels array:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QLineEdit" name="boundaryLabelsArrayNameLineEdit">
+           <property name="toolTip">
+            <string>Name of the point data array that says which clipped end each boundary point belongs to. It is written into the output surface, which is what lets a cap keep the same id from one run to the next and lets another module - CFD Mesh Generator reads it - tell the vessel ends apart. &quot;BoundaryLabels&quot; is the name the VMTK filters use by default; change it only if the input surface already carries an array of that name meaning something else.</string>
+           </property>
+           <property name="text">
+            <string notr="true">BoundaryLabels</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="boundaryPointOrderArrayNameLabel">
+           <property name="text">
+            <string>Point order array:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QLineEdit" name="boundaryPointOrderArrayNameLineEdit">
+           <property name="toolTip">
+            <string>Name of the point data array holding each boundary point&apos;s position around its own boundary, which is what makes the ring of a boundary readable back from the output. It travels with the boundary labels array and is written into the output alongside it.</string>
+           </property>
+           <property name="text">
+            <string notr="true">BoundaryPointOrder</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>

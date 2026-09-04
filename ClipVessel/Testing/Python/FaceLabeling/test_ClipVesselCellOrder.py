@@ -66,15 +66,16 @@ def cellCentroids(surface):
 
 
 def capAndLabel(logic, surface, planeSpecifications, existingFaceIds):
-    """Cap and label the way clipVessel does: label each boundary with the clip point that opened
-    it, so the capper puts that clip point's id on its cap."""
-    wallCellEntityId = len(planeSpecifications) + 1
-    surface, _ = logic.labelClipBoundaries(surface, planeSpecifications)
-    boundaryCellEntityIds = [specification["index"] + 1 for specification in planeSpecifications]
-    capped = logic.capSurface(surface, logic.capBoundaryIdsArrayName, wallCellEntityId,
-                              boundaryCellEntityIds)
+    """Cap and label the way clipVessel does: work the face id layout out first, label each
+    boundary with the face id its cap is to have, and let the capper put that id on the cap."""
+    wallFaceId, firstCapFaceId = logic.faceIdLayout(surface, "ModelFaceID")
+    wallCellEntityId = firstCapFaceId - 1
+    surface, _ = logic.labelClipBoundaries(surface, planeSpecifications,
+                                           firstCapFaceId=firstCapFaceId)
+    capped = logic.capSurface(surface, logic.capBoundaryIdsArrayName, wallCellEntityId)
     assignments = logic.labelModelFaces(capped, planeSpecifications, "ModelFaceID",
-                                        existingFaceIds, wallCellEntityId)
+                                        existingFaceIds, wallCellEntityId,
+                                        wallFaceId=wallFaceId, firstCapFaceId=firstCapFaceId)
     return capped, assignments
 
 

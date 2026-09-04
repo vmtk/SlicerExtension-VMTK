@@ -74,6 +74,16 @@ class ClipVesselApplyTest(unittest.TestCase):
             dn = outNode.GetDisplayNode()
             check("output auto-colored by face id", dn.GetScalarVisibility()
                   and dn.GetActiveScalarName() == "ModelFaceID")
+            # Boundary labels and face ids are one numbering: the rim of the vessel end that is
+            # face N carries N, so nothing has to be translated to hand the output to a mesher.
+            labelArray = out.GetPointData().GetArray("BoundaryLabels")
+            check("the output carries its boundary labels", labelArray is not None)
+            if labelArray is not None:
+                labels = vtk_to_numpy(labelArray)
+                check("every label is the face id of its own cap",
+                      set(int(v) for v in np.unique(labels) if v >= 0)
+                      == set(range(2, numberOfClipPoints + 2)),
+                      sorted(set(int(v) for v in np.unique(labels))))
 
         # 2. input that already carries labels
         vals = np.zeros(pre.GetNumberOfCells(), dtype=np.int32)

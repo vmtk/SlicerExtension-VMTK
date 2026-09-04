@@ -43,6 +43,20 @@ UNLIMITED_EDGE_LENGTH = 1e16
 # had at that address (vtkvmtkBoundaryLayerGenerator's IncrementalWarpVectors).
 MINIMUM_SUBSTEPS = 100
 
+# Point data arrays saying which vessel end each boundary point belongs to, under the names VMTK's
+# own filters read and write by default (vtkvmtkBoundaryLabels::GetDefaultBoundaryLabelsArrayName),
+# which are the names Clip Vessel writes them with. A boundary that carries them is named by the
+# end it closes rather than by the order the extractor happened to find it in, which is what lets a
+# cap be given the same id every run - and the same id Clip Vessel gives it. The label is that id:
+# boundary labels and face ids are one numbering, so the end labelled 2 in the point data is the
+# face numbered 2 in the cell data, here and in Clip Vessel. Every filter here that rebuilds the
+# mesh carries them across, the surface projection putting them back on what the remesher hands
+# over, so they are still there when the inner surface is capped. They can be changed so that a
+# surface already carrying arrays under these names, meaning something else, is not mistaken for a
+# labeled one.
+DEFAULT_BOUNDARY_LABELS_ARRAY_NAME = "BoundaryLabels"
+DEFAULT_BOUNDARY_POINT_ORDER_ARRAY_NAME = "BoundaryPointOrder"
+
 # What to install when fTetWild is asked for. Pinned rather than floating: the mesh a version
 # gives is the mesh it gives, and a solver run is worth being able to repeat.
 FTETWILD_REQUIREMENT = "pytetwild==0.4.2"
@@ -233,6 +247,8 @@ class CfdMeshGeneratorParameterNode:
     coarsen: bool = False
     tetrahedralize: bool = False
     cellEntityIdsArrayName: str = "CellEntityIds"
+    boundaryLabelsArrayName: str = DEFAULT_BOUNDARY_LABELS_ARRAY_NAME
+    boundaryPointOrderArrayName: str = DEFAULT_BOUNDARY_POINT_ORDER_ARRAY_NAME
 
     # Boundary layer
     boundaryLayer: bool = False
@@ -633,6 +649,9 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
     # Entity id given to the cells that came from the input surface. The caps are numbered upwards
     # from it, so a wall cell can always be told from a cap cell - which is what makes the id array
     # usable as a boundary condition map, and what lets the remesher be pointed at the caps alone.
+    # It is also what the boundary labels of a surface are numbered above, so that a label is the
+    # id of the cap that closes it (see DEFAULT_BOUNDARY_LABELS_ARRAY_NAME); a surface labeled for
+    # some other wall would have its ends capped over the faces of this one.
     wallCellEntityId = 1
 
     # Id parked on the sidewall cells of a boundary layer that was not grown over the caps, until
@@ -641,14 +660,10 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
     placeholderCellEntityId = 9999
 
 
-    # Point data arrays saying which vessel end each boundary point belongs to, under the names
-    # Clip Vessel writes them with. A boundary that carries them is named by the end it closes
-    # rather than by the order the extractor happened to find it in, which is what lets a cap be
-    # given the same id every run - and the same id Clip Vessel gives it. Every filter here that
-    # rebuilds the mesh carries them across, the surface projection putting them back on what the
-    # remesher hands over, so they are still there when the inner surface is capped.
-    boundaryLabelsArrayName = "__ClipVesselBoundaryLabels"
-    boundaryPointOrderArrayName = "__ClipVesselBoundaryPointOrder"
+    # The names the boundary labels are read under when a caller gives none of its own; see
+    # DEFAULT_BOUNDARY_LABELS_ARRAY_NAME for what they hold and why they travel with the mesh.
+    boundaryLabelsArrayName = DEFAULT_BOUNDARY_LABELS_ARRAY_NAME
+    boundaryPointOrderArrayName = DEFAULT_BOUNDARY_POINT_ORDER_ARRAY_NAME
 
     # Smallest angle, in radians, that an edge may subtend before the remesher collapses it. This
     # is vmtksurfaceremeshing's own default rather than the filter's, which is more than twice as
@@ -749,6 +764,8 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
             maxEdgeLength=parameters.maxEdgeLength,
             minEdgeLength=parameters.minEdgeLength,
             cellEntityIdsArrayName=parameters.cellEntityIdsArrayName,
+            boundaryLabelsArrayName=parameters.boundaryLabelsArrayName,
+            boundaryPointOrderArrayName=parameters.boundaryPointOrderArrayName,
             elementSizeMode=parameters.elementSizeMode.value,
             cappingMethod=parameters.cappingMethod.value,
             skipCapping=not parameters.capSurface,
@@ -804,6 +821,8 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
                      maxEdgeLength=0.0,
                      minEdgeLength=0.0,
                      cellEntityIdsArrayName="CellEntityIds",
+                     boundaryLabelsArrayName=None,
+                     boundaryPointOrderArrayName=None,
                      elementSizeMode="edgelength",
                      cappingMethod="simple",
                      skipCapping=False,
@@ -845,6 +864,11 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
           thickness of the boundary layer.
         :param minEdgeLength: lower limit on the edge length.
         :param cellEntityIdsArrayName: name of the cell array the face ids are written into.
+        :param boundaryLabelsArrayName: point data array saying which vessel end each boundary
+          point belongs to, which is what lets a cap be given the same id every run - and the
+          same id Clip Vessel, which writes the array, gives it. None uses the logic default.
+        :param boundaryPointOrderArrayName: point data array holding each boundary point's index
+          within its own boundary, which travels with the labels. None uses the logic default.
         :param elementSizeMode: "edgelength" for one length over the whole surface, or
           "edgelengtharray" to read it per point from targetEdgeLengthArrayName.
         :param cappingMethod: "simple", "annular" or "concaveannular"; see CappingMethod.
@@ -905,6 +929,10 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
         if mesher == Mesher.FTETWILD.value:
             self.importPyTetWild()
 
+        boundaryLabelsArrayName = boundaryLabelsArrayName or self.boundaryLabelsArrayName
+        boundaryPointOrderArrayName = (boundaryPointOrderArrayName
+                                       or self.boundaryPointOrderArrayName)
+
         self.lastTetrahedralizationFailed = False
         # A run that was interrupted by an earlier exception can leave a step open; start clean.
         self._stepName = None
@@ -940,11 +968,15 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
                 # is opened again here. Not capping it is not enough to keep the layer off its
                 # caps when the caps are already part of it: the sweep would run straight over
                 # them, whatever the setting says.
-                cappedSurface, capsTakenOff = self.openCappedEnds(cappedSurface,
-                                                                  cellEntityIdsArrayName)
+                cappedSurface, capsTakenOff = self.openCappedEnds(
+                    cappedSurface, cellEntityIdsArrayName,
+                    boundaryLabelsArrayName=boundaryLabelsArrayName)
         else:
             self.log(_("Capping surface"))
-            cappedSurface = self.capSurface(surface, cellEntityIdsArrayName, cappingMethod)
+            cappedSurface = self.capSurface(
+                surface, cellEntityIdsArrayName, cappingMethod,
+                boundaryLabelsArrayName=boundaryLabelsArrayName,
+                boundaryPointOrderArrayName=boundaryPointOrderArrayName)
 
         if skipRemeshing:
             # Triangles all the same: a cap is one polygon as the capper leaves it, the sizing
@@ -1017,7 +1049,9 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
                 numberOfSubsteps=numberOfSubsteps,
                 relaxation=relaxation,
                 localCorrectionFactor=localCorrectionFactor,
-                capsTakenOff=capsTakenOff)
+                capsTakenOff=capsTakenOff,
+                boundaryLabelsArrayName=boundaryLabelsArrayName,
+                boundaryPointOrderArrayName=boundaryPointOrderArrayName)
 
         if tetrahedralize:
             self.log(_("Tetrahedralizing"))
@@ -1033,13 +1067,18 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
     # The steps of the pipeline, one per vmtk script that vmtkmeshgenerator drives.
     #
 
-    def capSurface(self, surface, cellEntityIdsArrayName, cappingMethod, capsTakenOff=None):
+    def capSurface(self, surface, cellEntityIdsArrayName, cappingMethod, capsTakenOff=None,
+                   boundaryLabelsArrayName=None, boundaryPointOrderArrayName=None):
         """The surface with every open boundary closed, each cap under an id of its own, and the
         cells that came from the input under wallCellEntityId (vmtksurfacecapper).
 
         :param capsTakenOff: the caps this surface's ends were closed with before they were taken
           off, as openCappedEnds() records them, so that the caps made now can be given their ids
           back. See nameCapsAfterTheirVesselEnd() for how a cap is matched to the end it closes.
+        :param boundaryLabelsArrayName: point data array the boundary labels are read from; None
+          (or an empty name) uses the one the logic is configured with.
+        :param boundaryPointOrderArrayName: point data array the boundary point order is read
+          from; None (or an empty name) uses the one the logic is configured with.
         """
         import vtkvmtkMiscPython as vtkvmtkMisc
 
@@ -1060,11 +1099,16 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
         capper.SetInputData(surface)
         capper.SetCellEntityIdsArrayName(cellEntityIdsArrayName)
         capper.SetCellEntityIdOffset(self.wallCellEntityId)
-        self.nameCapsAfterTheirVesselEnd(capper, surface, capsTakenOff)
+        self.nameCapsAfterTheirVesselEnd(
+            capper, surface, capsTakenOff,
+            boundaryLabelsArrayName=boundaryLabelsArrayName,
+            boundaryPointOrderArrayName=boundaryPointOrderArrayName)
         capper.Update()
         return capper.GetOutput()
 
-    def nameCapsAfterTheirVesselEnd(self, capper, surface, capsTakenOff=None):
+    def nameCapsAfterTheirVesselEnd(self, capper, surface, capsTakenOff=None,
+                                    boundaryLabelsArrayName=None,
+                                    boundaryPointOrderArrayName=None):
         """Tell the capper what id to give the cap of each boundary it is about to close.
 
         Left to itself the capper numbers the caps in the order the boundaries came out of the
@@ -1080,6 +1124,11 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
         position in the extraction order where they do not. Which of the two it will be is asked
         here rather than assumed, because being wrong about it means naming an inlet after an
         outlet.
+
+        With the labels in use and no cap to give an id back to, there is nothing to say: a label
+        is already the cell entity id of the cap that closes its boundary - the labeler numbers
+        the boundaries of a surface above the wall, where this module numbers its caps - so the
+        capper left to itself gives every cap the id this would have chosen for it anyway.
         """
         import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
 
@@ -1088,14 +1137,18 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
         if not hasattr(capper, "SetBoundaryCellEntityIds"):
             return
 
+        boundaryLabelsArrayName = boundaryLabelsArrayName or self.boundaryLabelsArrayName
+        boundaryPointOrderArrayName = (boundaryPointOrderArrayName
+                                       or self.boundaryPointOrderArrayName)
+
         boundaries = vtk.vtkPolyData()
         boundaryLabels = vtk.vtkIdList()
         useLabels = vtkvmtkComputationalGeometry.vtkvmtkBoundaryLabels.GetOrExtractBoundaries(
-            surface, self.boundaryLabelsArrayName, self.boundaryPointOrderArrayName,
+            surface, boundaryLabelsArrayName, boundaryPointOrderArrayName,
             boundaries, boundaryLabels)
         if useLabels:
-            capper.SetBoundaryLabelsArrayName(self.boundaryLabelsArrayName)
-            capper.SetBoundaryPointOrderArrayName(self.boundaryPointOrderArrayName)
+            capper.SetBoundaryLabelsArrayName(boundaryLabelsArrayName)
+            capper.SetBoundaryPointOrderArrayName(boundaryPointOrderArrayName)
 
         capsTakenOff = capsTakenOff or {}
         capIdsByLabel = {cap["label"]: capId for capId, cap in capsTakenOff.items()
@@ -1114,14 +1167,13 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
                     capsTakenOff,
                     key=lambda capId: vtk.vtkMath.Distance2BetweenPoints(
                         centre, capsTakenOff[capId]["centre"]))
-            elif useLabels:
-                chosenIds[boundaryId] = self.wallCellEntityId + 1 + boundaryId
 
         if not chosenIds:
             return
         if len(set(chosenIds.values())) != len(chosenIds):
-            logging.warning("Two of the boundaries would be capped under the same id, so the caps "
-                            "are numbered in the order they were found instead.")
+            logging.warning("Two of the caps that were taken off this surface would be put back "
+                            "under the same id, so every cap is left to the id its boundary "
+                            "carries instead.")
             return
 
         # Indexed by boundary id, with -1 for any the capper is left to number itself.
@@ -1158,7 +1210,7 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
             copied.GetCellData().AddArray(cellEntityIdsArray)
         return copied
 
-    def openCappedEnds(self, surface, cellEntityIdsArrayName):
+    def openCappedEnds(self, surface, cellEntityIdsArrayName, boundaryLabelsArrayName=None):
         """The surface with the caps it arrived with taken off, and where each of them was.
 
         A cap is a face numbered above the wall, which is how this module numbers the caps it
@@ -1173,7 +1225,8 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
         entityIdsArray = surface.GetCellData().GetArray(cellEntityIdsArrayName)
         if entityIdsArray is None:
             return surface, {}
-        boundaryLabels = surface.GetPointData().GetArray(self.boundaryLabelsArrayName)
+        boundaryLabels = surface.GetPointData().GetArray(
+            boundaryLabelsArrayName or self.boundaryLabelsArrayName)
 
         pointSums = {}
         pointCounts = {}
@@ -1535,7 +1588,9 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
                               maxEdgeLength, minEdgeLength, cappingMethod,
                               volumeMeshing, boundaryLayerOnCaps, numberOfSubLayers,
                               subLayerRatio, boundaryLayerThicknessFactor, numberOfSubsteps,
-                              relaxation, localCorrectionFactor, capsTakenOff=None):
+                              relaxation, localCorrectionFactor, capsTakenOff=None,
+                              boundaryLabelsArrayName=None,
+                              boundaryPointOrderArrayName=None):
         """The surface lined on the inside with layers of prisms, and everything those leave free
         filled with tetrahedra.
 
@@ -1628,7 +1683,9 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic):
             # solver has been told to read, so the caps built in their place are given them back.
             innerSurface = self.triangulate(
                 self.capSurface(innerSurface, cellEntityIdsArrayName, cappingMethod,
-                                capsTakenOff))
+                                capsTakenOff,
+                                boundaryLabelsArrayName=boundaryLabelsArrayName,
+                                boundaryPointOrderArrayName=boundaryPointOrderArrayName))
 
             self.log(_("Remeshing endcaps"))
             innerSurface = self.remeshSurface(
@@ -2641,6 +2698,10 @@ class CfdMeshGeneratorTest(ScriptedLoadableModuleTest):
         labeler.SetInputData(self.openTube())
         labeler.SetBoundaryLabelsArrayName(logic.boundaryLabelsArrayName)
         labeler.SetBoundaryPointOrderArrayName(logic.boundaryPointOrderArrayName)
+        # A label is the id of the cap that closes its boundary, so the boundaries are numbered
+        # above the wall this module sets its caps into. It is the labeler's own default too; said
+        # here because a surface labelled for some other wall would be capped over the wall's face.
+        labeler.SetCellEntityIdOffset(logic.wallCellEntityId)
         labeler.Update()
 
         def middleOfEachFace(mesh):
@@ -2660,9 +2721,15 @@ class CfdMeshGeneratorTest(ScriptedLoadableModuleTest):
                     counts[entityId] = counts.get(entityId, 0) + 1
             return {faceId: sums[faceId] / counts[faceId] for faceId in sums}
 
-        capped = logic.capSurface(labeler.GetOutput(), "ModelFaceID", "simple")
+        labelled = labeler.GetOutput()
+        capped = logic.capSurface(labelled, "ModelFaceID", "simple")
         middles = middleOfEachFace(capped)
         self.assertEqual(sorted(middles), [1, 2, 3])
+        # the point data and the cell data are one numbering: the end labelled 2 is face 2
+        boundaryLabels = set(
+            int(labelled.GetPointData().GetArray(logic.boundaryLabelsArrayName).GetTuple1(pointId))
+            for pointId in range(labelled.GetNumberOfPoints()))
+        self.assertEqual(sorted(label for label in boundaryLabels if label >= 0), [2, 3])
         self.assertLess(middles[2], 1.0, "the cap of the first vessel end is not face 2")
         self.assertGreater(middles[3], 9.0, "the cap of the second vessel end is not face 3")
 

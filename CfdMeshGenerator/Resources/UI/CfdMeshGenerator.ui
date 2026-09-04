@@ -371,7 +371,47 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="0" colspan="2">
+      <item row="1" column="0">
+       <widget class="QLabel" name="boundaryLabelsArrayNameLabel">
+        <property name="text">
+         <string>Boundary labels array:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QLineEdit" name="boundaryLabelsArrayNameLineEdit">
+        <property name="toolTip">
+         <string>Name of the point data array that says which vessel end each boundary point belongs to. Where the input surface carries it - Clip Vessel writes it into what it hands over - each cap is named after the end it closes, so that a cap keeps the same id from one run to the next and the same id Clip Vessel gave it; where it does not, the caps are numbered in the order the boundaries are found. &quot;BoundaryLabels&quot; is the name the VMTK filters use by default.</string>
+        </property>
+        <property name="text">
+         <string notr="true">BoundaryLabels</string>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>boundaryLabelsArrayName</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="boundaryPointOrderArrayNameLabel">
+        <property name="text">
+         <string>Point order array:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLineEdit" name="boundaryPointOrderArrayNameLineEdit">
+        <property name="toolTip">
+         <string>Name of the point data array holding each boundary point&apos;s position around its own boundary, which is what makes the ring of a boundary readable without extracting it again. It travels with the boundary labels array and is read alongside it.</string>
+        </property>
+        <property name="text">
+         <string notr="true">BoundaryPointOrder</string>
+        </property>
+        <property name="SlicerParameterName" stdset="0">
+         <string>boundaryPointOrderArrayName</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0" colspan="2">
        <widget class="ctkCollapsibleGroupBox" name="surfaceRemeshingCollapsibleGroupBox">
         <property name="title">
          <string>Surface remeshing</string>
@@ -691,7 +731,7 @@
         </layout>
        </widget>
       </item>
-      <item row="2" column="0" colspan="2">
+      <item row="4" column="0" colspan="2">
        <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox">
         <property name="title">
          <string>Boundary layer</string>
@@ -959,7 +999,7 @@
         </layout>
        </widget>
       </item>
-      <item row="3" column="0" colspan="2">
+      <item row="5" column="0" colspan="2">
        <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox_2">
         <property name="title">
          <string>Volume mesh</string>
