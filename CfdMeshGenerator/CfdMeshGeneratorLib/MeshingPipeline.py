@@ -2086,15 +2086,116 @@ class MeshingPipeline:
         surfaceWithNormals.GetPointData().GetNormals().SetName("Normals")
         return surfaceWithNormals
 
+    @classmethod
+    def triangulate(cls, surface):
+        """The surface with every cell split into triangles.
+
+        vtkTriangleFilter does the splitting, except for polygons of five corners or more - the
+        caps - which are ear-cut here first. The filter hands those to vtkPolygon's ear cut,
+        which ranks the ears by their perimeter-to-area ratio and, on some perfectly ordinary cap
+        outlines - the inlet of an aorta, forty-two corners, planar to a tenth of a millimetre
+        and nowhere near crossing itself - runs out of ears with three corners still unused. The
+        cap then comes back short of a notch, with the rim edges beside it open, and the hole is
+        only found when a mesher refuses the surface. Ranking the ears by angle triangulates the
+        same outline in full, so that is tried first, then the other two rankings and the
+        unbiased ear cut, and the first that uses every corner is taken. Only a polygon none of
+        them can do is left to the filter.
+        """
+        import numpy as np
+        from vtk.util import numpy_support
+
+        polys = surface.GetPolys()
+        if polys.GetNumberOfCells() == 0 or surface.GetNumberOfStrips() > 0:
+            return cls._triangleFilter(surface)
+        offsets = numpy_support.vtk_to_numpy(polys.GetOffsetsArray()).astype(np.int64)
+        connectivity = numpy_support.vtk_to_numpy(polys.GetConnectivityArray()).astype(np.int64)
+        sizes = np.diff(offsets)
+        large = np.flatnonzero(sizes > 4)
+        if large.size == 0:
+            return cls._triangleFilter(surface)
+
+        # The polygons are rebuilt in their order, each large one replaced by its triangles, so
+        # that the cell data can be carried across by which polygon each cell came from.
+        chunks = []  # (connectivity, sizes, source polygon index per cell)
+        start = 0
+        for index in large:
+            if index > start:
+                chunks.append((connectivity[offsets[start]:offsets[index]], sizes[start:index],
+                               np.arange(start, index)))
+            pointIds = connectivity[offsets[index]:offsets[index + 1]]
+            triangles = cls.earCut(surface.GetPoints(), pointIds)
+            if triangles is None:
+                chunks.append((pointIds, sizes[index:index + 1], np.array([index])))
+            else:
+                chunks.append((triangles.ravel(), np.full(len(triangles), 3),
+                               np.full(len(triangles), index)))
+            start = index + 1
+        if start < len(sizes):
+            chunks.append((connectivity[offsets[start]:], sizes[start:],
+                           np.arange(start, len(sizes))))
+        newConnectivity = np.concatenate([chunk[0] for chunk in chunks])
+        newSizes = np.concatenate([chunk[1] for chunk in chunks])
+        sources = np.concatenate([chunk[2] for chunk in chunks])
+        newOffsets = np.concatenate([[0], np.cumsum(newSizes)])
+
+        cells = vtk.vtkCellArray()
+        cells.SetData(numpy_support.numpy_to_vtkIdTypeArray(newOffsets, deep=True),
+                      numpy_support.numpy_to_vtkIdTypeArray(newConnectivity, deep=True))
+        rebuilt = vtk.vtkPolyData()
+        rebuilt.SetPoints(surface.GetPoints())
+        rebuilt.SetPolys(cells)
+        rebuilt.GetPointData().ShallowCopy(surface.GetPointData())
+        # The polygons are the cells after any vertices and lines, which are dropped here as
+        # the filter drops them.
+        sources += surface.GetNumberOfVerts() + surface.GetNumberOfLines()
+        cellData = surface.GetCellData()
+        for arrayIndex in range(cellData.GetNumberOfArrays()):
+            array = cellData.GetArray(arrayIndex)
+            if array is None:
+                continue
+            values = numpy_support.vtk_to_numpy(array)
+            copied = numpy_support.numpy_to_vtk(np.ascontiguousarray(values[sources]), deep=True,
+                                                array_type=array.GetDataType())
+            copied.SetName(array.GetName())
+            rebuilt.GetCellData().AddArray(copied)
+        return cls._triangleFilter(rebuilt)
+
     @staticmethod
-    def triangulate(surface):
-        """The surface with every cell split into triangles."""
+    def _triangleFilter(surface):
         triangleFilter = vtk.vtkTriangleFilter()
         triangleFilter.SetInputData(surface)
         triangleFilter.PassLinesOff()
         triangleFilter.PassVertsOff()
         triangleFilter.Update()
         return triangleFilter.GetOutput()
+
+    @staticmethod
+    def earCut(points, pointIds):
+        """The polygon over the given point ids cut into triangles, as an (n - 2, 3) array of
+        point ids, or None if no ear cut could use every corner; see triangulate."""
+        import numpy as np
+
+        count = len(pointIds)
+        polygon = vtk.vtkPolygon()
+        polygon.GetPointIds().SetNumberOfIds(count)
+        polygon.GetPoints().SetNumberOfPoints(count)
+        for local, pointId in enumerate(pointIds):
+            polygon.GetPointIds().SetId(local, int(pointId))
+            polygon.GetPoints().SetPoint(local, points.GetPoint(int(pointId)))
+        triangles = vtk.vtkIdList()
+        attempts = [(polygon.EarCutTriangulation, measure) for measure in (
+            vtk.vtkPolygon.DOT_PRODUCT, vtk.vtkPolygon.PERIMETER2_TO_AREA_RATIO,
+            vtk.vtkPolygon.BEST_QUALITY)]
+        for method, measure in attempts + [(None, vtk.vtkPolygon.DOT_PRODUCT)]:
+            triangles.Reset()
+            if method is None:
+                polygon.UnbiasedEarCutTriangulation(0, triangles, measure)
+            else:
+                method(triangles, measure)
+            if triangles.GetNumberOfIds() == 3 * (count - 2):
+                local = np.array([triangles.GetId(k) for k in range(triangles.GetNumberOfIds())])
+                return np.asarray(pointIds)[local].reshape(-1, 3)
+        return None
 
     @staticmethod
     def surfaceArea(surface):
