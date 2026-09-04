@@ -526,6 +526,17 @@ class MeshingPipeline:
             mesh = self.fillWithTetrahedra(remeshedSurface, cellEntityIdsArrayName,
                                            volumeMeshing, outputSurfaceElements=True)
         else:
+            # The closed surface the layer's direction is read off; see outwardNormals. The one
+            # that came in, where it arrived closed and had its caps taken off; the capped one
+            # otherwise, made here for the purpose if the layer is to stay off the caps of a
+            # surface that arrived open.
+            if self.numberOfOpenBoundaries(cappedSurface) == 0:
+                orientationReference = cappedSurface
+            elif capsTakenOff:
+                orientationReference = surface
+            else:
+                orientationReference = self.capSurface(
+                    cappedSurface, cellEntityIdsArrayName, cappingMethod)
             mesh = self.meshWithBoundaryLayer(
                 remeshedSurface, cappedSurface, cellEntityIdsArrayName,
                 elementSizeMode=elementSizeMode,
@@ -544,6 +555,7 @@ class MeshingPipeline:
                 numberOfSubsteps=numberOfSubsteps,
                 relaxation=relaxation,
                 localCorrectionFactor=localCorrectionFactor,
+                orientationReference=orientationReference,
                 capsTakenOff=capsTakenOff,
                 boundaryLabelsArrayName=boundaryLabelsArrayName,
                 boundaryPointOrderArrayName=boundaryPointOrderArrayName)
@@ -1028,6 +1040,80 @@ class MeshingPipeline:
         remeshing.Update()
         return remeshing.GetOutput()
 
+    def outwardNormals(self, surface, closedReference):
+        """The surface carrying a normal per point that points out of the vessel, oriented by a
+        closed surface standing where it does.
+
+        Which way is out is a question about a closed surface: asked of an open one - the wall
+        with its caps taken off - vtkPolyDataNormals answers by the winding of the first cell
+        it meets, and the remesher hands back cells wound either way. So the cells are first
+        wound consistently with one another, then the whole is turned round wherever it faces
+        the other way from the closed reference at the nearest point - per connected piece, a
+        surface of several vessels being several answers. The normals are then taken from the
+        winding, which the boundary layer generator reads too: a prism is only the right way
+        out when its base is wound to face the way its warp vector does not.
+        """
+        import numpy as np
+        from vtk.util import numpy_support
+
+        withoutNormals = vtk.vtkPolyData()
+        withoutNormals.ShallowCopy(surface)
+        withoutNormals.GetPointData().SetNormals(None)
+        withoutNormals.GetCellData().SetNormals(None)
+        consistency = vtk.vtkPolyDataNormals()
+        consistency.SetInputData(withoutNormals)
+        consistency.SetAutoOrientNormals(0)
+        consistency.SetConsistency(1)
+        consistency.ComputeCellNormalsOn()
+        consistency.SplittingOff()
+        consistency.Update()
+        consistent = consistency.GetOutput()
+        polys = consistent.GetPolys()
+        if polys.IsHomogeneous() != 3 or consistent.GetNumberOfCells() != consistent.GetNumberOfPolys():
+            return self.surfaceNormals(surface)
+
+        reference = self.surfaceNormals(closedReference)
+        referenceNormals = numpy_support.vtk_to_numpy(reference.GetPointData().GetNormals())
+        locator = vtk.vtkPointLocator()
+        locator.SetDataSet(reference)
+        locator.BuildLocator()
+
+        points = numpy_support.vtk_to_numpy(consistent.GetPoints().GetData())
+        cells = numpy_support.vtk_to_numpy(polys.GetConnectivityArray()).reshape(-1, 3)
+        cellNormals = numpy_support.vtk_to_numpy(consistent.GetCellData().GetNormals())
+        centroids = points[cells].mean(axis=1)
+        nearest = np.array([locator.FindClosestPoint([float(value) for value in centroid])
+                            for centroid in centroids])
+        agreement = (cellNormals * referenceNormals[nearest]).sum(axis=1)
+
+        pieces = vtk.vtkPolyDataConnectivityFilter()
+        pieces.SetInputData(consistent)
+        pieces.SetExtractionModeToAllRegions()
+        pieces.ColorRegionsOn()
+        pieces.Update()
+        pointRegions = numpy_support.vtk_to_numpy(
+            pieces.GetOutput().GetPointData().GetArray("RegionId"))
+        cellRegions = pointRegions[cells[:, 0]]
+
+        turned = np.zeros(len(cells), dtype=bool)
+        for region in np.unique(cellRegions):
+            onPiece = cellRegions == region
+            if agreement[onPiece].sum() < 0.0:
+                turned[onPiece] = True
+        if turned.any():
+            logging.info("Turning %d of %d surface cells round to face out of the vessel.",
+                         int(turned.sum()), len(cells))
+            rewound = cells.copy()
+            rewound[turned] = rewound[turned][:, [0, 2, 1]]
+            newPolys = vtk.vtkCellArray()
+            newPolys.SetData(
+                numpy_support.numpy_to_vtkIdTypeArray(
+                    np.arange(0, 3 * len(cells) + 1, 3, dtype=np.int64), deep=True),
+                numpy_support.numpy_to_vtkIdTypeArray(
+                    np.ascontiguousarray(rewound.ravel(), dtype=np.int64), deep=True))
+            consistent.SetPolys(newPolys)
+        return self.surfaceNormals(consistent, autoOrient=False)
+
     def growLayerOutwards(self, innerBoundary, cellEntityIdsArrayName, *, boundaryLayerOnCaps,
                           referenceSurface, elementSizeMode, targetEdgeLength,
                           targetEdgeLengthArrayName, targetEdgeLengthFactor, maxEdgeLength,
@@ -1228,13 +1314,18 @@ class MeshingPipeline:
                               subLayerRatio, boundaryLayerThicknessFactor, numberOfSubsteps,
                               relaxation, localCorrectionFactor, capsTakenOff=None,
                               boundaryLabelsArrayName=None,
-                              boundaryPointOrderArrayName=None):
+                              boundaryPointOrderArrayName=None,
+                              orientationReference=None):
         """The surface lined on the inside with layers of prisms, and everything those leave free
         filled with tetrahedra.
 
         The prisms are made by sweeping the surface inwards along its own normals; what is still
         empty inside is meshed against the innermost swept surface, and the two are put back
         together at the end.
+
+        :param orientationReference: a closed surface standing where this one does, for the
+          normals to be oriented by; see outwardNormals. None orients them by the surface
+          itself, which is only reliable when the surface is closed.
         """
         import vtkvmtkComputationalGeometryPython as vtkvmtkComputationalGeometry
         import vtkvmtkMiscPython as vtkvmtkMisc
@@ -1246,7 +1337,15 @@ class MeshingPipeline:
         projection.SetReferenceSurface(referenceSurface)
         projection.Update()
 
-        outerSurfaceMesh = self.surfaceToMesh(self.surfaceNormals(projection.GetOutput()))
+        # Normals that point out of the vessel whatever the winding of the surface as it arrived
+        # and whatever was taken off it: the layer is swept the other way along them, and one
+        # swept outwards is a layer through the wall. Asked of the closed surface, which is the
+        # one shape the question has an answer for.
+        if orientationReference is not None:
+            outerSurface = self.outwardNormals(projection.GetOutput(), orientationReference)
+        else:
+            outerSurface = self.surfaceNormals(projection.GetOutput())
+        outerSurfaceMesh = self.surfaceToMesh(outerSurface)
 
         self.log(_("Generating boundary layer"))
         boundaryLayerGenerator = vtkvmtkMisc.vtkvmtkBoundaryLayerGenerator()

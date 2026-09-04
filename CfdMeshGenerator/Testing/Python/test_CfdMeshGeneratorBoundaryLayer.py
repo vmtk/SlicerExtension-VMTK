@@ -181,6 +181,7 @@ class CfdMeshGeneratorBoundaryLayerTest(CfdMeshGeneratorTestCase):
         self.assertEqual(self.cellEntityIds(mesh, "ModelFaceID"), {0, 1, 2, 3, 4},
                          "a face of the surface did not reach the mesh")
         self.assertBoundaryIsLabelled(mesh, "ModelFaceID")
+        self.assertLess(self.largestRadius(mesh), 1.0 + 1e-3, "the layer went out through the wall")
         # No layer over the inlet: the tetrahedra reach the cap at z = 0 directly.
         lowest = min(mesh.GetPoint(mesh.GetCell(cellId).GetPointId(index))[2]
                      for cellId in range(mesh.GetNumberOfCells())
@@ -197,6 +198,46 @@ class CfdMeshGeneratorBoundaryLayerTest(CfdMeshGeneratorTestCase):
             self.assertEqual(int(carried.GetTuple1(cellId)) >= 1,
                              int(faceIds.GetTuple1(cellId)) in (2, 3),
                              "cell %d is a cap by one array and wall by the other" % cellId)
+
+    @staticmethod
+    def largestRadius(mesh):
+        """How far the farthest point of the mesh is from the axis of the tube the tests use,
+        which runs along z. Nothing a layer swept inwards makes should be outside the wall."""
+        import math
+        return max(math.hypot(*mesh.GetPoint(pointId)[:2])
+                   for pointId in range(mesh.GetNumberOfPoints()))
+
+    def test_CfdMeshGeneratorLayerIsSweptInwards(self):
+        """The layer goes into the vessel, whichever way the surface was wound and whether or
+        not its caps were taken off first.
+
+        Which way is out is a question about a closed surface. Asked of the wall alone, with
+        its caps taken off, vtkPolyDataNormals answers by the winding of the first cell it
+        meets, and on a real vessel that answer came out inward: the layer was swept through
+        the wall, and everything after it failed for reasons that had nothing to do with the
+        layer. So the direction is read off the closed surface instead, and here the surface
+        is wound inside out on purpose to make sure of it.
+        """
+        logic = CfdMeshGeneratorLogic()
+        if not logic.isTetGenAvailable():
+            self.skipTest("this installation was built without TetGen")
+        insideOut = vtk.vtkReverseSense()
+        insideOut.SetInputData(logic.capSurface(self.openTube(), "ModelFaceID", "simple"))
+        insideOut.ReverseCellsOn()
+        insideOut.ReverseNormalsOff()
+        insideOut.Update()
+        closed = insideOut.GetOutput()
+
+        for onCaps in (False, True):
+            mesh, _remeshedSurface = logic.generateMesh(
+                closed, targetEdgeLength=0.4, cellEntityIdsArrayName="ModelFaceID",
+                skipCapping=True, boundaryLayer=True, boundaryLayerOnCaps=onCaps,
+                mesher=Mesher.TETGEN.value)
+            self.assertGreater(logic.numberOfVolumeCells(mesh), 0)
+            self.assertFalse(logic.lastTetrahedralizationFailed)
+            self.assertLess(self.largestRadius(mesh), 1.0 + 1e-3,
+                            "the layer was swept out through the wall (on caps: %s)" % onCaps)
+            self.assertTetrahedraArePositive(mesh, "(on caps: %s)" % onCaps)
 
 
 if __name__ == "__main__":
