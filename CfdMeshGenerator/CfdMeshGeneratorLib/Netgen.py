@@ -18,6 +18,25 @@ import sys
 # is the mesh it gives, and a solver run is worth being able to repeat.
 REQUIREMENT = "netgen-mesher==6.2.2606"
 
+# What Netgen makes of a size, on a mesh built from triangles rather than from a geometry.
+#
+# Meshing a geometry, Netgen installs maxh as a global cap on its size field. GenerateVolumeMesh
+# on a hand-built surface never does: the cap stays at its initial 1e10, Python has no way to
+# set it, and the one reader of maxh left is the step that seeds the inside with points
+# (BlockFillLocalH), which lowers the field only where it is already above 1.5 x maxh. The
+# field itself starts at the longest edge of each surface triangle and grows from there, so
+# whatever maxh is passed, the inside comes out between maxh and 1.5 maxh, and the elements
+# about a quarter larger than the field again. Handing over maxh / 1.5 puts that threshold at
+# the size asked for, so every interior point whose field exceeds it is pulled down. Measured on
+# tubes of three sizes at a target of 0.4: 0.52-0.57 mean edge as passed, 0.38-0.40 divided by
+# 1.5, beside TetGen's 0.37 and fTetWild's 0.39 for the same target.
+MAXH_SLACK = 1.5
+# A size set at a point (RestrictLocalH) goes through the size field's own tolerance instead:
+# LocalH::SetH leaves a cell alone when it is within 1.2 x of what is asked, and the elements
+# come out about that much above the field. Divided by 1.5 as well, the per-point sizes came
+# out finer than the other meshers (0.34); by 1.2, level with them.
+LOCAL_H_SLACK = 1.2
+
 
 class TetrahedralizationError(RuntimeError):
     """Netgen ran and could not mesh the surface it was given. Everything else that can go
@@ -66,14 +85,17 @@ def tetrahedralize(vertices, faces, faceIds, maxh, grading, optimizationSteps,
       ways is not one Netgen can fill.
     :param faceIds: the id of the face of the surface each triangle stands on, as an (m,) int
       array. The boundary comes back labelled with them.
-    :param maxh: the edge length the tetrahedra aim for.
+    :param maxh: the edge length the tetrahedra are to come out at. What Netgen is handed is
+      smaller than this by MAXH_SLACK, which is what it takes for them to come out at it; see
+      the note on that constant.
     :param grading: how fast the size may change from one element to the next, 0 to 1.
     :param optimizationSteps: passes Netgen spends improving the mesh once it has filled it.
     :param sizingPoints: points at which a target edge length is known, as a (k, 3) array, or
       None for one size throughout. The size field Netgen reads is lowered to sizingLengths at
       each of them; it is never raised, so a point asking for a coarser mesh than the surface
       around it has no effect.
-    :param sizingLengths: the target edge length at each of those points, as a (k,) array.
+    :param sizingLengths: the edge length the tetrahedra are to come out at, at each of those
+      points, as a (k,) array. Scaled by LOCAL_H_SLACK on the way in, as maxh is.
     :return: (points, tetrahedra, boundaryTriangles, boundaryFaceIds) as arrays. The tetrahedra
       are wound the way VTK winds them.
     :raises TetrahedralizationError: if Netgen could not fill the surface.
@@ -132,14 +154,14 @@ def tetrahedralize(vertices, faces, faceIds, maxh, grading, optimizationSteps,
         sizingPoints = np.asarray(sizingPoints, dtype=np.float64).reshape(-1, 3)
         sizingLengths = np.asarray(sizingLengths, dtype=np.float64).ravel()
         for point, length in zip(sizingPoints.tolist(), sizingLengths.tolist()):
-            mesh.RestrictLocalH((point[0], point[1], point[2]), length)
+            mesh.RestrictLocalH((point[0], point[1], point[2]), length / LOCAL_H_SLACK)
 
     # A surface Netgen cannot fill is not an exception: the run gives up, writes why to stderr,
     # and leaves the mesh with no volume elements in it. An exception out of here is something
     # else - an argument it does not take, say - and is passed on as a failure all the same,
     # since the surface was not filled.
     try:
-        mesh.GenerateVolumeMesh(maxh=float(maxh), grading=float(grading),
+        mesh.GenerateVolumeMesh(maxh=float(maxh) / MAXH_SLACK, grading=float(grading),
                                 optsteps3d=int(optimizationSteps))
     except Exception as error:
         raise TetrahedralizationError(str(error)) from error

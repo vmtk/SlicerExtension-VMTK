@@ -188,6 +188,29 @@ class CfdMeshGeneratorTestCase(unittest.TestCase):
         return surface
 
     @staticmethod
+    def meanTetrahedronEdgeLength(mesh):
+        """The mean length of the edges of the mesh's tetrahedra, each edge counted once.
+
+        What "the size of the elements" comes down to when two meshers are compared: a target
+        edge length is asked for, and this is the edge length that came out.
+        """
+        import numpy as np
+        from vtk.util import numpy_support
+
+        types = numpy_support.vtk_to_numpy(mesh.GetCellTypesArray())
+        connectivity = numpy_support.vtk_to_numpy(mesh.GetCells().GetConnectivityArray())
+        offsets = numpy_support.vtk_to_numpy(mesh.GetCells().GetOffsetsArray())
+        starts = offsets[:-1][types == vtk.VTK_TETRA]
+        if len(starts) == 0:
+            return 0.0
+        tetrahedra = connectivity[starts[:, None] + np.arange(4)]
+        edges = np.concatenate([tetrahedra[:, pair]
+                                for pair in ((0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3))])
+        edges = np.unique(np.sort(edges, axis=1), axis=0)
+        points = numpy_support.vtk_to_numpy(mesh.GetPoints().GetData()).astype(np.float64)
+        return float(np.linalg.norm(points[edges[:, 0]] - points[edges[:, 1]], axis=1).mean())
+
+    @staticmethod
     def cellEntityIds(mesh, arrayName="CellEntityIds"):
         array = mesh.GetCellData().GetArray(arrayName)
         if array is None:

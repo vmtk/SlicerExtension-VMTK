@@ -61,6 +61,49 @@ class CfdMeshGeneratorNetgenTest(CfdMeshGeneratorTestCase):
                            "half asked for fine ones" % (coarse / fine))
         self.assertTetrahedraArePositive(mesh)
 
+    def test_CfdMeshGeneratorNetgenSizesLikeTheOtherMeshers(self):
+        """Asked for one edge length, Netgen has to fill the volume with tetrahedra of that
+        length - the length TetGen and fTetWild fill it with for the same target.
+
+        Netgen's own size setting is a loose bound on a surface handed to it as triangles: the
+        inside comes out up to half as large again as the number passed, and the module scales
+        what it hands over to make up for that (see Netgen.MAXH_SLACK). This is what says the
+        scale is right: the edge length that came out, against the one asked for, and against
+        TetGen's on the same tube where TetGen is built in.
+        """
+        self.requireNetgen()
+        logic = CfdMeshGeneratorLogic()
+        # Wide enough for most of its edges to be inside rather than on the wall, which is where
+        # the size Netgen is handed decides anything.
+        tube = self.openTube(numberOfAxialPoints=41, numberOfCircumferentialPoints=40,
+                             height=20.0, radius=3.0)
+        targetEdgeLength = 0.5
+        volumeElementScaleFactor = 0.8
+        wanted = targetEdgeLength * volumeElementScaleFactor
+
+        mesh, _remeshedSurface = logic.generateMesh(
+            tube, targetEdgeLength=targetEdgeLength,
+            volumeElementScaleFactor=volumeElementScaleFactor, mesher=Mesher.NETGEN.value)
+        self.assertFalse(logic.lastTetrahedralizationFailed)
+        netgenEdgeLength = self.meanTetrahedronEdgeLength(mesh)
+        # Netgen came out at 1.3 times the target before it was scaled, and TetGen and fTetWild
+        # come out a little under it; the band takes the second and refuses the first.
+        self.assertGreater(netgenEdgeLength, 0.8 * wanted,
+                           "Netgen's tetrahedra have a mean edge of %.3f for a target of %.3f"
+                           % (netgenEdgeLength, wanted))
+        self.assertLess(netgenEdgeLength, 1.1 * wanted,
+                        "Netgen's tetrahedra have a mean edge of %.3f for a target of %.3f"
+                        % (netgenEdgeLength, wanted))
+
+        if Mesher.TETGEN.value in self.meshers():
+            mesh, _remeshedSurface = logic.generateMesh(
+                tube, targetEdgeLength=targetEdgeLength,
+                volumeElementScaleFactor=volumeElementScaleFactor, mesher=Mesher.TETGEN.value)
+            tetgenEdgeLength = self.meanTetrahedronEdgeLength(mesh)
+            self.assertLess(abs(netgenEdgeLength / tetgenEdgeLength - 1.0), 0.15,
+                            "Netgen's mean edge is %.3f where TetGen's is %.3f on the same tube"
+                            % (netgenEdgeLength, tetgenEdgeLength))
+
     def test_CfdMeshGeneratorNetgenIsAskedForBeforeItIsUsed(self):
         """A mesher that is not installed has to say so, and say what would install it.
 
