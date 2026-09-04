@@ -116,8 +116,6 @@ class CfdMeshGeneratorBoundaryLayerTest(CfdMeshGeneratorTestCase):
         solver reads its boundary conditions off, and they were right.
         """
         logic = CfdMeshGeneratorLogic()
-        if not logic.isTetGenAvailable():
-            self.skipTest("this installation was built without TetGen")
         closed = logic.capSurface(self.openTube(), "ModelFaceID", "simple")
         # The wall in two faces, 1 and 4, with the caps 2 and 3 as the capper numbered them.
         ids = closed.GetCellData().GetArray("ModelFaceID")
@@ -126,17 +124,24 @@ class CfdMeshGeneratorBoundaryLayerTest(CfdMeshGeneratorTestCase):
                 ids.SetTuple1(cellId, 4)
         self.assertEqual(self.cellEntityIds(closed, "ModelFaceID"), {1, 2, 3, 4})
 
-        mesh, remeshedSurface = logic.generateMesh(
-            closed, targetEdgeLength=0.4, cellEntityIdsArrayName="ModelFaceID",
-            skipCapping=True, boundaryLayer=True, boundaryLayerOnCaps=False,
-            mesher=Mesher.TETGEN.value)
+        # Every mesher: the one that answers with a boundary of its own has the layer grown
+        # outwards from it, and the wall's faces have to find their way back onto that too.
+        for mesher in self.meshers():
+            where = "(%s)" % mesher
+            mesh, remeshedSurface = logic.generateMesh(
+                closed, targetEdgeLength=0.4, cellEntityIdsArrayName="ModelFaceID",
+                skipCapping=True, boundaryLayer=True, boundaryLayerOnCaps=False,
+                mesher=mesher, **self.fasterFTetWild(mesher))
 
-        self.assertGreater(logic.numberOfVolumeCells(mesh), 0, "the mesh holds no volume cells")
-        self.assertFalse(logic.lastTetrahedralizationFailed)
-        self.assertEqual(self.cellEntityIds(mesh, "ModelFaceID"), {0, 1, 2, 3, 4},
-                         "the face ids the surface arrived with did not reach the mesh")
-        self.assertEqual(self.cellEntityIds(remeshedSurface, "ModelFaceID"), {1, 2, 3, 4})
-        self.assertBoundaryIsLabelled(mesh, "ModelFaceID")
+            self.assertGreater(logic.numberOfVolumeCells(mesh), 0,
+                               "the mesh holds no volume cells " + where)
+            self.assertFalse(logic.lastTetrahedralizationFailed, where)
+            self.assertEqual(self.cellEntityIds(mesh, "ModelFaceID"), {0, 1, 2, 3, 4},
+                             "the face ids the surface arrived with did not reach the mesh "
+                             + where)
+            self.assertEqual(self.cellEntityIds(remeshedSurface, "ModelFaceID"), {1, 2, 3, 4},
+                             where)
+            self.assertBoundaryIsLabelled(mesh, "ModelFaceID", where)
 
     def test_CfdMeshGeneratorCapsReadFromTheCapIdsArray(self):
         """A surface whose wall is in several faces has its caps told apart by the cap ids

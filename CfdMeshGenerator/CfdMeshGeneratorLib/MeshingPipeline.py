@@ -1269,6 +1269,43 @@ class MeshingPipeline:
         outward.Update()
         return generator.GetOutput(), self.surfaceToMesh(outward.GetOutput()), caps
 
+    def relabelWallFaces(self, mesh, surface, cellEntityIdsArrayName):
+        """The mesh with each of its wall cells given the face id of the nearest wall cell of
+        the surface, where that surface numbers its wall in more than one face.
+
+        For a wall that came back under one id from a route that could not keep the ids on it
+        - the layer grown outwards from a mesher's own boundary. A mesh whose surface has one
+        wall face is handed back as it is. Only wall cells are touched, and only wall faces are
+        read: a cell near the rim is not given a cap's id for standing closest to it.
+        """
+        import numpy as np
+        from vtk.util import numpy_support
+
+        ids = mesh.GetCellData().GetArray(cellEntityIdsArrayName)
+        wallFaces = self.wallFaceIdsOf(surface, cellEntityIdsArrayName)
+        if ids is None or len(wallFaces) <= 1:
+            return mesh
+        wallSurface = self.meshToSurface(
+            self.capCells(self.surfaceToMesh(surface), cellEntityIdsArrayName, keep=False))
+        if wallSurface.GetNumberOfCells() == 0:
+            return mesh
+
+        values = numpy_support.vtk_to_numpy(ids)
+        wallCells = np.flatnonzero(values == self.wallCellEntityId)
+        if wallCells.size == 0:
+            return mesh
+        centres = vtk.vtkCellCenters()
+        centres.SetInputData(mesh)
+        centres.VertexCellsOff()
+        centres.Update()
+        points = numpy_support.vtk_to_numpy(centres.GetOutput().GetPoints().GetData())
+        nearest = self.nearestCellEntityIds(wallSurface, cellEntityIdsArrayName,
+                                            points[wallCells])
+        # Written back in place, so that the array keeps its place among the mesh's arrays.
+        for cellId, faceId in zip(wallCells.tolist(), nearest.tolist()):
+            ids.SetTuple1(cellId, faceId)
+        return mesh
+
     def edgeLengthSizingField(self, surface, targetEdgeLengthArrayName, factor,
                               minEdgeLength, maxEdgeLength):
         """A background mesh carrying the target edge length at each of its points, for a mesher
@@ -1445,6 +1482,23 @@ class MeshingPipeline:
             boundaryLayerGenerator.SetSidewallCellEntityId(self.placeholderCellEntityId)
         boundaryLayerGenerator.Update()
 
+        # The sweep untangles itself where it can, and says how much it could not: cells of the
+        # layer that are inside out, or squashed to a tenth of their base. A layer with any is
+        # folded over itself somewhere, and the surface inside it crosses itself there; handed
+        # that, TetGen fails when it is lucky and works at it for as long as it is let when it
+        # is not. Refused here, where it can be said what to do about it. Older builds of the
+        # generator do not count, and are left to the area check below.
+        tangledCells = (boundaryLayerGenerator.GetNumberOfTangledCells()
+                        if hasattr(boundaryLayerGenerator, "GetNumberOfTangledCells") else 0)
+        if tangledCells:
+            raise RuntimeError(_(
+                "The boundary layer folded over itself: {count} of its cells are inside out or "
+                "squashed flat after the sweep, and the surface inside such a layer is not one "
+                "a mesher can fill. Make the layer thinner, ask for fewer sublayers, or give it "
+                "more substeps to settle over; turning \"Layer on caps\" off also keeps it away "
+                "from the corner where a cap meets the wall, which is where a layer folds "
+                "first.").format(count=tangledCells))
+
         innerGrid = boundaryLayerGenerator.GetInnerSurface()
         if boundaryLayerOnCaps:
             # The inner surface comes back under one id, being all of it wall as far as the sweep
@@ -1551,6 +1605,12 @@ class MeshingPipeline:
                 numberOfSubsteps=numberOfSubsteps,
                 relaxation=relaxation,
                 localCorrectionFactor=localCorrectionFactor)
+
+            # The wall comes back under one id: the boundary the mesher returned was labelled
+            # from the inner surface, which the sweep had numbered as wall throughout. A wall
+            # that arrived in several faces gets them back here, from the surface the layer
+            # stands for, a layer's thickness away at most.
+            outerMesh = self.relabelWallFaces(outerMesh, remeshedSurface, cellEntityIdsArrayName)
 
             # The same question the inward sweep is asked, of the sweep that goes the other way:
             # a layer grown outwards folds where the surface turns a concave corner.
