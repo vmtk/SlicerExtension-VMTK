@@ -29,12 +29,12 @@ A branch is identified by its `GroupId`, from the internal branch extraction. Ve
 | `InPlaneAngleDegrees` | Angle of the pair projected onto the bifurcation plane. For a bifurcation whose branches are in one plane it is the same as `AngleDegrees`; the difference between the two shows how much of the angle is out of the bifurcation plane |
 | `Branch1OutOfPlaneAngleDegrees`, `Branch2OutOfPlaneAngleDegrees` | Angle between each branch and the bifurcation plane |
 
-All the pairs of branches of the table are annotated, which means that several angles are labelled at the same position at a bifurcation. The annotations are therefore grouped in 'Child-child angles' and 'Parent-child angles' folders, then by branch order, so that pair types or distal annotations can be shown or hidden at once with the eye icon of the Data module. Child-child angles are yellow, parent-child angles are cyan.
+All the pairs of branches of the table are annotated, which means that several angles are labelled at the same position at a bifurcation. The annotations are therefore grouped in 'Child-child angles' and 'Parent-child angles' folders, then by branch order, so that pair types or distal annotations can be shown or hidden at once with the eye icon of the Data module. Child-child angles are yellow, parent-child angles are cyan. The 3D rays, arcs, and labels are stored in grouped nodes instead of one angle markup node per measurement, which keeps large trees much smaller in the scene.
 
 An annotation is labelled with the angle value only, which is also its node name; the pair of branches it belongs to is told by its folder, its color, and its `Branch1GroupId` and `Branch2GroupId` attributes. Its rays are drawn several times longer than the measured segments so that they are readable next to the vessel: the angle depends on the directions of the rays only, and the bifurcation vector curves show over what distance each direction was measured.
 
-The annotation display controls can highlight angle annotations above a threshold in red. Reset annotation colors restores the pair-type colors.
+The annotation display controls can highlight angle labels above a threshold in red. Reset annotation colors restores the pair-type colors.
 
-The generated curves and angle markups are locked, since they are measurement results. Every run creates its own nodes and folders.
+The generated display nodes are locked, since they are measurement results. Every run creates its own nodes and folders.
 
 Branch extraction is cached while the selected centerline is unchanged. Recomputing angles reuses that extraction and the bifurcation vectors; modifying the input or closing the scene clears the cache. The first calculation still performs full-resolution VMTK branch extraction, which can be slow for large trees. Each run creates fresh output nodes.

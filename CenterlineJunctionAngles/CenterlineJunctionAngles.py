@@ -141,23 +141,10 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
                     self.logic.populateJunctionAnglesTable(tableNode, junctionAngles)
                     self.updateProgress(progressDialog, _("Creating bifurcation vectors..."), 65)
                     vectorFolder = self._createCurveSubjectHierarchyFolderNode(label + _(" vectors"))
-                    for bifurcation in self.logic.computeBifurcationVectors():
-                        for groupId in sorted(bifurcation["branches"]):
-                            self._createBifurcationVectorComponent(bifurcation["branches"][groupId], vectorFolder, self.showVectorNames.checked)
+                    self._createBifurcationVectorModel(self.logic.computeBifurcationVectors(), vectorFolder, self.showVectorNames.checked)
                     self.updateProgress(progressDialog, _("Creating junction angle annotations..."), 80)
                     angleFolder = self._createCurveSubjectHierarchyFolderNode(label + _(" annotations"))
-                    labels = {"child-child": _("Child-child angles"), "parent-child": _("Parent-child angles"), "parent-parent": _("Parent-parent angles")}
-                    folders = {}
-                    for angle in junctionAngles:
-                        pairType = self.logic.junctionAnglePairType(angle["branch1Role"], angle["branch2Role"])
-                        if pairType not in folders:
-                            folders[pairType] = self._createCurveSubjectHierarchyFolderNode(labels[pairType], angleFolder)
-                        branchOrder = angle["branchOrder"]
-                        branchOrderFolderKey = (pairType, branchOrder)
-                        if branchOrderFolderKey not in folders:
-                            folders[branchOrderFolderKey] = self._createCurveSubjectHierarchyFolderNode(
-                                _("Branch order {order}").format(order=branchOrder), folders[pairType])
-                        self._createJunctionAngleComponent(angle, folders[branchOrderFolderKey])
+                    self._createJunctionAngleGroupComponents(junctionAngles, angleFolder)
                 finally:
                     slicer.mrmlScene.EndState(slicer.mrmlScene.BatchProcessState)
                 self.updateProgress(progressDialog, _("Finished computing junction angles."), 100)
@@ -205,41 +192,34 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         slicer.util.showStatusMessage(
             _("{count} junction angle annotation colors reset.").format(count=numberOfResetNodes), 3000)
 
-    def junctionAngleAnnotationNodes(self):
-        return [node for node in slicer.util.getNodesByClass("vtkMRMLMarkupsAngleNode")
-                if node.GetAttribute("BifurcationGroupId") is not None
-                and node.GetAttribute("Branch1GroupId") is not None
-                and node.GetAttribute("Branch2GroupId") is not None]
-
-    @staticmethod
-    def junctionAngleAnnotationValue(angleNode):
-        measurement = angleNode.GetMeasurement("angle")
-        if (measurement is None) or (not measurement.GetEnabled()):
-            return None
-        return measurement.GetValue()
-
-    def highlightJunctionAngleAnnotations(self, thresholdDegrees, aboveColor=(1.0, 0.0, 0.0), belowColor=None):
+    def highlightJunctionAngleAnnotations(self, thresholdDegrees, aboveColor=(1.0, 0.0, 0.0)):
         numberOfHighlightedNodes = 0
-        for angleNode in self.junctionAngleAnnotationNodes():
-            angleValue = self.junctionAngleAnnotationValue(angleNode)
-            if angleValue is None:
+        for labelsNode in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
+            if labelsNode.GetAttribute("CenterlineJunctionAngleLabels") != "1":
                 continue
-            isAboveThreshold = angleValue > thresholdDegrees
-            color = aboveColor if isAboveThreshold else belowColor
-            if color is not None:
-                angleNode.GetDisplayNode().SetSelectedColor(color)
-            if isAboveThreshold:
-                numberOfHighlightedNodes += 1
+            labelsNode.GetDisplayNode().SetSelectedColor(aboveColor)
+            for pointIndex in range(labelsNode.GetNumberOfControlPoints()):
+                angleValue = labelsNode.GetNthControlPointDescription(pointIndex)
+                if not angleValue:
+                    continue
+                highlighted = float(angleValue) > thresholdDegrees
+                labelsNode.SetNthControlPointSelected(pointIndex, highlighted)
+                if highlighted:
+                    numberOfHighlightedNodes += 1
         return numberOfHighlightedNodes
 
     def resetJunctionAngleAnnotationColors(self):
         numberOfResetNodes = 0
-        for angleNode in self.junctionAngleAnnotationNodes():
-            pairType = angleNode.GetAttribute("PairType")
+        for labelsNode in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
+            if labelsNode.GetAttribute("CenterlineJunctionAngleLabels") != "1":
+                continue
+            pairType = labelsNode.GetAttribute("PairType")
             if pairType not in junctionAnglePairTypeColors:
                 continue
-            angleNode.GetDisplayNode().SetSelectedColor(junctionAnglePairTypeColors[pairType])
-            numberOfResetNodes += 1
+            labelsNode.GetDisplayNode().SetSelectedColor(junctionAnglePairTypeColors[pairType])
+            for pointIndex in range(labelsNode.GetNumberOfControlPoints()):
+                labelsNode.SetNthControlPointSelected(pointIndex, False)
+                numberOfResetNodes += 1
         return numberOfResetNodes
 
     def _createCurveSubjectHierarchyFolderNode(self, label, parentFolderId=None):
@@ -254,6 +234,148 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
         shObjectId = shNode.GetItemByDataNode(anyObject)
         shNode.SetItemParent(shObjectId, shFolderId)
+
+    def _createPolylineModel(self, name, polylines, color, parentFolderId, lineWidth=2):
+        if not polylines:
+            return None
+        points = vtk.vtkPoints()
+        lines = vtk.vtkCellArray()
+        polyData = vtk.vtkPolyData()
+        for polyline in polylines:
+            lines.InsertNextCell(len(polyline))
+            for position in polyline:
+                pointId = points.InsertNextPoint(position)
+                lines.InsertCellPoint(pointId)
+        polyData.SetPoints(points)
+        polyData.SetLines(lines)
+        modelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", name)
+        modelNode.SetAndObservePolyData(polyData)
+        modelNode.CreateDefaultDisplayNodes()
+        displayNode = modelNode.GetDisplayNode()
+        displayNode.SetColor(color)
+        displayNode.SetLineWidth(lineWidth)
+        displayNode.SetScalarVisibility(False)
+        displayNode.SetVisibility2D(True)
+        modelNode.SetAttribute("CenterlineJunctionAngles", "1")
+        self._reparentNodeToSubjectHierarchyFolderNode(parentFolderId, modelNode)
+        return modelNode
+
+    def _createLabelsNode(self, name, labels, color, parentFolderId, attributes=None):
+        if not labels:
+            return None
+        labelsNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", name)
+        labelsNode.CreateDefaultDisplayNodes()
+        displayNode = labelsNode.GetDisplayNode()
+        displayNode.SetSelectedColor(color)
+        displayNode.SetGlyphType(slicer.vtkMRMLMarkupsDisplayNode.Vertex2D)
+        displayNode.SetGlyphScale(0.0)
+        displayNode.SetTextScale(junctionAngleTextScale)
+        displayNode.SetPointLabelsVisibility(True)
+        displayNode.SetPropertiesLabelVisibility(False)
+        displayNode.SetOccludedVisibility(True)
+        displayNode.SetOccludedOpacity(occludedOpacity)
+        for position, label, description in labels:
+            pointIndex = labelsNode.AddControlPoint(vtk.vtkVector3d(position))
+            labelsNode.SetNthControlPointLabel(pointIndex, label)
+            labelsNode.SetNthControlPointDescription(pointIndex, description)
+        labelsNode.SetLocked(True)
+        labelsNode.SetAttribute("CenterlineJunctionAngles", "1")
+        if attributes:
+            for attributeName, attributeValue in attributes.items():
+                labelsNode.SetAttribute(attributeName, str(attributeValue))
+        self._reparentNodeToSubjectHierarchyFolderNode(parentFolderId, labelsNode)
+        return labelsNode
+
+    def _createBifurcationVectorModel(self, bifurcations, parentFolderId, showLabels):
+        polylines = []
+        labels = []
+        for bifurcation in bifurcations:
+            for groupId in sorted(bifurcation["branches"]):
+                branch = bifurcation["branches"][groupId]
+                if branch["vectorLength"] <= minimumVectorLength:
+                    continue
+                basePosition = branch["basePosition"]
+                endPosition = [basePosition[i] + branch["vector"][i] for i in range(3)]
+                polylines.append([basePosition, endPosition])
+                if showLabels:
+                    labels.append(([(basePosition[i] + endPosition[i]) / 2.0 for i in range(3)],
+                                   _("Group {groupId}").format(groupId=branch["groupId"]),
+                                   str(branch["groupId"])))
+        self._createPolylineModel(_("Bifurcation vectors"), polylines, bifurcationVectorColor, parentFolderId, 3)
+        self._createLabelsNode(_("Bifurcation vector labels"), labels, bifurcationVectorColor, parentFolderId)
+
+    @staticmethod
+    def _rayEndPosition(junctionAngle, positionKey):
+        junctionPosition = junctionAngle["junctionPosition"]
+        position = junctionAngle[positionKey]
+        return [junctionPosition[i] + (position[i] - junctionPosition[i]) * junctionAngleRayScale
+                for i in range(3)]
+
+    @staticmethod
+    def _angleArcPolyline(junctionAngle, numberOfSegments=12):
+        junctionPosition = junctionAngle["junctionPosition"]
+        ray1EndPosition = CenterlineJunctionAnglesWidget._rayEndPosition(junctionAngle, "branch1Position")
+        ray2EndPosition = CenterlineJunctionAnglesWidget._rayEndPosition(junctionAngle, "branch2Position")
+        vector1 = [ray1EndPosition[i] - junctionPosition[i] for i in range(3)]
+        vector2 = [ray2EndPosition[i] - junctionPosition[i] for i in range(3)]
+        length1 = vtk.vtkMath.Norm(vector1)
+        length2 = vtk.vtkMath.Norm(vector2)
+        if length1 <= minimumVectorLength or length2 <= minimumVectorLength:
+            return [], junctionPosition
+        for i in range(3):
+            vector1[i] /= length1
+            vector2[i] /= length2
+        radius = min(length1, length2) * 0.35
+        points = []
+        for index in range(numberOfSegments + 1):
+            ratio = index / numberOfSegments
+            direction = [(1.0 - ratio) * vector1[i] + ratio * vector2[i] for i in range(3)]
+            directionLength = vtk.vtkMath.Norm(direction)
+            if directionLength <= minimumVectorLength:
+                continue
+            points.append([junctionPosition[i] + radius * direction[i] / directionLength for i in range(3)])
+        labelPosition = points[len(points) // 2] if points else junctionPosition
+        return points, labelPosition
+
+    def _createJunctionAngleGroupComponents(self, junctionAngles, parentFolderId):
+        labels = {"child-child": _("Child-child angles"), "parent-child": _("Parent-child angles"), "parent-parent": _("Parent-parent angles")}
+        folders = {}
+        groupedAnnotations = {}
+        for junctionAngle in junctionAngles:
+            if math.isnan(junctionAngle["angleDegrees"]):
+                continue
+            pairType = self.logic.junctionAnglePairType(junctionAngle["branch1Role"], junctionAngle["branch2Role"])
+            if pairType not in folders:
+                folders[pairType] = self._createCurveSubjectHierarchyFolderNode(labels[pairType], parentFolderId)
+            branchOrder = junctionAngle["branchOrder"]
+            groupKey = (pairType, branchOrder)
+            if groupKey not in folders:
+                folders[groupKey] = self._createCurveSubjectHierarchyFolderNode(
+                    _("Branch order {order}").format(order=branchOrder), folders[pairType])
+            groupedAnnotations.setdefault(groupKey, {"rays": [], "arcs": [], "labels": []})
+            ray1EndPosition = self._rayEndPosition(junctionAngle, "branch1Position")
+            ray2EndPosition = self._rayEndPosition(junctionAngle, "branch2Position")
+            groupedAnnotations[groupKey]["rays"].append([ray1EndPosition, junctionAngle["junctionPosition"], ray2EndPosition])
+            arcPolyline, labelPosition = self._angleArcPolyline(junctionAngle)
+            if arcPolyline:
+                groupedAnnotations[groupKey]["arcs"].append(arcPolyline)
+            groupedAnnotations[groupKey]["labels"].append((labelPosition, _("{angle:.1f}°").format(
+                angle=junctionAngle["angleDegrees"]), str(junctionAngle["angleDegrees"])))
+
+        for groupKey, annotations in groupedAnnotations.items():
+            pairType, branchOrder = groupKey
+            folder = folders[groupKey]
+            color = junctionAnglePairTypeColors[pairType]
+            nameSuffix = _("branch order {order}").format(order=branchOrder)
+            self._createPolylineModel(_("Junction angle rays - {suffix}").format(suffix=nameSuffix),
+                                      annotations["rays"], color, folder, 2)
+            self._createPolylineModel(_("Junction angle arcs - {suffix}").format(suffix=nameSuffix),
+                                      annotations["arcs"], color, folder, 2)
+            self._createLabelsNode(_("Junction angle labels - {suffix}").format(suffix=nameSuffix),
+                                   annotations["labels"], color, folder,
+                                   {"CenterlineJunctionAngleLabels": "1",
+                                    "PairType": pairType,
+                                    "BranchOrder": branchOrder})
 
     def _createBifurcationVectorComponent(self, branch, parentFolderId, showCurveName):
         """Create a curve for the segment over which the direction of a branch was measured.
@@ -1116,6 +1238,7 @@ minimumVectorLength = 1e-6
 junctionAnglePairTypeColors = {"child-child": [1.0, 1.0, 0.0],
                                "parent-child": [0.0, 1.0, 1.0],
                                "parent-parent": [1.0, 1.0, 1.0]}
+bifurcationVectorColor = [1.0, 0.5, 0.0]
 junctionAngleRayScale = 3.0
 junctionAngleTextScale = 5.0
 # How much of an annotation is seen where the vessel surface hides it
