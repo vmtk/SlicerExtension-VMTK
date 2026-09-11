@@ -3,8 +3,8 @@
 Select a centerline model produced by Extract Centerline, then click **Compute junction angles**. The module performs branch extraction internally and creates:
 
 - a table with one row for every pair of branches of every bifurcation,
-- a curve for each measured branch direction, in a 'vectors' folder,
-- an angle markup for each pair of branches, in an 'annotations' folder, grouped by the type of the pair.
+- compact tube-style 3D angle annotations for each pair of branches, grouped by pair type and branch order,
+- compact tube-style bifurcation vector displays with start and end dots inside the same folders as the angle annotations they support.
 
 ![Centerline junction angles](CenterlineJunctionAngles.png)
 
@@ -14,7 +14,7 @@ Two properties of this definition are worth knowing. The vectors are computed on
 
 The vector of a branch is stored by VMTK along the flow direction, which means that the vector of the parent branch points towards the bifurcation. This module reverses it, so that all directions point away from the bifurcation and the angle of a pair of branches is directly the angle between the two directions, in the 0-180 degrees range: 180 degrees means that the two branches continue each other in a straight line. Note that the direction of a branch is measured just outside the bifurcation region, so for a branch that curves near the bifurcation it is not the same as the direction of the centerline at the bifurcation itself.
 
-A branch is identified by its `GroupId`, from the internal branch extraction. Vector curves store this ID as a node attribute; angle annotations store the bifurcation and both branch IDs. Parent and child roles come from the upstream/downstream classification of VMTK, which follows the flow direction that was used for the centerline extraction. Parent-child angles use outward directions, so a straight continuation measures 180 degrees; the flow deflection is its supplement. Child-child angles describe the branching angle.
+A branch is identified by its `GroupId`, from the internal branch extraction. The table stores the bifurcation and both branch IDs for each angle. Parent and child roles come from the upstream/downstream classification of VMTK, which follows the flow direction that was used for the centerline extraction. Parent-child angles use outward directions, so a straight continuation measures 180 degrees; the flow deflection is its supplement. Child-child angles describe the branching angle.
 
 | Column | Description |
 | --- | --- |
@@ -29,9 +29,9 @@ A branch is identified by its `GroupId`, from the internal branch extraction. Ve
 | `InPlaneAngleDegrees` | Angle of the pair projected onto the bifurcation plane. For a bifurcation whose branches are in one plane it is the same as `AngleDegrees`; the difference between the two shows how much of the angle is out of the bifurcation plane |
 | `Branch1OutOfPlaneAngleDegrees`, `Branch2OutOfPlaneAngleDegrees` | Angle between each branch and the bifurcation plane |
 
-All the pairs of branches of the table are annotated, which means that several angles are labelled at the same position at a bifurcation. The annotations are therefore grouped in 'Child-child angles' and 'Parent-child angles' folders, then by branch order, so that pair types or distal annotations can be shown or hidden at once with the eye icon of the Data module. Child-child angles are yellow, parent-child angles are cyan. The 3D rays, arcs, and labels are stored in grouped nodes instead of one angle markup node per measurement, which keeps large trees much smaller in the scene.
+All the pairs of branches of the table are annotated, which means that several angles are labelled at the same position at a bifurcation. The annotations are therefore grouped in 'Child-child angles' and 'Parent-child angles' folders, then by branch order, so that pair types or distal annotations can be shown or hidden at once with the eye icon of the Data module. Each branch-order folder contains the angle rays, arcs, labels, and the corresponding tube-style bifurcation vectors with start and end dots for that pair type and order. Child-child angles are yellow, parent-child angles are cyan. The 3D tube rays, tube arcs, labels, and vector tubes are stored in grouped nodes instead of one markup node per measurement, which keeps large trees much smaller in the scene.
 
-An annotation is labelled with the angle value only, which is also its node name; the pair of branches it belongs to is told by its folder, its color, and its `Branch1GroupId` and `Branch2GroupId` attributes. Its rays are drawn several times longer than the measured segments so that they are readable next to the vessel: the angle depends on the directions of the rays only, and the bifurcation vector curves show over what distance each direction was measured.
+An annotation label shows the angle value only; the pair of branches it belongs to is told by its folder and color, while the exact branch IDs are stored in the table. Its rays are drawn several times longer than the measured segments so that they are readable next to the vessel: the angle depends on the directions of the rays only, and the bifurcation vector display in the same folder shows over what distance each direction was measured.
 
 The annotation display controls can highlight angle labels above a threshold in red. Reset annotation colors restores the pair-type colors.
 
