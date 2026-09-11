@@ -190,12 +190,16 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         slicer.util.showStatusMessage(
             _("{count} junction angle annotation colors reset.").format(count=numberOfResetNodes), 3000)
 
-    def highlightJunctionAngleAnnotations(self, thresholdDegrees, aboveColor=(1.0, 0.0, 0.0)):
+    def highlightJunctionAngleAnnotations(self, thresholdDegrees, aboveColor=None):
+        if aboveColor is None:
+            aboveColor = highlightedJunctionAngleColor
         numberOfHighlightedNodes = 0
         for labelsNode in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
             if labelsNode.GetAttribute("CenterlineJunctionAngleLabels") != "1":
                 continue
-            labelsNode.GetDisplayNode().SetSelectedColor(aboveColor)
+            displayNode = labelsNode.GetDisplayNode()
+            displayNode.SetColor(junctionAngleLabelColor)
+            displayNode.SetSelectedColor(aboveColor)
             for pointIndex in range(labelsNode.GetNumberOfControlPoints()):
                 angleValue = labelsNode.GetNthControlPointDescription(pointIndex)
                 if not angleValue:
@@ -211,10 +215,9 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         for labelsNode in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
             if labelsNode.GetAttribute("CenterlineJunctionAngleLabels") != "1":
                 continue
-            pairType = labelsNode.GetAttribute("PairType")
-            if pairType not in junctionAnglePairTypeColors:
-                continue
-            labelsNode.GetDisplayNode().SetSelectedColor(junctionAnglePairTypeColors[pairType])
+            displayNode = labelsNode.GetDisplayNode()
+            displayNode.SetColor(junctionAngleLabelColor)
+            displayNode.SetSelectedColor(highlightedJunctionAngleColor)
             for pointIndex in range(labelsNode.GetNumberOfControlPoints()):
                 labelsNode.SetNthControlPointSelected(pointIndex, False)
                 numberOfResetNodes += 1
@@ -269,7 +272,7 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         self._reparentNodeToSubjectHierarchyFolderNode(parentFolderId, modelNode)
         return modelNode
 
-    def _createTubeModel(self, name, polylines, sphereCenters, color, parentFolderId, tubeRadius, sphereRadius, attributes=None):
+    def _createTubeModel(self, name, polylines, sphereCenters, color, parentFolderId, tubeRadius, sphereRadius, attributes=None, opacity=1.0):
         if not polylines:
             return None
 
@@ -308,6 +311,7 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         modelNode.CreateDefaultDisplayNodes()
         displayNode = modelNode.GetDisplayNode()
         displayNode.SetColor(color)
+        displayNode.SetOpacity(opacity)
         displayNode.SetScalarVisibility(False)
         displayNode.SetVisibility2D(True)
         modelNode.SetAttribute("CenterlineJunctionAngles", "1")
@@ -323,7 +327,8 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         labelsNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", name)
         labelsNode.CreateDefaultDisplayNodes()
         displayNode = labelsNode.GetDisplayNode()
-        displayNode.SetSelectedColor(color)
+        displayNode.SetColor(color)
+        displayNode.SetSelectedColor(highlightedJunctionAngleColor)
         displayNode.SetGlyphType(slicer.vtkMRMLMarkupsDisplayNode.Vertex2D)
         displayNode.SetGlyphScale(0.0)
         displayNode.SetTextScale(junctionAngleTextScale)
@@ -335,6 +340,7 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
             pointIndex = labelsNode.AddControlPoint(vtk.vtkVector3d(position))
             labelsNode.SetNthControlPointLabel(pointIndex, label)
             labelsNode.SetNthControlPointDescription(pointIndex, description)
+            labelsNode.SetNthControlPointSelected(pointIndex, False)
         labelsNode.SetLocked(True)
         labelsNode.SetAttribute("CenterlineJunctionAngles", "1")
         if attributes:
@@ -360,7 +366,7 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
                                str(branch["groupId"])))
         self._createTubeModel(_("Bifurcation vectors"), polylines, vectorPoints, bifurcationVectorColor, parentFolderId,
                               bifurcationVectorTubeRadius, bifurcationVectorEndpointRadius,
-                              {"CenterlineJunctionAngleVectors": "1"})
+                              {"CenterlineJunctionAngleVectors": "1"}, bifurcationVectorOpacity)
         self._createLabelsNode(_("Bifurcation vector labels"), labels, bifurcationVectorColor, parentFolderId,
                                {"CenterlineJunctionAngleVectorLabels": "1"})
 
@@ -437,20 +443,19 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         for groupKey, annotations in groupedAnnotations.items():
             pairType, branchOrder = groupKey
             folder = folders[groupKey]
-            color = junctionAnglePairTypeColors[pairType]
             nameSuffix = _("branch order {order}").format(order=branchOrder)
             self._createTubeModel(_("Junction angle rays - {suffix}").format(suffix=nameSuffix),
-                                  annotations["rays"], [], color, folder, junctionAngleTubeRadius, 0.0,
+                                  annotations["rays"], [], junctionAngleGeometryColor, folder, junctionAngleTubeRadius, 0.0,
                                   {"CenterlineJunctionAngleRays": "1",
                                    "PairType": pairType,
                                    "BranchOrder": branchOrder})
             self._createTubeModel(_("Junction angle arcs - {suffix}").format(suffix=nameSuffix),
-                                  annotations["arcs"], [], color, folder, junctionAngleTubeRadius, 0.0,
+                                  annotations["arcs"], [], junctionAngleGeometryColor, folder, junctionAngleTubeRadius, 0.0,
                                   {"CenterlineJunctionAngleArcs": "1",
                                    "PairType": pairType,
                                    "BranchOrder": branchOrder})
             self._createLabelsNode(_("Junction angle labels - {suffix}").format(suffix=nameSuffix),
-                                   annotations["labels"], color, folder,
+                                   annotations["labels"], junctionAngleLabelColor, folder,
                                    {"CenterlineJunctionAngleLabels": "1",
                                     "PairType": pairType,
                                     "BranchOrder": branchOrder})
@@ -1240,12 +1245,13 @@ upstreamOrientation = 0
 minimumVectorLength = 1e-6
 # Style of the junction angle annotations. The rays are drawn this many times longer than the measured
 # segments, and the text is larger than the default scale of 3.0.
-junctionAnglePairTypeColors = {"child-child": [1.0, 1.0, 0.0],
-                               "parent-child": [0.0, 1.0, 1.0],
-                               "parent-parent": [1.0, 1.0, 1.0]}
+junctionAngleLabelColor = [1.0, 1.0, 0.0]
+highlightedJunctionAngleColor = [1.0, 0.0, 0.0]
+junctionAngleGeometryColor = [1.0, 1.0, 0.0]
 bifurcationVectorColor = [1.0, 0.5, 0.0]
 bifurcationVectorTubeRadius = 0.16
 bifurcationVectorEndpointRadius = 0.32
+bifurcationVectorOpacity = 0.8
 junctionAngleTubeRadius = 0.14
 junctionAngleRayScale = 3.0
 junctionAngleTextScale = 5.0
