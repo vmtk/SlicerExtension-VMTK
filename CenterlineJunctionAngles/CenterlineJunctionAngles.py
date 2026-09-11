@@ -36,38 +36,16 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
     def setup(self):
         super().setup()
         self.logic = CenterlineJunctionAnglesLogic()
-        form = qt.QFormLayout()
-        self.layout.addLayout(form)
-        self.inputSelector = slicer.qMRMLNodeComboBox()
-        self.inputSelector.nodeTypes = ["vtkMRMLModelNode"]
-        self.inputSelector.addEnabled = False
-        self.inputSelector.removeEnabled = False
-        self.inputSelector.noneEnabled = True
-        self.inputSelector.setMRMLScene(slicer.mrmlScene)
-        self.inputSelector.toolTip = _("Centerline model created by Extract Centerline.")
-        form.addRow(_("Input centerline:"), self.inputSelector)
-        self.showVectorNames = qt.QCheckBox(_("Show vector names"))
-        form.addRow(self.showVectorNames)
-        self.applyButton = qt.QPushButton(_("Compute junction angles"))
-        form.addRow(self.applyButton)
-        self.highlightThresholdSpinBox = qt.QDoubleSpinBox()
-        self.highlightThresholdSpinBox.setRange(0.0, 180.0)
-        self.highlightThresholdSpinBox.setSingleStep(5.0)
-        self.highlightThresholdSpinBox.setSuffix(_(" degrees"))
-        self.highlightThresholdSpinBox.value = 60.0
-        self.highlightThresholdSpinBox.toolTip = _("Angles greater than this threshold are highlighted in red.")
-        form.addRow(_("Highlight above:"), self.highlightThresholdSpinBox)
-        self.highlightButton = qt.QPushButton(_("Highlight angle annotations"))
-        form.addRow(self.highlightButton)
-        self.resetColorsButton = qt.QPushButton(_("Reset annotation colors"))
-        form.addRow(self.resetColorsButton)
-        self.layout.addStretch(1)
-        self.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
-        self.showVectorNames.connect("toggled(bool)", self.updateParameterNodeFromGUI)
-        self.highlightThresholdSpinBox.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
-        self.applyButton.connect("clicked(bool)", self.onApplyButton)
-        self.highlightButton.connect("clicked(bool)", self.onHighlightButton)
-        self.resetColorsButton.connect("clicked(bool)", self.onResetColorsButton)
+        uiWidget = slicer.util.loadUI(self.resourcePath("UI/CenterlineJunctionAngles.ui"))
+        self.layout.addWidget(uiWidget)
+        self.ui = slicer.util.childWidgetVariables(uiWidget)
+        uiWidget.setMRMLScene(slicer.mrmlScene)
+        self.ui.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
+        self.ui.showVectorNames.connect("toggled(bool)", self.updateParameterNodeFromGUI)
+        self.ui.highlightThresholdSpinBox.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
+        self.ui.applyButton.connect("clicked(bool)", self.onApplyButton)
+        self.ui.highlightButton.connect("clicked(bool)", self.onHighlightButton)
+        self.ui.resetColorsButton.connect("clicked(bool)", self.onResetColorsButton)
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
         self.initializeParameterNode()
@@ -98,30 +76,30 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         self.updateGUIFromParameterNode()
 
     def updateGUIFromParameterNode(self, caller=None, event=None):
-        blocked = self.inputSelector.blockSignals(True)
-        self.inputSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputCenterline") if self._parameterNode else None)
-        self.inputSelector.blockSignals(blocked)
-        blocked = self.showVectorNames.blockSignals(True)
-        self.showVectorNames.checked = bool(self._parameterNode and self._parameterNode.GetParameter("ShowVectorNames") == "1")
-        self.showVectorNames.blockSignals(blocked)
-        blocked = self.highlightThresholdSpinBox.blockSignals(True)
+        blocked = self.ui.inputSelector.blockSignals(True)
+        self.ui.inputSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputCenterline") if self._parameterNode else None)
+        self.ui.inputSelector.blockSignals(blocked)
+        blocked = self.ui.showVectorNames.blockSignals(True)
+        self.ui.showVectorNames.checked = bool(self._parameterNode and self._parameterNode.GetParameter("ShowVectorNames") == "1")
+        self.ui.showVectorNames.blockSignals(blocked)
+        blocked = self.ui.highlightThresholdSpinBox.blockSignals(True)
         if self._parameterNode and self._parameterNode.GetParameter("HighlightThresholdDegrees"):
-            self.highlightThresholdSpinBox.value = float(self._parameterNode.GetParameter("HighlightThresholdDegrees"))
-        self.highlightThresholdSpinBox.blockSignals(blocked)
-        self.applyButton.enabled = self.inputSelector.currentNode() is not None
+            self.ui.highlightThresholdSpinBox.value = float(self._parameterNode.GetParameter("HighlightThresholdDegrees"))
+        self.ui.highlightThresholdSpinBox.blockSignals(blocked)
+        self.ui.applyButton.enabled = self.ui.inputSelector.currentNode() is not None
 
     def updateParameterNodeFromGUI(self, *args):
         if not self._parameterNode:
             return
         with slicer.util.NodeModify(self._parameterNode):
-            node = self.inputSelector.currentNode()
+            node = self.ui.inputSelector.currentNode()
             self._parameterNode.SetNodeReferenceID("InputCenterline", node.GetID() if node else None)
-            self._parameterNode.SetParameter("ShowVectorNames", "1" if self.showVectorNames.checked else "0")
-            self._parameterNode.SetParameter("HighlightThresholdDegrees", str(self.highlightThresholdSpinBox.value))
+            self._parameterNode.SetParameter("ShowVectorNames", "1" if self.ui.showVectorNames.checked else "0")
+            self._parameterNode.SetParameter("HighlightThresholdDegrees", str(self.ui.highlightThresholdSpinBox.value))
 
     def onApplyButton(self):
         with slicer.util.tryWithErrorDisplay(_("Failed to compute junction angles."), waitCursor=True):
-            inputCenterline = self.inputSelector.currentNode()
+            inputCenterline = self.ui.inputSelector.currentNode()
             if inputCenterline is None:
                 raise ValueError(_("Please select a centerline model."))
             progressDialog = self.createProgressDialog()
@@ -142,7 +120,7 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
                     self.updateProgress(progressDialog, _("Creating junction angle annotations..."), 80)
                     angleFolder = self._createCurveSubjectHierarchyFolderNode(label + _(" annotations"))
                     self._createJunctionAngleGroupComponents(
-                        junctionAngles, self.logic.computeBifurcationVectors(), angleFolder, self.showVectorNames.checked)
+                        junctionAngles, self.logic.computeBifurcationVectors(), angleFolder, self.ui.showVectorNames.checked)
                 finally:
                     slicer.mrmlScene.EndState(slicer.mrmlScene.BatchProcessState)
                 self.updateProgress(progressDialog, _("Finished computing junction angles."), 100)
@@ -181,7 +159,7 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         return _("Analyzing centerline topology with VMTK. Slicer may not respond during this step.")
 
     def onHighlightButton(self):
-        numberOfHighlightedNodes = self.highlightJunctionAngleAnnotations(self.highlightThresholdSpinBox.value)
+        numberOfHighlightedNodes = self.highlightJunctionAngleAnnotations(self.ui.highlightThresholdSpinBox.value)
         slicer.util.showStatusMessage(
             _("{count} junction angle annotations highlighted.").format(count=numberOfHighlightedNodes), 3000)
 
