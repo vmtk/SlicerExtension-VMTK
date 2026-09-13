@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>CenterlineJunctionAngles</class>
+ <widget class="qMRMLWidget" name="CenterlineJunctionAngles">
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <layout class="QFormLayout" name="formLayout">
+     <item row="0" column="0">
+      <widget class="QLabel" name="inputLabel">
+       <property name="text"><string>Input centerline:</string></property>
+       <property name="buddy"><cstring>inputSelector</cstring></property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="qMRMLNodeComboBox" name="inputSelector">
+       <property name="toolTip"><string>Centerline model created by Extract Centerline.</string></property>
+       <property name="nodeTypes"><stringlist notr="true"><string>vtkMRMLModelNode</string></stringlist></property>
+       <property name="addEnabled"><bool>false</bool></property>
+       <property name="removeEnabled"><bool>false</bool></property>
+       <property name="noneEnabled"><bool>true</bool></property>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <widget class="QCheckBox" name="showVectorNames">
+       <property name="text"><string>Show vector names</string></property>
+      </widget>
+     </item>
+     <item row="2" column="1">
+      <widget class="QPushButton" name="applyButton">
+       <property name="enabled"><bool>false</bool></property>
+       <property name="text"><string>Compute junction angles</string></property>
+      </widget>
+     </item>
+     <item row="3" column="0">
+      <widget class="QLabel" name="highlightThresholdLabel">
+       <property name="text"><string>Highlight above:</string></property>
+       <property name="buddy"><cstring>highlightThresholdSpinBox</cstring></property>
+      </widget>
+     </item>
+     <item row="3" column="1">
+      <widget class="QDoubleSpinBox" name="highlightThresholdSpinBox">
+       <property name="toolTip"><string>Angles greater than this threshold are highlighted in red.</string></property>
+       <property name="suffix"><string> degrees</string></property>
+       <property name="maximum"><double>180.000000000000000</double></property>
+       <property name="singleStep"><double>5.000000000000000</double></property>
+       <property name="value"><double>60.000000000000000</double></property>
+      </widget>
+     </item>
+     <item row="4" column="1">
+      <widget class="QPushButton" name="highlightButton">
+       <property name="text"><string>Highlight angle annotations</string></property>
+      </widget>
+     </item>
+     <item row="5" column="1">
+      <widget class="QPushButton" name="resetColorsButton">
+       <property name="text"><string>Reset annotation colors</string></property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <spacer name="verticalSpacer">
+     <property name="orientation"><enum>Qt::Vertical</enum></property>
+     <property name="sizeHint" stdset="0"><size><width>20</width><height>40</height></size></property>
+    </spacer>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget><class>qMRMLNodeComboBox</class><extends>QWidget</extends><header>qMRMLNodeComboBox.h</header></customwidget>
+  <customwidget><class>qMRMLWidget</class><extends>QWidget</extends><header>qMRMLWidget.h</header><container>1</container></customwidget>
+ </customwidgets>
+ <tabstops>
+  <tabstop>inputSelector</tabstop>
+  <tabstop>showVectorNames</tabstop>
+  <tabstop>applyButton</tabstop>
+  <tabstop>highlightThresholdSpinBox</tabstop>
+  <tabstop>highlightButton</tabstop>
+  <tabstop>resetColorsButton</tabstop>
+ </tabstops>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>CenterlineJunctionAngles</sender>
+   <signal>mrmlSceneChanged(vtkMRMLScene*)</signal>
+   <receiver>inputSelector</receiver>
+   <slot>setMRMLScene(vtkMRMLScene*)</slot>
+  </connection>
+ </connections>
+</ui>

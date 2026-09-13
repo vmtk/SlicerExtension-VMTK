@@ -34,6 +34,7 @@ Workflows:
   - [Guided Vein Segmentation](Docs/GuidedVeinSegmentation.md): Segment *major* veins using an open markups curve leveraging the segment editor effects.
   - [Arterial calcification pre-processor](Docs/ArterialCalcificationPreProcessor.md): Segment arterial calcifications within a specified distance around a lumen.
   - [Centerline disassembly](Docs/CenterlineDisassembly.md): Break down a bifurcated centerline model into parts.
+  - [Centerline junction angles](Docs/CenterlineJunctionAngles.md): Measure angles between branches at centerline bifurcations.
   - [Clip vessel](Docs/ClipVessel.md): Clip a segmentation or model normal to the centerline.
   - [Edit centerline](Docs/EditCenterline.md): Create a Shape::Tube markups node around an artery.
   - [CFD Mesh Generator](Docs/CfdMeshGenerator.md): Fill a clipped vessel surface with tetrahedra for a computational fluid dynamics solver, using TetGen, fTetWild or Netgen, with capping, surface remeshing and an optional prismatic boundary layer.
