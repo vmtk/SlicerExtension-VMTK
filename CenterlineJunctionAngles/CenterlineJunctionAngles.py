@@ -42,7 +42,6 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         self.ui = slicer.util.childWidgetVariables(uiWidget)
         uiWidget.setMRMLScene(slicer.mrmlScene)
         self.ui.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
-        self.ui.showVectorNames.connect("toggled(bool)", self.updateParameterNodeFromGUI)
         self.ui.minimumAngleSpinBox.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
         self.ui.applyButton.connect("clicked(bool)", self.onApplyButton)
         self.ui.filterButton.connect("clicked(bool)", self.onFilterButton)
@@ -87,9 +86,6 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         blocked = self.ui.inputSelector.blockSignals(True)
         self.ui.inputSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputCenterline") if self._parameterNode else None)
         self.ui.inputSelector.blockSignals(blocked)
-        blocked = self.ui.showVectorNames.blockSignals(True)
-        self.ui.showVectorNames.checked = bool(self._parameterNode and self._parameterNode.GetParameter("ShowVectorNames") == "1")
-        self.ui.showVectorNames.blockSignals(blocked)
         blocked = self.ui.minimumAngleSpinBox.blockSignals(True)
         if self._parameterNode and self._parameterNode.GetParameter("MinimumAngleDegrees"):
             self.ui.minimumAngleSpinBox.value = float(self._parameterNode.GetParameter("MinimumAngleDegrees"))
@@ -114,7 +110,6 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         with slicer.util.NodeModify(self._parameterNode):
             node = self.ui.inputSelector.currentNode()
             self._parameterNode.SetNodeReferenceID("InputCenterline", node.GetID() if node else None)
-            self._parameterNode.SetParameter("ShowVectorNames", "1" if self.ui.showVectorNames.checked else "0")
             self._parameterNode.SetParameter("MinimumAngleDegrees", str(self.ui.minimumAngleSpinBox.value))
 
     def annotationDisplayNodes(self):
@@ -206,7 +201,7 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
                     self.updateProgress(progressDialog, _("Creating junction angle annotations..."), 80)
                     angleFolder = self._createCurveSubjectHierarchyFolderNode(label + _(" annotations"))
                     self._createJunctionAngleGroupComponents(
-                        junctionAngles, self.logic.computeBifurcationVectors(), angleFolder, self.ui.showVectorNames.checked)
+                        junctionAngles, self.logic.computeBifurcationVectors(), angleFolder)
                 finally:
                     slicer.mrmlScene.EndState(slicer.mrmlScene.BatchProcessState)
                 self.refreshBranchOrderControls()
@@ -523,7 +518,7 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
                 radii[(junctionId, angle["branch1GroupId"], angle["branch2GroupId"])] = referenceLength * fraction
         return radii
 
-    def _createJunctionAngleGroupComponents(self, junctionAngles, bifurcations, parentFolderId, showVectorLabels):
+    def _createJunctionAngleGroupComponents(self, junctionAngles, bifurcations, parentFolderId):
         labels = {"child-child": _("Child-child angles"), "parent-child": _("Parent-child angles"), "parent-parent": _("Parent-parent angles")}
         folders = {}
         groupedAnnotations = {}
@@ -598,7 +593,7 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
                                         "BranchOrder": branchOrder})
             vectorBranches = [branchesByGroupId[groupId] for groupId in sorted(annotations["vectorGroupIds"])
                               if groupId in branchesByGroupId]
-            self._createBifurcationVectorModel(vectorBranches, folder, showVectorLabels, branchOrder, pairType)
+            self._createBifurcationVectorModel(vectorBranches, folder, False, branchOrder, pairType)
 
 
 class CenterlineJunctionAnglesLogic(ScriptedLoadableModuleLogic):
@@ -1085,12 +1080,13 @@ class CenterlineJunctionAnglesTest(ScriptedLoadableModuleTest):
             angles = widget.logic.processJunctionAngles()
             angles[0]["branchOrder"] = 2
             folder = widget._createCurveSubjectHierarchyFolderNode("Display controls test")
-            widget._createJunctionAngleGroupComponents(angles, bifurcations, folder, True)
+            widget._createJunctionAngleGroupComponents(angles, bifurcations, folder)
             widget.refreshBranchOrderControls()
             widget.applyDisplayControls()
             self.assertEqual(set(widget._branchOrderCheckboxes), {1, 2})
             nodes = list(widget.annotationDisplayNodes())
             self.assertTrue(nodes)
+            self.assertFalse([node for node, _ in nodes if node.GetAttribute("CenterlineJunctionAngleVectorLabels") == "1"])
             for control in ("showArcs", "showAnnotations", "showRays", "showVectors"):
                 getattr(widget.ui, control).checked = False
                 for node, element in nodes:
@@ -1174,7 +1170,7 @@ class CenterlineJunctionAnglesTest(ScriptedLoadableModuleTest):
             for positionKey in ("branch1Position", "branch2Position"):
                 self.assertLess(radii[key], math.dist(angle["junctionPosition"], widget._rayEndPosition(angle, positionKey, 1.1 * radii[key])))
         folder = widget._createCurveSubjectHierarchyFolderNode("Staggered arcs test")
-        widget._createJunctionAngleGroupComponents(angles, bifurcations, folder, False)
+        widget._createJunctionAngleGroupComponents(angles, bifurcations, folder)
         actualLabels = []
         for node in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
             if node.GetAttribute("CenterlineJunctionAngleLabels") != "1":
@@ -1198,7 +1194,7 @@ class CenterlineJunctionAnglesTest(ScriptedLoadableModuleTest):
             for angle, value in zip(angles, values):
                 angle["angleDegrees"] = value
             folder = widget._createCurveSubjectHierarchyFolderNode("Color range test")
-            widget._createJunctionAngleGroupComponents(angles, bifurcations, folder, False)
+            widget._createJunctionAngleGroupComponents(angles, bifurcations, folder)
             models = [node for node in slicer.util.getNodesByClass("vtkMRMLModelNode")
                       if node.GetAttribute("CenterlineJunctionAngleArcs") == "1"]
             self.assertTrue(models)
@@ -1232,7 +1228,7 @@ class CenterlineJunctionAnglesTest(ScriptedLoadableModuleTest):
         widget.logic._bifurcationVectors = bifurcations
         angles = widget.logic.processJunctionAngles()
         folder = widget._createCurveSubjectHierarchyFolderNode("Test angles")
-        widget._createJunctionAngleGroupComponents(angles, bifurcations, folder, False)
+        widget._createJunctionAngleGroupComponents(angles, bifurcations, folder)
         arcModels = [node for node in slicer.util.getNodesByClass("vtkMRMLModelNode")
                      if node.GetAttribute("CenterlineJunctionAngleArcs") == "1"]
         self.assertEqual(len(arcModels), 2)

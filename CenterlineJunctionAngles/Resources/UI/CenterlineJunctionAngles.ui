@@ -21,17 +21,12 @@
       </widget>
      </item>
      <item row="1" column="1">
-      <widget class="QCheckBox" name="showVectorNames">
-       <property name="text"><string>Show vector names</string></property>
-      </widget>
-     </item>
-     <item row="2" column="1">
       <widget class="QPushButton" name="applyButton">
        <property name="enabled"><bool>false</bool></property>
        <property name="text"><string>Compute junction angles</string></property>
       </widget>
      </item>
-     <item row="3" column="0" colspan="2">
+     <item row="2" column="0" colspan="2">
       <widget class="ctkCollapsibleButton" name="displayOptionsCollapsibleButton">
        <property name="text"><string>Display options</string></property>
        <property name="collapsed"><bool>true</bool></property>
@@ -70,6 +65,11 @@
             </widget>
            </item>
           </layout>
+         </widget>
+        </item>
+        <item row="1" column="0">
+         <widget class="QLabel" name="elementsLabel">
+          <property name="text"><string>Elements:</string></property>
          </widget>
         </item>
         <item row="1" column="1">
@@ -126,7 +126,6 @@
  </customwidgets>
  <tabstops>
   <tabstop>inputSelector</tabstop>
-  <tabstop>showVectorNames</tabstop>
   <tabstop>applyButton</tabstop>
   <tabstop>minimumAngleSpinBox</tabstop>
   <tabstop>filterButton</tabstop>
