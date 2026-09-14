@@ -32,14 +32,14 @@
       </widget>
      </item>
      <item row="3" column="0">
-      <widget class="QLabel" name="highlightThresholdLabel">
-       <property name="text"><string>Highlight above:</string></property>
-       <property name="buddy"><cstring>highlightThresholdSpinBox</cstring></property>
+      <widget class="QLabel" name="minimumAngleLabel">
+       <property name="text"><string>Minimum angle:</string></property>
+       <property name="buddy"><cstring>minimumAngleSpinBox</cstring></property>
       </widget>
      </item>
      <item row="3" column="1">
-      <widget class="QDoubleSpinBox" name="highlightThresholdSpinBox">
-       <property name="toolTip"><string>Angles greater than this threshold are highlighted in red.</string></property>
+      <widget class="QDoubleSpinBox" name="minimumAngleSpinBox">
+       <property name="toolTip"><string>Hide angle labels, arcs, and rays below this value. Angles equal to the threshold remain visible.</string></property>
        <property name="suffix"><string> degrees</string></property>
        <property name="maximum"><double>180.000000000000000</double></property>
        <property name="singleStep"><double>5.000000000000000</double></property>
@@ -47,15 +47,48 @@
       </widget>
      </item>
      <item row="4" column="1">
-      <widget class="QPushButton" name="highlightButton">
-       <property name="text"><string>Highlight angle annotations</string></property>
+      <widget class="QPushButton" name="filterButton">
+       <property name="text"><string>Apply angle threshold</string></property>
       </widget>
      </item>
      <item row="5" column="1">
-      <widget class="QPushButton" name="resetColorsButton">
-       <property name="text"><string>Reset annotation colors</string></property>
+      <widget class="QPushButton" name="showAllButton">
+       <property name="text"><string>Clear angle threshold</string></property>
       </widget>
      </item>
+     <item row="6" column="1">
+      <widget class="QCheckBox" name="showArcs">
+       <property name="text"><string>Arcs</string></property>
+       <property name="checked"><bool>true</bool></property>
+      </widget>
+     </item>
+     <item row="7" column="1">
+      <widget class="QCheckBox" name="showAnnotations">
+       <property name="text"><string>Angle annotations</string></property>
+       <property name="checked"><bool>true</bool></property>
+      </widget>
+     </item>
+     <item row="8" column="1">
+      <widget class="QCheckBox" name="showRays">
+       <property name="text"><string>Rays</string></property>
+       <property name="checked"><bool>true</bool></property>
+      </widget>
+     </item>
+     <item row="9" column="1">
+      <widget class="QCheckBox" name="showVectors">
+       <property name="text"><string>Vectors</string></property>
+       <property name="checked"><bool>true</bool></property>
+      </widget>
+     </item>
+     <item row="10" column="0"><widget class="QLabel" name="rayColorButtonLabel"><property name="text"><string>Ray color:</string></property></widget></item>
+     <item row="10" column="1"><widget class="ctkColorPickerButton" name="rayColorButton"><property name="color"><color><red>255</red><green>255</green><blue>0</blue></color></property></widget></item>
+     <item row="11" column="0"><widget class="QLabel" name="vectorColorButtonLabel"><property name="text"><string>Vector color:</string></property></widget></item>
+     <item row="11" column="1"><widget class="ctkColorPickerButton" name="vectorColorButton"><property name="color"><color><red>255</red><green>128</green><blue>0</blue></color></property></widget></item>
+     <item row="12" column="0"><widget class="QLabel" name="pairTypesLabel"><property name="text"><string>Angle pairs:</string></property></widget></item>
+     <item row="12" column="1"><widget class="QCheckBox" name="showParentChild"><property name="text"><string>Parent-child angles</string></property><property name="checked"><bool>true</bool></property></widget></item>
+     <item row="13" column="1"><widget class="QCheckBox" name="showChildChild"><property name="text"><string>Child-child angles</string></property><property name="checked"><bool>true</bool></property></widget></item>
+     <item row="14" column="0"><widget class="QLabel" name="branchOrdersLabel"><property name="text"><string>Branch orders:</string></property></widget></item>
+     <item row="14" column="1"><widget class="QWidget" name="branchOrdersWidget"><layout class="QVBoxLayout" name="branchOrdersLayout"/></widget></item>
     </layout>
    </item>
    <item>
@@ -67,6 +100,7 @@
   </layout>
  </widget>
  <customwidgets>
+  <customwidget><class>ctkColorPickerButton</class><extends>QPushButton</extends><header>ctkColorPickerButton.h</header></customwidget>
   <customwidget><class>qMRMLNodeComboBox</class><extends>QWidget</extends><header>qMRMLNodeComboBox.h</header></customwidget>
   <customwidget><class>qMRMLWidget</class><extends>QWidget</extends><header>qMRMLWidget.h</header><container>1</container></customwidget>
  </customwidgets>
@@ -74,9 +108,9 @@
   <tabstop>inputSelector</tabstop>
   <tabstop>showVectorNames</tabstop>
   <tabstop>applyButton</tabstop>
-  <tabstop>highlightThresholdSpinBox</tabstop>
-  <tabstop>highlightButton</tabstop>
-  <tabstop>resetColorsButton</tabstop>
+  <tabstop>minimumAngleSpinBox</tabstop>
+  <tabstop>filterButton</tabstop>
+  <tabstop>showAllButton</tabstop>
  </tabstops>
  <resources/>
  <connections>
