@@ -811,15 +811,17 @@ class CenterlineJunctionAnglesLogic(ScriptedLoadableModuleLogic):
             vectorLength = vtk.vtkMath.Norm(vector)
             groupId = int(groupIdsArray.GetTuple1(pointId))
             if not all(math.isfinite(value) for value in vector) or not math.isfinite(vectorLength) or vectorLength <= minimumVectorLength:
-                raise ValueError(_("Invalid direction for branch {branchId} at bifurcation {bifurcationId}.").format(
+                logging.warning(_("Skipping branch {branchId} at bifurcation {bifurcationId}: VMTK did not produce a valid direction.").format(
                     branchId=groupId, bifurcationId=bifurcation["bifurcationGroupId"]))
+                continue
             outwardDirection = [(-component if isUpstream else component) / vectorLength for component in vector]
             inPlaneAngleDegrees = math.degrees(inPlaneAnglesArray.GetTuple1(pointId))
             outOfPlaneAngleDegrees = math.degrees(outOfPlaneAnglesArray.GetTuple1(pointId))
             basePosition = list(bifurcationVectors.GetPoint(pointId))
             if not all(math.isfinite(value) for value in basePosition + [inPlaneAngleDegrees, outOfPlaneAngleDegrees]):
-                raise ValueError(_("Invalid position or projected angle for branch {branchId} at bifurcation {bifurcationId}.").format(
+                logging.warning(_("Skipping branch {branchId} at bifurcation {bifurcationId}: VMTK did not produce a valid position or projected angle.").format(
                     branchId=groupId, bifurcationId=bifurcation["bifurcationGroupId"]))
+                continue
             if isUpstream:
                 inPlaneAngleDegrees = self.wrapAngleDegrees(inPlaneAngleDegrees + 180.0)
                 outOfPlaneAngleDegrees = -outOfPlaneAngleDegrees
@@ -837,9 +839,10 @@ class CenterlineJunctionAnglesLogic(ScriptedLoadableModuleLogic):
 
         for bifurcation in bifurcationsByGroupId.values():
             if len(bifurcation["branches"]) < 3:
-                raise ValueError(_("Bifurcation {groupId} has fewer than three branch vectors.").format(
+                logging.warning(_("Skipping bifurcation {groupId}: it has fewer than three valid branch vectors.").format(
                     groupId=bifurcation["bifurcationGroupId"]))
-        return [bifurcationsByGroupId[groupId] for groupId in sorted(bifurcationsByGroupId)]
+        return [bifurcationsByGroupId[groupId] for groupId in sorted(bifurcationsByGroupId)
+                if len(bifurcationsByGroupId[groupId]["branches"]) >= 3]
 
     @staticmethod
     def assignBranchOrders(bifurcations):
@@ -901,8 +904,9 @@ class CenterlineJunctionAnglesLogic(ScriptedLoadableModuleLogic):
             # Parent branch first, so that a bifurcation gives parent-child, parent-child, child-child.
             branches.sort(key=lambda branch: (0 if branch["role"] == "Parent" else 1, branch["groupId"]))
             if len(branches) < 3:
-                raise ValueError(_("Bifurcation {groupId} has fewer than three branches.").format(
+                logging.warning(_("Skipping bifurcation {groupId}: it has fewer than three valid branches.").format(
                     groupId=bifurcation["bifurcationGroupId"]))
+                continue
             if not all(math.isfinite(value) for value in bifurcation["position"]):
                 raise ValueError(_("Invalid position at bifurcation {groupId}.").format(groupId=bifurcation["bifurcationGroupId"]))
             for branch in branches:
@@ -911,7 +915,7 @@ class CenterlineJunctionAnglesLogic(ScriptedLoadableModuleLogic):
                 if (not all(math.isfinite(value) for value in values)
                         or vtk.vtkMath.Norm(direction) <= minimumVectorLength
                         or branch["vectorLength"] <= minimumVectorLength):
-                    raise ValueError(_("Invalid direction or projected angle for branch {branchId} at bifurcation {bifurcationId}.").format(
+                    raise ValueError(_("Invalid cached direction or projected angle for branch {branchId} at bifurcation {bifurcationId}.").format(
                         branchId=branch["groupId"], bifurcationId=bifurcation["bifurcationGroupId"]))
             for firstIndex in range(len(branches)):
                 for secondIndex in range(firstIndex + 1, len(branches)):
@@ -1486,13 +1490,17 @@ class CenterlineJunctionAnglesTest(ScriptedLoadableModuleTest):
 
         referenceSystems, bifurcationVectors = self.createBifurcationVectorFilterOutputs()
         bifurcationVectors.GetPointData().GetArray(bifurcationVectorsArrayName).SetTuple3(0, 0.0, 0.0, 0.0)
-        with self.assertRaisesRegex(ValueError, "branch 0 at bifurcation 1"):
-            logic._readBifurcationVectors(referenceSystems, bifurcationVectors)
+        self.assertEqual(logic._readBifurcationVectors(referenceSystems, bifurcationVectors), [])
 
         referenceSystems, bifurcationVectors = self.createBifurcationVectorFilterOutputs()
         bifurcationVectors.GetPointData().GetArray(inPlaneBifurcationVectorAnglesArrayName).SetTuple1(1, float("nan"))
-        with self.assertRaisesRegex(ValueError, "branch 2 at bifurcation 1"):
-            logic._readBifurcationVectors(referenceSystems, bifurcationVectors)
+        self.assertEqual(logic._readBifurcationVectors(referenceSystems, bifurcationVectors), [])
+
+        referenceSystems, bifurcationVectors = self.createBifurcationVectorFilterOutputs(childAngles=(30.0, -40.0, 80.0))
+        bifurcationVectors.GetPointData().GetArray(bifurcationVectorsArrayName).SetTuple3(1, 0.0, 0.0, 0.0)
+        bifurcations = logic._readBifurcationVectors(referenceSystems, bifurcationVectors)
+        self.assertEqual(len(bifurcations), 1)
+        self.assertNotIn(2, bifurcations[0]["branches"])
 
         emptyCenterline = vtk.vtkPolyData()
         with self.assertRaisesRegex(ValueError, "empty"):
@@ -1535,7 +1543,7 @@ class CenterlineJunctionAnglesTest(ScriptedLoadableModuleTest):
         self.assertEqual(logic.junctionAnglePairType("Child", "Child"), "child-child")
         # A direction cannot be determined from a vector of zero length
         logic._bifurcationVectors[0]["branches"][0]["outwardDirection"] = [0.0, 0.0, 0.0]
-        with self.assertRaisesRegex(ValueError, "branch 0 at bifurcation 1"):
+        with self.assertRaisesRegex(ValueError, "cached direction"):
             logic.processJunctionAngles()
 
         self.delayDisplay(_("Test passed"))
