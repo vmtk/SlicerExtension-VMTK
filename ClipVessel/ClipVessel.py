@@ -38,6 +38,25 @@ _DEFAULT_MODEL_FACE_ID_ARRAY_NAME = "ModelFaceID"
 _DEFAULT_BOUNDARY_LABELS_ARRAY_NAME = "BoundaryLabels"
 _DEFAULT_BOUNDARY_POINT_ORDER_ARRAY_NAME = "BoundaryPointOrder"
 
+# Where a face id's *name* is to be found, recorded on the output model node so that it travels:
+# the node reference points at the clip points markups node whose control point labels the names
+# are, and the attribute says which control point each face id came from. A face id is a number
+# and a boundary condition is per vessel, so something downstream - CFD Mesh Generator, then a
+# case setup - has to be able to get from the one to the other, and the offset between a face id
+# and its clip point's index is not recoverable from the output on its own (see faceIdLayout).
+#
+# Keyed by control point *ID*, not index. A cap's face id is firstCapFaceId + clip point index,
+# so deleting a clip point shifts every later index and would quietly move names onto their
+# neighbours' faces; an ID is stable under insertion and reordering, and a deleted point simply
+# fails the lookup, leaving a face unnamed rather than misnamed.
+#
+# These three names are a wire format: they are read by CFD Mesh Generator here, and by
+# SimVascular Mesh Prep in another extension, which cannot import this file. Renaming one means
+# changing those readers too.
+FACE_ID_TO_CLIP_POINT_ID_ATTRIBUTE = "ClipVessel.FaceIdToClipPointID"
+WALL_FACE_ID_ATTRIBUTE = "ClipVessel.WallFaceID"
+CLIP_POINTS_NODE_REFERENCE_ROLE = "ClipPoints"
+
 # Shape of the mesh that closes a clipped end, one VMTK capping filter each (the methods of the
 # vmtksurfacecapper script that apply to a surface with single, unpaired open boundaries).
 _CAP_METHOD_IDS = ("CENTERPOINT", "SIMPLE", "SMOOTH")
@@ -1563,6 +1582,10 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                                                    boundaryLabelsArrayName, boundaryPointOrderArrayName)
 
             outputModelNode.SetAndObserveMesh(outputPolyData)
+            # Where the face names live, on the output node rather than on the parameter node:
+            # this is the one piece of what the run worked out that has to travel with the
+            # surface, through meshing and into a case setup.
+            self.logic.recordNameSource(outputModelNode, clipPointsMarkupsNode)
             if not outputModelNode.GetDisplayNode():
                 outputModelNode.CreateDefaultDisplayNodes()
                 outputModelNode.GetDisplayNode().SetColor(0.75, 0.75, 0.75)
@@ -1664,6 +1687,9 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
     # input labeled every cell, leaving no wall to label.
     self.lastWallFaceId = None
     self.lastExistingFaceIdMap = {}
+    # {faceId: control point ID} for the caps, which is the map published on the output model
+    # node so that the names can be read downstream.
+    self.lastFaceIdControlPointIds = {}
     # Filled in by clipVessel() rather than by labelModelFaces(), so a caller that labels a
     # surface directly leaves whatever the last clip put here -- which is how the cap names of
     # one run used to turn up in the legend of the next.
@@ -2271,7 +2297,9 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
       ids the input carried can be dropped between the two calls, and are, whenever a flow
       extension is grown. None derives them here, for a caller outside clipVessel().
     :return: [(faceId, clipPointLabel)] for the caps. lastWallFaceId and lastExistingFaceIdMap
-      describe the rest.
+      describe the rest. Which clip point each face id came from is recorded by clipVessel(),
+      where the boundaries are labelled - it is settled there, and is settled whether or not
+      the faces are ever labelled.
     """
     numberOfCells = surface.GetNumberOfCells()
 
@@ -2396,6 +2424,49 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
     if surface is None or self._runStateSurface is None:
         return False
     return surface is self._runStateSurface and surface.GetMTime() == self._runStateSurfaceMTime
+
+  def recordNameSource(self, outputModelNode, clipPointsMarkupsNode):
+    """Record on outputModelNode where the names of its faces are to be found.
+
+    The face ids the last run handed out travel on the output surface, and from there onto a
+    volume mesh made from it, but a face id is a number: the names are control point labels on
+    the clip points markups node, and nothing on the output points at that node. This writes
+    that pointer down - the node, and which control point each cap's face id came from - so that
+    a downstream module can get from face 14 back to "RSVC" without the operator retyping it.
+
+    A node reference and a node attribute both serialize into MRML, so what is recorded here
+    survives saving and reloading the scene without anything further.
+
+    Anything the last run did not record is cleared rather than left: after a run whose clip
+    points are gone, or one that could not tell which boundary any cut opened, a map kept from
+    the run before would name faces of a surface it no longer describes.
+
+    Note that this does not depend on the faces having been labelled. The mapping is settled
+    when the boundaries are labelled, which happens on every run, so a surface clipped with
+    capping and labeling both off - which is how a workflow that leaves the capping to CFD Mesh
+    Generator runs - still carries the record its mesh will need.
+    """
+    if outputModelNode is None:
+        return
+    faceIdControlPointIds = self.lastFaceIdControlPointIds or {}
+    if clipPointsMarkupsNode is None or not faceIdControlPointIds:
+        outputModelNode.SetNodeReferenceID(CLIP_POINTS_NODE_REFERENCE_ROLE, None)
+        outputModelNode.SetAttribute(FACE_ID_TO_CLIP_POINT_ID_ATTRIBUTE, None)
+        outputModelNode.SetAttribute(WALL_FACE_ID_ATTRIBUTE, None)
+        return
+    outputModelNode.SetNodeReferenceID(CLIP_POINTS_NODE_REFERENCE_ROLE, clipPointsMarkupsNode.GetID())
+    outputModelNode.SetAttribute(
+        FACE_ID_TO_CLIP_POINT_ID_ATTRIBUTE,
+        json.dumps({str(faceId): controlPointId
+                    for faceId, controlPointId in sorted(faceIdControlPointIds.items())},
+                   separators=(",", ":")))
+    # The wall has no clip point, so it is not in the map, and which face it is cannot be worked
+    # out from the map either - it is the id below the first cap only when the input carried no
+    # faces of its own. Downstream it is the one face whose name is known without being asked
+    # for, and the one face that is not meant to be planar.
+    outputModelNode.SetAttribute(
+        WALL_FACE_ID_ATTRIBUTE,
+        str(self.lastWallFaceId) if self.lastWallFaceId is not None else None)
 
   def lastFaceIdLayout(self, surface):
     """The faces of the last labelModelFaces() call as an ordered [(faceId, name)] - the input's
@@ -3219,7 +3290,11 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
         vtk.vtkMath.Normalize(planeNormal)
         planeSpecifications.append({
             "index": controlPointIndex,
+            # The label is what the status line and the colour table show; the ID is what a
+            # downstream module looks the label up again by, after the index has stopped being
+            # a reliable way to find the point (see FACE_ID_TO_CLIP_POINT_ID_ATTRIBUTE).
             "label": clipPointsMarkupsNode.GetNthControlPointLabel(controlPointIndex),
+            "id": controlPointId,
             "origin": tuple(planeOrigin),
             "normal": tuple(planeNormal),
             "radius": radiusArray.GetValue(pointId) if radiusArray else None,
@@ -3306,6 +3381,23 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
                         "their caps take an id of the capping filter's own choosing and their flow "
                         "extensions are left unscaled.",
                         len(unidentifiedLabels), ", ".join(unidentifiedLabels))
+
+    # Which clip point named which face, recorded here rather than where the faces are labelled,
+    # because this is the point at which it is known and it is known whatever the options say. A
+    # boundary's label *is* its cap's face id, so the mapping is settled by firstCapFaceId and the
+    # clip point order, with no cap and no cell array needed to work it out.
+    #
+    # That matters: the case this has to serve leaves both off. Capping is left to CFD Mesh
+    # Generator, which makes the caps past the boundary layer where they belong, and labeling the
+    # faces of a surface that has no caps yet does nothing - so a workflow that clips here and
+    # meshes there runs with cap off and label off, and its face ids come from BoundaryLabels.
+    # Recorded from the labeling instead, the names would be there in exactly the runs that do not
+    # need them and missing from the one that does.
+    self.lastWallFaceId = wallFaceId
+    self.lastFaceIdControlPointIds = {
+        firstCapFaceId + specification["index"]: specification["id"]
+        for specification in planeSpecifications
+        if specification.get("id") and specification["index"] not in unmatchedClipPointIndices}
 
     if addFlowExtensions:
         slicer.util.showStatusMessage(_("Adding extensions..."))

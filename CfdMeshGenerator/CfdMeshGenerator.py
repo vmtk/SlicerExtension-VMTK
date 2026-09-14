@@ -879,6 +879,8 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic, MeshingPipeline):
             parameters.inputSurface.GetPolyData(), **arguments)
 
         parameters.outputMesh.SetAndObserveMesh(mesh)
+        self.copyNameSource(parameters.inputSurface, parameters.outputMesh, mesh,
+                            cellEntityIdsArrayName)
         if self.showMeshInScene(parameters.outputMesh, cellEntityIdsArrayName, showEdges=True):
             # The mesh was made from the input surface, so it stands exactly where the surface
             # does and is hidden behind it. Only the first time it is shown: after that the
@@ -887,6 +889,10 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic, MeshingPipeline):
             self.hideNode(parameters.inputSurface)
         if parameters.outputRemeshedSurface:
             parameters.outputRemeshedSurface.SetAndObserveMesh(remeshedSurface)
+            # It carries the same face ids as the volume mesh and can be fed onward, so it gets
+            # the same record of where their names are.
+            self.copyNameSource(parameters.inputSurface, parameters.outputRemeshedSurface,
+                                remeshedSurface, cellEntityIdsArrayName)
             self.showMeshInScene(parameters.outputRemeshedSurface, cellEntityIdsArrayName)
 
         self.say(_("Meshing completed in {seconds:.1f} seconds: {cells} cells, {points} points.")
@@ -1185,6 +1191,63 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic, MeshingPipeline):
         return clipNode
 
     displaySetUpAttributeName = "CfdMeshGenerator.DisplaySetUp"
+
+    # Where Clip Vessel records which clip point named each face of the surface it hands over: a
+    # node reference to the clip points markups node, and an attribute mapping face id to control
+    # point ID. The names themselves are control point labels, so all that travels is the pointer.
+    # Copied onto the volume mesh here, unread, because this module is in the middle of the chain:
+    # the face ids carry through meshing, and the names have to carry with them or a case setup
+    # downstream is back to naming twenty-odd caps by eye.
+    #
+    # Declared again rather than imported from ClipVessel, which is how this module already treats
+    # the array names it shares with it (see DEFAULT_BOUNDARY_LABELS_ARRAY_NAME).
+    clipPointsNodeReferenceRole = "ClipPoints"
+    nameSourceAttributeNames = ("ClipVessel.FaceIdToClipPointID", "ClipVessel.WallFaceID")
+
+    def copyNameSource(self, inputSurface, outputMesh, mesh, cellEntityIdsArrayName):
+        """Carry the record of where the face names live from the input surface onto the mesh.
+
+        Cleared rather than left behind when the input carries none: a mesh made from a surface
+        that was not clipped here must not keep the map of the mesh that was in the node before
+        it, which would name its faces after somebody else's vessels.
+
+        The face ids recorded are checked against the ones the mesh actually carries, because
+        this is the last point at which a lost cap is cheap to notice. Meshing can drop one - a
+        boundary layer strips the caps and remakes them - and a face id that came back missing
+        becomes, downstream, a boundary condition quietly bound to the wrong vessel.
+        """
+        if not outputMesh:
+            return
+        if not inputSurface:
+            for attributeName in self.nameSourceAttributeNames:
+                outputMesh.SetAttribute(attributeName, None)
+            outputMesh.SetNodeReferenceID(self.clipPointsNodeReferenceRole, None)
+            return
+        clipPoints = inputSurface.GetNodeReference(self.clipPointsNodeReferenceRole)
+        outputMesh.SetNodeReferenceID(self.clipPointsNodeReferenceRole,
+                                      clipPoints.GetID() if clipPoints else None)
+        for attributeName in self.nameSourceAttributeNames:
+            outputMesh.SetAttribute(attributeName, inputSurface.GetAttribute(attributeName))
+
+        faceIdMap = inputSurface.GetAttribute(self.nameSourceAttributeNames[0])
+        if not faceIdMap or mesh is None:
+            return
+        try:
+            recordedFaceIds = {int(faceId) for faceId in json.loads(faceIdMap)}
+        except (ValueError, TypeError, AttributeError):
+            logging.warning("The input surface's face name map could not be read, so the mesh "
+                            "carries it on unchecked: %s", faceIdMap)
+            return
+        array = mesh.GetCellData().GetArray(cellEntityIdsArrayName)
+        if array is None:
+            return
+        meshFaceIds = {int(array.GetTuple1(index)) for index in range(array.GetNumberOfTuples())}
+        missing = sorted(recordedFaceIds - meshFaceIds)
+        if missing:
+            self.say(_("The mesh has no cells on face(s) {faces}, which the input surface names. "
+                       "Those names have nothing to attach to: check the mesh for a cap that was "
+                       "not remade.").format(faces=", ".join(str(faceId) for faceId in missing)),
+                     logging.WARNING)
 
     @staticmethod
     def hideNode(modelNode):
