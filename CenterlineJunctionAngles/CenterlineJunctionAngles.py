@@ -1079,6 +1079,7 @@ class CenterlineJunctionAnglesTest(ScriptedLoadableModuleTest):
         widget.resourcePath = lambda name: os.path.join(os.path.dirname(__file__), "Resources", name)
         widget.setup()
         try:
+            self.assertTrue(widget.ui.displayOptionsCollapsibleButton.collapsed)
             bifurcations = self.createBifurcationVectors()
             widget.logic._bifurcationVectors = bifurcations
             angles = widget.logic.processJunctionAngles()
