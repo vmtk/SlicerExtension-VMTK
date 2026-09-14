@@ -37,6 +37,8 @@ Labels that share a color are stored together in a markup node within their pair
 
 Each arc model stores `AngleDegrees` as point scalars, with a constant value along each arc, including its tube caps. You can change the color table or scalar range in the Models module.
 
+Native angle markup nodes were considered for the 3D measurements. They work well for a small number of interactable angles, but one node per angle becomes expensive for large centerline trees and does not provide all display controls used here. In Slicer 5.12.3, a synthetic 900-angle scene took about 456 ms per rendered frame, 85 s to save, and 7.3 s to delete when represented by native angle markups; the grouped tube display took about 96 ms per frame, 0.95 s to save, and 0.5 s to delete. Native angle markups also render their arcs and rays as tubes, so they have the same lighting/color mismatch with unlit text labels, and their arc radius is derived from the shorter ray length rather than stored as an independently controlled staggered radius. The grouped representation is therefore used for generated results, while the table remains the self-contained measurement record.
+
 Set **Minimum angle** and click **Apply angle threshold** to hide labels, arcs, and rays below that value. Angles equal to the threshold remain visible, and colors are preserved. **Clear angle threshold** removes the filter. Filtering changes only the display: the measurements and table remain intact, and bifurcation vectors are unaffected.
 
 The generated display nodes are locked, since they are measurement results. Every run creates its own nodes and folders.

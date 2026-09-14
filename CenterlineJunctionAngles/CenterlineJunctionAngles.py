@@ -504,8 +504,9 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         """Assign stable, distinct radii across all pairs at each junction."""
         anglesByJunction = {}
         for angle in junctionAngles:
-            if math.isfinite(angle["angleDegrees"]):
-                anglesByJunction.setdefault(angle["bifurcationGroupId"], []).append(angle)
+            if not math.isfinite(angle["angleDegrees"]):
+                raise ValueError(_("Cannot display a non-finite junction angle."))
+            anglesByJunction.setdefault(angle["bifurcationGroupId"], []).append(angle)
         radii = {}
         for junctionId, angles in anglesByJunction.items():
             angles = sorted(angles, key=lambda angle: (angle["branch1GroupId"], angle["branch2GroupId"]))
@@ -526,18 +527,18 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         labels = {"child-child": _("Child-child angles"), "parent-child": _("Parent-child angles"), "parent-parent": _("Parent-parent angles")}
         folders = {}
         groupedAnnotations = {}
-        finiteAngles = [angle["angleDegrees"] for angle in junctionAngles if math.isfinite(angle["angleDegrees"])]
-        if not finiteAngles:
+        angleValues = [angle["angleDegrees"] for angle in junctionAngles]
+        if not angleValues:
             return
-        scalarRange = (min(finiteAngles), max(finiteAngles))
+        if not all(math.isfinite(value) for value in angleValues):
+            raise ValueError(_("Cannot display a non-finite junction angle."))
+        scalarRange = (min(angleValues), max(angleValues))
         if scalarRange[0] == scalarRange[1]:
             # Keep the lookup table well-defined when every measurement is equal.
             scalarRange = (max(0.0, scalarRange[0] - 0.5), min(180.0, scalarRange[1] + 0.5))
         branchesByGroupId = self._bifurcationBranchesByGroupId(bifurcations)
         arcRadii = self._junctionArcRadii(junctionAngles)
         for junctionAngle in junctionAngles:
-            if not math.isfinite(junctionAngle["angleDegrees"]):
-                continue
             pairType = self.logic.junctionAnglePairType(junctionAngle["branch1Role"], junctionAngle["branch2Role"])
             if pairType not in folders:
                 folders[pairType] = self._createCurveSubjectHierarchyFolderNode(labels[pairType], parentFolderId)
@@ -635,6 +636,20 @@ class CenterlineJunctionAnglesLogic(ScriptedLoadableModuleLogic):
         if not inputCenterline:
             self.clearCache()
             raise ValueError(_("Input centerline is invalid"))
+        if inputCenterline.GetNumberOfPoints() == 0 or inputCenterline.GetNumberOfCells() == 0:
+            self.clearCache()
+            raise ValueError(_("Input centerline is empty."))
+        radiusArray = inputCenterline.GetPointData().GetArray(radiusArrayName)
+        if radiusArray is None or radiusArray.GetNumberOfTuples() != inputCenterline.GetNumberOfPoints():
+            self.clearCache()
+            raise ValueError(_("Input centerline is missing the required '{name}' point data array.").format(name=radiusArrayName))
+        for pointIndex in range(inputCenterline.GetNumberOfPoints()):
+            position = inputCenterline.GetPoint(pointIndex)
+            radius = radiusArray.GetTuple1(pointIndex)
+            if (not all(math.isfinite(value) for value in position)
+                    or not math.isfinite(radius) or radius <= 0.0):
+                self.clearCache()
+                raise ValueError(_("Input centerline contains invalid geometry or radius values."))
 
         modificationTimes = self._modificationTimes(inputCenterline)
         if (self._inputCenterline is inputCenterline
@@ -709,9 +724,11 @@ class CenterlineJunctionAnglesLogic(ScriptedLoadableModuleLogic):
         referenceSystemsFilter.Update()
         referenceSystems = referenceSystemsFilter.GetOutput()
 
-        self._bifurcationVectors = []
-        if (not referenceSystems) or (referenceSystems.GetNumberOfPoints() == 0):
-            # The centerline does not have any bifurcation.
+        if referenceSystems is None:
+            raise ValueError(_("VMTK did not produce bifurcation reference systems."))
+        if referenceSystems.GetNumberOfPoints() == 0:
+            # A valid centerline may have no bifurcations.
+            self._bifurcationVectors = []
             return self._bifurcationVectors
 
         bifurcationVectorsFilter = vtkvmtkComputationalGeometry.vtkvmtkCenterlineBifurcationVectors()
@@ -736,58 +753,80 @@ class CenterlineJunctionAnglesLogic(ScriptedLoadableModuleLogic):
         bifurcationVectorsFilter.SetNormalizeBifurcationVectors(0)
         bifurcationVectorsFilter.Update()
         bifurcationVectors = bifurcationVectorsFilter.GetOutput()
-        if (not bifurcationVectors) or (bifurcationVectors.GetNumberOfPoints() == 0):
-            return self._bifurcationVectors
+        if bifurcationVectors is None or bifurcationVectors.GetNumberOfPoints() == 0:
+            raise ValueError(_("VMTK found bifurcations but did not produce their branch vectors."))
+
+        bifurcations = self._readBifurcationVectors(referenceSystems, bifurcationVectors)
+        self.assignBranchOrders(bifurcations)
+        self._bifurcationVectors = bifurcations
+        logging.info("Processing bifurcation vectors completed in %.2f seconds", time.time() - startTime)
+        return self._bifurcationVectors
+
+    def _readBifurcationVectors(self, referenceSystems, bifurcationVectors):
+        """Validate VMTK outputs before publishing or caching measurement results."""
+        def requiredArray(polyData, name, components):
+            array = polyData.GetPointData().GetArray(name)
+            if (array is None or array.GetNumberOfComponents() != components
+                    or array.GetNumberOfTuples() != polyData.GetNumberOfPoints()):
+                raise ValueError(_("Missing or invalid VMTK array '{name}'.").format(name=name))
+            return array
 
         # One point of the reference systems for every bifurcation.
         bifurcationsByGroupId = {}
-        referenceSystemPointData = referenceSystems.GetPointData()
-        referenceSystemGroupIdsArray = referenceSystemPointData.GetArray(groupIdsArrayName)
-        normalsArray = referenceSystemPointData.GetArray(normalArrayName)
-        upNormalsArray = referenceSystemPointData.GetArray(upNormalArrayName)
+        referenceSystemGroupIdsArray = requiredArray(referenceSystems, groupIdsArrayName, 1)
+        normalsArray = requiredArray(referenceSystems, normalArrayName, 3)
+        upNormalsArray = requiredArray(referenceSystems, upNormalArrayName, 3)
         for pointId in range(referenceSystems.GetNumberOfPoints()):
             bifurcationGroupId = int(referenceSystemGroupIdsArray.GetTuple1(pointId))
+            position = list(referenceSystems.GetPoint(pointId))
+            normal = list(normalsArray.GetTuple3(pointId))
+            upNormal = list(upNormalsArray.GetTuple3(pointId))
+            if (not all(math.isfinite(value) for value in position + normal + upNormal)
+                    or vtk.vtkMath.Norm(normal) <= minimumVectorLength
+                    or vtk.vtkMath.Norm(upNormal) <= minimumVectorLength):
+                raise ValueError(_("Invalid reference system at bifurcation {groupId}.").format(groupId=bifurcationGroupId))
             bifurcationsByGroupId[bifurcationGroupId] = {
                 "bifurcationGroupId": bifurcationGroupId,
-                "position": list(referenceSystems.GetPoint(pointId)),
-                "normal": list(normalsArray.GetTuple3(pointId)) if normalsArray else [0.0, 0.0, 0.0],
-                "upNormal": list(upNormalsArray.GetTuple3(pointId)) if upNormalsArray else [0.0, 0.0, 0.0],
+                "position": position,
+                "normal": normal,
+                "upNormal": upNormal,
                 "branches": {},
                 }
 
         # One point of the bifurcation vectors for every branch of every bifurcation.
-        pointData = bifurcationVectors.GetPointData()
-        groupIdsArray = pointData.GetArray(groupIdsArrayName)
-        bifurcationGroupIdsArray = pointData.GetArray(bifurcationGroupIdsArrayName)
-        orientationsArray = pointData.GetArray(bifurcationVectorsOrientationArrayName)
-        vectorsArray = pointData.GetArray(bifurcationVectorsArrayName)
-        inPlaneAnglesArray = pointData.GetArray(inPlaneBifurcationVectorAnglesArrayName)
-        outOfPlaneAnglesArray = pointData.GetArray(outOfPlaneBifurcationVectorAnglesArrayName)
-        if (not groupIdsArray) or (not bifurcationGroupIdsArray) or (not orientationsArray) or (not vectorsArray):
-            raise ValueError(_("The bifurcation vectors are incomplete."))
+        groupIdsArray = requiredArray(bifurcationVectors, groupIdsArrayName, 1)
+        bifurcationGroupIdsArray = requiredArray(bifurcationVectors, bifurcationGroupIdsArrayName, 1)
+        orientationsArray = requiredArray(bifurcationVectors, bifurcationVectorsOrientationArrayName, 1)
+        vectorsArray = requiredArray(bifurcationVectors, bifurcationVectorsArrayName, 3)
+        inPlaneAnglesArray = requiredArray(bifurcationVectors, inPlaneBifurcationVectorAnglesArrayName, 1)
+        outOfPlaneAnglesArray = requiredArray(bifurcationVectors, outOfPlaneBifurcationVectorAnglesArrayName, 1)
 
         for pointId in range(bifurcationVectors.GetNumberOfPoints()):
             bifurcation = bifurcationsByGroupId.get(int(bifurcationGroupIdsArray.GetTuple1(pointId)))
             if bifurcation is None:
-                continue
+                raise ValueError(_("A bifurcation vector has no matching reference system."))
             # An upstream branch is the parent branch of the bifurcation.
             isUpstream = int(orientationsArray.GetTuple1(pointId)) == upstreamOrientation
             vector = list(vectorsArray.GetTuple3(pointId))
             vectorLength = vtk.vtkMath.Norm(vector)
-            outwardDirection = [0.0, 0.0, 0.0]
-            if vectorLength > minimumVectorLength:
-                outwardDirection = [(-component if isUpstream else component) / vectorLength
-                                    for component in vector]
-            inPlaneAngleDegrees = math.degrees(inPlaneAnglesArray.GetTuple1(pointId)) if inPlaneAnglesArray else float("nan")
-            outOfPlaneAngleDegrees = math.degrees(outOfPlaneAnglesArray.GetTuple1(pointId)) if outOfPlaneAnglesArray else float("nan")
+            groupId = int(groupIdsArray.GetTuple1(pointId))
+            if not all(math.isfinite(value) for value in vector) or not math.isfinite(vectorLength) or vectorLength <= minimumVectorLength:
+                raise ValueError(_("Invalid direction for branch {branchId} at bifurcation {bifurcationId}.").format(
+                    branchId=groupId, bifurcationId=bifurcation["bifurcationGroupId"]))
+            outwardDirection = [(-component if isUpstream else component) / vectorLength for component in vector]
+            inPlaneAngleDegrees = math.degrees(inPlaneAnglesArray.GetTuple1(pointId))
+            outOfPlaneAngleDegrees = math.degrees(outOfPlaneAnglesArray.GetTuple1(pointId))
+            basePosition = list(bifurcationVectors.GetPoint(pointId))
+            if not all(math.isfinite(value) for value in basePosition + [inPlaneAngleDegrees, outOfPlaneAngleDegrees]):
+                raise ValueError(_("Invalid position or projected angle for branch {branchId} at bifurcation {bifurcationId}.").format(
+                    branchId=groupId, bifurcationId=bifurcation["bifurcationGroupId"]))
             if isUpstream:
                 inPlaneAngleDegrees = self.wrapAngleDegrees(inPlaneAngleDegrees + 180.0)
                 outOfPlaneAngleDegrees = -outOfPlaneAngleDegrees
-            groupId = int(groupIdsArray.GetTuple1(pointId))
             bifurcation["branches"][groupId] = {
                 "groupId": groupId,
                 "role": "Parent" if isUpstream else "Child",
-                "basePosition": list(bifurcationVectors.GetPoint(pointId)),
+                "basePosition": basePosition,
                 "vector": vector,
                 "outwardDirection": outwardDirection,
                 "vectorLength": vectorLength,
@@ -796,15 +835,11 @@ class CenterlineJunctionAnglesLogic(ScriptedLoadableModuleLogic):
                 "branchOrder": None,
                 }
 
-        self._bifurcationVectors = [bifurcationsByGroupId[bifurcationGroupId]
-                                    for bifurcationGroupId in sorted(bifurcationsByGroupId.keys())
-                                    if bifurcationsByGroupId[bifurcationGroupId]["branches"]]
-        self.assignBranchOrders(self._bifurcationVectors)
-
-        stopTime = time.time()
-        durationValue = '%.2f' % (stopTime-startTime)
-        logging.info(_("Processing bifurcation vectors completed in {duration} seconds").format(duration=durationValue))
-        return self._bifurcationVectors
+        for bifurcation in bifurcationsByGroupId.values():
+            if len(bifurcation["branches"]) < 3:
+                raise ValueError(_("Bifurcation {groupId} has fewer than three branch vectors.").format(
+                    groupId=bifurcation["bifurcationGroupId"]))
+        return [bifurcationsByGroupId[groupId] for groupId in sorted(bifurcationsByGroupId)]
 
     @staticmethod
     def assignBranchOrders(bifurcations):
@@ -866,9 +901,18 @@ class CenterlineJunctionAnglesLogic(ScriptedLoadableModuleLogic):
             # Parent branch first, so that a bifurcation gives parent-child, parent-child, child-child.
             branches.sort(key=lambda branch: (0 if branch["role"] == "Parent" else 1, branch["groupId"]))
             if len(branches) < 3:
-                logging.warning(_("Skipping bifurcation {groupId}: it has {count} branches only.").format(
-                                groupId=bifurcation["bifurcationGroupId"], count=len(branches)))
-                continue
+                raise ValueError(_("Bifurcation {groupId} has fewer than three branches.").format(
+                    groupId=bifurcation["bifurcationGroupId"]))
+            if not all(math.isfinite(value) for value in bifurcation["position"]):
+                raise ValueError(_("Invalid position at bifurcation {groupId}.").format(groupId=bifurcation["bifurcationGroupId"]))
+            for branch in branches:
+                direction = branch["outwardDirection"]
+                values = list(direction) + [branch["vectorLength"], branch["inPlaneAngleDegrees"], branch["outOfPlaneAngleDegrees"]]
+                if (not all(math.isfinite(value) for value in values)
+                        or vtk.vtkMath.Norm(direction) <= minimumVectorLength
+                        or branch["vectorLength"] <= minimumVectorLength):
+                    raise ValueError(_("Invalid direction or projected angle for branch {branchId} at bifurcation {bifurcationId}.").format(
+                        branchId=branch["groupId"], bifurcationId=bifurcation["bifurcationGroupId"]))
             for firstIndex in range(len(branches)):
                 for secondIndex in range(firstIndex + 1, len(branches)):
                     branch1 = branches[firstIndex]
@@ -884,7 +928,7 @@ class CenterlineJunctionAnglesLogic(ScriptedLoadableModuleLogic):
                         "branch1Order": branch1["branchOrder"],
                         "branch2Order": branch2["branchOrder"],
                         "branchOrder": max(branch1["branchOrder"], branch2["branchOrder"]),
-                        "angleDegrees": self.angleDegrees(branch1["outwardDirection"], branch2["outwardDirection"]),
+                        "angleDegrees": math.degrees(vtk.vtkMath.AngleBetweenVectors(branch1["outwardDirection"], branch2["outwardDirection"])),
                         "inPlaneAngleDegrees": abs(self.wrapAngleDegrees(
                             branch1["inPlaneAngleDegrees"] - branch2["inPlaneAngleDegrees"])),
                         "branch1OutOfPlaneAngleDegrees": branch1["outOfPlaneAngleDegrees"],
@@ -999,21 +1043,10 @@ class CenterlineJunctionAnglesLogic(ScriptedLoadableModuleLogic):
         return "parent-parent"
 
     @staticmethod
-    def angleDegrees(vector1, vector2):
-        """Angle between two vectors in degrees, in the [0, 180] range, nan for a vector of zero length."""
-        norm1 = vtk.vtkMath.Norm(list(vector1))
-        norm2 = vtk.vtkMath.Norm(list(vector2))
-        if (norm1 <= 0.0) or (norm2 <= 0.0):
-            return float("nan")
-        # Clamp to compensate for numerical errors, acos fails outside [-1, 1].
-        cosAngle = max(-1.0, min(1.0, vtk.vtkMath.Dot(list(vector1), list(vector2)) / (norm1 * norm2)))
-        return math.degrees(math.acos(cosAngle))
-
-    @staticmethod
     def wrapAngleDegrees(angleDegrees):
         """Wrap an angle to the (-180, 180] range."""
-        if math.isnan(angleDegrees):
-            return angleDegrees
+        if not math.isfinite(angleDegrees):
+            raise ValueError(_("Cannot wrap a non-finite angle."))
         angleDegrees = math.fmod(angleDegrees, 360.0)
         if angleDegrees > 180.0:
             angleDegrees -= 360.0
@@ -1029,6 +1062,7 @@ class CenterlineJunctionAnglesTest(ScriptedLoadableModuleTest):
     def runTest(self):
         for test in [self.test_JunctionAngles, self.test_JunctionAnglesMultifurcation,
                      self.test_JunctionAnglesTable, self.test_JunctionAnglesOfAYShapedTube,
+                     self.test_BifurcationVectorValidation,
                      self.test_BranchExtractionCache, self.test_BranchOrderHierarchy,
                      self.test_ArcScalars, self.test_DisplayControls, self.test_AngleColorRange, self.test_StaggeredArcs]:
             self.setUp()
@@ -1377,9 +1411,94 @@ class CenterlineJunctionAnglesTest(ScriptedLoadableModuleTest):
             }]
 
     @staticmethod
+    def addArray(polyData, name, components, tuples):
+        array = vtk.vtkDoubleArray()
+        array.SetName(name)
+        array.SetNumberOfComponents(components)
+        for values in tuples:
+            if components == 1:
+                array.InsertNextValue(values)
+            else:
+                array.InsertNextTuple(values)
+        polyData.GetPointData().AddArray(array)
+        return array
+
+    def createBifurcationVectorFilterOutputs(self, childAngles = (30.0, -40.0), vectorLength = 4.0):
+        bifurcation = self.createBifurcationVectors(childAngles, vectorLength)[0]
+
+        referencePoints = vtk.vtkPoints()
+        referencePoints.InsertNextPoint(bifurcation["position"])
+        referenceSystems = vtk.vtkPolyData()
+        referenceSystems.SetPoints(referencePoints)
+        self.addArray(referenceSystems, groupIdsArrayName, 1, [bifurcation["bifurcationGroupId"]])
+        self.addArray(referenceSystems, normalArrayName, 3, [bifurcation["normal"]])
+        self.addArray(referenceSystems, upNormalArrayName, 3, [bifurcation["upNormal"]])
+
+        vectorPoints = vtk.vtkPoints()
+        groupIds = []
+        bifurcationGroupIds = []
+        orientations = []
+        vectors = []
+        inPlaneAngles = []
+        outOfPlaneAngles = []
+        for branch in bifurcation["branches"].values():
+            vectorPoints.InsertNextPoint(branch["basePosition"])
+            groupIds.append(branch["groupId"])
+            bifurcationGroupIds.append(bifurcation["bifurcationGroupId"])
+            isUpstream = branch["role"] == "Parent"
+            orientations.append(upstreamOrientation if isUpstream else 1)
+            vectors.append(branch["vector"])
+            inPlaneAngles.append(math.radians(0.0 if isUpstream else branch["inPlaneAngleDegrees"]))
+            outOfPlaneAngles.append(math.radians(-branch["outOfPlaneAngleDegrees"] if isUpstream else branch["outOfPlaneAngleDegrees"]))
+        bifurcationVectors = vtk.vtkPolyData()
+        bifurcationVectors.SetPoints(vectorPoints)
+        self.addArray(bifurcationVectors, groupIdsArrayName, 1, groupIds)
+        self.addArray(bifurcationVectors, bifurcationGroupIdsArrayName, 1, bifurcationGroupIds)
+        self.addArray(bifurcationVectors, bifurcationVectorsOrientationArrayName, 1, orientations)
+        self.addArray(bifurcationVectors, bifurcationVectorsArrayName, 3, vectors)
+        self.addArray(bifurcationVectors, inPlaneBifurcationVectorAnglesArrayName, 1, inPlaneAngles)
+        self.addArray(bifurcationVectors, outOfPlaneBifurcationVectorAnglesArrayName, 1, outOfPlaneAngles)
+        return referenceSystems, bifurcationVectors
+
+    @staticmethod
     def anglesByGroupIdPair(junctionAngles):
         return {(junctionAngle["branch1GroupId"], junctionAngle["branch2GroupId"]): junctionAngle["angleDegrees"]
                 for junctionAngle in junctionAngles}
+
+    def test_BifurcationVectorValidation(self):
+        """Malformed VMTK outputs raise exceptions instead of becoming NaN measurements."""
+        self.delayDisplay(_("Bifurcation vector validation"))
+
+        logic = CenterlineJunctionAnglesLogic()
+        referenceSystems, bifurcationVectors = self.createBifurcationVectorFilterOutputs()
+        bifurcations = logic._readBifurcationVectors(referenceSystems, bifurcationVectors)
+        logic.assignBranchOrders(bifurcations)
+        logic._bifurcationVectors = bifurcations
+        angles = self.anglesByGroupIdPair(logic.processJunctionAngles())
+        self.assertAlmostEqual(angles[(0, 2)], 150.0, delta=0.01)
+        self.assertAlmostEqual(angles[(0, 3)], 140.0, delta=0.01)
+        self.assertAlmostEqual(angles[(2, 3)], 70.0, delta=0.01)
+
+        referenceSystems, bifurcationVectors = self.createBifurcationVectorFilterOutputs()
+        referenceSystems.GetPointData().RemoveArray(upNormalArrayName)
+        with self.assertRaisesRegex(ValueError, upNormalArrayName):
+            logic._readBifurcationVectors(referenceSystems, bifurcationVectors)
+
+        referenceSystems, bifurcationVectors = self.createBifurcationVectorFilterOutputs()
+        bifurcationVectors.GetPointData().GetArray(bifurcationVectorsArrayName).SetTuple3(0, 0.0, 0.0, 0.0)
+        with self.assertRaisesRegex(ValueError, "branch 0 at bifurcation 1"):
+            logic._readBifurcationVectors(referenceSystems, bifurcationVectors)
+
+        referenceSystems, bifurcationVectors = self.createBifurcationVectorFilterOutputs()
+        bifurcationVectors.GetPointData().GetArray(inPlaneBifurcationVectorAnglesArrayName).SetTuple1(1, float("nan"))
+        with self.assertRaisesRegex(ValueError, "branch 2 at bifurcation 1"):
+            logic._readBifurcationVectors(referenceSystems, bifurcationVectors)
+
+        emptyCenterline = vtk.vtkPolyData()
+        with self.assertRaisesRegex(ValueError, "empty"):
+            logic.splitCenterlines(emptyCenterline)
+
+        self.delayDisplay(_("Test passed"))
 
     def test_JunctionAngles(self):
         """Angles of a bifurcation whose branches have known directions."""
@@ -1415,7 +1534,9 @@ class CenterlineJunctionAnglesTest(ScriptedLoadableModuleTest):
         self.assertEqual(logic.junctionAnglePairType("Parent", "Child"), "parent-child")
         self.assertEqual(logic.junctionAnglePairType("Child", "Child"), "child-child")
         # A direction cannot be determined from a vector of zero length
-        self.assertTrue(math.isnan(logic.angleDegrees([0.0, 0.0, 0.0], [1.0, 0.0, 0.0])))
+        logic._bifurcationVectors[0]["branches"][0]["outwardDirection"] = [0.0, 0.0, 0.0]
+        with self.assertRaisesRegex(ValueError, "branch 0 at bifurcation 1"):
+            logic.processJunctionAngles()
 
         self.delayDisplay(_("Test passed"))
 
