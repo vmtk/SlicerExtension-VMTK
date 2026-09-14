@@ -31,6 +31,7 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
     def __init__(self, parent=None):
         VTKObservationMixin.__init__(self)
         self._parameterNode = None
+        self._branchOrderCheckboxes = {}
         ScriptedLoadableModuleWidget.__init__(self, parent)
 
     def setup(self):
@@ -41,27 +42,33 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         self.ui = slicer.util.childWidgetVariables(uiWidget)
         uiWidget.setMRMLScene(slicer.mrmlScene)
         self.ui.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.updateParameterNodeFromGUI)
-        self.ui.showVectorNames.connect("toggled(bool)", self.updateParameterNodeFromGUI)
-        self.ui.highlightThresholdSpinBox.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
+        self.ui.minimumAngleSpinBox.connect("valueChanged(double)", self.updateParameterNodeFromGUI)
         self.ui.applyButton.connect("clicked(bool)", self.onApplyButton)
-        self.ui.highlightButton.connect("clicked(bool)", self.onHighlightButton)
-        self.ui.resetColorsButton.connect("clicked(bool)", self.onResetColorsButton)
+        self.ui.filterButton.connect("clicked(bool)", self.onFilterButton)
+        self.ui.showAllButton.connect("clicked(bool)", self.onShowAllButton)
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
         self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
+        for name in ("showArcs", "showAnnotations", "showRays", "showVectors", "showParentChild", "showChildChild"):
+            getattr(self.ui, name).connect("toggled(bool)", self.onDisplayControlsChanged)
+        for name in ("rayColorButton", "vectorColorButton"):
+            getattr(self.ui, name).connect("colorChanged(QColor)", self.onDisplayControlsChanged)
+        self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndBatchProcessEvent, self.refreshBranchOrderControls)
         self.initializeParameterNode()
+        self.refreshBranchOrderControls()
 
     def cleanup(self):
         self.removeObservers()
 
     def enter(self):
         self.initializeParameterNode()
+        self.refreshBranchOrderControls()
 
     def onSceneStartClose(self, caller, event):
         self.setParameterNode(None)
         self.logic.clearCache()
 
     def onSceneEndClose(self, caller, event):
-        if self.parent.isEntered:
+        if getattr(self.parent, "isEntered", False):
             self.initializeParameterNode()
 
     def initializeParameterNode(self):
@@ -79,13 +86,22 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         blocked = self.ui.inputSelector.blockSignals(True)
         self.ui.inputSelector.setCurrentNode(self._parameterNode.GetNodeReference("InputCenterline") if self._parameterNode else None)
         self.ui.inputSelector.blockSignals(blocked)
-        blocked = self.ui.showVectorNames.blockSignals(True)
-        self.ui.showVectorNames.checked = bool(self._parameterNode and self._parameterNode.GetParameter("ShowVectorNames") == "1")
-        self.ui.showVectorNames.blockSignals(blocked)
-        blocked = self.ui.highlightThresholdSpinBox.blockSignals(True)
-        if self._parameterNode and self._parameterNode.GetParameter("HighlightThresholdDegrees"):
-            self.ui.highlightThresholdSpinBox.value = float(self._parameterNode.GetParameter("HighlightThresholdDegrees"))
-        self.ui.highlightThresholdSpinBox.blockSignals(blocked)
+        blocked = self.ui.minimumAngleSpinBox.blockSignals(True)
+        if self._parameterNode and self._parameterNode.GetParameter("MinimumAngleDegrees"):
+            self.ui.minimumAngleSpinBox.value = float(self._parameterNode.GetParameter("MinimumAngleDegrees"))
+        self.ui.minimumAngleSpinBox.blockSignals(blocked)
+        for name in ("showArcs", "showAnnotations", "showRays", "showVectors", "showParentChild", "showChildChild"):
+            control = getattr(self.ui, name)
+            blocked = control.blockSignals(True)
+            control.checked = not self._parameterNode or self._parameterNode.GetParameter(name) != "0"
+            control.blockSignals(blocked)
+        for name, default in (("rayColorButton", junctionAngleGeometryColor), ("vectorColorButton", bifurcationVectorColor)):
+            value = self._parameterNode.GetParameter(name) if self._parameterNode else ""
+            color = [float(component) for component in value.split()] if value else default
+            control = getattr(self.ui, name)
+            blocked = control.blockSignals(True)
+            control.color = qt.QColor.fromRgbF(*color)
+            control.blockSignals(blocked)
         self.ui.applyButton.enabled = self.ui.inputSelector.currentNode() is not None
 
     def updateParameterNodeFromGUI(self, *args):
@@ -94,8 +110,73 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         with slicer.util.NodeModify(self._parameterNode):
             node = self.ui.inputSelector.currentNode()
             self._parameterNode.SetNodeReferenceID("InputCenterline", node.GetID() if node else None)
-            self._parameterNode.SetParameter("ShowVectorNames", "1" if self.ui.showVectorNames.checked else "0")
-            self._parameterNode.SetParameter("HighlightThresholdDegrees", str(self.ui.highlightThresholdSpinBox.value))
+            self._parameterNode.SetParameter("MinimumAngleDegrees", str(self.ui.minimumAngleSpinBox.value))
+
+    def annotationDisplayNodes(self):
+        elements = {"CenterlineJunctionAngleArcs": "showArcs",
+                    "CenterlineJunctionAngleLabels": "showAnnotations",
+                    "CenterlineJunctionAngleRays": "showRays",
+                    "CenterlineJunctionAngleVectors": "showVectors",
+                    "CenterlineJunctionAngleVectorLabels": "showVectors"}
+        for node in slicer.util.getNodesByClass("vtkMRMLDisplayableNode"):
+            for attribute, control in elements.items():
+                if node.GetAttribute(attribute) == "1":
+                    yield node, control
+                    break
+
+    def refreshBranchOrderControls(self, caller=None, event=None):
+        orders = sorted({int(node.GetAttribute("BranchOrder")) for node, _ in self.annotationDisplayNodes()
+                         if node.GetAttribute("BranchOrder") is not None})
+        for order in list(self._branchOrderCheckboxes):
+            if order not in orders:
+                checkbox = self._branchOrderCheckboxes.pop(order)
+                self.ui.branchOrdersWidget.layout().removeWidget(checkbox)
+                checkbox.deleteLater()
+        hiddenOrders = self._parameterNode.GetParameter("HiddenBranchOrders").split() if self._parameterNode else []
+        for order in orders:
+            if order not in self._branchOrderCheckboxes:
+                checkbox = qt.QCheckBox(_("Branch order {order}").format(order=order))
+                self.ui.branchOrdersWidget.layout().insertWidget(orders.index(order), checkbox)
+                self._branchOrderCheckboxes[order] = checkbox
+                checkbox.connect("toggled(bool)", self.onDisplayControlsChanged)
+            checkbox = self._branchOrderCheckboxes[order]
+            blocked = checkbox.blockSignals(True)
+            checkbox.checked = str(order) not in hiddenOrders
+            checkbox.blockSignals(blocked)
+
+    def onDisplayControlsChanged(self, *args):
+        if self._parameterNode:
+            with slicer.util.NodeModify(self._parameterNode):
+                for name in ("showArcs", "showAnnotations", "showRays", "showVectors", "showParentChild", "showChildChild"):
+                    self._parameterNode.SetParameter(name, "1" if getattr(self.ui, name).checked else "0")
+                for name in ("rayColorButton", "vectorColorButton"):
+                    color = getattr(self.ui, name).color
+                    self._parameterNode.SetParameter(name, " ".join(str(value) for value in
+                                                     (color.redF(), color.greenF(), color.blueF())))
+                self._parameterNode.SetParameter("HiddenBranchOrders", " ".join(
+                    str(order) for order, checkbox in self._branchOrderCheckboxes.items() if not checkbox.checked))
+        self.applyDisplayControls()
+
+    def applyDisplayControls(self):
+        for node, control in self.annotationDisplayNodes():
+            order = node.GetAttribute("BranchOrder")
+            checkbox = self._branchOrderCheckboxes.get(int(order)) if order is not None else None
+            pairControl = {"parent-child": "showParentChild", "child-child": "showChildChild"}.get(node.GetAttribute("PairType"))
+            pairVisible = pairControl is None or getattr(self.ui, pairControl).checked
+            node.GetDisplayNode().SetVisibility(
+                getattr(self.ui, control).checked and (checkbox is None or checkbox.checked) and pairVisible)
+            if control not in ("showRays", "showVectors"):
+                continue
+            qcolor = self.ui.rayColorButton.color if control == "showRays" else self.ui.vectorColorButton.color
+            color = (qcolor.redF(), qcolor.greenF(), qcolor.blueF())
+            display = node.GetDisplayNode()
+            display.SetColor(color)
+            if node.IsA("vtkMRMLMarkupsNode"):
+                display.SetSelectedColor(color)
+            if control == "showRays" and display.GetColorNode():
+                colorNode = display.GetColorNode()
+                for index in range(colorNode.GetNumberOfColors()):
+                    colorNode.SetColor(index, "Ray", *color, 1.0)
 
     def onApplyButton(self):
         with slicer.util.tryWithErrorDisplay(_("Failed to compute junction angles."), waitCursor=True):
@@ -120,9 +201,11 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
                     self.updateProgress(progressDialog, _("Creating junction angle annotations..."), 80)
                     angleFolder = self._createCurveSubjectHierarchyFolderNode(label + _(" annotations"))
                     self._createJunctionAngleGroupComponents(
-                        junctionAngles, self.logic.computeBifurcationVectors(), angleFolder, self.ui.showVectorNames.checked)
+                        junctionAngles, self.logic.computeBifurcationVectors(), angleFolder)
                 finally:
                     slicer.mrmlScene.EndState(slicer.mrmlScene.BatchProcessState)
+                self.refreshBranchOrderControls()
+                self.applyDisplayControls()
                 self.updateProgress(progressDialog, _("Finished computing junction angles."), 100)
             finally:
                 progressDialog.close()
@@ -158,48 +241,39 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
                          cells=inputCenterline.GetNumberOfCells())
         return _("Analyzing centerline topology with VMTK. Slicer may not respond during this step.")
 
-    def onHighlightButton(self):
-        numberOfHighlightedNodes = self.highlightJunctionAngleAnnotations(self.ui.highlightThresholdSpinBox.value)
+    def onFilterButton(self):
+        count = self.filterJunctionAngleAnnotations(self.ui.minimumAngleSpinBox.value)
         slicer.util.showStatusMessage(
-            _("{count} junction angle annotations highlighted.").format(count=numberOfHighlightedNodes), 3000)
+            _("{count} junction angle annotations meet the threshold.").format(count=count), 3000)
 
-    def onResetColorsButton(self):
-        numberOfResetNodes = self.resetJunctionAngleAnnotationColors()
+    def onShowAllButton(self):
+        count = self.filterJunctionAngleAnnotations(0.0)
         slicer.util.showStatusMessage(
-            _("{count} junction angle annotation colors reset.").format(count=numberOfResetNodes), 3000)
+            _("{count} junction angle annotations restored.").format(count=count), 3000)
 
-    def highlightJunctionAngleAnnotations(self, thresholdDegrees, aboveColor=None):
-        if aboveColor is None:
-            aboveColor = highlightedJunctionAngleColor
-        numberOfHighlightedNodes = 0
+    def filterJunctionAngleAnnotations(self, minimumAngleDegrees):
+        """Hide labels, arcs, and rays below the threshold without changing colors or data."""
+        count = 0
         for labelsNode in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
             if labelsNode.GetAttribute("CenterlineJunctionAngleLabels") != "1":
                 continue
-            displayNode = labelsNode.GetDisplayNode()
-            displayNode.SetColor(junctionAngleLabelColor)
-            displayNode.SetSelectedColor(aboveColor)
             for pointIndex in range(labelsNode.GetNumberOfControlPoints()):
                 angleValue = labelsNode.GetNthControlPointDescription(pointIndex)
                 if not angleValue:
                     continue
-                highlighted = float(angleValue) > thresholdDegrees
-                labelsNode.SetNthControlPointSelected(pointIndex, highlighted)
-                if highlighted:
-                    numberOfHighlightedNodes += 1
-        return numberOfHighlightedNodes
-
-    def resetJunctionAngleAnnotationColors(self):
-        numberOfResetNodes = 0
-        for labelsNode in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
-            if labelsNode.GetAttribute("CenterlineJunctionAngleLabels") != "1":
+                visible = float(angleValue) >= minimumAngleDegrees
+                labelsNode.SetNthControlPointVisibility(pointIndex, visible)
+                count += int(visible)
+        for model in slicer.util.getNodesByClass("vtkMRMLModelNode"):
+            if (model.GetAttribute("CenterlineJunctionAngleArcs") != "1"
+                    and model.GetAttribute("CenterlineJunctionAngleRays") != "1"):
                 continue
-            displayNode = labelsNode.GetDisplayNode()
-            displayNode.SetColor(junctionAngleLabelColor)
-            displayNode.SetSelectedColor(highlightedJunctionAngleColor)
-            for pointIndex in range(labelsNode.GetNumberOfControlPoints()):
-                labelsNode.SetNthControlPointSelected(pointIndex, False)
-                numberOfResetNodes += 1
-        return numberOfResetNodes
+            if model.GetPolyData().GetPointData().GetArray("AngleDegrees") is None:
+                continue
+            display = model.GetDisplayNode()
+            display.SetThresholdRange(minimumAngleDegrees, 180.0)
+            display.SetThresholdEnabled(minimumAngleDegrees > 0.0)
+        return count
 
     def _createCurveSubjectHierarchyFolderNode(self, label, parentFolderId=None):
         shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
@@ -250,24 +324,35 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         self._reparentNodeToSubjectHierarchyFolderNode(parentFolderId, modelNode)
         return modelNode
 
-    def _createTubeModel(self, name, polylines, sphereCenters, color, parentFolderId, tubeRadius, sphereRadius, attributes=None, opacity=1.0):
+    def _createTubeModel(self, name, polylines, sphereCenters, color, parentFolderId, tubeRadius, sphereRadius, attributes=None, opacity=1.0, angleDegrees=None, colorByAngle=True, scalarRange=(0.0, 180.0)):
         if not polylines:
             return None
 
         points = vtk.vtkPoints()
         lines = vtk.vtkCellArray()
         centerlines = vtk.vtkPolyData()
-        for polyline in polylines:
+        angleScalars = None
+        if angleDegrees is not None:
+            if len(angleDegrees) != len(polylines) or sphereCenters:
+                raise ValueError("Angle scalars require one value per polyline and no spheres")
+            angleScalars = vtk.vtkDoubleArray()
+            angleScalars.SetName("AngleDegrees")
+        for polylineIndex, polyline in enumerate(polylines):
             lines.InsertNextCell(len(polyline))
             for position in polyline:
                 pointId = points.InsertNextPoint(position)
                 lines.InsertCellPoint(pointId)
+                if angleScalars is not None:
+                    angleScalars.InsertNextValue(angleDegrees[polylineIndex])
+        if angleScalars is not None:
+            centerlines.GetPointData().SetScalars(angleScalars)
         centerlines.SetPoints(points)
         centerlines.SetLines(lines)
 
         tube = vtk.vtkTubeFilter()
         tube.SetInputData(centerlines)
         tube.SetRadius(tubeRadius)
+        tube.SetVaryRadiusToVaryRadiusOff()
         tube.SetNumberOfSides(12)
         tube.CappingOn()
         tube.Update()
@@ -290,7 +375,24 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         displayNode = modelNode.GetDisplayNode()
         displayNode.SetColor(color)
         displayNode.SetOpacity(opacity)
-        displayNode.SetScalarVisibility(False)
+        displayNode.SetScalarVisibility(angleScalars is not None)
+        if angleScalars is not None:
+            displayNode.SetActiveScalar("AngleDegrees", vtk.vtkAssignAttribute.POINT_DATA)
+            if colorByAngle:
+                displayNode.SetLighting(True)
+                displayNode.SetAndObserveColorNodeID("vtkMRMLColorTableNodeFilePlasma.txt")
+            else:
+                # Slicer model thresholding requires scalar visibility. A constant
+                # lookup table keeps the rays yellow while allowing them to be filtered.
+                colorNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLColorTableNode", "Junction angle ray color")
+                colorNode.SetTypeToUser()
+                colorNode.SetNumberOfColors(2)
+                colorNode.SetColor(0, "Ray", *color, 1.0)
+                colorNode.SetColor(1, "Ray", *color, 1.0)
+                colorNode.SetHideFromEditors(True)
+                displayNode.SetAndObserveColorNodeID(colorNode.GetID())
+            displayNode.SetScalarRangeFlag(displayNode.UseManualScalarRange)
+            displayNode.SetScalarRange(*scalarRange)
         displayNode.SetVisibility2D(True)
         modelNode.SetAttribute("CenterlineJunctionAngles", "1")
         if attributes:
@@ -306,10 +408,11 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         labelsNode.CreateDefaultDisplayNodes()
         displayNode = labelsNode.GetDisplayNode()
         displayNode.SetColor(color)
-        displayNode.SetSelectedColor(highlightedJunctionAngleColor)
+        displayNode.SetSelectedColor(color)
         displayNode.SetGlyphType(slicer.vtkMRMLMarkupsDisplayNode.Vertex2D)
         displayNode.SetGlyphScale(0.0)
         displayNode.SetTextScale(junctionAngleTextScale)
+        displayNode.GetTextProperty().ShadowOn()
         displayNode.SetPointLabelsVisibility(True)
         displayNode.SetPropertiesLabelVisibility(False)
         displayNode.SetOccludedVisibility(True)
@@ -327,7 +430,7 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         self._reparentNodeToSubjectHierarchyFolderNode(parentFolderId, labelsNode)
         return labelsNode
 
-    def _createBifurcationVectorModel(self, branches, parentFolderId, showLabels):
+    def _createBifurcationVectorModel(self, branches, parentFolderId, showLabels, branchOrder, pairType):
         polylines = []
         vectorPoints = []
         labels = []
@@ -344,19 +447,21 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
                                str(branch["groupId"])))
         self._createTubeModel(_("Bifurcation vectors"), polylines, vectorPoints, bifurcationVectorColor, parentFolderId,
                               bifurcationVectorTubeRadius, bifurcationVectorEndpointRadius,
-                              {"CenterlineJunctionAngleVectors": "1"}, bifurcationVectorOpacity)
+                              {"CenterlineJunctionAngleVectors": "1", "BranchOrder": branchOrder, "PairType": pairType}, bifurcationVectorOpacity)
         self._createLabelsNode(_("Bifurcation vector labels"), labels, bifurcationVectorColor, parentFolderId,
-                               {"CenterlineJunctionAngleVectorLabels": "1"})
+                               {"CenterlineJunctionAngleVectorLabels": "1", "BranchOrder": branchOrder, "PairType": pairType})
 
     @staticmethod
-    def _rayEndPosition(junctionAngle, positionKey):
+    def _rayEndPosition(junctionAngle, positionKey, minimumLength=0.0):
         junctionPosition = junctionAngle["junctionPosition"]
         position = junctionAngle[positionKey]
-        return [junctionPosition[i] + (position[i] - junctionPosition[i]) * junctionAngleRayScale
-                for i in range(3)]
+        direction = [position[i] - junctionPosition[i] for i in range(3)]
+        length = vtk.vtkMath.Norm(direction)
+        scale = max(junctionAngleRayScale, minimumLength / length) if length > minimumVectorLength else junctionAngleRayScale
+        return [junctionPosition[i] + direction[i] * scale for i in range(3)]
 
     @staticmethod
-    def _angleArcPolyline(junctionAngle, numberOfSegments=24):
+    def _angleArcPolyline(junctionAngle, numberOfSegments=24, radius=None):
         junctionPosition = junctionAngle["junctionPosition"]
         ray1EndPosition = CenterlineJunctionAnglesWidget._rayEndPosition(junctionAngle, "branch1Position")
         ray2EndPosition = CenterlineJunctionAnglesWidget._rayEndPosition(junctionAngle, "branch2Position")
@@ -369,7 +474,8 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
         for i in range(3):
             vector1[i] /= length1
             vector2[i] /= length2
-        radius = min(length1, length2) * 0.35
+        if radius is None:
+            radius = min(length1, length2) * 0.35
         points = []
         for index in range(numberOfSegments + 1):
             ratio = index / numberOfSegments
@@ -389,14 +495,45 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
                 branchesByGroupId[(bifurcation["bifurcationGroupId"], branch["groupId"])] = branch
         return branchesByGroupId
 
-    def _createJunctionAngleGroupComponents(self, junctionAngles, bifurcations, parentFolderId, showVectorLabels):
+    def _junctionArcRadii(self, junctionAngles):
+        """Assign stable, distinct radii across all pairs at each junction."""
+        anglesByJunction = {}
+        for angle in junctionAngles:
+            if not math.isfinite(angle["angleDegrees"]):
+                raise ValueError(_("Cannot display a non-finite junction angle."))
+            anglesByJunction.setdefault(angle["bifurcationGroupId"], []).append(angle)
+        radii = {}
+        for junctionId, angles in anglesByJunction.items():
+            angles = sorted(angles, key=lambda angle: (angle["branch1GroupId"], angle["branch2GroupId"]))
+            rayLengths = [math.dist(angle["junctionPosition"], self._rayEndPosition(angle, positionKey))
+                          for angle in angles for positionKey in ("branch1Position", "branch2Position")]
+            positiveLengths = [length for length in rayLengths if length > minimumVectorLength]
+            if not positiveLengths:
+                continue
+            # Use one length for the whole junction: unequal branch lengths must
+            # not bring arcs assigned to different radial levels together again.
+            referenceLength = min(positiveLengths)
+            for index, angle in enumerate(angles):
+                fraction = 0.35 + 0.30 * index
+                radii[(junctionId, angle["branch1GroupId"], angle["branch2GroupId"])] = referenceLength * fraction
+        return radii
+
+    def _createJunctionAngleGroupComponents(self, junctionAngles, bifurcations, parentFolderId):
         labels = {"child-child": _("Child-child angles"), "parent-child": _("Parent-child angles"), "parent-parent": _("Parent-parent angles")}
         folders = {}
         groupedAnnotations = {}
+        angleValues = [angle["angleDegrees"] for angle in junctionAngles]
+        if not angleValues:
+            return
+        if not all(math.isfinite(value) for value in angleValues):
+            raise ValueError(_("Cannot display a non-finite junction angle."))
+        scalarRange = (min(angleValues), max(angleValues))
+        if scalarRange[0] == scalarRange[1]:
+            # Keep the lookup table well-defined when every measurement is equal.
+            scalarRange = (max(0.0, scalarRange[0] - 0.5), min(180.0, scalarRange[1] + 0.5))
         branchesByGroupId = self._bifurcationBranchesByGroupId(bifurcations)
+        arcRadii = self._junctionArcRadii(junctionAngles)
         for junctionAngle in junctionAngles:
-            if math.isnan(junctionAngle["angleDegrees"]):
-                continue
             pairType = self.logic.junctionAnglePairType(junctionAngle["branch1Role"], junctionAngle["branch2Role"])
             if pairType not in folders:
                 folders[pairType] = self._createCurveSubjectHierarchyFolderNode(labels[pairType], parentFolderId)
@@ -405,13 +542,18 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
             if groupKey not in folders:
                 folders[groupKey] = self._createCurveSubjectHierarchyFolderNode(
                     _("Branch order {order}").format(order=branchOrder), folders[pairType])
-            groupedAnnotations.setdefault(groupKey, {"rays": [], "arcs": [], "labels": [], "vectorGroupIds": set()})
-            ray1EndPosition = self._rayEndPosition(junctionAngle, "branch1Position")
-            ray2EndPosition = self._rayEndPosition(junctionAngle, "branch2Position")
+            groupedAnnotations.setdefault(groupKey, {"rays": [], "arcs": [], "angleDegrees": [], "rayAngleDegrees": [], "labels": [], "vectorGroupIds": set()})
+            arcKey = (junctionAngle["bifurcationGroupId"], junctionAngle["branch1GroupId"], junctionAngle["branch2GroupId"])
+            arcRadius = arcRadii.get(arcKey)
+            minimumRayLength = 1.1 * arcRadius if arcRadius is not None else 0.0
+            ray1EndPosition = self._rayEndPosition(junctionAngle, "branch1Position", minimumRayLength)
+            ray2EndPosition = self._rayEndPosition(junctionAngle, "branch2Position", minimumRayLength)
             groupedAnnotations[groupKey]["rays"].append([ray1EndPosition, junctionAngle["junctionPosition"], ray2EndPosition])
-            arcPolyline, labelPosition = self._angleArcPolyline(junctionAngle)
+            groupedAnnotations[groupKey]["rayAngleDegrees"].append(junctionAngle["angleDegrees"])
+            arcPolyline, labelPosition = self._angleArcPolyline(junctionAngle, radius=arcRadius)
             if arcPolyline:
                 groupedAnnotations[groupKey]["arcs"].append(arcPolyline)
+                groupedAnnotations[groupKey]["angleDegrees"].append(junctionAngle["angleDegrees"])
             groupedAnnotations[groupKey]["labels"].append((labelPosition, _("{angle:.1f}°").format(
                 angle=junctionAngle["angleDegrees"]), str(junctionAngle["angleDegrees"])))
             bifurcationGroupId = junctionAngle["bifurcationGroupId"]
@@ -426,20 +568,32 @@ class CenterlineJunctionAnglesWidget(ScriptedLoadableModuleWidget, VTKObservatio
                                   annotations["rays"], [], junctionAngleGeometryColor, folder, junctionAngleTubeRadius, 0.0,
                                   {"CenterlineJunctionAngleRays": "1",
                                    "PairType": pairType,
-                                   "BranchOrder": branchOrder})
+                                   "BranchOrder": branchOrder},
+                                  angleDegrees=annotations["rayAngleDegrees"], colorByAngle=False)
             self._createTubeModel(_("Junction angle arcs - {suffix}").format(suffix=nameSuffix),
                                   annotations["arcs"], [], junctionAngleGeometryColor, folder, junctionAngleTubeRadius, 0.0,
                                   {"CenterlineJunctionAngleArcs": "1",
                                    "PairType": pairType,
-                                   "BranchOrder": branchOrder})
-            self._createLabelsNode(_("Junction angle labels - {suffix}").format(suffix=nameSuffix),
-                                   annotations["labels"], junctionAngleLabelColor, folder,
-                                   {"CenterlineJunctionAngleLabels": "1",
-                                    "PairType": pairType,
-                                    "BranchOrder": branchOrder})
+                                   "BranchOrder": branchOrder}, angleDegrees=annotations["angleDegrees"], scalarRange=scalarRange)
+            # Markups colors apply to a whole node. Group labels by lookup-table
+            # color to match the arcs without creating a node for every measurement.
+            lookupTable = vtk.vtkLookupTable()
+            lookupTable.DeepCopy(slicer.mrmlScene.GetNodeByID("vtkMRMLColorTableNodeFilePlasma.txt").GetLookupTable())
+            lookupTable.SetRange(*scalarRange)
+            labelsByColor = {}
+            for label in annotations["labels"]:
+                color = [0.0, 0.0, 0.0]
+                lookupTable.GetColor(float(label[2]), color)
+                labelsByColor.setdefault(tuple(color), []).append(label)
+            for color, colorLabels in labelsByColor.items():
+                self._createLabelsNode(_("Junction angle labels - {suffix}").format(suffix=nameSuffix),
+                                       colorLabels, color, folder,
+                                       {"CenterlineJunctionAngleLabels": "1",
+                                        "PairType": pairType,
+                                        "BranchOrder": branchOrder})
             vectorBranches = [branchesByGroupId[groupId] for groupId in sorted(annotations["vectorGroupIds"])
                               if groupId in branchesByGroupId]
-            self._createBifurcationVectorModel(vectorBranches, folder, showVectorLabels)
+            self._createBifurcationVectorModel(vectorBranches, folder, False, branchOrder, pairType)
 
 
 class CenterlineJunctionAnglesLogic(ScriptedLoadableModuleLogic):
@@ -477,6 +631,20 @@ class CenterlineJunctionAnglesLogic(ScriptedLoadableModuleLogic):
         if not inputCenterline:
             self.clearCache()
             raise ValueError(_("Input centerline is invalid"))
+        if inputCenterline.GetNumberOfPoints() == 0 or inputCenterline.GetNumberOfCells() == 0:
+            self.clearCache()
+            raise ValueError(_("Input centerline is empty."))
+        radiusArray = inputCenterline.GetPointData().GetArray(radiusArrayName)
+        if radiusArray is None or radiusArray.GetNumberOfTuples() != inputCenterline.GetNumberOfPoints():
+            self.clearCache()
+            raise ValueError(_("Input centerline is missing the required '{name}' point data array.").format(name=radiusArrayName))
+        for pointIndex in range(inputCenterline.GetNumberOfPoints()):
+            position = inputCenterline.GetPoint(pointIndex)
+            radius = radiusArray.GetTuple1(pointIndex)
+            if (not all(math.isfinite(value) for value in position)
+                    or not math.isfinite(radius) or radius <= 0.0):
+                self.clearCache()
+                raise ValueError(_("Input centerline contains invalid geometry or radius values."))
 
         modificationTimes = self._modificationTimes(inputCenterline)
         if (self._inputCenterline is inputCenterline
@@ -551,9 +719,11 @@ class CenterlineJunctionAnglesLogic(ScriptedLoadableModuleLogic):
         referenceSystemsFilter.Update()
         referenceSystems = referenceSystemsFilter.GetOutput()
 
-        self._bifurcationVectors = []
-        if (not referenceSystems) or (referenceSystems.GetNumberOfPoints() == 0):
-            # The centerline does not have any bifurcation.
+        if referenceSystems is None:
+            raise ValueError(_("VMTK did not produce bifurcation reference systems."))
+        if referenceSystems.GetNumberOfPoints() == 0:
+            # A valid centerline may have no bifurcations.
+            self._bifurcationVectors = []
             return self._bifurcationVectors
 
         bifurcationVectorsFilter = vtkvmtkComputationalGeometry.vtkvmtkCenterlineBifurcationVectors()
@@ -578,58 +748,82 @@ class CenterlineJunctionAnglesLogic(ScriptedLoadableModuleLogic):
         bifurcationVectorsFilter.SetNormalizeBifurcationVectors(0)
         bifurcationVectorsFilter.Update()
         bifurcationVectors = bifurcationVectorsFilter.GetOutput()
-        if (not bifurcationVectors) or (bifurcationVectors.GetNumberOfPoints() == 0):
-            return self._bifurcationVectors
+        if bifurcationVectors is None or bifurcationVectors.GetNumberOfPoints() == 0:
+            raise ValueError(_("VMTK found bifurcations but did not produce their branch vectors."))
+
+        bifurcations = self._readBifurcationVectors(referenceSystems, bifurcationVectors)
+        self.assignBranchOrders(bifurcations)
+        self._bifurcationVectors = bifurcations
+        logging.info("Processing bifurcation vectors completed in %.2f seconds", time.time() - startTime)
+        return self._bifurcationVectors
+
+    def _readBifurcationVectors(self, referenceSystems, bifurcationVectors):
+        """Validate VMTK outputs before publishing or caching measurement results."""
+        def requiredArray(polyData, name, components):
+            array = polyData.GetPointData().GetArray(name)
+            if (array is None or array.GetNumberOfComponents() != components
+                    or array.GetNumberOfTuples() != polyData.GetNumberOfPoints()):
+                raise ValueError(_("Missing or invalid VMTK array '{name}'.").format(name=name))
+            return array
 
         # One point of the reference systems for every bifurcation.
         bifurcationsByGroupId = {}
-        referenceSystemPointData = referenceSystems.GetPointData()
-        referenceSystemGroupIdsArray = referenceSystemPointData.GetArray(groupIdsArrayName)
-        normalsArray = referenceSystemPointData.GetArray(normalArrayName)
-        upNormalsArray = referenceSystemPointData.GetArray(upNormalArrayName)
+        referenceSystemGroupIdsArray = requiredArray(referenceSystems, groupIdsArrayName, 1)
+        normalsArray = requiredArray(referenceSystems, normalArrayName, 3)
+        upNormalsArray = requiredArray(referenceSystems, upNormalArrayName, 3)
         for pointId in range(referenceSystems.GetNumberOfPoints()):
             bifurcationGroupId = int(referenceSystemGroupIdsArray.GetTuple1(pointId))
+            position = list(referenceSystems.GetPoint(pointId))
+            normal = list(normalsArray.GetTuple3(pointId))
+            upNormal = list(upNormalsArray.GetTuple3(pointId))
+            if (not all(math.isfinite(value) for value in position + normal + upNormal)
+                    or vtk.vtkMath.Norm(normal) <= minimumVectorLength
+                    or vtk.vtkMath.Norm(upNormal) <= minimumVectorLength):
+                raise ValueError(_("Invalid reference system at bifurcation {groupId}.").format(groupId=bifurcationGroupId))
             bifurcationsByGroupId[bifurcationGroupId] = {
                 "bifurcationGroupId": bifurcationGroupId,
-                "position": list(referenceSystems.GetPoint(pointId)),
-                "normal": list(normalsArray.GetTuple3(pointId)) if normalsArray else [0.0, 0.0, 0.0],
-                "upNormal": list(upNormalsArray.GetTuple3(pointId)) if upNormalsArray else [0.0, 0.0, 0.0],
+                "position": position,
+                "normal": normal,
+                "upNormal": upNormal,
                 "branches": {},
                 }
 
         # One point of the bifurcation vectors for every branch of every bifurcation.
-        pointData = bifurcationVectors.GetPointData()
-        groupIdsArray = pointData.GetArray(groupIdsArrayName)
-        bifurcationGroupIdsArray = pointData.GetArray(bifurcationGroupIdsArrayName)
-        orientationsArray = pointData.GetArray(bifurcationVectorsOrientationArrayName)
-        vectorsArray = pointData.GetArray(bifurcationVectorsArrayName)
-        inPlaneAnglesArray = pointData.GetArray(inPlaneBifurcationVectorAnglesArrayName)
-        outOfPlaneAnglesArray = pointData.GetArray(outOfPlaneBifurcationVectorAnglesArrayName)
-        if (not groupIdsArray) or (not bifurcationGroupIdsArray) or (not orientationsArray) or (not vectorsArray):
-            raise ValueError(_("The bifurcation vectors are incomplete."))
+        groupIdsArray = requiredArray(bifurcationVectors, groupIdsArrayName, 1)
+        bifurcationGroupIdsArray = requiredArray(bifurcationVectors, bifurcationGroupIdsArrayName, 1)
+        orientationsArray = requiredArray(bifurcationVectors, bifurcationVectorsOrientationArrayName, 1)
+        vectorsArray = requiredArray(bifurcationVectors, bifurcationVectorsArrayName, 3)
+        inPlaneAnglesArray = requiredArray(bifurcationVectors, inPlaneBifurcationVectorAnglesArrayName, 1)
+        outOfPlaneAnglesArray = requiredArray(bifurcationVectors, outOfPlaneBifurcationVectorAnglesArrayName, 1)
 
         for pointId in range(bifurcationVectors.GetNumberOfPoints()):
             bifurcation = bifurcationsByGroupId.get(int(bifurcationGroupIdsArray.GetTuple1(pointId)))
             if bifurcation is None:
-                continue
+                raise ValueError(_("A bifurcation vector has no matching reference system."))
             # An upstream branch is the parent branch of the bifurcation.
             isUpstream = int(orientationsArray.GetTuple1(pointId)) == upstreamOrientation
             vector = list(vectorsArray.GetTuple3(pointId))
             vectorLength = vtk.vtkMath.Norm(vector)
-            outwardDirection = [0.0, 0.0, 0.0]
-            if vectorLength > minimumVectorLength:
-                outwardDirection = [(-component if isUpstream else component) / vectorLength
-                                    for component in vector]
-            inPlaneAngleDegrees = math.degrees(inPlaneAnglesArray.GetTuple1(pointId)) if inPlaneAnglesArray else float("nan")
-            outOfPlaneAngleDegrees = math.degrees(outOfPlaneAnglesArray.GetTuple1(pointId)) if outOfPlaneAnglesArray else float("nan")
+            groupId = int(groupIdsArray.GetTuple1(pointId))
+            if not all(math.isfinite(value) for value in vector) or not math.isfinite(vectorLength) or vectorLength <= minimumVectorLength:
+                logging.warning(_("Skipping branch {branchId} at bifurcation {bifurcationId}: VMTK did not produce a valid direction.").format(
+                    branchId=groupId, bifurcationId=bifurcation["bifurcationGroupId"]))
+                continue
+            outwardDirection = [(-component if isUpstream else component) / vectorLength for component in vector]
+            inPlaneAngleDegrees = math.degrees(inPlaneAnglesArray.GetTuple1(pointId))
+            outOfPlaneAngleDegrees = math.degrees(outOfPlaneAnglesArray.GetTuple1(pointId))
+            basePosition = list(bifurcationVectors.GetPoint(pointId))
+            if not all(math.isfinite(value) for value in basePosition + [inPlaneAngleDegrees, outOfPlaneAngleDegrees]):
+                logging.warning(_("Skipping branch {branchId} at bifurcation {bifurcationId}: VMTK did not produce a valid position or projected angle.").format(
+                    branchId=groupId, bifurcationId=bifurcation["bifurcationGroupId"]))
+                continue
             if isUpstream:
                 inPlaneAngleDegrees = self.wrapAngleDegrees(inPlaneAngleDegrees + 180.0)
                 outOfPlaneAngleDegrees = -outOfPlaneAngleDegrees
-            groupId = int(groupIdsArray.GetTuple1(pointId))
             bifurcation["branches"][groupId] = {
                 "groupId": groupId,
                 "role": "Parent" if isUpstream else "Child",
-                "basePosition": list(bifurcationVectors.GetPoint(pointId)),
+                "basePosition": basePosition,
                 "vector": vector,
                 "outwardDirection": outwardDirection,
                 "vectorLength": vectorLength,
@@ -638,15 +832,12 @@ class CenterlineJunctionAnglesLogic(ScriptedLoadableModuleLogic):
                 "branchOrder": None,
                 }
 
-        self._bifurcationVectors = [bifurcationsByGroupId[bifurcationGroupId]
-                                    for bifurcationGroupId in sorted(bifurcationsByGroupId.keys())
-                                    if bifurcationsByGroupId[bifurcationGroupId]["branches"]]
-        self.assignBranchOrders(self._bifurcationVectors)
-
-        stopTime = time.time()
-        durationValue = '%.2f' % (stopTime-startTime)
-        logging.info(_("Processing bifurcation vectors completed in {duration} seconds").format(duration=durationValue))
-        return self._bifurcationVectors
+        for bifurcation in bifurcationsByGroupId.values():
+            if len(bifurcation["branches"]) < 3:
+                logging.warning(_("Skipping bifurcation {groupId}: it has fewer than three valid branch vectors.").format(
+                    groupId=bifurcation["bifurcationGroupId"]))
+        return [bifurcationsByGroupId[groupId] for groupId in sorted(bifurcationsByGroupId)
+                if len(bifurcationsByGroupId[groupId]["branches"]) >= 3]
 
     @staticmethod
     def assignBranchOrders(bifurcations):
@@ -708,9 +899,19 @@ class CenterlineJunctionAnglesLogic(ScriptedLoadableModuleLogic):
             # Parent branch first, so that a bifurcation gives parent-child, parent-child, child-child.
             branches.sort(key=lambda branch: (0 if branch["role"] == "Parent" else 1, branch["groupId"]))
             if len(branches) < 3:
-                logging.warning(_("Skipping bifurcation {groupId}: it has {count} branches only.").format(
-                                groupId=bifurcation["bifurcationGroupId"], count=len(branches)))
+                logging.warning(_("Skipping bifurcation {groupId}: it has fewer than three valid branches.").format(
+                    groupId=bifurcation["bifurcationGroupId"]))
                 continue
+            if not all(math.isfinite(value) for value in bifurcation["position"]):
+                raise ValueError(_("Invalid position at bifurcation {groupId}.").format(groupId=bifurcation["bifurcationGroupId"]))
+            for branch in branches:
+                direction = branch["outwardDirection"]
+                values = list(direction) + [branch["vectorLength"], branch["inPlaneAngleDegrees"], branch["outOfPlaneAngleDegrees"]]
+                if (not all(math.isfinite(value) for value in values)
+                        or vtk.vtkMath.Norm(direction) <= minimumVectorLength
+                        or branch["vectorLength"] <= minimumVectorLength):
+                    raise ValueError(_("Invalid cached direction or projected angle for branch {branchId} at bifurcation {bifurcationId}.").format(
+                        branchId=branch["groupId"], bifurcationId=bifurcation["bifurcationGroupId"]))
             for firstIndex in range(len(branches)):
                 for secondIndex in range(firstIndex + 1, len(branches)):
                     branch1 = branches[firstIndex]
@@ -726,7 +927,7 @@ class CenterlineJunctionAnglesLogic(ScriptedLoadableModuleLogic):
                         "branch1Order": branch1["branchOrder"],
                         "branch2Order": branch2["branchOrder"],
                         "branchOrder": max(branch1["branchOrder"], branch2["branchOrder"]),
-                        "angleDegrees": self.angleDegrees(branch1["outwardDirection"], branch2["outwardDirection"]),
+                        "angleDegrees": math.degrees(vtk.vtkMath.AngleBetweenVectors(branch1["outwardDirection"], branch2["outwardDirection"])),
                         "inPlaneAngleDegrees": abs(self.wrapAngleDegrees(
                             branch1["inPlaneAngleDegrees"] - branch2["inPlaneAngleDegrees"])),
                         "branch1OutOfPlaneAngleDegrees": branch1["outOfPlaneAngleDegrees"],
@@ -841,21 +1042,10 @@ class CenterlineJunctionAnglesLogic(ScriptedLoadableModuleLogic):
         return "parent-parent"
 
     @staticmethod
-    def angleDegrees(vector1, vector2):
-        """Angle between two vectors in degrees, in the [0, 180] range, nan for a vector of zero length."""
-        norm1 = vtk.vtkMath.Norm(list(vector1))
-        norm2 = vtk.vtkMath.Norm(list(vector2))
-        if (norm1 <= 0.0) or (norm2 <= 0.0):
-            return float("nan")
-        # Clamp to compensate for numerical errors, acos fails outside [-1, 1].
-        cosAngle = max(-1.0, min(1.0, vtk.vtkMath.Dot(list(vector1), list(vector2)) / (norm1 * norm2)))
-        return math.degrees(math.acos(cosAngle))
-
-    @staticmethod
     def wrapAngleDegrees(angleDegrees):
         """Wrap an angle to the (-180, 180] range."""
-        if math.isnan(angleDegrees):
-            return angleDegrees
+        if not math.isfinite(angleDegrees):
+            raise ValueError(_("Cannot wrap a non-finite angle."))
         angleDegrees = math.fmod(angleDegrees, 360.0)
         if angleDegrees > 180.0:
             angleDegrees -= 360.0
@@ -871,9 +1061,239 @@ class CenterlineJunctionAnglesTest(ScriptedLoadableModuleTest):
     def runTest(self):
         for test in [self.test_JunctionAngles, self.test_JunctionAnglesMultifurcation,
                      self.test_JunctionAnglesTable, self.test_JunctionAnglesOfAYShapedTube,
-                     self.test_BranchExtractionCache, self.test_BranchOrderHierarchy]:
+                     self.test_BifurcationVectorValidation,
+                     self.test_BranchExtractionCache, self.test_BranchOrderHierarchy,
+                     self.test_ArcScalars, self.test_DisplayControls, self.test_AngleColorRange, self.test_StaggeredArcs]:
             self.setUp()
             test()
+
+    def test_DisplayControls(self):
+        """Element/order visibility composes with thresholding, and colors update in place."""
+        import os
+        widget = CenterlineJunctionAnglesWidget()
+        widget.resourcePath = lambda name: os.path.join(os.path.dirname(__file__), "Resources", name)
+        widget.setup()
+        try:
+            self.assertTrue(widget.ui.displayOptionsCollapsibleButton.collapsed)
+            bifurcations = self.createBifurcationVectors()
+            widget.logic._bifurcationVectors = bifurcations
+            angles = widget.logic.processJunctionAngles()
+            angles[0]["branchOrder"] = 2
+            folder = widget._createCurveSubjectHierarchyFolderNode("Display controls test")
+            widget._createJunctionAngleGroupComponents(angles, bifurcations, folder)
+            widget.refreshBranchOrderControls()
+            widget.applyDisplayControls()
+            self.assertEqual(set(widget._branchOrderCheckboxes), {1, 2})
+            nodes = list(widget.annotationDisplayNodes())
+            self.assertTrue(nodes)
+            self.assertFalse([node for node, _ in nodes if node.GetAttribute("CenterlineJunctionAngleVectorLabels") == "1"])
+            for control in ("showArcs", "showAnnotations", "showRays", "showVectors"):
+                getattr(widget.ui, control).checked = False
+                for node, element in nodes:
+                    self.assertEqual(bool(node.GetDisplayNode().GetVisibility()), element != control)
+                getattr(widget.ui, control).checked = True
+            self.assertEqual({node.GetAttribute("PairType") for node, _ in nodes}, {"parent-child", "child-child"})
+            for pairType, pairControl in (("parent-child", "showParentChild"), ("child-child", "showChildChild")):
+                getattr(widget.ui, pairControl).checked = False
+                for node, _ in nodes:
+                    self.assertEqual(bool(node.GetDisplayNode().GetVisibility()), node.GetAttribute("PairType") != pairType)
+                self.assertEqual(widget._parameterNode.GetParameter(pairControl), "0")
+                widget.updateGUIFromParameterNode()
+                self.assertFalse(getattr(widget.ui, pairControl).checked)
+                getattr(widget.ui, pairControl).checked = True
+            widget._branchOrderCheckboxes[1].checked = False
+            for node, _ in nodes:
+                self.assertEqual(bool(node.GetDisplayNode().GetVisibility()), node.GetAttribute("BranchOrder") == "2")
+            widget.filterJunctionAngleAnnotations(100.0)
+            widget.ui.showArcs.checked = False
+            widget._branchOrderCheckboxes[1].checked = True
+            for node, control in nodes:
+                self.assertEqual(bool(node.GetDisplayNode().GetVisibility()), control != "showArcs")
+                if control in ("showArcs", "showRays"):
+                    self.assertTrue(node.GetDisplayNode().GetThresholdEnabled())
+            widget.ui.showChildChild.checked = False
+            for node, control in nodes:
+                self.assertEqual(bool(node.GetDisplayNode().GetVisibility()),
+                                 control != "showArcs" and node.GetAttribute("PairType") != "child-child")
+                if control in ("showArcs", "showRays"):
+                    self.assertTrue(node.GetDisplayNode().GetThresholdEnabled())
+            widget.ui.showChildChild.checked = True
+            widget.ui.rayColorButton.color = qt.QColor.fromRgbF(0.2, 0.4, 0.6)
+            widget.ui.vectorColorButton.color = qt.QColor.fromRgbF(0.6, 0.4, 0.2)
+            for node, control in nodes:
+                if control not in ("showRays", "showVectors"):
+                    continue
+                expected = (0.2, 0.4, 0.6) if control == "showRays" else (0.6, 0.4, 0.2)
+                for actual, value in zip(node.GetDisplayNode().GetColor(), expected):
+                    self.assertAlmostEqual(actual, value, places=4)
+                if control == "showRays":
+                    color = [0.0] * 4
+                    node.GetDisplayNode().GetColorNode().GetColor(0, color)
+                    for actual, value in zip(color, expected):
+                        self.assertAlmostEqual(actual, value, places=4)
+            widget.onShowAllButton()
+            for node, control in nodes:
+                self.assertEqual(bool(node.GetDisplayNode().GetVisibility()), control != "showArcs")
+            widget._branchOrderCheckboxes[2].checked = False
+            widget.refreshBranchOrderControls()
+            self.assertFalse(widget._branchOrderCheckboxes[2].checked)
+            self.assertEqual(widget._parameterNode.GetParameter("showArcs"), "0")
+            self.assertEqual(widget._parameterNode.GetParameter("HiddenBranchOrders"), "2")
+        finally:
+            widget.cleanup()
+
+    def test_StaggeredArcs(self):
+        """A trifurcation uses distinct radial levels, independent of input ordering."""
+        import copy
+        widget = CenterlineJunctionAnglesWidget()
+        widget.logic = CenterlineJunctionAnglesLogic()
+        bifurcations = self.createBifurcationVectors(childAngles=(20.0, -40.0, 80.0))
+        widget.logic._bifurcationVectors = bifurcations
+        angles = widget.logic.processJunctionAngles()
+        originalAngles = copy.deepcopy(angles)
+        radii = widget._junctionArcRadii(angles)
+        self.assertEqual(len(radii), 6)
+        self.assertEqual(len(set(radii.values())), 6)
+        originalRayLength = math.dist(angles[0]["junctionPosition"], widget._rayEndPosition(angles[0], "branch1Position"))
+        self.assertAlmostEqual(min(radii.values()), 0.35 * originalRayLength)
+        self.assertGreater(max(radii.values()), originalRayLength)
+        self.assertEqual(radii, widget._junctionArcRadii(list(reversed(angles))))
+        expectedLabels = []
+        for angle in angles:
+            key = (angle["bifurcationGroupId"], angle["branch1GroupId"], angle["branch2GroupId"])
+            points, label = widget._angleArcPolyline(angle, radius=radii[key])
+            self.assertTrue(points)
+            for position in points:
+                self.assertAlmostEqual(math.dist(position, angle["junctionPosition"]), radii[key])
+            self.assertEqual(label, points[len(points) // 2])
+            expectedLabels.append(tuple(label))
+            for positionKey in ("branch1Position", "branch2Position"):
+                self.assertLess(radii[key], math.dist(angle["junctionPosition"], widget._rayEndPosition(angle, positionKey, 1.1 * radii[key])))
+        folder = widget._createCurveSubjectHierarchyFolderNode("Staggered arcs test")
+        widget._createJunctionAngleGroupComponents(angles, bifurcations, folder)
+        actualLabels = []
+        for node in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
+            if node.GetAttribute("CenterlineJunctionAngleLabels") != "1":
+                continue
+            for index in range(node.GetNumberOfControlPoints()):
+                position = [0.0, 0.0, 0.0]
+                node.GetNthControlPointPosition(index, position)
+                actualLabels.append(tuple(position))
+        self.assertCountEqual(actualLabels, expectedLabels)
+        self.assertEqual(angles, originalAngles)
+
+    def test_AngleColorRange(self):
+        """Close measurements use the full scale; equal measurements remain well-defined."""
+        widget = CenterlineJunctionAnglesWidget()
+        widget.logic = CenterlineJunctionAnglesLogic()
+        bifurcations = self.createBifurcationVectors()
+        widget.logic._bifurcationVectors = bifurcations
+        angles = widget.logic.processJunctionAngles()
+        for values in ((60.0, 60.5, 61.0), (60.0, 60.0, 60.0), (0.0, 0.0, 0.0), (180.0, 180.0, 180.0)):
+            slicer.mrmlScene.Clear()
+            for angle, value in zip(angles, values):
+                angle["angleDegrees"] = value
+            folder = widget._createCurveSubjectHierarchyFolderNode("Color range test")
+            widget._createJunctionAngleGroupComponents(angles, bifurcations, folder)
+            models = [node for node in slicer.util.getNodesByClass("vtkMRMLModelNode")
+                      if node.GetAttribute("CenterlineJunctionAngleArcs") == "1"]
+            self.assertTrue(models)
+            ranges = {model.GetDisplayNode().GetScalarRange() for model in models}
+            self.assertEqual(len(ranges), 1)
+            lower, upper = ranges.pop()
+            self.assertLess(lower, upper)
+            if min(values) != max(values):
+                self.assertEqual((lower, upper), (min(values), max(values)))
+            lookupTable = vtk.vtkLookupTable()
+            lookupTable.DeepCopy(models[0].GetDisplayNode().GetColorNode().GetLookupTable())
+            lookupTable.SetRange(lower, upper)
+            colors = set()
+            for node in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode"):
+                if node.GetAttribute("CenterlineJunctionAngleLabels") != "1":
+                    continue
+                colors.add(node.GetDisplayNode().GetColor())
+                for index in range(node.GetNumberOfControlPoints()):
+                    expected = [0.0, 0.0, 0.0]
+                    lookupTable.GetColor(float(node.GetNthControlPointDescription(index)), expected)
+                    self.assertEqual(node.GetDisplayNode().GetColor(), tuple(expected))
+            self.assertEqual(len(colors), len(set(values)))
+            widget.filterJunctionAngleAnnotations(60.5)
+            self.assertEqual({model.GetDisplayNode().GetScalarRange() for model in models}, {(lower, upper)})
+
+    def test_ArcScalars(self):
+        """Grouped arc tubes retain each measurement and use a shared color scale."""
+        widget = CenterlineJunctionAnglesWidget()
+        widget.logic = CenterlineJunctionAnglesLogic()
+        bifurcations = self.createBifurcationVectors(childAngles=(20.0, -40.0, 80.0))
+        widget.logic._bifurcationVectors = bifurcations
+        angles = widget.logic.processJunctionAngles()
+        folder = widget._createCurveSubjectHierarchyFolderNode("Test angles")
+        widget._createJunctionAngleGroupComponents(angles, bifurcations, folder)
+        arcModels = [node for node in slicer.util.getNodesByClass("vtkMRMLModelNode")
+                     if node.GetAttribute("CenterlineJunctionAngleArcs") == "1"]
+        self.assertEqual(len(arcModels), 2)
+        for model in arcModels:
+            polyData = model.GetPolyData()
+            scalars = polyData.GetPointData().GetArray("AngleDegrees")
+            self.assertIsNotNone(scalars)
+            self.assertEqual(scalars.GetNumberOfTuples(), polyData.GetNumberOfPoints())
+            expected = {round(angle["angleDegrees"], 6) for angle in angles
+                        if widget.logic.junctionAnglePairType(angle["branch1Role"], angle["branch2Role"])
+                        == model.GetAttribute("PairType")}
+            self.assertEqual({round(scalars.GetValue(i), 6) for i in range(scalars.GetNumberOfTuples())}, expected)
+            for cellIndex in range(polyData.GetNumberOfCells()):
+                pointIds = polyData.GetCell(cellIndex).GetPointIds()
+                self.assertEqual(len({scalars.GetValue(pointIds.GetId(i))
+                                      for i in range(pointIds.GetNumberOfIds())}), 1)
+            display = model.GetDisplayNode()
+            self.assertTrue(display.GetScalarVisibility())
+            self.assertEqual(display.GetActiveScalarName(), "AngleDegrees")
+            self.assertEqual(display.GetScalarRange(),
+                             (min(angle["angleDegrees"] for angle in angles), max(angle["angleDegrees"] for angle in angles)))
+            self.assertIsNotNone(display.GetColorNode())
+            self.assertEqual(display.GetColorNode().GetName(), "Plasma")
+            self.assertTrue(display.GetLighting())
+        lookupTable = vtk.vtkLookupTable()
+        lookupTable.DeepCopy(arcModels[0].GetDisplayNode().GetColorNode().GetLookupTable())
+        lookupTable.SetRange(*arcModels[0].GetDisplayNode().GetScalarRange())
+        labels = [node for node in slicer.util.getNodesByClass("vtkMRMLMarkupsFiducialNode")
+                  if node.GetAttribute("CenterlineJunctionAngleLabels") == "1"]
+        self.assertEqual(sum(node.GetNumberOfControlPoints() for node in labels), len(angles))
+        for node in labels:
+            self.assertTrue(node.GetDisplayNode().GetTextProperty().GetShadow())
+            for index in range(node.GetNumberOfControlPoints()):
+                expectedColor = [0.0, 0.0, 0.0]
+                lookupTable.GetColor(float(node.GetNthControlPointDescription(index)), expectedColor)
+                for actual, expected in zip(node.GetDisplayNode().GetColor(), expectedColor):
+                    self.assertAlmostEqual(actual, expected)
+        originalColors = {node.GetID(): node.GetDisplayNode().GetColor() for node in labels}
+        models = [node for node in slicer.util.getNodesByClass("vtkMRMLModelNode")
+                  if node.GetAttribute("CenterlineJunctionAngleArcs") == "1"
+                  or node.GetAttribute("CenterlineJunctionAngleRays") == "1"]
+        originalPointCounts = {node.GetID(): node.GetPolyData().GetNumberOfPoints() for node in models}
+        # Include an exact measurement to check that the threshold is inclusive,
+        # then raise and lower it before restoring every annotation.
+        for threshold in (angles[0]["angleDegrees"], 180.0, 100.0, 0.0):
+            self.assertEqual(widget.filterJunctionAngleAnnotations(threshold),
+                             sum(angle["angleDegrees"] >= threshold for angle in angles))
+            for node in labels:
+                self.assertEqual(node.GetDisplayNode().GetColor(), originalColors[node.GetID()])
+                for index in range(node.GetNumberOfControlPoints()):
+                    self.assertEqual(node.GetNthControlPointVisibility(index),
+                                     float(node.GetNthControlPointDescription(index)) >= threshold)
+            for model in models:
+                display = model.GetDisplayNode()
+                self.assertEqual(display.GetThresholdEnabled(), threshold > 0.0)
+                self.assertEqual(model.GetPolyData().GetNumberOfPoints(), originalPointCounts[model.GetID()])
+                output = display.GetOutputPolyData()
+                if output.GetNumberOfPoints():
+                    self.assertGreaterEqual(output.GetPointData().GetArray("AngleDegrees").GetRange()[0], threshold)
+                if threshold == 0.0:
+                    self.assertEqual(output.GetNumberOfPoints(), originalPointCounts[model.GetID()])
+                if model.GetAttribute("CenterlineJunctionAngleRays") == "1":
+                    rayColor = [0.0, 0.0, 0.0, 0.0]
+                    display.GetColorNode().GetColor(0, rayColor)
+                    self.assertEqual(rayColor[:3], junctionAngleGeometryColor)
 
     def test_BranchExtractionCache(self):
         """Reuse unchanged input; invalidate on geometry, radius, connectivity, or input changes."""
@@ -992,9 +1412,98 @@ class CenterlineJunctionAnglesTest(ScriptedLoadableModuleTest):
             }]
 
     @staticmethod
+    def addArray(polyData, name, components, tuples):
+        array = vtk.vtkDoubleArray()
+        array.SetName(name)
+        array.SetNumberOfComponents(components)
+        for values in tuples:
+            if components == 1:
+                array.InsertNextValue(values)
+            else:
+                array.InsertNextTuple(values)
+        polyData.GetPointData().AddArray(array)
+        return array
+
+    def createBifurcationVectorFilterOutputs(self, childAngles = (30.0, -40.0), vectorLength = 4.0):
+        bifurcation = self.createBifurcationVectors(childAngles, vectorLength)[0]
+
+        referencePoints = vtk.vtkPoints()
+        referencePoints.InsertNextPoint(bifurcation["position"])
+        referenceSystems = vtk.vtkPolyData()
+        referenceSystems.SetPoints(referencePoints)
+        self.addArray(referenceSystems, groupIdsArrayName, 1, [bifurcation["bifurcationGroupId"]])
+        self.addArray(referenceSystems, normalArrayName, 3, [bifurcation["normal"]])
+        self.addArray(referenceSystems, upNormalArrayName, 3, [bifurcation["upNormal"]])
+
+        vectorPoints = vtk.vtkPoints()
+        groupIds = []
+        bifurcationGroupIds = []
+        orientations = []
+        vectors = []
+        inPlaneAngles = []
+        outOfPlaneAngles = []
+        for branch in bifurcation["branches"].values():
+            vectorPoints.InsertNextPoint(branch["basePosition"])
+            groupIds.append(branch["groupId"])
+            bifurcationGroupIds.append(bifurcation["bifurcationGroupId"])
+            isUpstream = branch["role"] == "Parent"
+            orientations.append(upstreamOrientation if isUpstream else 1)
+            vectors.append(branch["vector"])
+            inPlaneAngles.append(math.radians(0.0 if isUpstream else branch["inPlaneAngleDegrees"]))
+            outOfPlaneAngles.append(math.radians(-branch["outOfPlaneAngleDegrees"] if isUpstream else branch["outOfPlaneAngleDegrees"]))
+        bifurcationVectors = vtk.vtkPolyData()
+        bifurcationVectors.SetPoints(vectorPoints)
+        self.addArray(bifurcationVectors, groupIdsArrayName, 1, groupIds)
+        self.addArray(bifurcationVectors, bifurcationGroupIdsArrayName, 1, bifurcationGroupIds)
+        self.addArray(bifurcationVectors, bifurcationVectorsOrientationArrayName, 1, orientations)
+        self.addArray(bifurcationVectors, bifurcationVectorsArrayName, 3, vectors)
+        self.addArray(bifurcationVectors, inPlaneBifurcationVectorAnglesArrayName, 1, inPlaneAngles)
+        self.addArray(bifurcationVectors, outOfPlaneBifurcationVectorAnglesArrayName, 1, outOfPlaneAngles)
+        return referenceSystems, bifurcationVectors
+
+    @staticmethod
     def anglesByGroupIdPair(junctionAngles):
         return {(junctionAngle["branch1GroupId"], junctionAngle["branch2GroupId"]): junctionAngle["angleDegrees"]
                 for junctionAngle in junctionAngles}
+
+    def test_BifurcationVectorValidation(self):
+        """Malformed VMTK outputs raise exceptions instead of becoming NaN measurements."""
+        self.delayDisplay(_("Bifurcation vector validation"))
+
+        logic = CenterlineJunctionAnglesLogic()
+        referenceSystems, bifurcationVectors = self.createBifurcationVectorFilterOutputs()
+        bifurcations = logic._readBifurcationVectors(referenceSystems, bifurcationVectors)
+        logic.assignBranchOrders(bifurcations)
+        logic._bifurcationVectors = bifurcations
+        angles = self.anglesByGroupIdPair(logic.processJunctionAngles())
+        self.assertAlmostEqual(angles[(0, 2)], 150.0, delta=0.01)
+        self.assertAlmostEqual(angles[(0, 3)], 140.0, delta=0.01)
+        self.assertAlmostEqual(angles[(2, 3)], 70.0, delta=0.01)
+
+        referenceSystems, bifurcationVectors = self.createBifurcationVectorFilterOutputs()
+        referenceSystems.GetPointData().RemoveArray(upNormalArrayName)
+        with self.assertRaisesRegex(ValueError, upNormalArrayName):
+            logic._readBifurcationVectors(referenceSystems, bifurcationVectors)
+
+        referenceSystems, bifurcationVectors = self.createBifurcationVectorFilterOutputs()
+        bifurcationVectors.GetPointData().GetArray(bifurcationVectorsArrayName).SetTuple3(0, 0.0, 0.0, 0.0)
+        self.assertEqual(logic._readBifurcationVectors(referenceSystems, bifurcationVectors), [])
+
+        referenceSystems, bifurcationVectors = self.createBifurcationVectorFilterOutputs()
+        bifurcationVectors.GetPointData().GetArray(inPlaneBifurcationVectorAnglesArrayName).SetTuple1(1, float("nan"))
+        self.assertEqual(logic._readBifurcationVectors(referenceSystems, bifurcationVectors), [])
+
+        referenceSystems, bifurcationVectors = self.createBifurcationVectorFilterOutputs(childAngles=(30.0, -40.0, 80.0))
+        bifurcationVectors.GetPointData().GetArray(bifurcationVectorsArrayName).SetTuple3(1, 0.0, 0.0, 0.0)
+        bifurcations = logic._readBifurcationVectors(referenceSystems, bifurcationVectors)
+        self.assertEqual(len(bifurcations), 1)
+        self.assertNotIn(2, bifurcations[0]["branches"])
+
+        emptyCenterline = vtk.vtkPolyData()
+        with self.assertRaisesRegex(ValueError, "empty"):
+            logic.splitCenterlines(emptyCenterline)
+
+        self.delayDisplay(_("Test passed"))
 
     def test_JunctionAngles(self):
         """Angles of a bifurcation whose branches have known directions."""
@@ -1030,7 +1539,9 @@ class CenterlineJunctionAnglesTest(ScriptedLoadableModuleTest):
         self.assertEqual(logic.junctionAnglePairType("Parent", "Child"), "parent-child")
         self.assertEqual(logic.junctionAnglePairType("Child", "Child"), "child-child")
         # A direction cannot be determined from a vector of zero length
-        self.assertTrue(math.isnan(logic.angleDegrees([0.0, 0.0, 0.0], [1.0, 0.0, 0.0])))
+        logic._bifurcationVectors[0]["branches"][0]["outwardDirection"] = [0.0, 0.0, 0.0]
+        with self.assertRaisesRegex(ValueError, "cached direction"):
+            logic.processJunctionAngles()
 
         self.delayDisplay(_("Test passed"))
 
@@ -1224,7 +1735,6 @@ minimumVectorLength = 1e-6
 # Style of the junction angle annotations. The rays are drawn this many times longer than the measured
 # segments, and the text is larger than the default scale of 3.0.
 junctionAngleLabelColor = [1.0, 1.0, 0.0]
-highlightedJunctionAngleColor = [1.0, 0.0, 0.0]
 junctionAngleGeometryColor = [1.0, 1.0, 0.0]
 bifurcationVectorColor = [1.0, 0.5, 0.0]
 bifurcationVectorTubeRadius = 0.16
