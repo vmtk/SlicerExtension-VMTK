@@ -15,6 +15,19 @@ Enable *label mesh faces* to have the module tag every triangle of the output su
 
 This is what lets a CFD solver be given a different boundary condition per inlet, outlet, and wall, and lets a remesher keep the wall/cap boundaries as sharp feature edges instead of rounding them off. The ids follow the clip points rather than the internal order in which the caps were created, so moving a clip point around does not renumber the faces of an already configured simulation; a clip point that made no cut simply leaves its id unused. The face id is settled before the surface is cut, and written onto the rim of each end as its boundary label (see *Boundary label arrays* below), so the cap of an end and the end itself are the same number everywhere. Face labeling needs the output surface to be capped in order to have caps to label - on an uncapped surface the whole model is labeled as wall.
 
+### Carrying the names downstream
+The face ids travel on the output surface, and from there onto a volume mesh made from it, but a face id is a number and a boundary condition is per vessel: somebody still has to say which cap is the azygous vein. The names for that are already here - they are the labels on the clip points - so the module records where to find them again, on the output model node:
+
+- a node reference, *ClipPoints*, to the clip points markups node whose control point labels the names are;
+- an attribute `ClipVessel.FaceIdToClipPointID`, which says which control point each cap's face id came from;
+- an attribute `ClipVessel.WallFaceID`, the wall's id, which is not in that map because the wall has no clip point.
+
+This is recorded on every run, whether or not the output is capped and whether or not its faces are labelled: a boundary's label already *is* its cap's face id, so which clip point named which face is settled when the boundaries are labelled, before there is a cap or a cell array to work it out from. That matters for the workflow this is for, which leaves capping to CFD Mesh Generator - the caps belong past the boundary layer - and therefore has no faces to label here either. Recorded off the face labeling instead, the names would be present in every run that does not need them and absent from the one that does.
+
+Only the pointer is recorded, not a copy of the labels, so there is no second copy to go stale: renaming a clip point renames its face, with nothing re-clipped. [CFD Mesh Generator](CfdMeshGenerator.md) copies all three onto the volume mesh it makes, and SimVascular Mesh Prep, in the SlicerSimVascular extension, reads them to name the faces of that mesh without anything being typed twice. A node reference and a node attribute both serialize into MRML, so the record comes back with a saved scene.
+
+The map is keyed by control point **ID** rather than by position in the list, and that is deliberate. A cap's face id is `firstCapFaceId + clip point index`, so deleting a clip point shifts every later index down one; keyed by index, each of those vessels' names would move quietly onto the face of the vessel before it, which downstream is a boundary condition on the wrong vessel and nothing further along the chain can catch it. An ID is stable under insertion and reordering, and is never handed out twice, so a deleted clip point's face simply comes out unnamed - which is a thing an operator can see and fix.
+
 ![Clip points](ClipVessel_0.png)
 **Placement of markup points to define clipping locations**
 

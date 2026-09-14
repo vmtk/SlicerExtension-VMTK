@@ -47,6 +47,7 @@ slicer_add_python_test(SCRIPT test_ClipVesselApply.py)
 # These work on a real vessel surface, built once each by ClipVesselTestFixture.py, which is
 # deliberately not named test_*: it is imported by them rather than collected as a test itself.
 slicer_add_python_test(SCRIPT test_ClipVesselLabelingEndToEnd.py)
+slicer_add_python_test(SCRIPT test_ClipVesselNameSource.py)
 slicer_add_python_test(SCRIPT test_ClipVesselBoundaryStages.py)
 slicer_add_python_test(SCRIPT test_ClipVesselLabelPlacement.py)
 slicer_add_python_test(SCRIPT test_ClipVesselClippingMethods.py)
