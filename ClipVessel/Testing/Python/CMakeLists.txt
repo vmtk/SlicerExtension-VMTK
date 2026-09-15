@@ -32,6 +32,8 @@ slicer_add_python_test(SCRIPT test_ClipVesselLegendLabels.py
                        SLICER_ARGS --disable-cli-modules)
 slicer_add_python_test(SCRIPT test_ClipVesselWidget.py
                        SLICER_ARGS --disable-cli-modules)
+slicer_add_python_test(SCRIPT test_ClipVesselClipPointNames.py
+                       SLICER_ARGS --disable-cli-modules)
 slicer_add_python_test(SCRIPT test_ClipVesselPlaneEditingExit.py)
 slicer_add_python_test(SCRIPT test_ClipVesselOutputNode.py)
 
