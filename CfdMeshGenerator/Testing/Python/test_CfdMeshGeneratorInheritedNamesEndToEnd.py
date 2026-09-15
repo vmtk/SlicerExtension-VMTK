@@ -16,6 +16,7 @@ import json
 import logging
 import unittest
 
+import numpy as np
 import slicer
 import vtk
 from vtk.util.numpy_support import vtk_to_numpy
@@ -41,6 +42,23 @@ class InheritedNamesEndToEndTest(CfdMeshGeneratorTestCase):
             sys.path.append(clipVesselTests)
         from ClipVesselTestFixture import aortaCase
         cls.case = aortaCase()
+
+    @staticmethod
+    def controlPointPosition(markups, index):
+        position = [0.0, 0.0, 0.0]
+        markups.GetNthControlPointPositionWorld(index, position)
+        return position
+
+    @staticmethod
+    def capCentres(mesh, cellEntityIdsArrayName, wallFaceId):
+        """Where each cap of the mesh is: {face id: centre of its cells}, wall and volume left out."""
+        ids = vtk_to_numpy(mesh.GetCellData().GetArray(cellEntityIdsArrayName)).astype(np.int64)
+        centers = vtk.vtkCellCenters()
+        centers.SetInputData(mesh)
+        centers.Update()
+        points = vtk_to_numpy(centers.GetOutput().GetPoints().GetData())
+        return {int(faceId): points[ids == faceId].mean(axis=0)
+                for faceId in np.unique(ids) if int(faceId) > wallFaceId}
 
     def clippedWithNothingButTheRecord(self):
         """The aorta clipped as the workflow clips it, and a model node carrying the record.
@@ -106,16 +124,33 @@ class InheritedNamesEndToEndTest(CfdMeshGeneratorTestCase):
         self.assertIn(wallFaceId, onTheMesh)
         self.assertNotIn(wallFaceId, recorded)
 
-        # And the names resolve, cap for cap, to the labels that were typed on the clip points.
+        # The assertion that matters: every recorded face's cap is at the clip point the record
+        # names it after. Comparing the resolved names against the labels in clip point order
+        # would prove nothing - the record is built from that order, so it holds by construction
+        # whatever the mesh did with the ids.
         markups = meshNode.GetNodeReference(CLIP_POINTS_ROLE)
-        resolved = {}
+        self.assertIsNotNone(markups, "the mesh should point at the clip points")
+        capCentres = self.capCentres(mesh, "ModelFaceID", wallFaceId)
         for faceId, controlPointId in json.loads(meshNode.GetAttribute(FACE_ID_MAP_ATTRIBUTE)).items():
+            faceId = int(faceId)
             index = markups.GetNthControlPointIndexByID(controlPointId)
-            resolved[int(faceId)] = markups.GetNthControlPointLabel(index)
-        self.assertEqual(
-            resolved,
-            {faceId: markups.GetNthControlPointLabel(faceId - 2) for faceId in sorted(recorded)},
-            "cap ids and clip point order should agree, wall 1 and caps from 2")
+            self.assertGreaterEqual(index, 0, "face %d names a clip point that is gone" % faceId)
+            self.assertIn(faceId, capCentres, "face %d has no cap on the mesh" % faceId)
+
+            distances = sorted((float(np.linalg.norm(np.array(self.controlPointPosition(markups, other))
+                                                     - capCentres[faceId])), other)
+                               for other in range(markups.GetNumberOfControlPoints()))
+            nearest, nearestIndex = distances[0]
+            runnerUp = distances[1][0] if len(distances) > 1 else float("inf")
+            self.assertEqual(
+                index, nearestIndex,
+                "the cap carrying face id %d sits at clip point %d (%r, %.2f mm away), not at "
+                "the one the record names it after (%r)"
+                % (faceId, nearestIndex, markups.GetNthControlPointLabel(nearestIndex), nearest,
+                   markups.GetNthControlPointLabel(index)))
+            self.assertLess(nearest * 4, runnerUp,
+                            "cap %d is %.2f mm from its clip point and %.2f mm from the next, "
+                            "too close to tell apart" % (faceId, nearest, runnerUp))
 
         # The wall should be far and away the largest face; a record that had the wall and a cap
         # the wrong way round would still satisfy everything above.
