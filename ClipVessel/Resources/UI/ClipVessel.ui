@@ -479,6 +479,34 @@
      </property>
      <layout class="QVBoxLayout" name="verticalLayout_2">
       <item>
+       <widget class="ctkCollapsibleGroupBox" name="clipPointNamesCollapsibleGroupBox">
+        <property name="title">
+         <string>Vessel names</string>
+        </property>
+        <property name="collapsed">
+         <bool>true</bool>
+        </property>
+        <layout class="QVBoxLayout" name="clipPointNamesLayout">
+         <item>
+          <widget class="QTableWidget" name="clipPointNamesTable">
+           <property name="toolTip">
+            <string>Every clip point and the name of the vessel end it marks, in clip point order. Click a name to edit it. These are the names the caps carry downstream - into the volume mesh, the mesh-surfaces file names, and the boundary condition names a solver reports results under - so naming here means not naming again after meshing. Selecting a row also selects that clip point in the 3D views, so you can see which end you are naming.</string>
+           </property>
+           <property name="selectionBehavior">
+            <enum>QAbstractItemView::SelectRows</enum>
+           </property>
+           <property name="selectionMode">
+            <enum>QAbstractItemView::SingleSelection</enum>
+           </property>
+           <property name="minimumHeight">
+            <number>140</number>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item>
        <widget class="ctkCollapsibleGroupBox" name="CollapsibleGroupBox_3">
         <property name="title">
          <string>Preprocess</string>
