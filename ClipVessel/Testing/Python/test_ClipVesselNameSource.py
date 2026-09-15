@@ -35,6 +35,56 @@ def resolveNames(modelNode):
     return names
 
 
+def assertEachRecordedFaceIsAtItsClipPoint(test, modelNode, clipPointsNode, surface,
+                                           boundaryLabelsArrayName="BoundaryLabels"):
+    """Every recorded face id belongs to the vessel end its clip point marks.
+
+    The geometric check, and the only one that means anything. Comparing the resolved names
+    against lastFaceIdAssignments, or against the labels in clip point order, compares two things
+    built from the same order - so it holds by construction whatever the ids ended up on.
+
+    Read off the clipped surface's own boundary labels: with the output uncapped there are no caps
+    yet, but each vessel end's rim carries the face id its cap is to have, which is the same
+    claim one step earlier.
+    """
+    import numpy as np
+    from vtk.util.numpy_support import vtk_to_numpy
+
+    stored = modelNode.GetAttribute(FACE_ID_TO_CLIP_POINT_ID_ATTRIBUTE)
+    test.assertTrue(stored, "nothing was recorded, so this asserts nothing")
+    labels = vtk_to_numpy(surface.GetPointData().GetArray(boundaryLabelsArrayName)).astype(int)
+    points = vtk_to_numpy(surface.GetPoints().GetData())
+
+    positions = []
+    for index in range(clipPointsNode.GetNumberOfControlPoints()):
+        position = [0.0, 0.0, 0.0]
+        clipPointsNode.GetNthControlPointPositionWorld(index, position)
+        positions.append(np.array(position))
+
+    for faceId, controlPointId in json.loads(stored).items():
+        faceId = int(faceId)
+        index = clipPointsNode.GetNthControlPointIndexByID(controlPointId)
+        test.assertGreaterEqual(index, 0, "face %d names a clip point that is gone" % faceId)
+        onThisEnd = labels == faceId
+        test.assertTrue(onThisEnd.any(),
+                        "no boundary of the surface carries face id %d" % faceId)
+        centre = points[onThisEnd].mean(axis=0)
+
+        distances = sorted((float(np.linalg.norm(position - centre)), other)
+                           for other, position in enumerate(positions))
+        nearest, nearestIndex = distances[0]
+        runnerUp = distances[1][0] if len(distances) > 1 else float("inf")
+        test.assertEqual(
+            index, nearestIndex,
+            "the end labelled %d lies at clip point %d (%r, %.2f mm away), not at the one the "
+            "record names it after (%r)"
+            % (faceId, nearestIndex, clipPointsNode.GetNthControlPointLabel(nearestIndex),
+               nearest, clipPointsNode.GetNthControlPointLabel(index)))
+        test.assertLess(nearest * 4, runnerUp,
+                        "the end labelled %d is %.2f mm from its clip point and %.2f mm from the "
+                        "next, too close to tell apart" % (faceId, nearest, runnerUp))
+
+
 class ClipVesselNameSourceTest(unittest.TestCase):
     """Built once and shared: building the case clips a real aorta.
 
@@ -47,10 +97,15 @@ class ClipVesselNameSourceTest(unittest.TestCase):
         cls.case = aortaCase()
 
     def recordedCase(self, **clipArguments):
-        """Clip the aorta and record the name source on a model node, as Apply does."""
+        """Clip the aorta and record the name source on a model node, as Apply does.
+
+        The clipped surface goes on the node as well, as Apply puts it there, so that what was
+        recorded can be held against the geometry it describes.
+        """
         case = self.case
-        case.clip(**clipArguments)
+        surface = case.clip(**clipArguments)
         outputModelNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "Clipped")
+        outputModelNode.SetAndObserveMesh(surface)
         case.logic.recordNameSource(outputModelNode, case.clipPointsMarkupsNode)
         return case, outputModelNode
 
@@ -66,8 +121,12 @@ class ClipVesselNameSourceTest(unittest.TestCase):
         self.assertEqual(outputModelNode.GetNodeReference(CLIP_POINTS_NODE_REFERENCE_ROLE),
                          case.clipPointsMarkupsNode)
         self.assertEqual(outputModelNode.GetAttribute(WALL_FACE_ID_ATTRIBUTE), "1")
-        self.assertEqual(resolveNames(outputModelNode), dict(case.logic.lastFaceIdAssignments))
         self.assertEqual(len(resolveNames(outputModelNode)), case.numberOfClipPoints)
+        # Agrees with what the status line and the colour table show...
+        self.assertEqual(resolveNames(outputModelNode), dict(case.logic.lastFaceIdAssignments))
+        # ...and, the part that is not circular, with where the vessel ends actually are.
+        assertEachRecordedFaceIsAtItsClipPoint(
+            self, outputModelNode, case.clipPointsMarkupsNode, outputModelNode.GetPolyData())
 
     def test_the_names_survive_flow_extensions(self):
         """Growing a flow extension does not cost the names.
@@ -79,6 +138,7 @@ class ClipVesselNameSourceTest(unittest.TestCase):
         """
         case, outputModelNode = self.recordedCase(cap=True, addFlowExtensions=True)
         self.assertEqual(resolveNames(outputModelNode), dict(case.logic.lastFaceIdAssignments))
+        self.assertEqual(len(resolveNames(outputModelNode)), case.numberOfClipPoints)
 
     def test_renaming_a_clip_point_renames_its_face(self):
         """The name follows the control point, with nothing re-clipped and nothing re-recorded.
@@ -151,14 +211,32 @@ class ClipVesselNameSourceTest(unittest.TestCase):
         case.logic.recordNameSource(outputModelNode, case.clipPointsMarkupsNode)
 
         # No face id array on the surface at all, and the record is there all the same.
-        self.assertIsNone(case.clip(cap=False, labelModelFaces=False)
-                          .GetCellData().GetArray("ModelFaceID"))
+        uncapped = case.clip(cap=False, labelModelFaces=False)
+        self.assertIsNone(uncapped.GetCellData().GetArray("ModelFaceID"))
         case.logic.recordNameSource(outputModelNode, case.clipPointsMarkupsNode)
         self.assertEqual(outputModelNode.GetAttribute(WALL_FACE_ID_ATTRIBUTE), "1")
-        self.assertEqual(
-            resolveNames(outputModelNode),
-            {faceId: case.clipPointsMarkupsNode.GetNthControlPointLabel(faceId - 2)
-             for faceId in range(2, 2 + case.numberOfClipPoints)})
+        self.assertEqual(len(resolveNames(outputModelNode)), case.numberOfClipPoints)
+        assertEachRecordedFaceIsAtItsClipPoint(
+            self, outputModelNode, case.clipPointsMarkupsNode, uncapped)
+
+    def test_the_geometric_check_catches_a_record_that_is_wrong(self):
+        """Proves the assertion above has teeth.
+
+        The other tests all pass, so on their own they do not show that the check could fail.
+        Swapping two entries of the record leaves it looking entirely valid - the same face ids,
+        each naming a real clip point - and only the geometry disagrees. That is exactly the shape
+        the boundary layer bug had, and what a check on ids alone cannot see.
+        """
+        case, outputModelNode = self.recordedCase(cap=True)
+        stored = json.loads(outputModelNode.GetAttribute(FACE_ID_TO_CLIP_POINT_ID_ATTRIBUTE))
+        faceIds = sorted(stored, key=int)
+        self.assertGreaterEqual(len(faceIds), 2)
+        stored[faceIds[0]], stored[faceIds[1]] = stored[faceIds[1]], stored[faceIds[0]]
+        outputModelNode.SetAttribute(FACE_ID_TO_CLIP_POINT_ID_ATTRIBUTE, json.dumps(stored))
+
+        with self.assertRaises(AssertionError):
+            assertEachRecordedFaceIsAtItsClipPoint(
+                self, outputModelNode, case.clipPointsMarkupsNode, outputModelNode.GetPolyData())
 
     def test_a_run_that_matched_no_boundary_records_nothing(self):
         """And clears what the run before left, rather than describing a surface that is gone.

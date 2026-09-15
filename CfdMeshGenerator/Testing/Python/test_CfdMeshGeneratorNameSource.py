@@ -179,6 +179,112 @@ class CfdMeshGeneratorNameSourceTest(CfdMeshGeneratorTestCase):
         self.assertIsNone(mesh.GetAttribute(FACE_ID_MAP_ATTRIBUTE))
         self.assertIsNone(mesh.GetAttribute(WALL_FACE_ID_ATTRIBUTE))
 
+    # -- the geometric check ------------------------------------------------------------
+    def gridWithFacesAt(self, positionsByFaceId):
+        """A grid with a few cells on each face id, clustered at the given position.
+
+        Enough for the check under test, which reads only where the cells of a face average out.
+        """
+        grid = vtk.vtkUnstructuredGrid()
+        points = vtk.vtkPoints()
+        array = vtk.vtkIntArray()
+        array.SetName("ModelFaceID")
+        for faceId, position in sorted(positionsByFaceId.items()):
+            for corner in ((0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.0, 0.1, 0.0)):
+                points.InsertNextPoint(position[0] + corner[0], position[1] + corner[1],
+                                       position[2] + corner[2])
+            first = points.GetNumberOfPoints() - 3
+            triangle = vtk.vtkTriangle()
+            for corner in range(3):
+                triangle.GetPointIds().SetId(corner, first + corner)
+            grid.InsertNextCell(triangle.GetCellType(), triangle.GetPointIds())
+            array.InsertNextValue(faceId)
+        grid.SetPoints(points)
+        grid.GetCellData().AddArray(array)
+        return grid
+
+    def clipPointsAt(self, positions):
+        """A markups node with a control point at each position, and its control point IDs."""
+        markups = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", "Clip points")
+        ids = []
+        for index, position in enumerate(positions):
+            markups.AddControlPoint(list(position))
+            markups.SetNthControlPointLabel(index, "end %d" % index)
+            ids.append(markups.GetNthControlPointID(index))
+        return markups, ids
+
+    def test_CfdMeshGeneratorAcceptsCapsThatSitAtTheirOwnClipPoints(self):
+        """Nothing said when the record and the geometry agree."""
+        markups, ids = self.clipPointsAt([(0.0, 0.0, 0.0), (50.0, 0.0, 0.0)])
+        mesh = self.gridWithFacesAt({2: (0.0, 0.0, 0.0), 3: (50.0, 0.0, 0.0)})
+        faceIdMap = json.dumps({"2": ids[0], "3": ids[1]})
+
+        logic = RecordingLogic()
+        logic.checkCapsSitAtTheirClipPoints(markups, faceIdMap, mesh, "ModelFaceID")
+        self.assertEqual(logic.warnings, [])
+
+    def test_CfdMeshGeneratorSaysWhenTwoCapIdsAreSwapped(self):
+        """The fault no other check can see.
+
+        The ids are the expected set, every one is present and in range, and each names a real
+        clip point - they are simply on each other's caps. Only the geometry disagrees.
+        """
+        markups, ids = self.clipPointsAt([(0.0, 0.0, 0.0), (50.0, 0.0, 0.0)])
+        mesh = self.gridWithFacesAt({2: (0.0, 0.0, 0.0), 3: (50.0, 0.0, 0.0)})
+        swapped = json.dumps({"2": ids[1], "3": ids[0]})
+
+        logic = RecordingLogic()
+        logic.checkCapsSitAtTheirClipPoints(markups, swapped, mesh, "ModelFaceID")
+        self.assertEqual(len(logic.warnings), 1)
+        self.assertIn("2", logic.warnings[0])
+        self.assertIn("3", logic.warnings[0])
+
+    def test_CfdMeshGeneratorSaysWhenThreeCapIdsAreRotated(self):
+        """A rotation rather than a swap, which is what the boundary layer bug actually did."""
+        markups, ids = self.clipPointsAt([(0.0, 0.0, 0.0), (50.0, 0.0, 0.0), (0.0, 50.0, 0.0)])
+        mesh = self.gridWithFacesAt({2: (0.0, 0.0, 0.0), 3: (50.0, 0.0, 0.0), 4: (0.0, 50.0, 0.0)})
+        rotated = json.dumps({"2": ids[1], "3": ids[2], "4": ids[0]})
+
+        logic = RecordingLogic()
+        logic.checkCapsSitAtTheirClipPoints(markups, rotated, mesh, "ModelFaceID")
+        self.assertEqual(len(logic.warnings), 1)
+
+    def test_CfdMeshGeneratorSaysNothingAboutASingleVesselEnd(self):
+        """One end, so there is nothing a permutation could have done and nothing to report."""
+        markups, ids = self.clipPointsAt([(0.0, 0.0, 0.0)])
+        mesh = self.gridWithFacesAt({2: (40.0, 0.0, 0.0)})
+
+        logic = RecordingLogic()
+        logic.checkCapsSitAtTheirClipPoints(markups, json.dumps({"2": ids[0]}), mesh, "ModelFaceID")
+        self.assertEqual(logic.warnings, [])
+
+    def test_CfdMeshGeneratorSaysNothingWhenAClipPointIsGone(self):
+        """A face whose clip point was deleted comes out unnamed downstream, which is the right
+        answer already; there is nothing left to hold it against."""
+        markups, ids = self.clipPointsAt([(0.0, 0.0, 0.0), (50.0, 0.0, 0.0)])
+        mesh = self.gridWithFacesAt({2: (0.0, 0.0, 0.0), 3: (50.0, 0.0, 0.0)})
+        faceIdMap = json.dumps({"2": ids[0], "3": ids[1]})
+        markups.RemoveNthControlPoint(1)
+
+        logic = RecordingLogic()
+        logic.checkCapsSitAtTheirClipPoints(markups, faceIdMap, mesh, "ModelFaceID")
+        self.assertEqual(logic.warnings, [])
+
+    def test_CfdMeshGeneratorChecksTheGeometryFromCopyNameSource(self):
+        """The check is reached by the ordinary path, not only when called directly."""
+        markups, ids = self.clipPointsAt([(0.0, 0.0, 0.0), (50.0, 0.0, 0.0)])
+        surface = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "Clipped surface")
+        surface.SetNodeReferenceID(CLIP_POINTS_ROLE, markups.GetID())
+        surface.SetAttribute(FACE_ID_MAP_ATTRIBUTE, json.dumps({"2": ids[1], "3": ids[0]}))
+        surface.SetAttribute(WALL_FACE_ID_ATTRIBUTE, "1")
+        mesh = self.gridWithFacesAt({2: (0.0, 0.0, 0.0), 3: (50.0, 0.0, 0.0)})
+        meshNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLModelNode", "Mesh")
+
+        logic = RecordingLogic()
+        logic.copyNameSource(surface, meshNode, mesh, "ModelFaceID")
+        self.assertTrue(any("not where" in text for text in logic.warnings),
+                        "copyNameSource should report the swap: %s" % logic.warnings)
+
     def test_CfdMeshGeneratorNameSourceSurvivesASavedScene(self):
         """The record comes back with the scene, which is what makes naming a mesh worth doing once.
 
