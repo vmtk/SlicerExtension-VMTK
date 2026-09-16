@@ -47,7 +47,7 @@
            <property name="bottomMargin"><number>0</number></property>
            <item>
             <widget class="QDoubleSpinBox" name="minimumAngleSpinBox">
-             <property name="toolTip"><string>Hide angle labels, arcs, and rays below this value. Angles equal to the threshold remain visible.</string></property>
+             <property name="toolTip"><string>Hide angle annotations below this value. Angles equal to the threshold remain visible.</string></property>
              <property name="suffix"><string> degrees</string></property>
              <property name="maximum"><double>180.000000000000000</double></property>
              <property name="singleStep"><double>5.000000000000000</double></property>
@@ -73,38 +73,27 @@
          </widget>
         </item>
         <item row="1" column="1">
-         <widget class="QCheckBox" name="showArcs">
-          <property name="text"><string>Arcs</string></property>
-          <property name="checked"><bool>true</bool></property>
-         </widget>
-        </item>
-        <item row="2" column="1">
          <widget class="QCheckBox" name="showAnnotations">
           <property name="text"><string>Angle annotations</string></property>
           <property name="checked"><bool>true</bool></property>
          </widget>
         </item>
-        <item row="3" column="1">
-         <widget class="QCheckBox" name="showRays">
-          <property name="text"><string>Rays</string></property>
-          <property name="checked"><bool>true</bool></property>
-         </widget>
-        </item>
-        <item row="4" column="1">
+        <item row="2" column="1">
          <widget class="QCheckBox" name="showVectors">
           <property name="text"><string>Vectors</string></property>
           <property name="checked"><bool>true</bool></property>
          </widget>
         </item>
-        <item row="5" column="0"><widget class="QLabel" name="rayColorButtonLabel"><property name="text"><string>Ray color:</string></property></widget></item>
-        <item row="5" column="1"><widget class="ctkColorPickerButton" name="rayColorButton"><property name="color"><color><red>255</red><green>255</green><blue>0</blue></color></property></widget></item>
-        <item row="6" column="0"><widget class="QLabel" name="vectorColorButtonLabel"><property name="text"><string>Vector color:</string></property></widget></item>
-        <item row="6" column="1"><widget class="ctkColorPickerButton" name="vectorColorButton"><property name="color"><color><red>255</red><green>128</green><blue>0</blue></color></property></widget></item>
-        <item row="7" column="0"><widget class="QLabel" name="pairTypesLabel"><property name="text"><string>Angle pairs:</string></property></widget></item>
-        <item row="7" column="1"><widget class="QCheckBox" name="showParentChild"><property name="text"><string>Parent-child angles</string></property><property name="checked"><bool>true</bool></property></widget></item>
-        <item row="8" column="1"><widget class="QCheckBox" name="showChildChild"><property name="text"><string>Child-child angles</string></property><property name="checked"><bool>true</bool></property></widget></item>
-        <item row="9" column="0"><widget class="QLabel" name="branchOrdersLabel"><property name="text"><string>Branch orders:</string></property></widget></item>
-        <item row="9" column="1"><widget class="QWidget" name="branchOrdersWidget"><layout class="QVBoxLayout" name="branchOrdersLayout"/></widget></item>
+        <item row="3" column="0"><widget class="QLabel" name="vectorColorButtonLabel"><property name="text"><string>Vector color:</string></property></widget></item>
+        <item row="3" column="1"><widget class="ctkColorPickerButton" name="vectorColorButton"><property name="color"><color><red>255</red><green>128</green><blue>0</blue></color></property></widget></item>
+        <item row="4" column="0"><widget class="QLabel" name="pairTypesLabel"><property name="text"><string>Angle pairs:</string></property></widget></item>
+        <item row="4" column="1"><widget class="QCheckBox" name="showParentChild"><property name="text"><string>Parent-child angles</string></property><property name="checked"><bool>true</bool></property></widget></item>
+        <item row="5" column="1"><widget class="QCheckBox" name="showChildChild"><property name="text"><string>Child-child angles</string></property><property name="checked"><bool>true</bool></property></widget></item>
+        <item row="6" column="0"><widget class="QLabel" name="branchOrdersLabel"><property name="text"><string>Branch orders:</string></property></widget></item>
+        <item row="6" column="1"><widget class="QWidget" name="branchOrdersWidget"><layout class="QVBoxLayout" name="branchOrdersLayout"/></widget></item>
+        <item row="7" column="0"><widget class="QLabel" name="interactionLabel"><property name="text"><string>Interaction:</string></property></widget></item>
+        <item row="7" column="1"><widget class="QCheckBox" name="snapToCenterline"><property name="text"><string>Snap dragged vector endpoints to the centerline</string></property><property name="toolTip"><string>Keep a dragged bifurcation vector endpoint on the centerline the angles were computed from. Only the endpoint being dragged is moved.</string></property><property name="checked"><bool>true</bool></property></widget></item>
+        <item row="8" column="1"><widget class="QPushButton" name="resetSelectedVectorButton"><property name="text"><string>Reset selected vector</string></property><property name="toolTip"><string>Restore the selected bifurcation vector to the endpoints generated from the centerline, and the angles measured from it with them.</string></property></widget></item>
        </layout>
       </widget>
      </item>
@@ -130,6 +119,8 @@
   <tabstop>minimumAngleSpinBox</tabstop>
   <tabstop>filterButton</tabstop>
   <tabstop>showAllButton</tabstop>
+  <tabstop>snapToCenterline</tabstop>
+  <tabstop>resetSelectedVectorButton</tabstop>
  </tabstops>
  <resources/>
  <connections>
