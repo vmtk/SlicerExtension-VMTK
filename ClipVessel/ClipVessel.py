@@ -38,6 +38,34 @@ _DEFAULT_MODEL_FACE_ID_ARRAY_NAME = "ModelFaceID"
 _DEFAULT_BOUNDARY_LABELS_ARRAY_NAME = "BoundaryLabels"
 _DEFAULT_BOUNDARY_POINT_ORDER_ARRAY_NAME = "BoundaryPointOrder"
 
+# Columns of the clip point naming table, and which of them the operator edits.
+#
+# A clip point's label is the name its cap carries downstream, so this table is where the naming
+# of a case actually happens - during clipping rather than after meshing, which is the point of
+# it: nobody should wait fifteen minutes for a mesh to find out what they have to type, and wait
+# again for another if the meshing parameters change.
+_CLIP_POINT_NAME_COLUMNS = ("Point", "Vessel name")
+_CLIP_POINT_NAME_COLUMN = _CLIP_POINT_NAME_COLUMNS.index("Vessel name")
+
+# Where a face id's *name* is to be found, recorded on the output model node so that it travels:
+# the node reference points at the clip points markups node whose control point labels the names
+# are, and the attribute says which control point each face id came from. A face id is a number
+# and a boundary condition is per vessel, so something downstream - CFD Mesh Generator, then a
+# case setup - has to be able to get from the one to the other, and the offset between a face id
+# and its clip point's index is not recoverable from the output on its own (see faceIdLayout).
+#
+# Keyed by control point *ID*, not index. A cap's face id is firstCapFaceId + clip point index,
+# so deleting a clip point shifts every later index and would quietly move names onto their
+# neighbours' faces; an ID is stable under insertion and reordering, and a deleted point simply
+# fails the lookup, leaving a face unnamed rather than misnamed.
+#
+# These three names are a wire format: they are read by CFD Mesh Generator here, and by
+# SimVascular Mesh Prep in another extension, which cannot import this file. Renaming one means
+# changing those readers too.
+FACE_ID_TO_CLIP_POINT_ID_ATTRIBUTE = "ClipVessel.FaceIdToClipPointID"
+WALL_FACE_ID_ATTRIBUTE = "ClipVessel.WallFaceID"
+CLIP_POINTS_NODE_REFERENCE_ROLE = "ClipPoints"
+
 # Shape of the mesh that closes a clipped end, one VMTK capping filter each (the methods of the
 # vmtksurfacecapper script that apply to a surface with single, unpaired open boundaries).
 _CAP_METHOD_IDS = ("CENTERPOINT", "SIMPLE", "SMOOTH")
@@ -120,6 +148,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self._normalHandleDistance = 1.0
     self._planeEditing = False
     self._updatingManualPlaneButtons = False
+    self._updatingClipPointName = False
     self._preprocessedCacheKey = None
     self._preprocessedPolyData = None
     self._applying = False
@@ -230,6 +259,14 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.enableManualPlaneOrigin.connect("toggled(bool)", self.onEnableManualPlaneOriginToggled)
     self.ui.enableManualPlaneNormal.connect("toggled(bool)", self.onEnableManualPlaneNormalToggled)
     self.ui.extensionScaleWidget.connect('valueChanged(double)', self.onExtensionScaleChanged)
+    table = self.ui.clipPointNamesTable
+    table.setColumnCount(len(_CLIP_POINT_NAME_COLUMNS))
+    table.setHorizontalHeaderLabels([_(name) for name in _CLIP_POINT_NAME_COLUMNS])
+    table.verticalHeader().setVisible(False)
+    table.horizontalHeader().setSectionResizeMode(0, qt.QHeaderView.ResizeToContents)
+    table.horizontalHeader().setSectionResizeMode(1, qt.QHeaderView.Stretch)
+    table.connect('itemSelectionChanged()', self.onClipPointNameRowSelected)
+    table.connect('cellChanged(int,int)', self.onClipPointNameEdited)
     self.ui.enableManualPlaneOrigin.setIcon(qt.QIcon(self.resourcePath('Icons/ManualPlaneOrigin.svg')))
     self.ui.enableManualPlaneNormal.setIcon(qt.QIcon(self.resourcePath('Icons/ManualPlaneNormal.svg')))
     # None of these carries a checked state. A checked button would be saying what the display
@@ -344,6 +381,9 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.advancedCollapsibleButton.enabled = parameterNode is not None
     if parameterNode is None:
         return
+    # A loaded scene brings its own clip points and its own added names, so the table is
+    # rebuilt here rather than only at setup, when there was no parameter node to read from.
+    self.rebuildClipPointNamesTable()
 
     if self.updatingGUIFromParameterNode:
         return
@@ -597,6 +637,7 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.addObserver(clipPointsNode, slicer.vtkMRMLMarkupsNode.PointPositionDefinedEvent, self.onClipPointAdded)
         self.addObserver(clipPointsNode, slicer.vtkMRMLMarkupsNode.PointRemovedEvent, self.onClipPointRemoved)
         self.updateClipPointsSnapMode()
+    self.rebuildClipPointNamesTable()
 
   def activeClipPointId(self):
     """Control point ID of the clip point whose plane is being edited, or None."""
@@ -800,6 +841,102 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.extensionScaleWidget.value = self._extensionLengthScaleFactors.get(pointId, 1.0) if pointId is not None else 1.0
     self._updatingManualPlaneButtons = False
     self.updateClipPointsSnapMode()
+
+  # -- naming the clip points --------------------------------------------------------------
+  def rebuildClipPointNamesTable(self):
+    """One row per clip point, its name editable in place.
+
+    A table rather than a control for whichever point is selected. With two dozen vessel ends the
+    question an operator has is which of them are still called *Outlet 7*, and that is a list you
+    read - not something you discover by clicking every point in a crowded 3D view in turn. It is
+    the same shape as the faces table in SimVascular Mesh Prep, which is this same job at the
+    other end of the pipeline, and it replaces right-click-rename on each point.
+
+    The rows are in clip point order, which is also the order the caps are numbered in
+    downstream, so row 1 is the end whose cap comes first.
+    """
+    clipPointsNode = self._parameterNode.GetNodeReference("ClipPoints") if self._parameterNode else None
+    count = clipPointsNode.GetNumberOfControlPoints() if clipPointsNode else 0
+    table = self.ui.clipPointNamesTable
+    self._updatingClipPointName = True
+    try:
+        table.setRowCount(count)
+        for row in range(count):
+            values = (str(row + 1), clipPointsNode.GetNthControlPointLabel(row))
+            for column, value in enumerate(values):
+                # Reused where there is one already, and only handed to the table when it is
+                # new: setItem on an item the table already owns is refused, with a Qt warning
+                # per cell that buries everything else in the log.
+                item = table.item(row, column)
+                if item is None:
+                    item = qt.QTableWidgetItem()
+                    table.setItem(row, column, item)
+                item.setText(value)
+                if column == _CLIP_POINT_NAME_COLUMN:
+                    item.setFlags(item.flags() | qt.Qt.ItemIsEditable)
+                else:
+                    item.setFlags(qt.Qt.ItemIsEnabled | qt.Qt.ItemIsSelectable)
+    finally:
+        self._updatingClipPointName = False
+
+  def refreshClipPointNameLabels(self):
+    """Put the current labels back into the rows, without rebuilding them.
+
+    Separate from the rebuild because a point being dragged fires modified events continuously,
+    and setting a row count on every one of them is work for nothing. Only cells whose text has
+    actually changed are touched.
+    """
+    clipPointsNode = self._parameterNode.GetNodeReference("ClipPoints") if self._parameterNode else None
+    table = self.ui.clipPointNamesTable
+    if not clipPointsNode or table.rowCount != clipPointsNode.GetNumberOfControlPoints():
+        return
+    self._updatingClipPointName = True
+    try:
+        for row in range(table.rowCount):
+            item = table.item(row, _CLIP_POINT_NAME_COLUMN)
+            label = clipPointsNode.GetNthControlPointLabel(row)
+            if item is not None and item.text() != label:
+                item.setText(label)
+    finally:
+        self._updatingClipPointName = False
+
+  def onClipPointNameEdited(self, row, column):
+    """Give the clip point in this row the name that was typed against it."""
+    if self._updatingClipPointName or self.updatingGUIFromParameterNode:
+        return
+    if column != _CLIP_POINT_NAME_COLUMN:
+        return
+    clipPointsNode = self._parameterNode.GetNodeReference("ClipPoints") if self._parameterNode else None
+    if not clipPointsNode or not (0 <= row < clipPointsNode.GetNumberOfControlPoints()):
+        return
+    item = self.ui.clipPointNamesTable.item(row, column)
+    name = (item.text() if item else "").strip()
+    if not name or name == clipPointsNode.GetNthControlPointLabel(row):
+        # An empty cell is not a request to unname a point - a point with no label at all is one
+        # whose cap arrives unnamed downstream - so the name it had is put back in the cell.
+        self.rebuildClipPointNamesTable()
+        return
+    clipPointsNode.SetNthControlPointLabel(row, name)
+
+  def onClipPointNameRowSelected(self):
+    """Selecting a row selects that clip point in the views, so the name has something to name.
+
+    Reading a name off a row says nothing about where that vessel end is on the anatomy, so the
+    point is made the markups node's active one, which is what draws it as selected in the 3D
+    views. Naming and seeing which one you are naming is the same gesture.
+    """
+    if self._updatingClipPointName:
+        return
+    clipPointsNode = self._parameterNode.GetNodeReference("ClipPoints") if self._parameterNode else None
+    if not clipPointsNode:
+        return
+    rows = {index.row() for index in self.ui.clipPointNamesTable.selectedIndexes()}
+    if len(rows) != 1:
+        return
+    row = rows.pop()
+    displayNode = clipPointsNode.GetDisplayNode()
+    if displayNode and 0 <= row < clipPointsNode.GetNumberOfControlPoints():
+        displayNode.SetActiveControlPoint(row)
 
   def onExtensionScaleChanged(self, value=None):
     if self.updatingGUIFromParameterNode or self._updatingManualPlaneButtons:
@@ -1180,6 +1317,9 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self._updatingInteractivePlane = False
 
   def onClipPointModified(self, caller=None, event=None):
+    # Ahead of the guard below: a point can be renamed - from the markups module, or by a script -
+    # with no plane being edited at all, and the table has to follow that.
+    self.refreshClipPointNameLabels()
     if self._updatingInteractivePlane or self._activeClipPointIndex < 0:
         return
     planeNode = self._parameterNode.GetNodeReference("ManualClipPlane")
@@ -1271,12 +1411,14 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     """A newly placed clip point adds a cut, so refresh the output. Observing the
     position-defined event rather than the point-added event skips the preview point that
     follows the mouse while placement is still in progress."""
+    self.rebuildClipPointNamesTable()
     if self._updatingInteractivePlane:
         return
     self.scheduleAutoApply()
 
   def onClipPointRemoved(self, caller=None, event=None):
     """A deleted clip point removes a cut, so refresh the output."""
+    self.rebuildClipPointNamesTable()
     if self._updatingInteractivePlane:
         return
     self.forgetRemovedClipPointOverrides(caller)
@@ -1563,6 +1705,10 @@ class ClipVesselWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                                                    boundaryLabelsArrayName, boundaryPointOrderArrayName)
 
             outputModelNode.SetAndObserveMesh(outputPolyData)
+            # Where the face names live, on the output node rather than on the parameter node:
+            # this is the one piece of what the run worked out that has to travel with the
+            # surface, through meshing and into a case setup.
+            self.logic.recordNameSource(outputModelNode, clipPointsMarkupsNode)
             if not outputModelNode.GetDisplayNode():
                 outputModelNode.CreateDefaultDisplayNodes()
                 outputModelNode.GetDisplayNode().SetColor(0.75, 0.75, 0.75)
@@ -1664,6 +1810,9 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
     # input labeled every cell, leaving no wall to label.
     self.lastWallFaceId = None
     self.lastExistingFaceIdMap = {}
+    # {faceId: control point ID} for the caps, which is the map published on the output model
+    # node so that the names can be read downstream.
+    self.lastFaceIdControlPointIds = {}
     # Filled in by clipVessel() rather than by labelModelFaces(), so a caller that labels a
     # surface directly leaves whatever the last clip put here -- which is how the cap names of
     # one run used to turn up in the legend of the next.
@@ -1702,7 +1851,11 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
     if not parameterNode.GetParameter("SubdivideInputSurface"):
         parameterNode.SetParameter("SubdivideInputSurface", "false")
     if not parameterNode.GetParameter("CapOutputSurface"):
-        parameterNode.SetParameter("CapOutputSurface", "true")
+        # Off by default. The common next step is CFD Mesh Generator, which makes the caps
+        # itself and makes them where they belong - on the inner surface, past a boundary layer.
+        # Capping here only to have them opened again there is a round trip for nothing, and it
+        # is the setting the checkbox in the panel has always shown.
+        parameterNode.SetParameter("CapOutputSurface", "false")
     if parameterNode.GetParameter("CapMethod") not in _CAP_METHOD_IDS:
         parameterNode.SetParameter("CapMethod", _DEFAULT_CAP_METHOD)
     if not parameterNode.GetParameter("CapConstraintFactor"):
@@ -2271,7 +2424,9 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
       ids the input carried can be dropped between the two calls, and are, whenever a flow
       extension is grown. None derives them here, for a caller outside clipVessel().
     :return: [(faceId, clipPointLabel)] for the caps. lastWallFaceId and lastExistingFaceIdMap
-      describe the rest.
+      describe the rest. Which clip point each face id came from is recorded by clipVessel(),
+      where the boundaries are labelled - it is settled there, and is settled whether or not
+      the faces are ever labelled.
     """
     numberOfCells = surface.GetNumberOfCells()
 
@@ -2396,6 +2551,49 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
     if surface is None or self._runStateSurface is None:
         return False
     return surface is self._runStateSurface and surface.GetMTime() == self._runStateSurfaceMTime
+
+  def recordNameSource(self, outputModelNode, clipPointsMarkupsNode):
+    """Record on outputModelNode where the names of its faces are to be found.
+
+    The face ids the last run handed out travel on the output surface, and from there onto a
+    volume mesh made from it, but a face id is a number: the names are control point labels on
+    the clip points markups node, and nothing on the output points at that node. This writes
+    that pointer down - the node, and which control point each cap's face id came from - so that
+    a downstream module can get from face 14 back to "RSVC" without the operator retyping it.
+
+    A node reference and a node attribute both serialize into MRML, so what is recorded here
+    survives saving and reloading the scene without anything further.
+
+    Anything the last run did not record is cleared rather than left: after a run whose clip
+    points are gone, or one that could not tell which boundary any cut opened, a map kept from
+    the run before would name faces of a surface it no longer describes.
+
+    Note that this does not depend on the faces having been labelled. The mapping is settled
+    when the boundaries are labelled, which happens on every run, so a surface clipped with
+    capping and labeling both off - which is how a workflow that leaves the capping to CFD Mesh
+    Generator runs - still carries the record its mesh will need.
+    """
+    if outputModelNode is None:
+        return
+    faceIdControlPointIds = self.lastFaceIdControlPointIds or {}
+    if clipPointsMarkupsNode is None or not faceIdControlPointIds:
+        outputModelNode.SetNodeReferenceID(CLIP_POINTS_NODE_REFERENCE_ROLE, None)
+        outputModelNode.SetAttribute(FACE_ID_TO_CLIP_POINT_ID_ATTRIBUTE, None)
+        outputModelNode.SetAttribute(WALL_FACE_ID_ATTRIBUTE, None)
+        return
+    outputModelNode.SetNodeReferenceID(CLIP_POINTS_NODE_REFERENCE_ROLE, clipPointsMarkupsNode.GetID())
+    outputModelNode.SetAttribute(
+        FACE_ID_TO_CLIP_POINT_ID_ATTRIBUTE,
+        json.dumps({str(faceId): controlPointId
+                    for faceId, controlPointId in sorted(faceIdControlPointIds.items())},
+                   separators=(",", ":")))
+    # The wall has no clip point, so it is not in the map, and which face it is cannot be worked
+    # out from the map either - it is the id below the first cap only when the input carried no
+    # faces of its own. Downstream it is the one face whose name is known without being asked
+    # for, and the one face that is not meant to be planar.
+    outputModelNode.SetAttribute(
+        WALL_FACE_ID_ATTRIBUTE,
+        str(self.lastWallFaceId) if self.lastWallFaceId is not None else None)
 
   def lastFaceIdLayout(self, surface):
     """The faces of the last labelModelFaces() call as an ordered [(faceId, name)] - the input's
@@ -3219,7 +3417,11 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
         vtk.vtkMath.Normalize(planeNormal)
         planeSpecifications.append({
             "index": controlPointIndex,
+            # The label is what the status line and the colour table show; the ID is what a
+            # downstream module looks the label up again by, after the index has stopped being
+            # a reliable way to find the point (see FACE_ID_TO_CLIP_POINT_ID_ATTRIBUTE).
             "label": clipPointsMarkupsNode.GetNthControlPointLabel(controlPointIndex),
+            "id": controlPointId,
             "origin": tuple(planeOrigin),
             "normal": tuple(planeNormal),
             "radius": radiusArray.GetValue(pointId) if radiusArray else None,
@@ -3306,6 +3508,23 @@ class ClipVesselLogic(ScriptedLoadableModuleLogic, VTKObservationMixin):
                         "their caps take an id of the capping filter's own choosing and their flow "
                         "extensions are left unscaled.",
                         len(unidentifiedLabels), ", ".join(unidentifiedLabels))
+
+    # Which clip point named which face, recorded here rather than where the faces are labelled,
+    # because this is the point at which it is known and it is known whatever the options say. A
+    # boundary's label *is* its cap's face id, so the mapping is settled by firstCapFaceId and the
+    # clip point order, with no cap and no cell array needed to work it out.
+    #
+    # That matters: the case this has to serve leaves both off. Capping is left to CFD Mesh
+    # Generator, which makes the caps past the boundary layer where they belong, and labeling the
+    # faces of a surface that has no caps yet does nothing - so a workflow that clips here and
+    # meshes there runs with cap off and label off, and its face ids come from BoundaryLabels.
+    # Recorded from the labeling instead, the names would be there in exactly the runs that do not
+    # need them and missing from the one that does.
+    self.lastWallFaceId = wallFaceId
+    self.lastFaceIdControlPointIds = {
+        firstCapFaceId + specification["index"]: specification["id"]
+        for specification in planeSpecifications
+        if specification.get("id") and specification["index"] not in unmatchedClipPointIndices}
 
     if addFlowExtensions:
         slicer.util.showStatusMessage(_("Adding extensions..."))

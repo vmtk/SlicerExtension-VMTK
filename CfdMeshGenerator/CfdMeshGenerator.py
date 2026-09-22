@@ -879,6 +879,8 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic, MeshingPipeline):
             parameters.inputSurface.GetPolyData(), **arguments)
 
         parameters.outputMesh.SetAndObserveMesh(mesh)
+        self.copyNameSource(parameters.inputSurface, parameters.outputMesh, mesh,
+                            cellEntityIdsArrayName)
         if self.showMeshInScene(parameters.outputMesh, cellEntityIdsArrayName, showEdges=True):
             # The mesh was made from the input surface, so it stands exactly where the surface
             # does and is hidden behind it. Only the first time it is shown: after that the
@@ -887,6 +889,10 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic, MeshingPipeline):
             self.hideNode(parameters.inputSurface)
         if parameters.outputRemeshedSurface:
             parameters.outputRemeshedSurface.SetAndObserveMesh(remeshedSurface)
+            # It carries the same face ids as the volume mesh and can be fed onward, so it gets
+            # the same record of where their names are.
+            self.copyNameSource(parameters.inputSurface, parameters.outputRemeshedSurface,
+                                remeshedSurface, cellEntityIdsArrayName)
             self.showMeshInScene(parameters.outputRemeshedSurface, cellEntityIdsArrayName)
 
         self.say(_("Meshing completed in {seconds:.1f} seconds: {cells} cells, {points} points.")
@@ -1185,6 +1191,162 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic, MeshingPipeline):
         return clipNode
 
     displaySetUpAttributeName = "CfdMeshGenerator.DisplaySetUp"
+
+    # Where Clip Vessel records which clip point named each face of the surface it hands over: a
+    # node reference to the clip points markups node, and an attribute mapping face id to control
+    # point ID. The names themselves are control point labels, so all that travels is the pointer.
+    # Copied onto the volume mesh here, unread, because this module is in the middle of the chain:
+    # the face ids carry through meshing, and the names have to carry with them or a case setup
+    # downstream is back to naming twenty-odd caps by eye.
+    #
+    # Declared again rather than imported from ClipVessel, which is how this module already treats
+    # the array names it shares with it (see DEFAULT_BOUNDARY_LABELS_ARRAY_NAME).
+    clipPointsNodeReferenceRole = "ClipPoints"
+    nameSourceAttributeNames = ("ClipVessel.FaceIdToClipPointID", "ClipVessel.WallFaceID")
+
+    def copyNameSource(self, inputSurface, outputMesh, mesh, cellEntityIdsArrayName):
+        """Carry the record of where the face names live from the input surface onto the mesh.
+
+        Cleared rather than left behind when the input carries none: a mesh made from a surface
+        that was not clipped here must not keep the map of the mesh that was in the node before
+        it, which would name its faces after somebody else's vessels.
+
+        Two checks, because this is the last point at which either fault is cheap to notice, and
+        neither is noticeable downstream - a case setup sees only numbers.
+
+        A recorded face the mesh has no cells on means a cap was lost; meshing can drop one, since
+        a boundary layer strips the caps and remakes them.
+
+        And a recorded face whose cap is not *where* its clip point is means the numbering moved
+        under the record. That check is the one worth having: the ids being present proves nothing,
+        because a permutation of them is still the expected set, still in range, and still looks
+        right in the views. See checkCapsSitAtTheirClipPoints.
+        """
+        if not outputMesh:
+            return
+        if not inputSurface:
+            for attributeName in self.nameSourceAttributeNames:
+                outputMesh.SetAttribute(attributeName, None)
+            outputMesh.SetNodeReferenceID(self.clipPointsNodeReferenceRole, None)
+            return
+        clipPoints = inputSurface.GetNodeReference(self.clipPointsNodeReferenceRole)
+        outputMesh.SetNodeReferenceID(self.clipPointsNodeReferenceRole,
+                                      clipPoints.GetID() if clipPoints else None)
+        for attributeName in self.nameSourceAttributeNames:
+            outputMesh.SetAttribute(attributeName, inputSurface.GetAttribute(attributeName))
+
+        faceIdMap = inputSurface.GetAttribute(self.nameSourceAttributeNames[0])
+        if not faceIdMap or mesh is None:
+            return
+        try:
+            recordedFaceIds = {int(faceId) for faceId in json.loads(faceIdMap)}
+        except (ValueError, TypeError, AttributeError):
+            logging.warning("The input surface's face name map could not be read, so the mesh "
+                            "carries it on unchecked: %s", faceIdMap)
+            return
+        array = mesh.GetCellData().GetArray(cellEntityIdsArrayName)
+        if array is None:
+            return
+        meshFaceIds = {int(array.GetTuple1(index)) for index in range(array.GetNumberOfTuples())}
+        missing = sorted(recordedFaceIds - meshFaceIds)
+        if missing:
+            self.say(_("The mesh has no cells on face(s) {faces}, which the input surface names. "
+                       "Those names have nothing to attach to: check the mesh for a cap that was "
+                       "not remade.").format(faces=", ".join(str(faceId) for faceId in missing)),
+                     logging.WARNING)
+        self.checkCapsSitAtTheirClipPoints(clipPoints, faceIdMap, mesh, cellEntityIdsArrayName)
+
+    def checkCapsSitAtTheirClipPoints(self, clipPointsNode, faceIdMap, mesh,
+                                      cellEntityIdsArrayName):
+        """Say so if a cap is not at the clip point the record names it after.
+
+        The record maps a face id to a control point, and the clip point that control point marks
+        is where that face's cap should physically be. So the record can be held against the
+        geometry, which is the only thing that can catch the numbering having moved: a permutation
+        of the cap ids satisfies every other check there is.
+
+        A warning rather than a refusal. The mesh is good and the names may well be too - a flow
+        extension puts a cap at the tip of the extension rather than at its clip point, and on a
+        short branch in a crowded tree that can read as a disagreement when nothing is wrong. What
+        it costs to be wrong the other way is a boundary condition on the wrong vessel, so it is
+        worth saying and leaving the operator to judge.
+
+        Each cap is matched to the nearest clip point it could belong to, one to one, so that two
+        caps cannot both claim the same vessel end and hide a swap between them.
+        """
+        import numpy as np
+        from vtk.util import numpy_support
+
+        if clipPointsNode is None or mesh is None:
+            return
+        array = mesh.GetCellData().GetArray(cellEntityIdsArrayName)
+        if array is None:
+            return
+        try:
+            recorded = {int(faceId): str(controlPointId)
+                        for faceId, controlPointId in json.loads(faceIdMap).items()}
+        except (ValueError, TypeError, AttributeError):
+            return
+
+        # Where each recorded control point is, and so where its cap should be.
+        positions = {}
+        for faceId, controlPointId in recorded.items():
+            index = clipPointsNode.GetNthControlPointIndexByID(controlPointId)
+            if index < 0:
+                # The clip point is gone. Downstream that face comes out unnamed, which is
+                # already the right answer; there is nothing here to check it against.
+                continue
+            position = [0.0, 0.0, 0.0]
+            clipPointsNode.GetNthControlPointPositionWorld(index, position)
+            positions[faceId] = np.array(position)
+        if len(positions) < 2:
+            # With one end there is nothing a permutation could have done.
+            return
+
+        faceIds = numpy_support.vtk_to_numpy(array).astype(np.int64).ravel()
+        centers = vtk.vtkCellCenters()
+        centers.SetInputData(mesh)
+        centers.Update()
+        cellCentres = numpy_support.vtk_to_numpy(centers.GetOutput().GetPoints().GetData())
+
+        capCentres = {}
+        for faceId in positions:
+            onFace = faceIds == faceId
+            if onFace.any():
+                capCentres[faceId] = cellCentres[onFace].mean(axis=0)
+        if len(capCentres) < 2:
+            return
+
+        # One to one, closest pair first, so a swap cannot pass by both caps naming one end.
+        capOrder = sorted(capCentres)
+        endOrder = sorted(positions)
+        distances = np.array([[np.linalg.norm(capCentres[cap] - positions[end])
+                               for end in endOrder] for cap in capOrder])
+        assigned, takenRows, takenColumns = {}, set(), set()
+        for _pair in range(min(len(capOrder), len(endOrder))):
+            candidate = distances.copy()
+            for row in takenRows:
+                candidate[row, :] = np.inf
+            for column in takenColumns:
+                candidate[:, column] = np.inf
+            row, column = np.unravel_index(np.argmin(candidate), candidate.shape)
+            if not np.isfinite(candidate[row, column]):
+                break
+            assigned[capOrder[row]] = endOrder[column]
+            takenRows.add(row)
+            takenColumns.add(column)
+
+        wrong = sorted(faceId for faceId, end in assigned.items() if faceId != end)
+        if not wrong:
+            return
+        self.say(_("Face(s) {faces} are not where the input surface says they are: the cap "
+                   "carrying each of those ids sits at another clip point's vessel end. The "
+                   "names that come from this mesh will be on the wrong vessels. (Flow "
+                   "extensions move a cap away from its clip point and can read this way "
+                   "without anything being wrong.)").format(
+                       faces=", ".join("%d\u2192%d" % (faceId, assigned[faceId])
+                                       for faceId in wrong)),
+                 logging.WARNING)
 
     @staticmethod
     def hideNode(modelNode):

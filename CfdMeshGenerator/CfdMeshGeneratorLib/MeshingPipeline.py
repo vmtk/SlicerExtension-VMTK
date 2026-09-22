@@ -881,10 +881,20 @@ class MeshingPipeline:
         capIdsByLabel = {cap["label"]: capId for capId, cap in capsTakenOff.items()
                          if cap["label"] is not None}
         chosenIds = {}
+        # Where the pair of arrays was refused but the labels themselves are still on the points,
+        # the boundary each one belongs to is read off them instead. This is the case after a
+        # boundary layer has been swept, which is to say the case a vessel mesh is usually built
+        # in; without it every cap of such a mesh takes the id of whichever boundary the extractor
+        # happened to hand over in its place. See labelsFromBoundaryPoints.
+        recoveredLabels = ({} if useLabels else
+                           self.labelsFromBoundaryPoints(surface, boundaries, boundaryLabelsArrayName))
         for index in range(boundaries.GetNumberOfCells()):
             boundaryId = int(boundaryLabels.GetId(index)) if useLabels else index
             if useLabels and boundaryId in capIdsByLabel:
                 chosenIds[boundaryId] = capIdsByLabel[boundaryId]
+            elif index in recoveredLabels and recoveredLabels[index] in capIdsByLabel:
+                # The end is known and a cap that closed it was taken off: give that cap's id back.
+                chosenIds[boundaryId] = capIdsByLabel[recoveredLabels[index]]
             elif capsTakenOff:
                 # Nothing says which end this is, so the cap that stood here says it: the new one
                 # is built on the surface the old one's rim was swept to, a layer's thickness away
@@ -894,6 +904,10 @@ class MeshingPipeline:
                     capsTakenOff,
                     key=lambda capId: vtk.vtkMath.Distance2BetweenPoints(
                         centre, capsTakenOff[capId]["centre"]))
+            elif index in recoveredLabels:
+                # A label is the cell entity id of the cap that closes its boundary, so the
+                # recovered label is the id to give.
+                chosenIds[boundaryId] = recoveredLabels[index]
 
         if not chosenIds:
             return
@@ -908,6 +922,58 @@ class MeshingPipeline:
         for boundaryId in range(max(chosenIds) + 1):
             boundaryCellEntityIds.InsertNextValue(chosenIds.get(boundaryId, -1))
         capper.SetBoundaryCellEntityIds(boundaryCellEntityIds)
+
+    def labelsFromBoundaryPoints(self, surface, boundaries, boundaryLabelsArrayName):
+        """Which vessel end each extracted boundary is, read off the labels its own points carry.
+
+        vtkvmtkBoundaryLabels::GetOrExtractBoundaries takes the labels only while the point order
+        array still describes the surface, and after a boundary layer has been swept it does not:
+        the caps are remade on the inner surface, whose boundaries are coarser than the ones the
+        order was written for, so the order values are no longer one run per boundary and the pair
+        is refused whole. The labels come through that untouched - every point of an inner
+        boundary carries the label of the end it belongs to, because the sweep moves the points
+        and their data together - so the association is still there, one boundary at a time.
+
+        Read by position rather than by point id: the extracted boundaries are their own poly
+        data, and their point ids index that rather than the surface.
+
+        :return: {extraction index: label}, leaving out any boundary whose points say nothing and
+          any whose points disagree - a boundary that is partly one end and partly another is not
+          something to guess at, and an unnamed cap is better than a misnamed one.
+        """
+        labelsArray = surface.GetPointData().GetArray(
+            boundaryLabelsArrayName or self.boundaryLabelsArrayName)
+        if labelsArray is None or boundaries.GetNumberOfCells() == 0:
+            return {}
+        locator = vtk.vtkPointLocator()
+        locator.SetDataSet(surface)
+        locator.BuildLocator()
+
+        recovered = {}
+        for index in range(boundaries.GetNumberOfCells()):
+            points = boundaries.GetCell(index).GetPoints()
+            counts = {}
+            for pointIndex in range(points.GetNumberOfPoints()):
+                surfacePointId = locator.FindClosestPoint(points.GetPoint(pointIndex))
+                if surfacePointId < 0:
+                    continue
+                label = int(labelsArray.GetTuple1(surfacePointId))
+                if label < 0:
+                    # Not on a rim as far as the labels are concerned, so it says nothing.
+                    continue
+                counts[label] = counts.get(label, 0) + 1
+            if not counts:
+                continue
+            label, votes = max(counts.items(), key=lambda item: item[1])
+            if votes != sum(counts.values()):
+                logging.warning(
+                    "The points of one boundary of this surface carry more than one vessel end "
+                    "label (%s), so which end it is cannot be read off them; its cap is left to "
+                    "the id the capper gives it.",
+                    ", ".join("%d: %d points" % item for item in sorted(counts.items())))
+                continue
+            recovered[index] = label
+        return recovered
 
     @staticmethod
     def boundaryCentre(boundaries, index):

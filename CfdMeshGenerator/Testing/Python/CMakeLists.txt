@@ -21,6 +21,19 @@ slicer_add_python_test(SCRIPT test_CfdMeshGeneratorBoundaryLayer.py
                        SLICER_ARGS --disable-cli-modules)
 slicer_add_python_test(SCRIPT test_CfdMeshGeneratorFaceIds.py
                        SLICER_ARGS --disable-cli-modules)
+slicer_add_python_test(SCRIPT test_CfdMeshGeneratorNameSource.py
+                       SLICER_ARGS --disable-cli-modules)
+
+# Clips a real vessel in Clip Vessel and meshes it here, to see that the two agree about the
+# face numbering the names hang off. Uses Clip Vessel's own aorta fixture, so it downloads the
+# sample surface and extracts a centerline.
+slicer_add_python_test(SCRIPT test_CfdMeshGeneratorInheritedNamesEndToEnd.py)
+
+# Asks where each cap physically is rather than which ids exist, which is the only way to catch a
+# permutation of the cap ids. Works on the clipped aorta of VMTK's test data; the test says so and
+# skips where it is not there.
+slicer_add_python_test(SCRIPT test_CfdMeshGeneratorCapIdentity.py
+                       SLICER_ARGS --disable-cli-modules)
 slicer_add_python_test(SCRIPT test_CfdMeshGeneratorFTetWild.py
                        SLICER_ARGS --disable-cli-modules)
 slicer_add_python_test(SCRIPT test_CfdMeshGeneratorNetgen.py
