@@ -119,6 +119,9 @@ if(NOT DEFINED ${proj}_DIR AND NOT ${CMAKE_PROJECT_NAME}_USE_SYSTEM_${proj})
       # we don't want superbuild since it will override our CMake settings
       -DVMTK_USE_SUPERBUILD:BOOL=OFF
       -DVMTK_CONTRIB_SCRIPTS:BOOL=ON
+      # The Contrib classes: vtkvmtkConcaveAnnularCapPolyData is a capping method of the CFD Mesh
+      # Generator module
+      -DVTK_VMTK_CONTRIB:BOOL=ON
       -DVMTK_MINIMAL_INSTALL:BOOL=OFF
       -DVMTK_ENABLE_DISTRIBUTION:BOOL=OFF
       -DVMTK_WITH_LIBRARY_VERSION:BOOL=OFF
