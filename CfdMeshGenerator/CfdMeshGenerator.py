@@ -9,22 +9,21 @@ better asking the other way round: a surface is asked to be capped and remeshed 
 have capping and remeshing skipped, and an edge length limit of 0 is the script's "no limit".
 
 Apply does not run the pipeline in the application. It hands the surface and the parameters to
-CfdMeshGeneratorLib.MeshingWorker, running in a PythonSlicer of its own, and reads the mesh back
-from it: a run can then be cancelled, and a mesher that crashes takes that process rather than
-this one. It is also what lets fTetWild be run in a Python other than Slicer's where Slicer's
-cannot host it (see CfdMeshGeneratorLib.FTetWild).
+CfdMeshGeneratorLib.MeshingWorker and reads the mesh back from it, and it does not wait: the run
+is carried out by a CfdMeshGeneratorLib.MeshingRunner - a PythonSlicer process of its own in
+3D Slicer, a worker of the page in a web browser - while the application goes on drawing, showing
+what the run says as it says it and offering the button that stops it.
+
+Running it away from the application is what makes a run interruptible, and what keeps a mesher
+that crashes from taking the application with it. It is also what lets fTetWild be run in a Python
+other than Slicer's where Slicer's cannot host it (see CfdMeshGeneratorLib.FTetWild).
 """
 
-import collections
 import json
 import logging
 import os
-import queue
 import shutil
-import signal
-import subprocess
 import sys
-import threading
 import time
 from typing import Annotated
 
@@ -40,7 +39,7 @@ from slicer.parameterNodeWrapper import parameterNodeWrapper, Maximum, Minimum
 
 from slicer import vtkMRMLModelNode
 
-from CfdMeshGeneratorLib import FTetWild, MeshingWorker
+from CfdMeshGeneratorLib import FTetWild, MeshingRunner, MeshingWorker
 from CfdMeshGeneratorLib.MeshingPipeline import (  # noqa: F401 - re-exported for scripts and tests
     DEFAULT_BOUNDARY_LABELS_ARRAY_NAME, DEFAULT_BOUNDARY_POINT_ORDER_ARRAY_NAME,
     DEFAULT_CAP_IDS_ARRAY_NAME,
@@ -597,8 +596,8 @@ class CfdMeshGeneratorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     def onApplyButton(self) -> None:
         """Run processing when user clicks "Apply" button - or stop it, when the button says
-        Cancel: the run is in a process of its own, and the event loop keeps turning while it
-        goes, so the same button is there to be pressed again."""
+        Cancel: the run is carried out away from the application and answers later, so the
+        application keeps going and the same button is there to be pressed again."""
         if self.logic.isRunning:
             self.logic.cancel()
             return
@@ -618,25 +617,31 @@ class CfdMeshGeneratorWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             if not self.offerToInstallNetgen():
                 return
         self.ui.logTextEdit.plainText = ""
+        # The run is started and this returns: it goes on away from the application (a process of
+        # its own, a worker in a web page), which keeps drawing, filling the log with what the run
+        # says and offering this same button to stop it. What to do with the result is below.
+        self._updateApplyButton(running=True)
         try:
-            self._updateApplyButton(running=True)
-            # No wait cursor: the run is in another process and the application is not busy, so
-            # the cursor should not say it is - and the Cancel button is there to be pressed.
-            with slicer.util.tryWithErrorDisplay(_("Failed to generate the mesh.")):
-                try:
-                    self.logic.process(self._parameterNode)
-                except MeshingCancelledError:
-                    # What was asked for, so nothing to put a dialog up about.
-                    self.logic.say(_("Meshing cancelled."))
-                except Exception as error:
-                    # Into the log window too, where it can still be read once the dialog
-                    # about it has been closed.
-                    self.logic.say(str(error), logging.ERROR)
-                    raise
+            self.logic.process(self._parameterNode, onFinished=self.onMeshingFinished)
+        except Exception as error:
+            self.onMeshingFinished(error)
+
+    def onMeshingFinished(self, error) -> None:
+        """What is left to do once a run has ended: say how it went, and put the buttons back."""
+        try:
+            if isinstance(error, MeshingCancelledError):
+                # What was asked for, so nothing to put a dialog up about.
+                self.logic.say(_("Meshing cancelled."))
+            elif error is not None:
+                # Into the log window too, where it can still be read once the dialog about it
+                # has been closed.
+                self.logic.say(str(error), logging.ERROR)
+                slicer.util.errorDisplay(
+                    _("Failed to generate the mesh.") + chr(10) + chr(10) + str(error))
         finally:
             self._updateApplyButton(running=False)
             # The outputs have their display nodes now, so their buttons have something to act on.
-            # In a finally, because a run that stopped half way still wrote what it had.
+            # Whatever the run ended in: one that stopped half way still wrote what it had.
             self._updateVisibilityButtons()
 
     def offerToInstallFTetWild(self) -> bool:
@@ -694,9 +699,10 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic, MeshingPipeline):
         # pipeline warns about, how it ended - for whoever is showing it to the user. The
         # application log gets it regardless.
         self.logCallback = None
-        # The worker process while one is running, and whether it was asked to stop.
-        self._worker = None
-        self._cancelled = False
+        # The run in progress, and what it made, while it is being collected.
+        self._runner = None
+        self._mesh = None
+        self._remeshedSurface = None
 
     def getParameterNode(self):
         return CfdMeshGeneratorParameterNode(super().getParameterNode())
@@ -717,7 +723,6 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic, MeshingPipeline):
         already, by the pipeline here or in the worker."""
         if self.logCallback:
             self.logCallback(text, level)
-        slicer.app.processEvents()
 
     def showStep(self, message):
         """Say which step is running where a user looks for it: the log window is the only
@@ -850,16 +855,18 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic, MeshingPipeline):
 
     @property
     def isRunning(self):
-        """Whether a meshing process is going right now."""
-        return self._worker is not None and self._worker.poll() is None
+        """Whether a meshing run is going right now."""
+        return self._runner is not None and self._runner.running
 
-    def process(self, parameters: CfdMeshGeneratorParameterNode) -> None:
+    def process(self, parameters: CfdMeshGeneratorParameterNode, onFinished=None) -> None:
         """Mesh the input surface of the given parameter node into its output nodes.
 
-        In a process of its own (see generateMeshInSeparateProcess), which is what makes it
-        possible to stop: cancel() kills the process, and this then raises
-        MeshingCancelledError. The event loop is kept turning meanwhile, so the button that
-        started the run can be pressed to stop it.
+        The run is started and this returns: it is carried out away from the application (see
+        MeshingRunner), which goes on drawing, showing what the run says and offering the button
+        that stops it. When it ends, the outputs are put in the scene and onFinished is called
+        with None, or with the error the run ended in.
+
+        Waiting for it - in a test, say - is done with processAndWait().
         """
         if not parameters.inputSurface:
             raise ValueError(_("No input surface"))
@@ -872,12 +879,71 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic, MeshingPipeline):
             raise RuntimeError(_("A mesh is already being generated."))
 
         startTime = time.time()
-
         arguments = self.meshingArguments(parameters)
         cellEntityIdsArrayName = arguments["cellEntityIdsArrayName"]
-        mesh, remeshedSurface = self.generateMeshInSeparateProcess(
-            parameters.inputSurface.GetPolyData(), **arguments)
 
+        def finished(error):
+            if error is None:
+                try:
+                    self.applyMeshingResult(parameters, cellEntityIdsArrayName, startTime)
+                except Exception as raised:
+                    error = raised
+            if onFinished is not None:
+                onFinished(error)
+
+        self.startMeshingRun(parameters.inputSurface.GetPolyData(), arguments, finished)
+
+    def processAndWait(self, parameters: CfdMeshGeneratorParameterNode, timeoutSeconds=None) -> None:
+        """process(), waited for. For a test, or for a script that has nothing else to do.
+
+        The event loop is kept turning while it waits, so a run can still be stopped and what it
+        says still arrives. In a web page there is no loop to turn: the run is done in the page.
+
+        :param timeoutSeconds: how long to wait before the run is stopped, or None (the default)
+          to wait for as long as it takes - meshing a large surface finely can take hours.
+
+        :raises the error the run ended in, as process() would have raised it before it was made
+          to answer later.
+        """
+        answer = {}
+
+        def finished(error):
+            answer["error"] = error
+
+        if MeshingRunner.inBrowser():
+            # A page cannot wait for its own worker: the answer would never arrive, since the
+            # answer comes through the loop that this would be blocking. The run is made here.
+            self.processInThisProcess(parameters)
+            return
+
+        self.process(parameters, onFinished=finished)
+        deadline = None if timeoutSeconds is None else time.time() + timeoutSeconds
+        while "error" not in answer and (deadline is None or time.time() < deadline):
+            slicer.app.processEvents()
+            time.sleep(0.01)
+        if "error" not in answer:
+            self.cancel()
+            raise RuntimeError(_("Meshing did not finish within {seconds} seconds.")
+                               .format(seconds=timeoutSeconds))
+        if answer["error"] is not None:
+            raise answer["error"]
+
+    def processInThisProcess(self, parameters: CfdMeshGeneratorParameterNode) -> None:
+        """Mesh here and now, in this interpreter, without a run of its own.
+
+        What a process gives - a run that can be stopped, and a crash that takes nothing with it -
+        is not to be had this way; it is for where there is no process to be had either, and for
+        tests, which have nothing else to do while they wait.
+        """
+        startTime = time.time()
+        arguments = self.meshingArguments(parameters)
+        mesh, remeshedSurface = self.generateMesh(parameters.inputSurface.GetPolyData(), **arguments)
+        self._mesh, self._remeshedSurface = mesh, remeshedSurface
+        self.applyMeshingResult(parameters, arguments["cellEntityIdsArrayName"], startTime)
+
+    def applyMeshingResult(self, parameters, cellEntityIdsArrayName, startTime) -> None:
+        """Put what the run made into the scene, and say how it went."""
+        mesh, remeshedSurface = self._mesh, self._remeshedSurface
         parameters.outputMesh.SetAndObserveMesh(mesh)
         self.copyNameSource(parameters.inputSurface, parameters.outputMesh, mesh,
                             cellEntityIdsArrayName)
@@ -958,55 +1024,91 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic, MeshingPipeline):
             tetrahedralize=parameters.tetrahedralize,
             carriedCellArrays=cls.splitArrayNames(parameters.carriedCellArrays))
 
-    def generateMeshInSeparateProcess(self, surface, **arguments):
-        """generateMesh(), run by MeshingWorker in a PythonSlicer of its own.
+    def startMeshingRun(self, surface, arguments, onFinished):
+        """Start a meshing run and return; onFinished(error) is called when it ends.
 
         The surface goes to the worker as a file and the mesh comes back as one, through a
-        directory made for the run and removed after it. What the worker prints meanwhile is
-        relayed to the log as it arrives, and the steps it announces to the status bar.
+        directory made for the run (see MeshingWorker). Nothing here waits for it: the run is
+        carried out by a MeshingRunner - a process of its own in 3D Slicer, a worker in a web
+        page - and the application is left to go on drawing, showing what the run says as it says
+        it and offering the button that stops it.
 
-        :raises MeshingCancelledError: if cancel() was called before the worker finished.
-        :raises RuntimeError: if the worker died without a result - which is what a mesher that
-          crashed leaves behind - or if the pipeline raised; a ValueError it raised is raised
-          again as one.
+        :param onFinished: called with None when the mesh is ready, or with the error the run
+          ended in (MeshingCancelledError if it was stopped, ValueError if the pipeline refused
+          the input, RuntimeError if the mesher died).
         """
         directory = slicer.util.tempDirectory("CfdMeshGenerator")
-        try:
-            inputPath = os.path.join(directory, "input.vtp")
-            parametersPath = os.path.join(directory, "parameters.json")
-            meshPath = os.path.join(directory, "mesh.vtu")
-            surfacePath = os.path.join(directory, "surface.vtp")
-            resultPath = os.path.join(directory, "result.json")
-            MeshingWorker.write(inputPath, surface)
-            with open(parametersPath, "w") as parametersFile:
-                json.dump({"arguments": arguments, "fTetWildPython": self.fTetWildPython},
-                          parametersFile)
+        paths = {
+            "input": os.path.join(directory, "input.vtp"),
+            "parameters": os.path.join(directory, "parameters.json"),
+            "mesh": os.path.join(directory, "mesh.vtu"),
+            "surface": os.path.join(directory, "surface.vtp"),
+            "result": os.path.join(directory, "result.json"),
+        }
+        MeshingWorker.write(paths["input"], surface)
+        with open(paths["parameters"], "w") as parametersFile:
+            json.dump({"arguments": arguments, "fTetWildPython": self.fTetWildPython},
+                      parametersFile)
 
-            # -u: what the worker says is to arrive as it is said, not when a buffer fills.
-            command = [self.pythonSlicerExecutable(), "-u", MeshingWorker.__file__,
-                       "--input", inputPath, "--parameters", parametersPath,
-                       "--output-mesh", meshPath, "--output-surface", surfacePath,
-                       "--result", resultPath]
-            returnCode, output = self.runWorker(command)
+        # -u: what the worker says is to arrive as it is said, not when a buffer fills.
+        argv = [self.pythonSlicerExecutable(), "-u", MeshingWorker.__file__,
+                "--input", paths["input"], "--parameters", paths["parameters"],
+                "--output-mesh", paths["mesh"], "--output-surface", paths["surface"],
+                "--result", paths["result"]]
 
-            if self._cancelled:
-                raise MeshingCancelledError(_("Meshing was cancelled."))
-            result = None
-            if os.path.isfile(resultPath):
-                with open(resultPath) as resultFile:
-                    result = json.load(resultFile)
-            if result is None:
-                raise RuntimeError(_(
-                    "The meshing process ended without a result (exit code {code}), which is "
-                    "what a mesher that crashed on its input leaves behind. The end of what it "
-                    "said:\n{output}").format(code=returnCode, output=output))
-            if "error" in result:
-                errorType = ValueError if result["error"]["type"] == "ValueError" else RuntimeError
-                raise errorType(result["error"]["message"])
-            self.lastTetrahedralizationFailed = bool(result.get("tetrahedralizationFailed"))
-            return self.readMesh(meshPath), self.readSurface(surfacePath)
-        finally:
-            shutil.rmtree(directory, ignore_errors=True)
+        def finished(returnCode, output):
+            error = None
+            try:
+                self._mesh, self._remeshedSurface = self.collectMeshingRun(paths, returnCode, output)
+            except Exception as raised:
+                error = raised
+            finally:
+                self._runner = None
+                shutil.rmtree(directory, ignore_errors=True)
+            onFinished(error)
+
+        # In a page the run works on files of its own, which are handed over and come back.
+        files = {}
+        outputs = []
+        if MeshingRunner.inBrowser():
+            for name in ("input", "parameters"):
+                with open(paths[name], "rb") as handle:
+                    files[paths[name]] = handle.read()
+            outputs = [paths["mesh"], paths["surface"], paths["result"]]
+
+        self._mesh = self._remeshedSurface = None
+        self._runner = MeshingRunner.makeRunner(
+            argv, onLine=self.relayWorkerLine, onFinished=finished, files=files, outputs=outputs)
+        self._runner.start()
+
+    def collectMeshingRun(self, paths, returnCode, output):
+        """What a finished run left behind: the mesh and the remeshed surface.
+
+        :raises MeshingCancelledError: if the run was stopped before it finished.
+        :raises RuntimeError: if it died without a result - which is what a mesher that crashed
+          leaves behind - or if the pipeline raised; a ValueError it raised is raised again as one.
+        """
+        runner = self._runner
+        # A run in a worker brings its files back rather than leaving them on a disk of its own.
+        for path, data in getattr(runner, "returnedFiles", {}).items():
+            with open(path, "wb") as handle:
+                handle.write(data)
+        if runner is not None and runner.cancelled:
+            raise MeshingCancelledError(_("Meshing was cancelled."))
+        result = None
+        if os.path.isfile(paths["result"]):
+            with open(paths["result"]) as resultFile:
+                result = json.load(resultFile)
+        if result is None:
+            raise RuntimeError(_(
+                "The meshing process ended without a result (exit code {code}), which is "
+                "what a mesher that crashed on its input leaves behind. The end of what it "
+                "said:\n{output}").format(code=returnCode, output=output))
+        if "error" in result:
+            errorType = ValueError if result["error"]["type"] == "ValueError" else RuntimeError
+            raise errorType(result["error"]["message"])
+        self.lastTetrahedralizationFailed = bool(result.get("tetrahedralizationFailed"))
+        return self.readMesh(paths["mesh"]), self.readSurface(paths["surface"])
 
     @staticmethod
     def pythonSlicerExecutable():
@@ -1016,70 +1118,6 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic, MeshingPipeline):
         if "PythonSlicer" not in os.path.basename(executable):
             executable = shutil.which("PythonSlicer") or executable
         return executable
-
-    def runWorker(self, command):
-        """Run the worker and relay what it says until it ends, keeping the event loop turning.
-
-        :return: (exit code, the last lines it printed, as one string)
-        """
-        environment = os.environ.copy()
-        # The worker imports the wrapped VMTK classes and this module's own package from wherever
-        # this process found them, which an extension built rather than installed passes to the
-        # application on its command line and not in the environment.
-        environment["PYTHONPATH"] = os.pathsep.join(
-            [path for path in sys.path if path and os.path.isdir(path)]
-            + [path for path in environment.get("PYTHONPATH", "").split(os.pathsep) if path])
-        # VTK, built to report leaks, reports them at exit in a dialog on Windows, and a dialog in
-        # a process with no window to show it in is a process that never exits. This is the
-        # switch that has it write them to stderr instead, where they are relayed like the rest.
-        environment["DASHBOARD_TEST_FROM_CTEST"] = "1"
-        popenArguments = {}
-        if os.name == "nt":
-            startupInfo = subprocess.STARTUPINFO()
-            startupInfo.dwFlags = subprocess.STARTF_USESHOWWINDOW
-            startupInfo.wShowWindow = subprocess.SW_HIDE
-            popenArguments["startupinfo"] = startupInfo
-        else:
-            # A process group of its own, so that cancel() can take the worker and any
-            # interpreter it started for fTetWild down together.
-            popenArguments["start_new_session"] = True
-
-        self._cancelled = False
-        self._worker = subprocess.Popen(
-            command, env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            universal_newlines=True, **popenArguments)
-        lines = queue.Queue()
-
-        def readOutput():
-            while True:
-                try:
-                    line = self._worker.stdout.readline()
-                except UnicodeDecodeError:
-                    continue
-                if not line:
-                    break
-                lines.put(line.rstrip("\r\n"))
-            lines.put(None)
-
-        reader = threading.Thread(target=readOutput, daemon=True)
-        reader.start()
-
-        lastLines = collections.deque(maxlen=30)
-        try:
-            while True:
-                try:
-                    line = lines.get(timeout=0.05)
-                except queue.Empty:
-                    slicer.app.processEvents()
-                    continue
-                if line is None:
-                    break
-                lastLines.append(line)
-                self.relayWorkerLine(line)
-            returnCode = self._worker.wait()
-        finally:
-            self._worker = None
-        return returnCode, "\n".join(lastLines)
 
     def relayWorkerLine(self, line):
         """Pass one line of the worker's output on: a step to the status bar and the log window,
@@ -1105,21 +1143,13 @@ class CfdMeshGeneratorLogic(ScriptedLoadableModuleLogic, MeshingPipeline):
         self.show(message, level)
 
     def cancel(self) -> None:
-        """Stop the run in progress, if there is one; process() then raises
+        """Stop the run in progress, if there is one; it then finishes with
         MeshingCancelledError. Nothing of the run is kept."""
-        worker = self._worker
-        if worker is None or worker.poll() is not None:
+        runner = self._runner
+        if runner is None or not runner.running:
             return
-        self._cancelled = True
-        self.say(_("Stopping the meshing process."))
-        if os.name == "nt":
-            # The worker may have an interpreter of its own running fTetWild under it; /T takes
-            # the whole tree, which terminate() would not.
-            subprocess.run(["taskkill", "/F", "/T", "/PID", str(worker.pid)],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                           **FTetWild.hiddenWindowArguments())
-        else:
-            os.killpg(worker.pid, signal.SIGTERM)
+        self.say(_("Stopping the meshing run."))
+        runner.cancel()
 
     @staticmethod
     def readMesh(path):
@@ -1482,7 +1512,11 @@ class CfdMeshGeneratorTest(ScriptedLoadableModuleTest):
         self.assertTrue(widget.ui.applyButton.enabled, "Apply is not offered with an input picked")
 
         self.delayDisplay("Applying")
-        widget.onApplyButton()
+        # What Apply does: make the node the mesh goes into, and run. The run is waited for here,
+        # which the application never does - a test has nothing else to do while it goes, and
+        # nothing to show for it either.
+        widget.ui.outputMeshSelector.addNode()
+        widget.logic.processAndWait(parameterNode)
 
         outputMeshNode = parameterNode.outputMesh
         self.assertIsNotNone(outputMeshNode, "Apply made no node to write the mesh into")

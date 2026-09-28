@@ -44,7 +44,7 @@ class CfdMeshGeneratorSeparateProcessTest(CfdMeshGeneratorTestCase):
         parameterNode.outputRemeshedSurface = remeshedNode
         parameterNode.carriedCellArrays = ""
 
-        logic.process(parameterNode)
+        logic.processAndWait(parameterNode)
 
         expectedMesh, expectedSurface = logic.generateMesh(
             surface, targetEdgeLength=0.4, mesher=Mesher.TETGEN.value)
@@ -87,7 +87,7 @@ class CfdMeshGeneratorSeparateProcessTest(CfdMeshGeneratorTestCase):
         logic.relayWorkerLine = self._relayThroughStepCallback(logic)
 
         with self.assertRaises(MeshingCancelledError):
-            logic.process(parameterNode)
+            logic.processAndWait(parameterNode)
 
         self.assertTrue(stepsSeen, "the worker announced no step before it was stopped")
         self.assertIsNone(parameterNode.outputMesh.GetMesh(),
@@ -128,7 +128,7 @@ class CfdMeshGeneratorSeparateProcessTest(CfdMeshGeneratorTestCase):
         handler.emit = records.append
         logging.getLogger().addHandler(handler)
         try:
-            logic.process(parameterNode)
+            logic.processAndWait(parameterNode)
         finally:
             logging.getLogger().removeHandler(handler)
 
@@ -153,7 +153,7 @@ class CfdMeshGeneratorSeparateProcessTest(CfdMeshGeneratorTestCase):
         logic.pythonSlicerExecutable = lambda: "no-such-python-anywhere"
 
         with self.assertRaises((RuntimeError, OSError)):
-            logic.process(parameterNode)
+            logic.processAndWait(parameterNode)
         self.assertFalse(logic.isRunning)
 
 

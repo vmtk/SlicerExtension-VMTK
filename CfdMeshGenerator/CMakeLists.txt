@@ -7,6 +7,7 @@ set(MODULE_PYTHON_SCRIPTS
   ${MODULE_NAME}Lib/__init__.py
   ${MODULE_NAME}Lib/FTetWild.py
   ${MODULE_NAME}Lib/MeshingPipeline.py
+  ${MODULE_NAME}Lib/MeshingRunner.py
   ${MODULE_NAME}Lib/MeshingWorker.py
   ${MODULE_NAME}Lib/Netgen.py
   )

@@ -1,5 +1,6 @@
 """The module widget: what a press of a button does, and what it leaves the scene like."""
 
+import time
 import unittest
 
 import slicer
@@ -85,7 +86,7 @@ class CfdMeshGeneratorWidgetTest(CfdMeshGeneratorTestCase):
         parameterNode.targetEdgeLength = 0.4
         parameterNode.boundaryLayer = False
 
-        logic.process(parameterNode)
+        logic.processAndWait(parameterNode)
 
         self.assertTrue(outputNode.GetDisplayNode().GetEdgeVisibility(),
                         "the elements of the volume mesh are not drawn")
@@ -110,7 +111,7 @@ class CfdMeshGeneratorWidgetTest(CfdMeshGeneratorTestCase):
         parameterNode.targetEdgeLength = 0.4
         parameterNode.boundaryLayer = False
 
-        logic.process(parameterNode)
+        logic.processAndWait(parameterNode)
 
         self.assertFalse(inputNode.GetDisplayNode().GetVisibility(),
                          "the input surface is still in front of the mesh made from it")
@@ -119,11 +120,36 @@ class CfdMeshGeneratorWidgetTest(CfdMeshGeneratorTestCase):
         # Turned back on to compare the two, and a second run leaves that alone
         inputNode.GetDisplayNode().SetVisibility(True)
 
-        logic.process(parameterNode)
+        logic.processAndWait(parameterNode)
 
         self.assertTrue(inputNode.GetDisplayNode().GetVisibility(),
                         "a later run hid the input surface again")
 
+
+    @staticmethod
+    def pressApplyAndWait(widget, timeoutSeconds=None):
+        """Press Apply and wait for the run it starts to end: Apply starts the run and returns,
+        and the widget finishes it in onMeshingFinished when the run answers. With no
+        timeoutSeconds it waits for as long as the run takes, as processAndWait does."""
+        finished = []
+        onMeshingFinished = widget.onMeshingFinished
+
+        def recordFinished(error):
+            onMeshingFinished(error)
+            finished.append(error)
+
+        widget.onMeshingFinished = recordFinished
+        try:
+            widget.onApplyButton()
+            deadline = None if timeoutSeconds is None else time.time() + timeoutSeconds
+            while not finished and (deadline is None or time.time() < deadline):
+                slicer.app.processEvents()
+                time.sleep(0.01)
+        finally:
+            del widget.onMeshingFinished
+        if not finished:
+            widget.logic.cancel()
+            raise AssertionError("the run Apply started did not end within %d seconds" % timeoutSeconds)
 
     def test_CfdMeshGeneratorCreatesTheOutputNodeItself(self):
         """Apply with the output left at "(Create New)" makes the node to write into.
@@ -152,7 +178,7 @@ class CfdMeshGeneratorWidgetTest(CfdMeshGeneratorTestCase):
         self.assertTrue(widget.ui.applyButton.enabled,
                         "Apply is refused with no output node, so none can ever be made")
 
-        widget.onApplyButton()
+        self.pressApplyAndWait(widget)
 
         outputNode = parameterNode.outputMesh
         self.assertIsNotNone(outputNode, "Apply made no node to write into")
@@ -161,7 +187,7 @@ class CfdMeshGeneratorWidgetTest(CfdMeshGeneratorTestCase):
         # named after the input, the way the selector's own "Create new" entry names one
         self.assertIn("tube", outputNode.GetName())
 
-        widget.onApplyButton()
+        self.pressApplyAndWait(widget)
         self.assertIs(parameterNode.outputMesh, outputNode,
                       "a second Apply made a second node instead of writing into the first")
 
