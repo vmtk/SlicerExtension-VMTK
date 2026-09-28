@@ -205,7 +205,7 @@ class CfdMeshGeneratorFaceIdsTest(CfdMeshGeneratorTestCase):
         self.assertEqual(logic.meshingArguments(parameterNode)["cellEntityIdsArrayName"],
                          "ModelFaceID")
         if logic.isTetGenAvailable():
-            logic.process(parameterNode)
+            logic.processAndWait(parameterNode)
             mesh = outputNode.GetMesh()
             self.assertIsNone(mesh.GetCellData().GetArray("CellEntityIds"))
             self.assertEqual(self.cellEntityIds(mesh, "ModelFaceID"), {0, 1, 2, 3})
