@@ -27,8 +27,10 @@ mark_as_superbuild(Slicer_DIR)
 find_package(Git REQUIRED)
 mark_as_superbuild(GIT_EXECUTABLE)
 
+# The modules that need the ExtraMarkups extension are built where it is available.
+find_package(ExtraMarkups QUIET)
 option(SlicerVMTK_USE_ExtraMarkups
-  "This needs to be disabled if ExtraMarkups Slicer extension is unavailable" ON)
+  "Build the modules that need the ExtraMarkups Slicer extension" ${ExtraMarkups_FOUND})
 
 if(SlicerVMTK_USE_ExtraMarkups)
   find_package(ExtraMarkups REQUIRED)
