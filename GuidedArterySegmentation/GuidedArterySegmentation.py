@@ -80,6 +80,10 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     self.logic = GuidedArterySegmentationLogic()
     self.ui.parameterSetSelector.addAttribute("vtkMRMLScriptedModuleNode", "ModuleName", self.moduleName)
 
+    sm3dIsAvailable = hasattr(slicer.modules, "stenosismeasurement3d")
+    self.ui.extentCollapsibleGroupBox.setVisible(sm3dIsAvailable)
+      
+
     self.ui.seEffectsCollapsibleGroupBox.checked = False
     self.ui.extentCollapsibleGroupBox.checked = False
     self.ui.regionInfoLabel.setVisible(False)
@@ -93,7 +97,8 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
 
     # Application connections
     self.ui.inputCurveSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onCurveNode)
-    self.ui.inputShapeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onShapeNode)
+    if (sm3dIsAvailable):
+      self.ui.inputShapeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onShapeNode)
 
     self.ui.inputSliceNodeSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.onMrmlNodeChanged(ROLE_INPUT_SLICE, node))
     self.ui.outputSegmentationSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.onMrmlNodeChanged(ROLE_OUTPUT_SEGMENTATION, node))
@@ -330,6 +335,23 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
           segmentation.GetSegmentation().RemoveSegment(segment)
           self._parameterNode.SetParameter(ROLE_OUTPUT_SEGMENT, "")
 
+  def _getNumberOfRegionsInSegment(self, segmentation, segmentID):
+    if (not segmentation or not segmentID):
+      raise ValueError("Invalid input: segmentation is NULL or segmentID is empty.")
+    if (not segmentation.CreateClosedSurfaceRepresentation()):
+      raise ValueError("Could not create a closed surface representation of the segmentation.")
+    
+    closedSurfacePolyData = vtk.vtkPolyData()
+    if (not segmentation.GetClosedSurfaceRepresentation(segmentID, closedSurfacePolyData)):
+      raise ValueError("Could not get a closed surface representation of the segmentation.")
+    
+    regionFilter = vtk.vtkPolyDataConnectivityFilter()
+    regionFilter.SetInputData(closedSurfacePolyData);
+    regionFilter.SetExtractionModeToAllRegions();
+    regionFilter.Update();
+
+    return regionFilter.GetNumberOfExtractedRegions();
+
   def updateRegionInfo(self):
     if not self._parameterNode:
       self.ui.regionInfoLabel.setVisible(False)
@@ -341,8 +363,7 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
       self.ui.regionInfoLabel.setVisible(False)
       return
 
-    sm3Logic = slicer.modules.stenosismeasurement3d.logic()
-    numberOfRegions = sm3Logic.GetNumberOfRegionsInSegment(segmentation, segmentID)
+    numberOfRegions = self._getNumberOfRegionsInSegment(segmentation, segmentID)
     if numberOfRegions == 0:
       self.ui.regionInfoLabel.clear()
       self.ui.regionInfoLabel.setVisible(False)
