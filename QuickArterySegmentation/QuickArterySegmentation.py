@@ -347,6 +347,23 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
       slicer.mrmlScene.RemoveNode(outputCenterlineModelNode)
       self.onMrmlNodeChanged(ROLE_OUTPUT_CENTERLINE_MODEL, None)
 
+  def _getNumberOfRegionsInSegment(self, segmentation, segmentID):
+    if (not segmentation or not segmentID):
+      raise ValueError("Invalid input: segmentation is NULL or segmentID is empty.")
+    if (not segmentation.CreateClosedSurfaceRepresentation()):
+      raise ValueError("Could not create a closed surface representation of the segmentation.")
+
+    closedSurfacePolyData = vtk.vtkPolyData()
+    if (not segmentation.GetClosedSurfaceRepresentation(segmentID, closedSurfacePolyData)):
+      raise ValueError("Could not get a closed surface representation of the segmentation.")
+
+    regionFilter = vtk.vtkPolyDataConnectivityFilter()
+    regionFilter.SetInputData(closedSurfacePolyData);
+    regionFilter.SetExtractionModeToAllRegions();
+    regionFilter.Update();
+
+    return regionFilter.GetNumberOfExtractedRegions();
+
   def updateRegionInfo(self):
     if not self._parameterNode:
       self.ui.regionInfoLabel.setVisible(False)
@@ -358,8 +375,7 @@ class QuickArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservation
       self.ui.regionInfoLabel.setVisible(False)
       return
 
-    sm3Logic = slicer.modules.stenosismeasurement3d.logic()
-    numberOfRegions = sm3Logic.GetNumberOfRegionsInSegment(segmentation, segmentID)
+    numberOfRegions = self._getNumberOfRegionsInSegment(segmentation, segmentID)
     if numberOfRegions == 0:
       self.ui.regionInfoLabel.clear()
       self.ui.regionInfoLabel.setVisible(False)
