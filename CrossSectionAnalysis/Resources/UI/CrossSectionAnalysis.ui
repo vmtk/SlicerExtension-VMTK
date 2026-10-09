@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>471</width>
-    <height>1041</height>
+    <width>393</width>
+    <height>835</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -126,6 +126,60 @@
          <string>Centerline source:</string>
         </property>
        </widget>
+      </item>
+      <item row="1" column="1">
+       <layout class="QHBoxLayout" name="centerlineHorizontalLayout">
+        <item>
+         <widget class="qMRMLNodeComboBox" name="inputCenterlineSelector">
+          <property name="toolTip">
+           <string>The centerline source may be:
+
+- a centerline curve created by 'Extract centerline' module,
+- a centerline model created by 'Extract centerline' module,
+- an arbitrary open markups curve,
+- an invisible centerline of a shape markups node used as a tube.</string>
+          </property>
+          <property name="nodeTypes">
+           <stringlist notr="true">
+            <string>vtkMRMLModelNode</string>
+            <string>vtkMRMLMarkupsCurveNode</string>
+            <string>vtkMRMLMarkupsShapeNode</string>
+           </stringlist>
+          </property>
+          <property name="showChildNodeTypes">
+           <bool>false</bool>
+          </property>
+          <property name="noneEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="addEnabled">
+           <bool>false</bool>
+          </property>
+          <property name="removeEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="editEnabled">
+           <bool>true</bool>
+          </property>
+          <property name="renameEnabled">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QToolButton" name="tubeDecimateToolButton">
+          <property name="toolTip">
+           <string>Decimate the input Tube surface.</string>
+          </property>
+          <property name="text">
+           <string>⭭</string>
+          </property>
+          <property name="checkable">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+       </layout>
       </item>
       <item row="2" column="0">
        <widget class="QLabel" name="segmentationLabel">
@@ -328,32 +382,17 @@ The input centerline is expected to be inside the lumen surface.</string>
        </widget>
       </item>
       <item row="7" column="0" colspan="2">
-       <widget class="ctkCollapsibleGroupBox" name="optionsCollapsibleGroupBox">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="title">
+       <widget class="ctkCollapsibleButton" name="CollapsibleButton_2">
+        <property name="text">
          <string>Tools / Options</string>
         </property>
         <property name="collapsed">
          <bool>true</bool>
         </property>
-        <layout class="QVBoxLayout" name="verticalLayout_2">
-         <property name="leftMargin">
-          <number>0</number>
-         </property>
-         <property name="topMargin">
-          <number>0</number>
-         </property>
-         <property name="rightMargin">
-          <number>0</number>
-         </property>
-         <property name="bottomMargin">
-          <number>0</number>
-         </property>
+        <property name="contentsFrameShape">
+         <enum>QFrame::StyledPanel</enum>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout_6">
          <item>
           <widget class="QTabWidget" name="toolsTabWidget">
            <property name="sizePolicy">
@@ -633,60 +672,6 @@ The result must be inspected before use. If it is not satisfactory, the source s
         </property>
        </widget>
       </item>
-      <item row="1" column="1">
-       <layout class="QHBoxLayout" name="centerlineHorizontalLayout">
-        <item>
-         <widget class="qMRMLNodeComboBox" name="inputCenterlineSelector">
-          <property name="toolTip">
-           <string>The centerline source may be:
-
-- a centerline curve created by 'Extract centerline' module,
-- a centerline model created by 'Extract centerline' module,
-- an arbitrary open markups curve,
-- an invisible centerline of a shape markups node used as a tube.</string>
-          </property>
-          <property name="nodeTypes">
-           <stringlist notr="true">
-            <string>vtkMRMLModelNode</string>
-            <string>vtkMRMLMarkupsCurveNode</string>
-            <string>vtkMRMLMarkupsShapeNode</string>
-           </stringlist>
-          </property>
-          <property name="showChildNodeTypes">
-           <bool>false</bool>
-          </property>
-          <property name="noneEnabled">
-           <bool>true</bool>
-          </property>
-          <property name="addEnabled">
-           <bool>false</bool>
-          </property>
-          <property name="removeEnabled">
-           <bool>true</bool>
-          </property>
-          <property name="editEnabled">
-           <bool>true</bool>
-          </property>
-          <property name="renameEnabled">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QToolButton" name="tubeDecimateToolButton">
-          <property name="toolTip">
-           <string>Decimate the input Tube surface.</string>
-          </property>
-          <property name="text">
-           <string>⭭</string>
-          </property>
-          <property name="checkable">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </item>
      </layout>
     </widget>
    </item>
@@ -704,7 +689,7 @@ The result must be inspected before use. If it is not satisfactory, the source s
      <property name="collapsed">
       <bool>false</bool>
      </property>
-     <layout class="QVBoxLayout" name="verticalLayout_7">
+     <layout class="QVBoxLayout" name="verticalLayout_5">
       <item>
        <layout class="QFormLayout" name="outputFormLayout">
         <item row="0" column="0">
@@ -733,288 +718,300 @@ The result must be inspected before use. If it is not satisfactory, the source s
           </property>
          </widget>
         </item>
-        <item row="1" column="0">
-         <widget class="QLabel" name="moveSliceViewLabel">
-          <property name="locale">
-           <locale language="English" country="UnitedStates"/>
-          </property>
+        <item row="1" column="0" colspan="2">
+         <widget class="ctkCollapsibleButton" name="CollapsibleButton">
           <property name="text">
-           <string>Move slice view:</string>
+           <string>Move slice view</string>
           </property>
-         </widget>
-        </item>
-        <item row="1" column="1">
-         <layout class="QGridLayout" name="moveSliceViewGridLayout">
-          <item row="0" column="1">
-           <widget class="qMRMLNodeComboBox" name="axialSliceViewSelector">
-            <property name="toolTip">
-             <string>Move this slice view to a point along the centerline</string>
-            </property>
-            <property name="locale">
-             <locale language="English" country="UnitedStates"/>
-            </property>
-            <property name="nodeTypes">
-             <stringlist notr="true">
-              <string>vtkMRMLSliceNode</string>
-             </stringlist>
-            </property>
-            <property name="noneEnabled">
-             <bool>true</bool>
-            </property>
-            <property name="addEnabled">
-             <bool>false</bool>
-            </property>
-            <property name="removeEnabled">
-             <bool>false</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="3">
-           <widget class="QToolButton" name="jumpCentredInSliceNodeCheckBox">
-            <property name="toolTip">
-             <string>Center the selected point in the slice view</string>
-            </property>
-            <property name="text">
-             <string>centered</string>
-            </property>
-            <property name="checkable">
-             <bool>true</bool>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="4">
-           <widget class="QToolButton" name="orthogonalReformatInSliceNodeCheckBox">
-            <property name="toolTip">
-             <string>Orient the slice view orthogonal to the centerline</string>
-            </property>
-            <property name="text">
-             <string>orthogonal</string>
-            </property>
-            <property name="checkable">
-             <bool>true</bool>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="0">
-           <widget class="QLabel" name="axialLabel">
-            <property name="text">
-             <string>Axial:</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="1">
-           <widget class="ctkSliderWidget" name="rotationSliderWidget">
-            <property name="enabled">
-             <bool>false</bool>
-            </property>
-            <property name="toolTip">
-             <string>Rotation angle for longitudinal slice view</string>
-            </property>
-            <property name="statusTip">
-             <string/>
-            </property>
-            <property name="locale">
-             <locale language="English" country="UnitedStates"/>
-            </property>
-            <property name="decimals">
-             <number>0</number>
-            </property>
-            <property name="minimum">
-             <double>-180.000000000000000</double>
-            </property>
-            <property name="maximum">
-             <double>180.000000000000000</double>
-            </property>
-            <property name="suffix">
-             <string> deg</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="1">
-           <widget class="qMRMLNodeComboBox" name="longitudinalSliceViewSelector">
-            <property name="toolTip">
-             <string>Move this slice view to a point along the centerline</string>
-            </property>
-            <property name="locale">
-             <locale language="English" country="UnitedStates"/>
-            </property>
-            <property name="nodeTypes">
-             <stringlist notr="true">
-              <string>vtkMRMLSliceNode</string>
-             </stringlist>
-            </property>
-            <property name="noneEnabled">
-             <bool>true</bool>
-            </property>
-            <property name="addEnabled">
-             <bool>false</bool>
-            </property>
-            <property name="removeEnabled">
-             <bool>false</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="0">
-           <widget class="QLabel" name="rotateLabel">
-            <property name="toolTip">
-             <string/>
-            </property>
-            <property name="text">
-             <string>Rotate:</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="0">
-           <widget class="QLabel" name="longitudinalLabel">
-            <property name="toolTip">
-             <string>Longitudinal</string>
-            </property>
-            <property name="text">
-             <string>Long.:</string>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item row="2" column="1">
-         <widget class="ctkCollapsibleGroupBox" name="spinFlipCollapsibleGroupBox">
-          <property name="title">
-           <string>Spin / Flip</string>
-          </property>
-          <property name="collapsed">
-           <bool>true</bool>
-          </property>
-          <property name="collapsedHeight">
-           <number>6</number>
-          </property>
-          <layout class="QFormLayout" name="formLayout_2">
-           <property name="leftMargin">
-            <number>3</number>
-           </property>
-           <property name="topMargin">
-            <number>3</number>
-           </property>
-           <property name="rightMargin">
-            <number>3</number>
-           </property>
-           <property name="bottomMargin">
-            <number>3</number>
-           </property>
-           <item row="0" column="0">
-            <widget class="QLabel" name="axialSpinFlipLabel">
-             <property name="text">
-              <string>Axial:</string>
-             </property>
-            </widget>
-           </item>
-           <item row="0" column="1">
-            <widget class="ctkSliderWidget" name="axialSpinSliderWidget">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="toolTip">
-              <string>Rotate slice view around its Z-axis to restore anatomic orientation</string>
-             </property>
-             <property name="statusTip">
-              <string/>
-             </property>
-             <property name="locale">
-              <locale language="English" country="UnitedStates"/>
-             </property>
-             <property name="decimals">
-              <number>0</number>
-             </property>
-             <property name="minimum">
-              <double>-180.000000000000000</double>
-             </property>
-             <property name="maximum">
-              <double>180.000000000000000</double>
-             </property>
-             <property name="suffix">
-              <string> deg</string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="0">
-            <widget class="QLabel" name="longitudinalSpinFlipLabel">
-             <property name="text">
-              <string>Long.:</string>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="1">
-            <widget class="ctkSliderWidget" name="longitudinalSpinSliderWidget">
-             <property name="enabled">
-              <bool>false</bool>
-             </property>
-             <property name="toolTip">
-              <string>Rotate slice view around its Z-axis to restore anatomic orientation</string>
-             </property>
-             <property name="statusTip">
-              <string/>
-             </property>
-             <property name="locale">
-              <locale language="English" country="UnitedStates"/>
-             </property>
-             <property name="decimals">
-              <number>0</number>
-             </property>
-             <property name="minimum">
-              <double>-180.000000000000000</double>
-             </property>
-             <property name="maximum">
-              <double>180.000000000000000</double>
-             </property>
-             <property name="suffix">
-              <string> deg</string>
-             </property>
-            </widget>
-           </item>
-           <item row="2" column="0">
-            <widget class="QLabel" name="flipLabel">
-             <property name="text">
-              <string>Flip:</string>
-             </property>
-            </widget>
-           </item>
-           <item row="2" column="1">
-            <layout class="QHBoxLayout" name="mirrorHorizontalLayout">
-             <item>
-              <widget class="QCheckBox" name="axialSliceHorizontalFlipCheckBox">
+          <layout class="QVBoxLayout" name="verticalLayout_3">
+           <item>
+            <layout class="QGridLayout" name="moveSliceViewGridLayout">
+             <item row="0" column="1">
+              <widget class="qMRMLNodeComboBox" name="axialSliceViewSelector">
                <property name="toolTip">
-                <string>Flip the slice view horizontally.
-
-Concerns orthogonal reformat in axial navigation.</string>
+                <string>Move this slice view to a point along the centerline</string>
                </property>
-               <property name="text">
-                <string>Horizontal</string>
+               <property name="locale">
+                <locale language="English" country="UnitedStates"/>
+               </property>
+               <property name="nodeTypes">
+                <stringlist notr="true">
+                 <string>vtkMRMLSliceNode</string>
+                </stringlist>
+               </property>
+               <property name="noneEnabled">
+                <bool>true</bool>
+               </property>
+               <property name="addEnabled">
+                <bool>false</bool>
+               </property>
+               <property name="removeEnabled">
+                <bool>false</bool>
                </property>
               </widget>
              </item>
-             <item>
-              <widget class="QCheckBox" name="axialSliceVerticalFlipCheckBox">
+             <item row="0" column="3">
+              <widget class="QToolButton" name="jumpCentredInSliceNodeCheckBox">
                <property name="toolTip">
-                <string>Flip the slice view vertically.
-
-Concerns orthogonal reformat in axial navigation.</string>
+                <string>Center the selected point in the slice view</string>
                </property>
                <property name="text">
-                <string>Vertical</string>
+                <string>centered</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="4">
+              <widget class="QToolButton" name="orthogonalReformatInSliceNodeCheckBox">
+               <property name="toolTip">
+                <string>Orient the slice view orthogonal to the centerline</string>
+               </property>
+               <property name="text">
+                <string>orthogonal</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="0" column="0">
+              <widget class="QLabel" name="axialLabel">
+               <property name="text">
+                <string>Axial:</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="1">
+              <widget class="ctkSliderWidget" name="rotationSliderWidget">
+               <property name="enabled">
+                <bool>false</bool>
+               </property>
+               <property name="toolTip">
+                <string>Rotation angle for longitudinal slice view</string>
+               </property>
+               <property name="statusTip">
+                <string/>
+               </property>
+               <property name="locale">
+                <locale language="English" country="UnitedStates"/>
+               </property>
+               <property name="decimals">
+                <number>0</number>
+               </property>
+               <property name="minimum">
+                <double>-180.000000000000000</double>
+               </property>
+               <property name="maximum">
+                <double>180.000000000000000</double>
+               </property>
+               <property name="suffix">
+                <string> deg</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="qMRMLNodeComboBox" name="longitudinalSliceViewSelector">
+               <property name="toolTip">
+                <string>Move this slice view to a point along the centerline</string>
+               </property>
+               <property name="locale">
+                <locale language="English" country="UnitedStates"/>
+               </property>
+               <property name="nodeTypes">
+                <stringlist notr="true">
+                 <string>vtkMRMLSliceNode</string>
+                </stringlist>
+               </property>
+               <property name="noneEnabled">
+                <bool>true</bool>
+               </property>
+               <property name="addEnabled">
+                <bool>false</bool>
+               </property>
+               <property name="removeEnabled">
+                <bool>false</bool>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0">
+              <widget class="QLabel" name="rotateLabel">
+               <property name="toolTip">
+                <string/>
+               </property>
+               <property name="text">
+                <string>Rotate:</string>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="0">
+              <widget class="QLabel" name="longitudinalLabel">
+               <property name="toolTip">
+                <string>Longitudinal</string>
+               </property>
+               <property name="text">
+                <string>Long.:</string>
                </property>
               </widget>
              </item>
             </layout>
            </item>
+           <item>
+            <widget class="ctkCollapsibleGroupBox" name="spinFlipCollapsibleGroupBox">
+             <property name="title">
+              <string>Spin / Flip</string>
+             </property>
+             <property name="collapsed">
+              <bool>true</bool>
+             </property>
+             <property name="collapsedHeight">
+              <number>6</number>
+             </property>
+             <layout class="QFormLayout" name="formLayout_2">
+              <property name="leftMargin">
+               <number>3</number>
+              </property>
+              <property name="topMargin">
+               <number>3</number>
+              </property>
+              <property name="rightMargin">
+               <number>3</number>
+              </property>
+              <property name="bottomMargin">
+               <number>3</number>
+              </property>
+              <item row="0" column="0">
+               <widget class="QLabel" name="axialSpinFlipLabel">
+                <property name="text">
+                 <string>Axial:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="ctkSliderWidget" name="axialSpinSliderWidget">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="toolTip">
+                 <string>Rotate slice view around its Z-axis to restore anatomic orientation</string>
+                </property>
+                <property name="statusTip">
+                 <string/>
+                </property>
+                <property name="locale">
+                 <locale language="English" country="UnitedStates"/>
+                </property>
+                <property name="decimals">
+                 <number>0</number>
+                </property>
+                <property name="minimum">
+                 <double>-180.000000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>180.000000000000000</double>
+                </property>
+                <property name="suffix">
+                 <string> deg</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="longitudinalSpinFlipLabel">
+                <property name="text">
+                 <string>Long.:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="ctkSliderWidget" name="longitudinalSpinSliderWidget">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="toolTip">
+                 <string>Rotate slice view around its Z-axis to restore anatomic orientation</string>
+                </property>
+                <property name="statusTip">
+                 <string/>
+                </property>
+                <property name="locale">
+                 <locale language="English" country="UnitedStates"/>
+                </property>
+                <property name="decimals">
+                 <number>0</number>
+                </property>
+                <property name="minimum">
+                 <double>-180.000000000000000</double>
+                </property>
+                <property name="maximum">
+                 <double>180.000000000000000</double>
+                </property>
+                <property name="suffix">
+                 <string> deg</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="0">
+               <widget class="QLabel" name="flipLabel">
+                <property name="text">
+                 <string>Flip:</string>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="1">
+               <layout class="QHBoxLayout" name="mirrorHorizontalLayout">
+                <item>
+                 <widget class="QCheckBox" name="axialSliceHorizontalFlipCheckBox">
+                  <property name="toolTip">
+                   <string>Flip the slice view horizontally.
+
+Concerns orthogonal reformat in axial navigation.</string>
+                  </property>
+                  <property name="text">
+                   <string>Horizontal</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="axialSliceVerticalFlipCheckBox">
+                  <property name="toolTip">
+                   <string>Flip the slice view vertically.
+
+Concerns orthogonal reformat in axial navigation.</string>
+                  </property>
+                  <property name="text">
+                   <string>Vertical</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <spacer name="horizontalSpacer_2">
+                  <property name="orientation">
+                   <enum>Qt::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>40</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+               </layout>
+              </item>
+             </layout>
+            </widget>
+           </item>
           </layout>
          </widget>
         </item>
-        <item row="3" column="0">
+        <item row="2" column="0">
          <widget class="QLabel" name="distanceLabel">
           <property name="locale">
            <locale language="English" country="UnitedStates"/>
@@ -1024,7 +1021,7 @@ Concerns orthogonal reformat in axial navigation.</string>
           </property>
          </widget>
         </item>
-        <item row="3" column="1">
+        <item row="2" column="1">
          <layout class="QHBoxLayout" name="distanceFromOriginHorizontalLayout">
           <item>
            <widget class="QLabel" name="distanceValueLabel">
@@ -1067,7 +1064,7 @@ Concerns orthogonal reformat in axial navigation.</string>
           </item>
          </layout>
         </item>
-        <item row="4" column="0">
+        <item row="3" column="0">
          <widget class="QLabel" name="coordinatesLabel">
           <property name="locale">
            <locale language="English" country="UnitedStates"/>
@@ -1077,7 +1074,7 @@ Concerns orthogonal reformat in axial navigation.</string>
           </property>
          </widget>
         </item>
-        <item row="4" column="1">
+        <item row="3" column="1">
          <widget class="QLabel" name="coordinatesValueLabel">
           <property name="toolTip">
            <string>RAS coordinate of selected point</string>
@@ -1096,7 +1093,7 @@ Concerns orthogonal reformat in axial navigation.</string>
           </property>
          </widget>
         </item>
-        <item row="5" column="0">
+        <item row="4" column="0">
          <widget class="QLabel" name="diameterLabel">
           <property name="locale">
            <locale language="English" country="UnitedStates"/>
@@ -1106,7 +1103,7 @@ Concerns orthogonal reformat in axial navigation.</string>
           </property>
          </widget>
         </item>
-        <item row="5" column="1">
+        <item row="4" column="1">
          <layout class="QHBoxLayout" name="misDiameterHorizontalLayout">
           <item>
            <widget class="QLabel" name="diameterValueLabel">
@@ -1156,14 +1153,14 @@ Concerns orthogonal reformat in axial navigation.</string>
           </item>
          </layout>
         </item>
-        <item row="6" column="0">
+        <item row="5" column="0">
          <widget class="QLabel" name="surfaceAreaLabel">
           <property name="text">
            <string>Cross-section area:</string>
           </property>
          </widget>
         </item>
-        <item row="6" column="1">
+        <item row="5" column="1">
          <layout class="QHBoxLayout" name="crossSectionAreaHorizontalLayout">
           <item>
            <widget class="QLabel" name="surfaceAreaValueLabel">
@@ -1219,14 +1216,14 @@ Concerns orthogonal reformat in axial navigation.</string>
           </item>
          </layout>
         </item>
-        <item row="7" column="0">
+        <item row="6" column="0">
          <widget class="QLabel" name="derivedDiameterLabel">
           <property name="text">
            <string>Diameter (CE):</string>
           </property>
          </widget>
         </item>
-        <item row="7" column="1">
+        <item row="6" column="1">
          <widget class="QLabel" name="derivedDiameterValueLabel">
           <property name="toolTip">
            <string>Circular equivalent (CE) diameter: that of a circle having the surface area of the cross-section.
@@ -1240,7 +1237,7 @@ Caution: values at bifurcations may not have clinical meaning.</string>
           </property>
          </widget>
         </item>
-        <item row="8" column="0">
+        <item row="7" column="0">
          <widget class="QLabel" name="orientationLabel">
           <property name="toolTip">
            <string/>
@@ -1250,7 +1247,7 @@ Caution: values at bifurcations may not have clinical meaning.</string>
           </property>
          </widget>
         </item>
-        <item row="8" column="1">
+        <item row="7" column="1">
          <widget class="QLabel" name="orientationValueLabel">
           <property name="toolTip">
            <string>Angles are in Slicer's coordinate system</string>
