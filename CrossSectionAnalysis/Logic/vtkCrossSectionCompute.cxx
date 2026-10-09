@@ -4,6 +4,7 @@
  */
 #include "vtkCrossSectionCompute.h"
 #include <iostream>
+#include <algorithm>
 #include <thread>
 #include <mutex>
 #include <math.h> // sqrt
@@ -123,37 +124,54 @@ bool vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
         return false;
     }
     /*
+     * A single block is computed in the calling thread: no thread is started for it, which is
+     * also what makes this work where threads cannot be started at all (a WebAssembly build
+     * without pthreads, as in SlicerWeb, has a single thread whatever NumberOfThreads says).
+     */
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
+    const unsigned int numberOfThreads = 1;
+#else
+    const unsigned int numberOfThreads = std::max(1u, this->NumberOfThreads);
+#endif
+    /*
      * Divide the number of centerline points in equal blocks per thread.
      * The last block will include the residual points also.
      */
     const unsigned int numberOfValues = crossSectionAreaArray->GetNumberOfValues();
-    unsigned int residual = numberOfValues % this->NumberOfThreads;
-    unsigned int numberOfValuesPerBlock = (numberOfValues) / this->NumberOfThreads;
+    unsigned int residual = numberOfValues % numberOfThreads;
+    unsigned int numberOfValuesPerBlock = (numberOfValues) / numberOfThreads;
 
     std::vector<std::thread> threads;
     std::vector<vtkSmartPointer<vtkDoubleArray>> bufferArrays;
 
-    for (unsigned int i = 0; i < this->NumberOfThreads; i++)
+    for (unsigned int i = 0; i < numberOfThreads; i++)
     {
         unsigned int startPointIndex = i * numberOfValuesPerBlock;
         unsigned int endPointIndex = ((i + 1) * numberOfValuesPerBlock) - 1;
         // The last block must include the residual points.
-        if (i == (this->NumberOfThreads -1))
+        if (i == (numberOfThreads -1))
         {
             endPointIndex += residual;
         }
-        
-        /* 
+
+        // Each block stores the results in this array.
+        vtkSmartPointer<vtkDoubleArray> bufferArray = vtkSmartPointer<vtkDoubleArray>::New();
+        bufferArray->SetNumberOfComponents(3);
+        bufferArrays.push_back(bufferArray);
+
+        if (numberOfThreads == 1)
+        {
+            CrossSectionComputeWorker()(this->GeneratedPolyData, this->GeneratedTangents, this->ClosedSurfacePolyData,
+                                        bufferArrays[i], startPointIndex, endPointIndex, emptySectionIds, extractionMode);
+            continue;
+        }
+
+        /*
          * Give each thread a copy of the closed surface.
          */
         vtkSmartPointer<vtkPolyData> closedSurfacePolyDataCopy = vtkSmartPointer<vtkPolyData>::New();
         closedSurfacePolyDataCopy->DeepCopy(this->ClosedSurfacePolyData);
-        
-        // Each thread stores the results in this array.
-        vtkSmartPointer<vtkDoubleArray> bufferArray = vtkSmartPointer<vtkDoubleArray>::New();
-        bufferArray->SetNumberOfComponents(3);
-        bufferArrays.push_back(bufferArray);
-        
+
         threads.push_back(std::thread(CrossSectionComputeWorker(),
                                       this->GeneratedPolyData,
                                       this->GeneratedTangents,
@@ -167,7 +185,7 @@ bool vtkCrossSectionCompute::UpdateTable(vtkDoubleArray * crossSectionAreaArray,
         threads[i].join();
     }
     // Update the output table columns.
-    for (unsigned int i = 0; i < this->NumberOfThreads; i++)
+    for (unsigned int i = 0; i < numberOfThreads; i++)
     {
         vtkDoubleArray * bufferArray = (bufferArrays[i].Get());
         for (unsigned int r = 0; r < bufferArray->GetNumberOfTuples(); r++)
