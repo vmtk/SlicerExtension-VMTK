@@ -2169,13 +2169,88 @@ class CrossSectionAnalysisTest(ScriptedLoadableModuleTest):
     """
     slicer.mrmlScene.Clear(0)
 
+  # Picked from Extract centerline module.
+  def moduleWidget(self):
+    try:
+        slicer.util.selectModule("CrossSectionAnalysis")
+    except RuntimeError:
+        pass
+    return slicer.util.getModuleWidget("CrossSectionAnalysis")
+
   def runTest(self):
-    """
-    """
+    self.setUp()
+    self.test_CrossSectionAnalysis1()
 
   def test_CrossSectionAnalysis1(self):
-    """
-    """
+    # Test the most complex input: a Shape::Tube node as centerline.
+    # Use a Model as lumen surface instead of a segment for simplicity.
+
+    # Create a wall Shape node.
+    wall = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsShapeNode")
+    wall.SetShapeName(slicer.vtkMRMLMarkupsShapeNode.Tube)
+    wall.SetSplineNewInterpolationInterval(False)
+    wall.SetName("Wall")
+
+    wall.AddControlPoint([-50.0, 10.0, 30.0])
+    wall.AddControlPoint([-50.0, 10.0, -30.0])
+    wall.AddControlPoint([0.0, 10.0, 30.0])
+    wall.AddControlPoint([0.0, 10.0, -30.0])
+    wall.AddControlPoint([50.0, 10.0, 30.0])
+    wall.AddControlPoint([50.0, 10.0, -30.0])
+
+    # Create a temporary lumen tube.
+    lumen = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsShapeNode")
+    lumen.SetShapeName(slicer.vtkMRMLMarkupsShapeNode.Tube)
+    lumen.SetName("Lumen")
+
+    lumen.AddControlPoint([-50.0, 10.0, 30.0])
+    lumen.AddControlPoint([-50.0, 10.0, -30.0])
+    lumen.AddControlPoint([-25.0, 10.0, 25.0]) # Begin descent.
+    lumen.AddControlPoint([-25.0, 10.0, -25.0])
+    lumen.AddControlPoint([-2.5, 10.0, 15.0])  # Begin middle straight part.
+    lumen.AddControlPoint([-2.5, 10.0, -15.0])
+    lumen.AddControlPoint([2.5, 10.0, 15.0])
+    lumen.AddControlPoint([2.5, 10.0, -15.0])  # End middle straight part.
+    lumen.AddControlPoint([25.0, 10.0, 25.0])
+    lumen.AddControlPoint([25.0, 10.0, -25.0]) # End descent.
+    lumen.AddControlPoint([50.0, 10.0, 30.0])
+    lumen.AddControlPoint([50.0, 10.0, -30.0])
+
+    # Create a lumen model and remove the tube.
+    lumenModel = slicer.modules.models.logic().AddModel(lumen.GetShapeWorld())
+    slicer.mrmlScene.RemoveNode(lumen)
+
+    logic = CrossSectionAnalysisLogic()
+    parameterNode = logic.getParameterNode()
+    logic.initMemberVariables()
+    logic.setDefaultParameters(parameterNode)
+
+    widget = self.moduleWidget()
+    widget.setParameterNode(parameterNode)
+
+    parameterNode.SetNodeReferenceID(ROLE_INPUT_CENTERLINE, wall.GetID())
+    parameterNode.SetNodeReferenceID(ROLE_INPUT_SEGMENTATION, lumenModel.GetID())
+
+    # These 4 lines are required in the test.
+    # On normal user interaction, these actions are performed via the code itself.
+    logic.setInputCenterlineNode(wall)
+    logic.setLumenSurface(lumenModel, None)
+    widget.ui.outputTableSelector.setCurrentNode(slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode"))
+    logic.setOutputTableNode(widget.ui.outputTableSelector.currentNode())
+
+    widget.onApply()
+
+    # Check at the middle of the centerline.
+    numberOfCenterlinePoints = logic.getNumberOfPoints()
+    middleStenosisByDiameter = logic.outputTableNode.GetTable().GetValueByName(int(numberOfCenterlinePoints / 2), DIAMETER_STENOSIS_ARRAY_NAME)
+    middleStenosisBySurfaceArea = logic.outputTableNode.GetTable().GetValueByName(int(numberOfCenterlinePoints / 2), SURFACE_AREA_STENOSIS_ARRAY_NAME)
+
+    # Expected: 50% by diameter, 75% by surface area.
+    self.assertEqual(round(middleStenosisByDiameter.ToDouble(), 2), 50.0)
+    self.assertEqual(round(middleStenosisBySurfaceArea.ToDouble(), 2), 75.0)
+
+    self.delayDisplay("Test passed.")
+
 
 DISTANCE_ARRAY_NAME = _("Distance")
 MIS_DIAMETER_ARRAY_NAME = _("Diameter (MIS)")
