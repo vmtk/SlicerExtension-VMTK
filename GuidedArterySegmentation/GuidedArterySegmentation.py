@@ -80,8 +80,8 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
     self.logic = GuidedArterySegmentationLogic()
     self.ui.parameterSetSelector.addAttribute("vtkMRMLScriptedModuleNode", "ModuleName", self.moduleName)
 
-    sm3dIsAvailable = hasattr(slicer.modules, "stenosismeasurement3d")
-    self.ui.extentCollapsibleGroupBox.setVisible(sm3dIsAvailable)
+    shapeIsAvailable = hasattr(slicer.modules, "shape")
+    self.ui.extentCollapsibleGroupBox.setVisible(shapeIsAvailable)
       
 
     self.ui.seEffectsCollapsibleGroupBox.checked = False
@@ -97,7 +97,7 @@ class GuidedArterySegmentationWidget(ScriptedLoadableModuleWidget, VTKObservatio
 
     # Application connections
     self.ui.inputCurveSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onCurveNode)
-    if (sm3dIsAvailable):
+    if (shapeIsAvailable):
       self.ui.inputShapeSelector.connect("currentNodeChanged(vtkMRMLNode*)", self.onShapeNode)
 
     self.ui.inputSliceNodeSelector.connect("currentNodeChanged(vtkMRMLNode*)", lambda node: self.onMrmlNodeChanged(ROLE_INPUT_SLICE, node))
