@@ -1,7 +1,7 @@
 The VMTK Extension for 3D Slicer
 --------------------------------
 
-This extension makes the Vascular Modeling Toolkit (VMTK, http://www.vmtk.org/) available in 3D Slicer (www.slicer.org). Features include vessel tree segmentation and centerline extraction. Short demo video of vessel segmentation and centerline extraction is available here: https://youtu.be/caEuwJ7pCWs
+This extension makes the Vascular Modeling Toolkit (VMTK, https://vmtk.github.io/) available in 3D Slicer (https://www.slicer.org). Features include vessel tree segmentation and centerline extraction. Short demo video of vessel segmentation and centerline extraction is available here: https://youtu.be/caEuwJ7pCWs
 
 [![](ExtractCenterlineVideoThumbnail.png)](https://www.youtube.com/watch?v=yi07mjr3JeU)
 
